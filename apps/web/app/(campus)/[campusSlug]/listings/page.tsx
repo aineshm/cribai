@@ -24,7 +24,7 @@ export default async function ListingsPage({
     .single();
 
   if (!campus) {
-    return <p className="text-gray-500">Campus not found.</p>;
+    return <p className="text-[var(--surface-400)]">Campus not found.</p>;
   }
 
   // Build query
@@ -74,9 +74,11 @@ export default async function ListingsPage({
   const { data: listings } = await query;
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold">Listings — {campus.name}</h1>
-      <p className="mt-2 text-gray-600">
+    <div className="animate-fade-in">
+      <h1 className="font-[family-name:var(--font-display)] text-3xl text-[var(--surface-900)]">
+        Listings — {campus.name}
+      </h1>
+      <p className="mt-2 text-[var(--surface-500)]">
         Search and compare student housing with True Cost and Fairness Scores.
       </p>
       <div className="mt-6">
