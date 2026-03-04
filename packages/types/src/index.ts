@@ -4,3 +4,4 @@ export { profileSchema, type Profile, type SubscriptionTier, type VerificationSt
 export { landlordSchema, landlordReviewSchema, type Landlord, type LandlordReview } from './landlord';
 export { pageindexTreeSchema, type PageIndexTree, type PageIndexNode } from './pageindex';
 export { aiQueryLogSchema, type AiQueryLog } from './ai';
+export { tourRequestSchema, tourRequestInputSchema, type TourRequest, type TourRequestInput } from './tour';
