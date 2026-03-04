@@ -18,6 +18,7 @@
     "@supabase/ssr": "^0.5.0"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "typescript": "^5.7.0"
   }
 }
