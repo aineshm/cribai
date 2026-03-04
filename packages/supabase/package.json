@@ -1,0 +1,23 @@
+{
+  "name": "@campusnest/supabase",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./client": "./dist/client.js",
+    "./server": "./dist/server.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.47.0",
+    "@supabase/ssr": "^0.5.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}
