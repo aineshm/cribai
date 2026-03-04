@@ -6,14 +6,16 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "test": "echo 'No tests yet (Phase 5)'",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
   "dependencies": {
     "@google/genai": "^1.43.0",
+    "@supabase/supabase-js": "^2.47.0",
     "@campusnest/types": "workspace:*",
-    "@campusnest/supabase": "workspace:*"
+    "@campusnest/supabase": "workspace:*",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "typescript": "^5.7.0",
