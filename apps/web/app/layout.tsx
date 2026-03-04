@@ -3,7 +3,8 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'CampusNest — Student Housing Intelligence',
-  description: 'Find fair-priced student housing with True Cost Calculator, Price Fairness Scores, and AI-powered advice.',
+  description:
+    'Find fair-priced student housing with True Cost Calculator, Price Fairness Scores, and AI-powered advice.',
 };
 
 export default function RootLayout({

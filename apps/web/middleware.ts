@@ -18,7 +18,13 @@ export async function middleware(request: NextRequest) {
       getAll() {
         return request.cookies.getAll();
       },
-      setAll(cookiesToSet: Array<{ name: string; value: string; options?: Record<string, unknown> }>) {
+      setAll(
+        cookiesToSet: Array<{
+          name: string;
+          value: string;
+          options?: Record<string, unknown>;
+        }>
+      ) {
         for (const { name, value, options } of cookiesToSet) {
           response.cookies.set(name, value, options);
         }
@@ -26,8 +32,49 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  // Refresh session if it exists
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { pathname } = request.nextUrl;
+
+  // Protect /*/cribai routes — require auth
+  if (pathname.match(/^\/[^/]+\/cribai/) && !user) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = '/login';
+    loginUrl.searchParams.set('next', pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // Rate limit /api/ai/* routes
+  if (pathname.startsWith('/api/ai/') && user) {
+    const rateLimitRes = await fetch(
+      `${supabaseUrl}/functions/v1/rate-limiter`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({ userId: user.id }),
+      }
+    ).catch(() => null);
+
+    if (rateLimitRes?.ok) {
+      const data = await rateLimitRes.json().catch(() => null);
+      if (data && !data.allowed) {
+        return NextResponse.json(
+          { error: 'Rate limit exceeded. Please try again later.' },
+          { status: 429 }
+        );
+      }
+    }
+  }
+
+  // Block unauthenticated users from /api/ai/*
+  if (pathname.startsWith('/api/ai/') && !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   return response;
 }

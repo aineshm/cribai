@@ -1,0 +1,115 @@
+Codemap Generation Report
+Generated: 2026-03-04
+Project: CampusNest (ai-real-estate-agent)
+
+=======================================================
+FILES CREATED (new — no prior codemaps existed)
+=======================================================
+
+docs/CODEMAPS/architecture.md
+  - High-level system diagram (ASCII)
+  - Service boundaries: Next.js app / Supabase / GitHub Actions scraper
+  - Data flow: listing lifecycle + auth flow
+  - Monorepo package dependency graph
+
+docs/CODEMAPS/backend.md
+  - Next.js API routes table (3 routes: cribai stub, stripe stub, auth callback)
+  - Middleware logic: auth guard + rate-limit enforcement
+  - 4 Supabase Edge Functions documented with triggers, logic, side effects
+  - Scraper service: BaseScraper abstract class + ApartmentsComScraper (Crawlee/Playwright)
+  - Shared packages: utils (calculateTrueCost, calculateFairnessScore, comparable-selector, price-model)
+  - packages/ai stubs for Phase 5 (CribAI, PageIndexBuilder, PageIndexTraverser)
+
+docs/CODEMAPS/frontend.md
+  - Full Next.js 15 App Router page tree (auth group, campus group, API routes)
+  - Component hierarchy showing server/client split
+  - 6 components documented with file paths, render type, purpose
+  - Data fetching pattern: SSR via createSecretClient(), URL-param filters
+
+docs/CODEMAPS/data.md
+  - 8 database tables with column-level detail
+  - RLS policy summary table
+  - Index documentation (composite + GIST + partial)
+  - Custom JWT claims function
+  - Phase 2 tables noted: sublets, roommate_profiles
+
+docs/CODEMAPS/dependencies.md
+  - External services: Supabase, Anthropic, Stripe, apartments.com, GitHub Actions, Vercel
+  - Internal package consumer map
+  - Key NPM dependencies per workspace
+  - Environment variables table
+  - Build toolchain: pnpm 9, Turborepo, TypeScript 5, Vitest
+
+=======================================================
+KEY FINDINGS FROM SCAN
+=======================================================
+
+Phase status:
+  - Phase 1 (Foundation): COMPLETE
+    monorepo, schema, types, packages, Next.js scaffold, auth middleware, edge functions
+  - Phase 2 (Scrapers): PARTIAL
+    ApartmentsComScraper is fully implemented with Crawlee/Playwright
+    Stripe webhook is a stub
+    Sublets/roommate tables exist in schema but no UI
+  - Phase 3 (Pricing engine): PARTIAL
+    calculateTrueCost() implemented with 15 tests passing
+    fairness-scorer has simple + enhanced (ML) modes, both tested
+    recalculate-fairness edge function wired to nightly scrape
+    TrueCostCalculator UI component exists in apps/web
+  - Phase 4 (Listing UI): PARTIAL
+    ListingsPage, ListingDetailPage, ListingGrid, ListingCard, ListingFilters all exist
+    FairnessBadge component exists
+    TrueCostCalculator component wired to calculateTrueCost
+  - Phase 5 (CribAI): STUB ONLY
+    CribAI class, PageIndexBuilder, PageIndexTraverser all return placeholder values
+    /api/ai/cribai route returns "not yet implemented"
+    pageindex_trees table exists in schema
+    rebuild-pageindex edge function referenced in schema but not in functions dir
+
+Architectural observations:
+  - No packages/ui components used yet — apps/web uses Tailwind directly
+  - recalculate-fairness in edge function reimplements fairness scoring inline
+    (does not import packages/utils — edge functions are isolated Deno runtime)
+  - middleware.ts fetches rate-limiter synchronously on every /api/ai/ request
+    which adds latency; acceptable for current scale
+  - All listing reads in SSR pages use createSecretClient() (service role)
+    which bypasses RLS — appropriate for SSR but worth noting
+
+Test coverage:
+  - packages/utils: 5 test files, 15+ tests — cost-calculator, fairness-scorer,
+    comparable-selector, price-model, enhanced-fairness
+  - services/scraper: normalizer.test.ts exists
+  - packages/ai: no tests (stubs only)
+  - apps/web: no tests yet
+
+=======================================================
+FILES VERIFIED TO EXIST (all paths confirmed)
+=======================================================
+apps/web/app/(auth)/callback/route.ts           YES
+apps/web/app/(auth)/login/page.tsx              YES
+apps/web/app/(auth)/verify-edu/page.tsx         YES
+apps/web/app/(campus)/[campusSlug]/layout.tsx   YES
+apps/web/app/(campus)/[campusSlug]/listings/page.tsx       YES
+apps/web/app/(campus)/[campusSlug]/listings/[id]/page.tsx  YES
+apps/web/app/(campus)/[campusSlug]/cribai/page.tsx         YES
+apps/web/app/api/ai/cribai/route.ts             YES
+apps/web/app/api/webhooks/stripe/route.ts       YES
+apps/web/middleware.ts                          YES
+apps/web/components/auth-nav.tsx                YES
+apps/web/components/fairness-badge.tsx          YES
+apps/web/components/listing-card.tsx            YES
+apps/web/components/listing-filters.tsx         YES
+apps/web/components/listing-grid.tsx            YES
+apps/web/components/true-cost-calculator.tsx    YES
+apps/web/lib/campus-context.tsx                 YES
+packages/types/src/{listing,campus,profile,landlord,ai,pageindex}.ts  YES
+packages/utils/src/{cost-calculator,fairness-scorer,comparable-selector,price-model}.ts  YES
+packages/supabase/src/{client,server}.ts        YES
+packages/ai/src/{cribai,pageindex-builder,pageindex-traverser}.ts     YES
+packages/ui/src/index.ts                        YES (empty stub)
+services/scraper/scrapers/{base-scraper,apartments-com}.ts  YES
+services/scraper/{normalizer,run}.ts            YES
+supabase/functions/{rate-limiter,verify-edu,recalculate-fairness,rebuild-pageindex}/index.ts  YES
+supabase/migrations/001_initial_schema.sql      YES
+supabase/seed/001_campus_configs.sql            YES
+.github/workflows/nightly-scrape.yml            YES

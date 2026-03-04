@@ -1,2 +1,4 @@
 export { calculateTrueCost, type TrueCostInput } from './cost-calculator';
-export { calculateFairnessScore, type FairnessInput } from './fairness-scorer';
+export { calculateFairnessScore, calculateEnhancedFairness, type FairnessInput, type EnhancedFairnessInput } from './fairness-scorer';
+export { selectComparables, type ComparableCandidate, type ComparableSelectionConfig } from './comparable-selector';
+export { trainPriceModel, predictRent, type PriceModelFeatures, type PriceModelCoefficients } from './price-model';
