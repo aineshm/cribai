@@ -19,3 +19,4 @@ export {
   type ListingSummary,
   type ScoredListing,
 } from './chat';
+export { tourRequestSchema, tourRequestInputSchema, type TourRequest, type TourRequestInput } from './tour';
