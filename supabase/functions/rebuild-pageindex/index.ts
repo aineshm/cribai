@@ -13,31 +13,81 @@ Deno.serve(async (req) => {
       serviceKey!,
     );
 
-    // Phase 5: Full PageIndex rebuild with Haiku summaries
-    // For now: build a simple statistical summary tree
-
     const { data: campuses } = await supabase
       .from('campus_configs')
       .select('id, slug, name')
       .eq('is_public', true);
 
+    const results: Array<{ campus: string; listings: number; sections: number }> = [];
+
     for (const campus of campuses ?? []) {
       const { data: listings } = await supabase
         .from('listings')
-        .select('rent_monthly, bedrooms, address')
+        .select('id, address, rent_monthly, bedrooms, bathrooms, sqft, amenities, fairness_score')
         .eq('campus_id', campus.id)
         .eq('is_active', true);
 
       if (!listings || listings.length === 0) continue;
 
-      const rents = listings.map((l) => l.rent_monthly as number);
-      const avgRent = Math.round(rents.reduce((s, r) => s + r, 0) / rents.length);
+      // Group by bedrooms
+      const groups: Record<string, typeof listings> = {};
+      for (const l of listings) {
+        const key = l.bedrooms === null ? 'Unknown'
+          : l.bedrooms === 0 ? 'Studios'
+          : `${l.bedrooms}-Bedroom`;
+        (groups[key] ??= []).push(l);
+      }
+
+      // Build tree with statistical summaries (no AI calls in edge function)
+      const children = Object.entries(groups).map(([label, group]) => {
+        const rents = group.map((l) => l.rent_monthly as number);
+        const avg = Math.round(rents.reduce((s, r) => s + r, 0) / rents.length);
+        const min = Math.min(...rents);
+        const max = Math.max(...rents);
+
+        // Build price tier leaves
+        const sorted = [...group].sort((a, b) => (a.rent_monthly as number) - (b.rent_monthly as number));
+        const third = Math.ceil(sorted.length / 3);
+        const tiers = [
+          { label: 'Budget', items: sorted.slice(0, third) },
+          { label: 'Mid-range', items: sorted.slice(third, third * 2) },
+          { label: 'Premium', items: sorted.slice(third * 2) },
+        ].filter(t => t.items.length > 0);
+
+        const leafChildren = tiers.map(tier => {
+          const tierRents = tier.items.map(l => l.rent_monthly as number);
+          const tierMin = Math.min(...tierRents);
+          const tierMax = Math.max(...tierRents);
+          const tierAvg = Math.round(tierRents.reduce((s, r) => s + r, 0) / tierRents.length);
+
+          return {
+            label: tier.label,
+            summary: `${tier.items.length} listings, $${tierMin}-$${tierMax}/mo (avg $${tierAvg})`,
+            contentRef: JSON.stringify({
+              listingIds: tier.items.map(l => l.id),
+              priceRange: { min: tierMin, max: tierMax },
+              sampleAddresses: tier.items.slice(0, 5).map(l => l.address),
+            }),
+            children: [],
+          };
+        });
+
+        return {
+          label,
+          summary: `${group.length} listings, $${min}-$${max}/mo (avg $${avg})`,
+          contentRef: null,
+          children: leafChildren,
+        };
+      });
+
+      const allRents = listings.map((l) => l.rent_monthly as number);
+      const overallAvg = Math.round(allRents.reduce((s, r) => s + r, 0) / allRents.length);
 
       const tree = {
         label: campus.name,
-        summary: `${listings.length} active listings, avg rent $${avgRent}/mo`,
+        summary: `${listings.length} active listings near ${campus.name}, avg rent $${overallAvg}/mo across ${Object.keys(groups).length} categories`,
         contentRef: null,
-        children: [],
+        children,
       };
 
       await supabase
@@ -49,12 +99,15 @@ Deno.serve(async (req) => {
           leaf_count: listings.length,
           built_at: new Date().toISOString(),
         }, { onConflict: 'campus_id,entity_type' });
+
+      results.push({ campus: campus.slug, listings: listings.length, sections: children.length });
     }
 
-    return new Response(JSON.stringify({ success: true }), {
+    return new Response(JSON.stringify({ success: true, results }), {
       headers: { 'Content-Type': 'application/json' },
     });
-  } catch {
-    return new Response(JSON.stringify({ error: 'Internal error' }), { status: 500 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Internal error';
+    return new Response(JSON.stringify({ error: message }), { status: 500 });
   }
 });
