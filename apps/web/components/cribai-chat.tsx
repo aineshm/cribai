@@ -82,6 +82,7 @@ export function CribAIChat({ campusSlug }: CribAIChatProps) {
       const decoder = new TextDecoder();
       let assistantBlocks: ChatBlock[] = [];
       let currentTextContent = '';
+      let sseBuffer = '';
 
       setMessages(prev => [...prev, { role: 'assistant', blocks: [] }]);
 
@@ -98,8 +99,10 @@ export function CribAIChat({ campusSlug }: CribAIChatProps) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const text = decoder.decode(value, { stream: true });
-        const lines = text.split('\n');
+        sseBuffer += decoder.decode(value, { stream: true });
+        const lines = sseBuffer.split('\n');
+        // Keep the last (possibly incomplete) line in the buffer
+        sseBuffer = lines.pop() ?? '';
 
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
