@@ -2,7 +2,7 @@ export interface RawListing {
   readonly externalId: string;
   readonly source: string;
   readonly address: string;
-  readonly rentMonthly: number;
+  readonly rentMonthly: number | null;
   readonly bedrooms: number | null;
   readonly bathrooms: number | null;
   readonly sqft: number | null;
@@ -11,6 +11,8 @@ export interface RawListing {
   readonly latitude: number | null;
   readonly longitude: number | null;
   readonly rawData: Record<string, unknown>;
+  readonly photoUrls: readonly string[];
+  readonly sourceUrl: string;
 }
 
 export interface ScraperConfig {

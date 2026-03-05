@@ -16,6 +16,8 @@ function makeRaw(overrides: Partial<RawListing> = {}): RawListing {
     latitude: 43.0766,
     longitude: -89.4012,
     rawData: { url: 'https://example.com' },
+    photoUrls: ['https://img.example.com/1.jpg', 'https://img.example.com/2.jpg'],
+    sourceUrl: 'https://www.apartments.com/test/abc123/',
     ...overrides,
   };
 }
@@ -99,5 +101,29 @@ describe('normalizeListing', () => {
       makeRaw({ amenities: ['Bike   Storage'] }),
     );
     expect(result.amenities).toEqual(['bike_storage']);
+  });
+
+  // Photo URL pass-through
+  it('passes through photoUrls array unchanged', () => {
+    const urls = ['https://img.example.com/1.jpg', 'https://img.example.com/2.jpg'];
+    const result = normalizeListing(makeRaw({ photoUrls: urls }));
+    expect(result.photoUrls).toEqual(urls);
+  });
+
+  it('passes through empty photoUrls as empty array', () => {
+    const result = normalizeListing(makeRaw({ photoUrls: [] }));
+    expect(result.photoUrls).toEqual([]);
+  });
+
+  // Source URL pass-through
+  it('passes through sourceUrl string unchanged', () => {
+    const result = normalizeListing(makeRaw({ sourceUrl: 'https://www.apartments.com/test/abc/' }));
+    expect(result.sourceUrl).toBe('https://www.apartments.com/test/abc/');
+  });
+
+  // Nullable rent
+  it('handles null rentMonthly without error', () => {
+    const result = normalizeListing(makeRaw({ rentMonthly: null }));
+    expect(result.rentMonthly).toBeNull();
   });
 });

@@ -4,7 +4,7 @@ export interface NormalizedListing {
   readonly externalId: string;
   readonly source: string;
   readonly address: string;
-  readonly rentMonthly: number;
+  readonly rentMonthly: number | null;
   readonly bedrooms: number | null;
   readonly bathrooms: number | null;
   readonly sqft: number | null;
@@ -13,6 +13,8 @@ export interface NormalizedListing {
   readonly latitude: number | null;
   readonly longitude: number | null;
   readonly rawData: Record<string, unknown>;
+  readonly photoUrls: readonly string[];
+  readonly sourceUrl: string;
 }
 
 const AMENITY_ALIASES: Record<string, string> = {
@@ -42,7 +44,9 @@ export function normalizeListing(raw: RawListing): NormalizedListing {
     externalId: raw.externalId,
     source: raw.source,
     address: raw.address.trim(),
-    rentMonthly: Math.round(raw.rentMonthly * 100) / 100,
+    rentMonthly: raw.rentMonthly !== null
+      ? Math.round(raw.rentMonthly * 100) / 100
+      : null,
     bedrooms: raw.bedrooms,
     bathrooms: raw.bathrooms,
     sqft: raw.sqft,
@@ -51,5 +55,7 @@ export function normalizeListing(raw: RawListing): NormalizedListing {
     latitude: raw.latitude,
     longitude: raw.longitude,
     rawData: raw.rawData,
+    photoUrls: [...raw.photoUrls],
+    sourceUrl: raw.sourceUrl,
   };
 }
