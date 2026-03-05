@@ -122,7 +122,7 @@ Note: Phase 5 depends on Phase 2 (not Phase 4), so Phases 4, 5, and 6 can potent
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Auth and Platform Foundation | 1/3 | In Progress|  |
+| 1. Auth and Platform Foundation | 2/3 | In Progress|  |
 | 2. Data Pipeline | 0/2 | Not started | - |
 | 3. Semantic Search | 0/3 | Not started | - |
 | 4. Saved Listings and Alerts | 0/2 | Not started | - |
