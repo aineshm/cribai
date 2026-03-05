@@ -24,12 +24,49 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm --filter @campusnest/scraper start
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Run scraper
+        id: scrape
+        run: |
+          OUTPUT=$(pnpm --filter @campusnest/scraper start 2>&1) || EXIT_CODE=$?
+          echo "$OUTPUT"
+          METRICS=$(echo "$OUTPUT" | grep "^::metrics::" | sed 's/^::metrics:://')
+          if [ -n "$METRICS" ]; then
+            echo "metrics=$METRICS" >> $GITHUB_OUTPUT
+          fi
+          exit ${EXIT_CODE:-0}
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
 
+      - name: Write job summary
+        if: always()
+        run: |
+          echo "## Nightly Scrape Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.scrape.outcome }}" = "failure" ]; then
+            echo "> **FAILED** -- Check logs for details" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "> **SUCCESS**" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          METRICS='${{ steps.scrape.outputs.metrics }}'
+          if [ -n "$METRICS" ]; then
+            echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Listings Upserted | $(echo $METRICS | jq -r '.upserted') |" >> $GITHUB_STEP_SUMMARY
+            echo "| Stale Marked | $(echo $METRICS | jq -r '.staleMarked') |" >> $GITHUB_STEP_SUMMARY
+            echo "| Archived | $(echo $METRICS | jq -r '.archived') |" >> $GITHUB_STEP_SUMMARY
+            echo "| Deleted | $(echo $METRICS | jq -r '.deleted') |" >> $GITHUB_STEP_SUMMARY
+            echo "| Errors | $(echo $METRICS | jq -r '.errors') |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "*No metrics available -- scraper may have crashed before reporting.*" >> $GITHUB_STEP_SUMMARY
+          fi
+
       - name: Trigger fairness recalculation
+        if: success()
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
