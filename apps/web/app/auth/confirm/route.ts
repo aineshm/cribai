@@ -5,7 +5,9 @@ export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
   const tokenHash = searchParams.get('token_hash');
   const type = searchParams.get('type') as 'magiclink' | 'email' | null;
-  const next = searchParams.get('next') ?? '/';
+  const lastCampus = request.cookies.get('last_campus')?.value;
+  const next = searchParams.get('next')
+    ?? (lastCampus ? `/${lastCampus}/cribai` : '/');
 
   if (!tokenHash) {
     return NextResponse.redirect(`${origin}/login?error=missing_token`);
