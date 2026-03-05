@@ -81,7 +81,7 @@ export default function LoginPage() {
             <div className="text-4xl mb-4">🔑</div>
             <h1 className="font-[family-name:var(--font-display)] text-2xl text-[var(--surface-900)]">Enter your code</h1>
             <p className="mt-2 text-sm text-[var(--surface-500)]">
-              We sent a 6-digit code to <strong>{email}</strong>
+              We sent an 8-digit code to <strong>{email}</strong>
             </p>
           </div>
 
@@ -96,8 +96,8 @@ export default function LoginPage() {
               type="text"
               inputMode="numeric"
               pattern="[0-9]*"
-              maxLength={6}
-              placeholder="000000"
+              maxLength={8}
+              placeholder="00000000"
               value={otp}
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
               required
@@ -106,7 +106,7 @@ export default function LoginPage() {
             />
             <button
               type="submit"
-              disabled={loading || otp.length < 6}
+              disabled={loading || otp.length < 8}
               className="w-full rounded-xl bg-[var(--primary-600)] px-4 py-3 text-sm font-medium text-white hover:bg-[var(--primary-700)] disabled:opacity-50 transition-colors"
             >
               {loading ? 'Verifying...' : 'Verify code'}
