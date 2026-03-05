@@ -19,7 +19,7 @@ function fairnessLabel(score: number): string {
   if (score >= 8) return 'Great';
   if (score >= 6) return 'Fair';
   if (score >= 4) return 'Avg';
-  return 'High';
+  return 'Poor';
 }
 
 interface ChatComparisonTableProps {

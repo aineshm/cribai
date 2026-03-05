@@ -51,11 +51,12 @@ export function ChatBlockRenderer({ block, campusSlug }: ChatBlockRendererProps)
       return (
         <div className="grid gap-2 sm:grid-cols-2" role="list" aria-label="Search results">
           {block.listings.slice(0, 5).map((listing) => (
-            <ChatListingCard
-              key={listing.id}
-              listing={listing}
-              campusSlug={campusSlug}
-            />
+            <div key={listing.id} role="listitem">
+              <ChatListingCard
+                listing={listing}
+                campusSlug={campusSlug}
+              />
+            </div>
           ))}
         </div>
       );

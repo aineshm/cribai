@@ -7,6 +7,7 @@ interface ChatTourConfirmationProps {
 }
 
 export function ChatTourConfirmation({
+  tourRequestId,
   listingAddress,
   status,
 }: ChatTourConfirmationProps) {
@@ -15,6 +16,7 @@ export function ChatTourConfirmation({
       className="rounded-lg border border-green-200 bg-green-50 p-3"
       role="status"
       aria-label="Tour request confirmation"
+      data-tour-request-id={tourRequestId}
     >
       <div className="flex items-start gap-2">
         <span className="mt-0.5 text-green-600" aria-hidden="true">&#10003;</span>

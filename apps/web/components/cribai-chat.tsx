@@ -173,6 +173,7 @@ export function CribAIChat({ campusSlug }: CribAIChatProps) {
             }
 
             case 'done':
+              reader.cancel();
               break;
           }
         }
