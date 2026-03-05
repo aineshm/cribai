@@ -64,7 +64,7 @@ export default function LoginPage() {
     }
 
     toast.success('Signed in successfully!');
-    router.push('/uw-madison/cribai');
+    window.location.href = '/uw-madison/cribai';
   }
 
   if (step === 'otp') {
