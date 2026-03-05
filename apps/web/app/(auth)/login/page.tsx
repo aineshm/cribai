@@ -1,40 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@campusnest/supabase/client';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { isEduEmail } from '@/lib/edu-validation';
 
-const ERROR_MESSAGES: Record<string, string> = {
-  auth_failed:
-    'Your magic link has expired or was already used. Please request a new one.',
-  link_expired:
-    'Your magic link has expired or was already used. Please request a new one.',
-  missing_code: 'Invalid sign-in link. Please request a new one.',
-  config: 'Sign-in is temporarily unavailable. Please try again later.',
-};
-
 export default function LoginPage() {
-  const searchParams = useSearchParams();
+  const router = useRouter();
   const [email, setEmail] = useState('');
+  const [otp, setOtp] = useState('');
+  const [step, setStep] = useState<'email' | 'otp'>('email');
   const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const errorParam = searchParams.get('error');
-    if (errorParam) {
-      const message =
-        ERROR_MESSAGES[errorParam] ?? 'An unexpected error occurred.';
-      toast.error(message);
-      // Clear the error param from URL without navigation
-      window.history.replaceState({}, '', '/login');
-    }
-  }, [searchParams]);
-
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSendOtp(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
@@ -49,7 +30,7 @@ export default function LoginPage() {
     const { error: authError } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        shouldCreateUser: true,
       },
     });
 
@@ -60,24 +41,83 @@ export default function LoginPage() {
       return;
     }
 
-    setSent(true);
+    setStep('otp');
   }
 
-  if (sent) {
+  async function handleVerifyOtp(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    const supabase = createClient();
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      email,
+      token: otp,
+      type: 'email',
+    });
+
+    setLoading(false);
+
+    if (verifyError) {
+      setError(verifyError.message);
+      return;
+    }
+
+    toast.success('Signed in successfully!');
+    router.push('/uw-madison/cribai');
+  }
+
+  if (step === 'otp') {
     return (
       <main className="flex min-h-screen items-center justify-center p-8">
-        <div className="w-full max-w-sm text-center animate-fade-in">
-          <div className="text-4xl mb-4">✉️</div>
-          <h1 className="font-[family-name:var(--font-display)] text-2xl text-[var(--surface-900)]">Check your email</h1>
-          <p className="mt-2 text-sm text-[var(--surface-500)]">
-            We sent a magic link to <strong>{email}</strong>. Click the link to
-            sign in.
-          </p>
+        <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow-[var(--shadow-card)] animate-fade-in">
           <button
-            onClick={() => setSent(false)}
-            className="mt-6 text-sm text-[var(--primary-600)] hover:underline"
+            onClick={() => { setStep('email'); setOtp(''); setError(null); }}
+            className="text-sm text-[var(--surface-400)] hover:text-[var(--surface-600)] transition-colors"
           >
-            Use a different email
+            &larr; Back
+          </button>
+          <div className="mt-4 text-center">
+            <div className="text-4xl mb-4">🔑</div>
+            <h1 className="font-[family-name:var(--font-display)] text-2xl text-[var(--surface-900)]">Enter your code</h1>
+            <p className="mt-2 text-sm text-[var(--surface-500)]">
+              We sent a 6-digit code to <strong>{email}</strong>
+            </p>
+          </div>
+
+          {error && (
+            <div className="mt-4 rounded-lg bg-[var(--fair-bad-bg)] p-3 text-sm text-[var(--fair-bad)]">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleVerifyOtp} className="mt-6 space-y-4">
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={6}
+              placeholder="000000"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+              required
+              autoFocus
+              className="w-full rounded-xl border border-[var(--surface-200)] px-4 py-3 text-center text-2xl font-mono tracking-[0.5em] focus:border-[var(--primary-500)] focus:outline-none focus:ring-1 focus:ring-[var(--primary-500)] transition-colors"
+            />
+            <button
+              type="submit"
+              disabled={loading || otp.length < 6}
+              className="w-full rounded-xl bg-[var(--primary-600)] px-4 py-3 text-sm font-medium text-white hover:bg-[var(--primary-700)] disabled:opacity-50 transition-colors"
+            >
+              {loading ? 'Verifying...' : 'Verify code'}
+            </button>
+          </form>
+
+          <button
+            onClick={() => { setError(null); handleSendOtp(new Event('submit') as unknown as React.FormEvent); }}
+            className="mt-4 w-full text-sm text-[var(--primary-600)] hover:underline"
+          >
+            Resend code
           </button>
         </div>
       </main>
@@ -92,7 +132,7 @@ export default function LoginPage() {
         </Link>
         <h1 className="mt-4 font-[family-name:var(--font-display)] text-2xl text-[var(--surface-900)]">Sign in to CampusNest</h1>
         <p className="mt-2 text-sm text-[var(--surface-500)]">
-          Enter your .edu email and we&apos;ll send you a magic link.
+          Enter your .edu email and we&apos;ll send you a verification code.
         </p>
 
         {error && (
@@ -101,7 +141,7 @@ export default function LoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+        <form onSubmit={handleSendOtp} className="mt-6 space-y-4">
           <input
             type="email"
             placeholder="you@university.edu"
@@ -115,7 +155,7 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full rounded-xl bg-[var(--primary-600)] px-4 py-3 text-sm font-medium text-white hover:bg-[var(--primary-700)] disabled:opacity-50 transition-colors"
           >
-            {loading ? 'Sending link...' : 'Send magic link'}
+            {loading ? 'Sending code...' : 'Send verification code'}
           </button>
         </form>
       </div>
