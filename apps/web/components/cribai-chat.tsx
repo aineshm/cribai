@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { ChatBlockRenderer } from './chat/chat-block-renderer';
 import type { ChatBlock } from './chat/chat-block-renderer';
 
@@ -38,6 +38,13 @@ export function CribAIChat({ campusSlug }: CribAIChatProps) {
   const abortRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      abortRef.current = null;
+    };
+  }, []);
+
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
@@ -55,6 +62,7 @@ export function CribAIChat({ campusSlug }: CribAIChatProps) {
     setMessages(updatedMessages);
     setIsStreaming(true);
 
+    abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
 
@@ -183,12 +191,12 @@ export function CribAIChat({ campusSlug }: CribAIChatProps) {
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
-      const errorMsg = err instanceof Error ? err.message : 'Something went wrong';
+      console.error('[CribAI] Stream error:', err);
       setMessages(prev => [
         ...prev.filter(m => m.blocks.length > 0),
         {
           role: 'assistant',
-          blocks: [{ type: 'text', content: `Sorry, I encountered an error: ${errorMsg}` }],
+          blocks: [{ type: 'text', content: 'Sorry, something went wrong. Please try again.' }],
         },
       ]);
     } finally {
