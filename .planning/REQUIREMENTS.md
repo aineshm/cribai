@@ -43,7 +43,7 @@ Requirements for initial release. Each maps to roadmap phases.
 ### AI Chat
 
 - [ ] **CHAT-01**: Conversation history persists across sessions (user can resume previous chats)
-- [ ] **CHAT-02**: Tour scheduling works end-to-end via chat (mocked backend for v1 — no real PM integration)
+- [ ] **CHAT-02**: Tour scheduling works end-to-end via chat (mocked backend for v1 -- no real PM integration)
 - [ ] **CHAT-03**: CribAI has a map tool that renders an interactive map block in the chat UI
 
 ### Platform
@@ -64,7 +64,7 @@ Deferred to future release. Tracked but not in current roadmap.
 
 ### Enhanced Features
 
-- **ENHN-01**: True Cost surfacing — total cost breakdown (rent + utilities + fees) prominently displayed
+- **ENHN-01**: True Cost surfacing -- total cost breakdown (rent + utilities + fees) prominently displayed
 - **ENHN-02**: OAuth login via Instagram or Snapchat (if APIs available)
 - **ENHN-03**: Full .edu email verification flow (not just client-side check)
 - **ENHN-04**: Traditional filter UI (price range, bedrooms, move-in date sliders) alongside AI chat
@@ -96,39 +96,39 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | TBD | Pending |
-| AUTH-02 | TBD | Pending |
-| AUTH-03 | TBD | Pending |
-| AUTH-04 | TBD | Pending |
-| AUTH-05 | TBD | Pending |
-| SRCH-01 | TBD | Pending |
-| SRCH-02 | TBD | Pending |
-| SRCH-03 | TBD | Pending |
-| SRCH-04 | TBD | Pending |
-| LIST-01 | TBD | Pending |
-| LIST-02 | TBD | Pending |
-| LIST-03 | TBD | Pending |
-| LIST-04 | TBD | Pending |
-| LIST-05 | TBD | Pending |
-| DATA-01 | TBD | Pending |
-| DATA-02 | TBD | Pending |
-| DATA-03 | TBD | Pending |
-| DATA-04 | TBD | Pending |
-| DATA-05 | TBD | Pending |
-| DATA-06 | TBD | Pending |
-| DATA-07 | TBD | Pending |
-| CHAT-01 | TBD | Pending |
-| CHAT-02 | TBD | Pending |
-| CHAT-03 | TBD | Pending |
-| PLAT-01 | TBD | Pending |
-| PLAT-02 | TBD | Pending |
-| PLAT-03 | TBD | Pending |
+| AUTH-01 | Phase 1 | Pending |
+| AUTH-02 | Phase 1 | Pending |
+| AUTH-03 | Phase 1 | Pending |
+| AUTH-04 | Phase 1 | Pending |
+| AUTH-05 | Phase 1 | Pending |
+| SRCH-01 | Phase 3 | Pending |
+| SRCH-02 | Phase 3 | Pending |
+| SRCH-03 | Phase 3 | Pending |
+| SRCH-04 | Phase 3 | Pending |
+| LIST-01 | Phase 4 | Pending |
+| LIST-02 | Phase 4 | Pending |
+| LIST-03 | Phase 4 | Pending |
+| LIST-04 | Phase 4 | Pending |
+| LIST-05 | Phase 5 | Pending |
+| DATA-01 | Phase 2 | Pending |
+| DATA-02 | Phase 2 | Pending |
+| DATA-03 | Phase 5 | Pending |
+| DATA-04 | Phase 5 | Pending |
+| DATA-05 | Phase 2 | Pending |
+| DATA-06 | Phase 2 | Pending |
+| DATA-07 | Phase 5 | Pending |
+| CHAT-01 | Phase 6 | Pending |
+| CHAT-02 | Phase 6 | Pending |
+| CHAT-03 | Phase 6 | Pending |
+| PLAT-01 | Phase 1 | Pending |
+| PLAT-02 | Phase 1 | Pending |
+| PLAT-03 | Phase 1 | Pending |
 
 **Coverage:**
 - v1 requirements: 27 total
-- Mapped to phases: 0
-- Unmapped: 27
+- Mapped to phases: 27
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-05*
-*Last updated: 2026-03-05 after initial definition*
+*Last updated: 2026-03-05 after roadmap creation*
