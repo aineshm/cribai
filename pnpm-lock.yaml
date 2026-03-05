@@ -75,6 +75,12 @@ importers:
       '@google/genai':
         specifier: ^1.43.0
         version: 1.43.0
+      '@supabase/supabase-js':
+        specifier: ^2.47.0
+        version: 2.98.0
+      zod:
+        specifier: ^3.24.0
+        version: 3.25.76
     devDependencies:
       typescript:
         specifier: ^5.7.0

@@ -1,38 +1,175 @@
 import { NextRequest } from 'next/server';
 import { createSecretClient } from '@campusnest/supabase/server';
 import { CribAI } from '@campusnest/ai';
+import type { ChatEvent } from '@campusnest/ai';
 import type { PageIndexNode } from '@campusnest/types';
 
+// ErrorEvent is route-local — the AI engine never emits errors, only the route does.
+interface ErrorEvent {
+  readonly type: 'error';
+  readonly message: string;
+}
+type SSEEvent = ChatEvent | ErrorEvent;
+
+// ---------------------------------------------------------------------------
+// Type guard: distinguish new structured ChatEvents from old string yields
+// ---------------------------------------------------------------------------
+function isStructuredEvent(value: unknown): value is SSEEvent {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'type' in value &&
+    typeof (value as Record<string, unknown>).type === 'string'
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SSE helpers
+// ---------------------------------------------------------------------------
+const SSE_HEADERS = {
+  'Content-Type': 'text/event-stream',
+  'Cache-Control': 'no-cache',
+  'Connection': 'keep-alive',
+} as const;
+
+function sseEncode(event: SSEEvent): string {
+  return `data: ${JSON.stringify(event)}\n\n`;
+}
+
+function jsonError(message: string, status: number): Response {
+  return new Response(JSON.stringify({ error: message }), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// History parsing — accepts both old and new formats
+// Old: [{role: 'user', content: 'text'}]
+// New: [{role: 'user', blocks: [{type: 'text', content: 'text'}]}]
+// ---------------------------------------------------------------------------
+interface HistoryBlock {
+  readonly type: string;
+  readonly content?: string;
+}
+
+function parseHistory(
+  history: unknown,
+): ReadonlyArray<{ readonly role: 'user' | 'model'; readonly content: string }> {
+  if (!Array.isArray(history)) return [];
+
+  return (history as Array<Record<string, unknown>>)
+    .filter((m) => typeof m === 'object' && m !== null)
+    .filter((m) => m.role === 'user' || m.role === 'assistant' || m.role === 'model')
+    .map((m) => {
+      const role: 'user' | 'model' = m.role === 'assistant' ? 'model' : m.role === 'model' ? 'model' : 'user';
+
+      // Old format: content is a plain string
+      if (typeof m.content === 'string') {
+        return { role, content: m.content };
+      }
+
+      // New format: blocks array with typed content blocks
+      if (Array.isArray(m.blocks)) {
+        const content = (m.blocks as ReadonlyArray<HistoryBlock>)
+          .filter((b) => b.type === 'text')
+          .map((b) => b.content ?? '')
+          .join('\n');
+        return { role, content };
+      }
+
+      return { role, content: '' };
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Rate-limiting check via ai_query_logs (inline, no edge-function call)
+// ---------------------------------------------------------------------------
+const RATE_LIMITS: Record<string, { readonly maxRequests: number; readonly windowMinutes: number }> = {
+  free: { maxRequests: 10, windowMinutes: 60 },
+  pro: { maxRequests: 50, windowMinutes: 60 },
+  premium: { maxRequests: 200, windowMinutes: 60 },
+};
+
+interface RateLimitResult {
+  readonly allowed: boolean;
+  readonly remaining: number;
+}
+
+async function checkRateLimit(
+  supabase: ReturnType<typeof createSecretClient>,
+  userId: string,
+  tier: string,
+): Promise<RateLimitResult> {
+  const limit = RATE_LIMITS[tier] ?? RATE_LIMITS['free']!;
+  const windowStart = new Date(Date.now() - limit.windowMinutes * 60 * 1000).toISOString();
+
+  const { count } = await supabase
+    .from('ai_query_logs')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('created_at', windowStart);
+
+  const remaining = Math.max(0, limit.maxRequests - (count ?? 0));
+  return { allowed: remaining > 0, remaining };
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/ai/cribai
+// ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json() as Record<string, unknown>;
+    const body = (await request.json()) as Record<string, unknown>;
     const { query, campusSlug, history } = body;
 
+    // --- Input validation ---------------------------------------------------
     if (typeof query !== 'string' || typeof campusSlug !== 'string') {
-      return new Response(JSON.stringify({ error: 'Missing query or campusSlug' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return jsonError('Missing query or campusSlug', 400);
     }
 
     if (query.length > 500) {
-      return new Response(JSON.stringify({ error: 'Query too long (max 500 chars)' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return jsonError('Query too long (max 500 chars)', 400);
     }
 
     const geminiKey = process.env.GEMINI_API_KEY;
     if (!geminiKey) {
-      return new Response(JSON.stringify({ error: 'AI service not configured' }), {
-        status: 503,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return jsonError('AI service not configured', 503);
     }
 
+    // --- Supabase client + auth context -------------------------------------
     const supabase = createSecretClient();
 
-    // Fetch campus
+    // Try to extract authenticated user (optional — unauthenticated users
+    // still get a limited experience but cannot schedule tours etc.)
+    const authHeader = request.headers.get('authorization');
+    let userId: string | null = null;
+    let subscriptionTier = 'free';
+
+    if (authHeader) {
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user } } = await supabase.auth.getUser(token);
+      if (user) {
+        userId = user.id;
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('subscription_tier')
+          .eq('id', user.id)
+          .single();
+
+        subscriptionTier = (profile?.subscription_tier as string) ?? 'free';
+      }
+    }
+
+    // --- Rate limiting (only for authenticated users) -----------------------
+    if (userId) {
+      const rateCheck = await checkRateLimit(supabase, userId, subscriptionTier);
+      if (!rateCheck.allowed) {
+        return jsonError('Rate limit exceeded. Please try again later.', 429);
+      }
+    }
+
+    // --- Fetch campus -------------------------------------------------------
     const { data: campus } = await supabase
       .from('campus_configs')
       .select('id, name')
@@ -40,13 +177,10 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (!campus) {
-      return new Response(JSON.stringify({ error: 'Campus not found' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return jsonError('Campus not found', 404);
     }
 
-    // Fetch PageIndex tree
+    // --- Fetch PageIndex tree -----------------------------------------------
     const { data: treeRow } = await supabase
       .from('pageindex_trees')
       .select('tree')
@@ -61,46 +195,64 @@ export async function POST(request: NextRequest) {
       children: [],
     };
 
-    // Parse conversation history (Gemini uses 'model' instead of 'assistant')
-    const conversationHistory = Array.isArray(history)
-      ? (history as Array<{ role: string; content: string }>)
-          .filter(m => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-          .map(m => ({ role: (m.role === 'assistant' ? 'model' : 'user') as 'user' | 'model', content: m.content }))
-      : [];
+    // --- Parse conversation history -----------------------------------------
+    const conversationHistory = parseHistory(history);
 
+    // --- Initialize CribAI --------------------------------------------------
     const cribai = new CribAI({
       geminiApiKey: geminiKey,
       campusName: campus.name,
     });
 
-    // Stream response
+    // --- Build ToolContext for the new engine (passed when available) --------
+    const toolContext = {
+      supabase,
+      campusId: campus.id as string,
+      campusSlug: campusSlug as string,
+      userId: userId ?? undefined,
+    };
+
+    // --- Stream response with structured SSE events -------------------------
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of cribai.chat({ query, tree, conversationHistory })) {
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: chunk })}\n\n`));
+          const chatArgs = { query, tree, conversationHistory, toolContext };
+          for await (const chunk of cribai.chat(chatArgs)) {
+            if (typeof chunk === 'string') {
+              // Old engine yields plain strings — wrap as TextEvent
+              controller.enqueue(encoder.encode(sseEncode({ type: 'text', content: chunk })));
+            } else if (isStructuredEvent(chunk)) {
+              // New engine yields ChatEvent objects — pass through
+              controller.enqueue(encoder.encode(sseEncode(chunk)));
+            }
           }
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+
+          // Always emit a done sentinel so the client knows the stream ended
+          controller.enqueue(encoder.encode(sseEncode({ type: 'done' })));
           controller.close();
-        } catch {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Stream error' })}\n\n`));
+
+          // --- Log the query (fire-and-forget) ------------------------------
+          if (userId) {
+            void supabase.from('ai_query_logs').insert({
+              user_id: userId,
+              campus_id: campus.id,
+              query,
+            });
+          }
+        } catch (err) {
+          const message =
+            err instanceof Error ? err.message : 'Stream error';
+          controller.enqueue(
+            encoder.encode(sseEncode({ type: 'error', message })),
+          );
           controller.close();
         }
       },
     });
 
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
-    });
+    return new Response(stream, { headers: SSE_HEADERS });
   } catch {
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonError('Internal server error', 500);
   }
 }

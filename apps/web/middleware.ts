@@ -40,7 +40,7 @@ export async function middleware(request: NextRequest) {
 
   // Remember last visited campus when user hits /{campusSlug}/cribai
   const campusMatch = pathname.match(/^\/([^/]+)\/cribai/);
-  if (campusMatch) {
+  if (campusMatch?.[1]) {
     response.cookies.set('last_campus', campusMatch[1], {
       path: '/',
       maxAge: 60 * 60 * 24 * 365,
