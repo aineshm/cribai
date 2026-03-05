@@ -36,7 +36,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **DATA-02**: Scraper collects listing photos and stores/references them
 - [ ] **DATA-03**: Manual listing submission form allows landlords or students to add listings directly
 - [ ] **DATA-04**: Multi-source scraping covers Madison-specific PM sites (Steve Brown, Madison Property Mgmt, JD McCormick, etc.)
-- [ ] **DATA-05**: Nightly scrape automation runs via GitHub Actions with monitoring/alerting on failures
+- [x] **DATA-05**: Nightly scrape automation runs via GitHub Actions with monitoring/alerting on failures
 - [ ] **DATA-06**: Stale listings are detected and marked inactive with freshness tracking
 - [ ] **DATA-07**: Reddit/review scraping pipeline collects recent reviews for Madison-area properties
 
@@ -114,7 +114,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DATA-02 | Phase 2 | Pending |
 | DATA-03 | Phase 5 | Pending |
 | DATA-04 | Phase 5 | Pending |
-| DATA-05 | Phase 2 | Pending |
+| DATA-05 | Phase 2 | Complete |
 | DATA-06 | Phase 2 | Pending |
 | DATA-07 | Phase 5 | Pending |
 | CHAT-01 | Phase 6 | Pending |
