@@ -42,6 +42,12 @@ export function AuthNav({ userEmail, isEduVerified }: AuthNavProps) {
           Verify .edu
         </Link>
       )}
+      <Link
+        href="/settings/profile"
+        className="text-xs text-[var(--surface-500)] hover:text-[var(--surface-800)] hover:underline transition-colors"
+      >
+        Settings
+      </Link>
       <span className="text-sm text-[var(--surface-500)]">{userEmail}</span>
       <button
         onClick={handleSignOut}

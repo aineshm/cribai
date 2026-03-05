@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { createServerComponentClient } from '@campusnest/supabase/server';
 import { CampusProvider } from '../../../lib/campus-context';
 import { AuthNav } from '../../../components/auth-nav';
+import { MobileNav } from '../../../components/mobile-nav';
 
 export default async function CampusLayout({
   children,
@@ -59,18 +60,18 @@ export default async function CampusLayout({
 
   return (
     <CampusProvider campus={campusConfig}>
-      <div className="min-h-screen">
+      <div className="min-h-[100dvh]">
         <nav className="sticky top-0 z-50 border-b border-[var(--surface-200)] bg-white/80 backdrop-blur-sm px-6 py-4">
           <div className="mx-auto flex max-w-6xl items-center justify-between">
             <div className="flex items-center gap-4">
               <Link href="/" className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-900)]">
                 CampusNest
               </Link>
-              <span className="rounded-full bg-[var(--primary-50)] px-3 py-1 text-xs font-medium text-[var(--primary-700)]">
+              <span className="hidden sm:inline rounded-full bg-[var(--primary-50)] px-3 py-1 text-xs font-medium text-[var(--primary-700)]">
                 {campusConfig.universityName}
               </span>
             </div>
-            <div className="flex items-center gap-6">
+            <div className="hidden md:flex items-center gap-6">
               <Link
                 href={`/${campusSlug}/listings`}
                 className="text-sm font-medium text-[var(--surface-500)] hover:text-[var(--surface-800)] transition-colors"
@@ -83,14 +84,25 @@ export default async function CampusLayout({
               >
                 CribAI
               </Link>
+              <Link
+                href={`/${campusSlug}/dashboard`}
+                className="text-sm font-medium text-[var(--surface-500)] hover:text-[var(--surface-800)] transition-colors"
+              >
+                Dashboard
+              </Link>
               <AuthNav
                 userEmail={user?.email ?? null}
                 isEduVerified={isEduVerified}
               />
             </div>
+            <MobileNav
+              campusSlug={campusSlug}
+              userEmail={user?.email ?? null}
+              isEduVerified={isEduVerified}
+            />
           </div>
         </nav>
-        <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+        <main className="mx-auto max-w-6xl px-6 py-8 min-h-[calc(100dvh-64px)]">{children}</main>
       </div>
     </CampusProvider>
   );
