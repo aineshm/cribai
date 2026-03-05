@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getScoreColorVariants } from '../lib/score-colors';
 
 interface ListingCardProps {
   readonly listing: {
@@ -16,25 +17,24 @@ interface ListingCardProps {
 }
 
 function fairnessColor(score: number): string {
-  if (score >= 7) return 'bg-green-100 text-green-800';
-  if (score >= 4) return 'bg-yellow-100 text-yellow-800';
-  return 'bg-red-100 text-red-800';
+  const v = getScoreColorVariants(score);
+  return `${v.bg} ${v.text}`;
 }
 
 export function ListingCard({ listing, campusSlug }: ListingCardProps) {
   return (
     <Link
       href={`/${campusSlug}/listings/${listing.id}`}
-      className="block rounded-lg border border-gray-200 p-5 hover:border-blue-300 hover:shadow-md transition-all"
+      className="block rounded-xl bg-white p-5 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-0.5 transition-all duration-200"
     >
       <div className="flex items-start justify-between">
         <div>
-          <h3 className="font-semibold text-gray-900 line-clamp-1">
+          <h3 className="font-[family-name:var(--font-display)] text-lg text-[var(--surface-900)] line-clamp-1">
             {listing.address}
           </h3>
-          <p className="mt-1 text-2xl font-bold text-gray-900">
+          <p className="mt-1 text-2xl font-bold text-[var(--surface-900)]">
             ${listing.rent_monthly.toLocaleString()}
-            <span className="text-sm font-normal text-gray-500">/mo</span>
+            <span className="text-sm font-normal text-[var(--surface-400)]">/mo</span>
           </p>
         </div>
         {listing.fairness_score != null && (
@@ -46,7 +46,7 @@ export function ListingCard({ listing, campusSlug }: ListingCardProps) {
         )}
       </div>
 
-      <div className="mt-3 flex gap-3 text-sm text-gray-600">
+      <div className="mt-3 flex gap-3 text-sm text-[var(--surface-500)]">
         {listing.bedrooms != null && <span>{listing.bedrooms} bed</span>}
         {listing.bathrooms != null && <span>{listing.bathrooms} bath</span>}
         {listing.sqft != null && (
@@ -55,9 +55,9 @@ export function ListingCard({ listing, campusSlug }: ListingCardProps) {
       </div>
 
       {listing.true_cost_total != null && (
-        <p className="mt-2 text-sm text-gray-500">
+        <p className="mt-2 text-sm text-[var(--surface-400)]">
           True Cost:{' '}
-          <span className="font-medium text-gray-700">
+          <span className="font-medium text-[var(--primary-700)]">
             ${listing.true_cost_total.toLocaleString()}/mo
           </span>
         </p>

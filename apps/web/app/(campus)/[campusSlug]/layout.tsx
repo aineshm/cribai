@@ -60,26 +60,26 @@ export default async function CampusLayout({
   return (
     <CampusProvider campus={campusConfig}>
       <div className="min-h-screen">
-        <nav className="border-b bg-white px-6 py-4">
+        <nav className="sticky top-0 z-50 border-b border-[var(--surface-200)] bg-white/80 backdrop-blur-sm px-6 py-4">
           <div className="mx-auto flex max-w-6xl items-center justify-between">
-            <div className="flex items-center gap-6">
-              <Link href="/" className="text-xl font-bold">
+            <div className="flex items-center gap-4">
+              <Link href="/" className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-900)]">
                 CampusNest
               </Link>
-              <span className="text-sm text-gray-500">
+              <span className="rounded-full bg-[var(--primary-50)] px-3 py-1 text-xs font-medium text-[var(--primary-700)]">
                 {campusConfig.universityName}
               </span>
             </div>
             <div className="flex items-center gap-6">
               <Link
                 href={`/${campusSlug}/listings`}
-                className="text-sm font-medium text-gray-700 hover:text-gray-900"
+                className="text-sm font-medium text-[var(--surface-500)] hover:text-[var(--surface-800)] transition-colors"
               >
                 Listings
               </Link>
               <Link
                 href={`/${campusSlug}/cribai`}
-                className="text-sm font-medium text-gray-700 hover:text-gray-900"
+                className="text-sm font-medium text-[var(--surface-500)] hover:text-[var(--surface-800)] transition-colors"
               >
                 CribAI
               </Link>

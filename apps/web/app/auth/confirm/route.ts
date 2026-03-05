@@ -3,15 +3,14 @@ import { createServerClient } from '@supabase/ssr';
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
-  const code = searchParams.get('code');
   const tokenHash = searchParams.get('token_hash');
   const type = searchParams.get('type') as 'magiclink' | 'email' | null;
   const lastCampus = request.cookies.get('last_campus')?.value;
   const next = searchParams.get('next')
     ?? (lastCampus ? `/${lastCampus}/cribai` : '/');
 
-  if (!code && !tokenHash) {
-    return NextResponse.redirect(`${origin}/login?error=missing_code`);
+  if (!tokenHash) {
+    return NextResponse.redirect(`${origin}/login?error=missing_token`);
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -42,20 +41,10 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  let error: Error | null = null;
-
-  if (tokenHash) {
-    // Token hash flow (from email template with {{ .TokenHash }})
-    const result = await supabase.auth.verifyOtp({
-      token_hash: tokenHash,
-      type: type ?? 'magiclink',
-    });
-    error = result.error;
-  } else if (code) {
-    // PKCE flow (from {{ .ConfirmationURL }})
-    const result = await supabase.auth.exchangeCodeForSession(code);
-    error = result.error;
-  }
+  const { error } = await supabase.auth.verifyOtp({
+    token_hash: tokenHash,
+    type: type ?? 'magiclink',
+  });
 
   if (error) {
     return NextResponse.redirect(`${origin}/login?error=auth_failed`);

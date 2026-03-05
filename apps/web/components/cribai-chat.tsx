@@ -213,17 +213,15 @@ export function CribAIChat({ campusSlug }: CribAIChatProps) {
   }, [sendMessage]);
 
   return (
-    <div className="flex h-[600px] flex-col rounded-lg border border-gray-200 bg-white">
+    <div className="flex h-[600px] flex-col rounded-xl border border-[var(--surface-200)] bg-white shadow-[var(--shadow-card)]">
       {/* Messages */}
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
         {messages.length === 0 && (
-          <div className="flex h-full items-center justify-center text-gray-400">
-            <div className="text-center">
-              <p className="text-lg font-medium">Ask CribAI anything</p>
-              <p className="mt-1 text-sm">
-                Try: &quot;Find me a 2-bedroom under $1200&quot;
-              </p>
-              <p className="mt-0.5 text-xs text-gray-300">
+          <div className="flex h-full items-center justify-center text-[var(--surface-400)]">
+            <div className="text-center animate-fade-in">
+              <p className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-600)]">Ask CribAI anything</p>
+              <p className="mt-2 text-sm">Try: &quot;Find me a 2-bedroom under $1200&quot;</p>
+              <p className="mt-0.5 text-xs text-[var(--surface-300)]">
                 I can search listings, compare apartments, explain lease terms, and schedule tours.
               </p>
             </div>
@@ -235,10 +233,10 @@ export function CribAIChat({ campusSlug }: CribAIChatProps) {
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[85%] space-y-2 rounded-lg px-4 py-2 ${
+              className={`max-w-[80%] space-y-2 px-4 py-2.5 ${
                 msg.role === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-900'
+                  ? 'rounded-2xl rounded-br-sm bg-[var(--primary-600)] text-white'
+                  : 'rounded-2xl rounded-bl-sm bg-[var(--surface-100)] text-[var(--surface-800)]'
               }`}
             >
               {msg.blocks.map((block, j) => (
@@ -249,7 +247,11 @@ export function CribAIChat({ campusSlug }: CribAIChatProps) {
                 />
               ))}
               {msg.blocks.length === 0 && (
-                <p className="text-sm text-gray-400">...</p>
+                <span className="inline-flex items-center gap-1.5 py-1">
+                  <span className="pulse-dot" />
+                  <span className="pulse-dot" />
+                  <span className="pulse-dot" />
+                </span>
               )}
             </div>
           </div>
@@ -258,7 +260,7 @@ export function CribAIChat({ campusSlug }: CribAIChatProps) {
       </div>
 
       {/* Input */}
-      <div className="border-t border-gray-200 p-4">
+      <div className="border-t border-[var(--surface-200)] p-4 bg-[var(--surface-50)] rounded-b-xl">
         <div className="flex gap-2">
           <input
             type="text"
@@ -266,14 +268,14 @@ export function CribAIChat({ campusSlug }: CribAIChatProps) {
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask about housing, compare apartments, schedule tours..."
-            className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="flex-1 rounded-xl border border-[var(--surface-200)] bg-white px-4 py-2.5 text-sm focus:border-[var(--primary-500)] focus:outline-none focus:ring-1 focus:ring-[var(--primary-500)] transition-colors"
             disabled={isStreaming}
             aria-label="Chat message input"
           />
           <button
             onClick={sendMessage}
             disabled={isStreaming || !input.trim()}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-xl bg-[var(--primary-600)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--primary-700)] disabled:opacity-50 transition-colors"
             aria-label={isStreaming ? 'Thinking' : 'Send message'}
           >
             {isStreaming ? 'Thinking...' : 'Send'}
