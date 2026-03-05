@@ -1,39 +1,20 @@
 import { NextRequest } from 'next/server';
 import { createSecretClient } from '@campusnest/supabase/server';
 import { CribAI } from '@campusnest/ai';
+import type { ChatEvent } from '@campusnest/ai';
 import type { PageIndexNode } from '@campusnest/types';
 
-// ---------------------------------------------------------------------------
-// ChatEvent types (defined locally until worktree integration merges them
-// from packages/ai). These mirror the canonical definitions 1:1.
-// ---------------------------------------------------------------------------
-interface TextEvent {
-  readonly type: 'text';
-  readonly content: string;
-}
-interface ToolCallEvent {
-  readonly type: 'tool_call';
-  readonly name: string;
-  readonly args: Record<string, unknown>;
-}
-interface ToolResultEvent {
-  readonly type: 'tool_result';
-  readonly name: string;
-  readonly block: Record<string, unknown>;
-}
-interface DoneEvent {
-  readonly type: 'done';
-}
+// ErrorEvent is route-local — the AI engine never emits errors, only the route does.
 interface ErrorEvent {
   readonly type: 'error';
   readonly message: string;
 }
-type ChatEvent = TextEvent | ToolCallEvent | ToolResultEvent | DoneEvent | ErrorEvent;
+type SSEEvent = ChatEvent | ErrorEvent;
 
 // ---------------------------------------------------------------------------
 // Type guard: distinguish new structured ChatEvents from old string yields
 // ---------------------------------------------------------------------------
-function isStructuredEvent(value: unknown): value is ChatEvent {
+function isStructuredEvent(value: unknown): value is SSEEvent {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -51,7 +32,7 @@ const SSE_HEADERS = {
   'Connection': 'keep-alive',
 } as const;
 
-function sseEncode(event: ChatEvent): string {
+function sseEncode(event: SSEEvent): string {
   return `data: ${JSON.stringify(event)}\n\n`;
 }
 
@@ -79,9 +60,9 @@ function parseHistory(
 
   return (history as Array<Record<string, unknown>>)
     .filter((m) => typeof m === 'object' && m !== null)
-    .filter((m) => m.role === 'user' || m.role === 'assistant')
+    .filter((m) => m.role === 'user' || m.role === 'assistant' || m.role === 'model')
     .map((m) => {
-      const role: 'user' | 'model' = m.role === 'assistant' ? 'model' : 'user';
+      const role: 'user' | 'model' = m.role === 'assistant' ? 'model' : m.role === 'model' ? 'model' : 'user';
 
       // Old format: content is a plain string
       if (typeof m.content === 'string') {
@@ -228,7 +209,7 @@ export async function POST(request: NextRequest) {
       supabase,
       campusId: campus.id as string,
       campusSlug: campusSlug as string,
-      userId,
+      userId: userId ?? undefined,
     };
 
     // --- Stream response with structured SSE events -------------------------

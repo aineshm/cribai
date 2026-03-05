@@ -6,20 +6,21 @@ CREATE TABLE tour_requests (
   user_id         uuid REFERENCES auth.users(id) NOT NULL,
   student_name    text NOT NULL,
   student_email   text NOT NULL,
-  preferred_dates date[] NOT NULL DEFAULT '{}',
+  preferred_dates date[] NOT NULL DEFAULT '{}'
+    CHECK (cardinality(preferred_dates) > 0),
   notes           text,
   status          text NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending', 'confirmed', 'cancelled', 'completed')),
-  created_at      timestamptz DEFAULT now()
+  created_at      timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_tour_requests_user ON tour_requests (user_id, created_at DESC);
 CREATE INDEX idx_tour_requests_listing ON tour_requests (listing_id);
 
--- Dedup: prevent duplicate tour requests for same user+listing within 7 days
+-- Dedup: one pending tour request per user+listing (7-day window handled app-side)
 CREATE UNIQUE INDEX idx_tour_requests_dedup
   ON tour_requests (user_id, listing_id)
-  WHERE status = 'pending' AND created_at > now() - interval '7 days';
+  WHERE status = 'pending';
 
 ALTER TABLE tour_requests ENABLE ROW LEVEL SECURITY;
 

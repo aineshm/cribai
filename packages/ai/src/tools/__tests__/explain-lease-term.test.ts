@@ -29,6 +29,7 @@ describe('explainLeaseTerm', () => {
   it('matches partial term', async () => {
     const result = await explainLeaseTerm({ term: 'joint and several liability' });
 
+    expect(result.clientBlock.type).toBe('legal_disclaimer');
     if (result.clientBlock.type === 'legal_disclaimer') {
       expect(result.clientBlock.term).toBe('Joint and Several Liability');
     }

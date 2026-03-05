@@ -84,7 +84,7 @@ export class CribAI {
     let toolCallCount = 0;
 
     // Agentic loop: Gemini may call tools, requiring re-invocation
-    while (toolCallCount <= MAX_TOOL_CALLS) {
+    while (toolCallCount < MAX_TOOL_CALLS) {
       if (Date.now() - startTime > TOTAL_TIMEOUT_MS) {
         yield { type: 'text', content: '\n\n(Response timed out. Please try a simpler question.)' };
         break;
@@ -127,9 +127,11 @@ export class CribAI {
       // Process tool calls
       const functionResponseParts: Part[] = [];
 
+      let budgetExhausted = false;
       for (const fc of functionCalls) {
         if (toolCallCount >= MAX_TOOL_CALLS) {
           yield { type: 'text', content: '\n\n(Reached maximum tool calls. Wrapping up.)' };
+          budgetExhausted = true;
           break;
         }
 
@@ -151,6 +153,11 @@ export class CribAI {
           });
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : 'Tool execution failed';
+          yield {
+            type: 'tool_result',
+            name: toolName,
+            block: { type: 'text', content: `Error: ${errorMessage}` } as ChatBlock,
+          };
           functionResponseParts.push({
             functionResponse: {
               name: toolName,
@@ -170,6 +177,9 @@ export class CribAI {
         role: 'user',
         parts: functionResponseParts,
       });
+
+      // If budget exhausted inside the inner loop, break the outer loop too
+      if (budgetExhausted) break;
 
       // Loop back to get Gemini's response incorporating tool results
     }

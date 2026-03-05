@@ -188,6 +188,7 @@ export const LEASE_TERMS: readonly LeaseTerm[] = [
 ] as const;
 
 export function findLeaseTerm(searchTerm: string): LeaseTerm | undefined {
+  if (searchTerm.trim() === '') return undefined;
   const normalized = searchTerm.toLowerCase();
   return LEASE_TERMS.find(
     (t) =>

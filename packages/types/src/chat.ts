@@ -41,7 +41,7 @@ export const tourConfirmationBlockSchema = z.object({
   type: z.literal('tour_confirmation'),
   tourRequestId: z.string().uuid(),
   listingAddress: z.string(),
-  status: z.string(),
+  status: z.enum(['pending', 'confirmed', 'cancelled', 'completed']),
 });
 
 export const legalDisclaimerBlockSchema = z.object({
@@ -67,7 +67,6 @@ export const chatBlockSchema = z.discriminatedUnion('type', [
   comparisonBlockSchema,
   tourConfirmationBlockSchema,
   legalDisclaimerBlockSchema,
-  recommendationsBlockSchema,
   toolLoadingBlockSchema,
 ]);
 

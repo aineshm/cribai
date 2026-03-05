@@ -18,7 +18,7 @@ export async function getLandlordInfo(
 
   // For now, landlords are not linked to listings in the schema.
   // This handler returns what data is available from the landlords table.
-  let landlordId = parsed.landlord_id;
+  const landlordId = parsed.landlord_id;
 
   if (!landlordId && parsed.listing_id) {
     // Listings don't have landlord_id FK yet — return informative message

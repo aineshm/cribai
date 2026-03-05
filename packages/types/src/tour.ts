@@ -7,7 +7,7 @@ export const tourRequestSchema = z.object({
   userId: z.string().uuid(),
   studentName: z.string().min(1).max(200),
   studentEmail: z.string().email(),
-  preferredDates: z.array(z.string()).default([]),
+  preferredDates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD format')).default([]),
   notes: z.string().max(500).nullable().default(null),
   status: z.enum(['pending', 'confirmed', 'cancelled', 'completed']).default('pending'),
   createdAt: z.string().datetime().optional(),
@@ -20,7 +20,7 @@ export const tourRequestInputSchema = z.object({
   listingId: z.string().uuid(),
   studentName: z.string().min(1).max(200),
   studentEmail: z.string().email(),
-  preferredDates: z.array(z.string()).min(1, 'At least one preferred date required'),
+  preferredDates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD format')).min(1, 'At least one preferred date required'),
   notes: z.string().max(500).optional(),
 });
 

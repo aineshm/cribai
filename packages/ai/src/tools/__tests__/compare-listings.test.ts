@@ -5,14 +5,10 @@ import { createMockContext, createMockQueryBuilder, SAMPLE_LISTING_ROW, SAMPLE_L
 describe('compareListings', () => {
   it('returns comparison of 2 listings', async () => {
     const builder = createMockQueryBuilder([SAMPLE_LISTING_ROW, SAMPLE_LISTING_ROW_2]);
-    // Make all chainable methods also thenable (like real Supabase query builder)
-    const thenableResult = { data: [SAMPLE_LISTING_ROW, SAMPLE_LISTING_ROW_2], error: null };
-    const thenableBuilder = {
-      ...builder,
-      then: (resolve: (v: unknown) => void) => resolve(thenableResult),
-    };
-    builder.in.mockReturnValue(thenableBuilder);
-    builder.eq.mockReturnValue(thenableBuilder);
+    // Make terminal methods resolve with the correct data
+    const resolvedValue = Promise.resolve({ data: [SAMPLE_LISTING_ROW, SAMPLE_LISTING_ROW_2], error: null });
+    builder.in.mockReturnValue({ ...builder, then: resolvedValue.then.bind(resolvedValue) });
+    builder.eq.mockReturnValue({ ...builder, then: resolvedValue.then.bind(resolvedValue) });
     const context = createMockContext();
     vi.mocked(context.supabase.from).mockReturnValue(builder as never);
 
@@ -26,6 +22,7 @@ describe('compareListings', () => {
       context,
     );
 
+    expect(result.clientBlock.type).toBe('comparison');
     expect(result.clientBlock.type).toBe('comparison');
     if (result.clientBlock.type === 'comparison') {
       expect(result.clientBlock.listings).toHaveLength(2);
@@ -57,13 +54,9 @@ describe('compareListings', () => {
 
   it('throws when fewer than 2 valid listings found', async () => {
     const builder = createMockQueryBuilder([SAMPLE_LISTING_ROW]);
-    const thenableResult = { data: [SAMPLE_LISTING_ROW], error: null };
-    const thenableBuilder = {
-      ...builder,
-      then: (resolve: (v: unknown) => void) => resolve(thenableResult),
-    };
-    builder.in.mockReturnValue(thenableBuilder);
-    builder.eq.mockReturnValue(thenableBuilder);
+    const resolvedValue = Promise.resolve({ data: [SAMPLE_LISTING_ROW], error: null });
+    builder.in.mockReturnValue({ ...builder, then: resolvedValue.then.bind(resolvedValue) });
+    builder.eq.mockReturnValue({ ...builder, then: resolvedValue.then.bind(resolvedValue) });
     const context = createMockContext();
     vi.mocked(context.supabase.from).mockReturnValue(builder as never);
 

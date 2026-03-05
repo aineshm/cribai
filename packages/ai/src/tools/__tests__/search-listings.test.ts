@@ -69,6 +69,7 @@ describe('searchListings', () => {
 
     const result = await searchListings({ amenities: ['parking'] }, context);
 
+    expect(result.clientBlock.type).toBe('listing_card');
     if (result.clientBlock.type === 'listing_card') {
       expect(result.clientBlock.listings).toHaveLength(1);
       expect(result.clientBlock.listings[0]!.address).toBe('123 Langdon St');
@@ -83,6 +84,7 @@ describe('searchListings', () => {
     const result = await searchListings({}, context);
 
     expect(result.modelContext).toBe('No listings found matching the criteria.');
+    expect(result.clientBlock.type).toBe('listing_card');
     if (result.clientBlock.type === 'listing_card') {
       expect(result.clientBlock.listings).toHaveLength(0);
     }

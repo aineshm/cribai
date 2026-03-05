@@ -43,11 +43,11 @@ export async function getListingDetail(
   };
 
   const trueCostBreakdown = trueCost
-    ? `True Cost Breakdown: rent=$${trueCost['rent']}, utilities=$${trueCost['utilities']}, parking=$${trueCost['parking']}, internet=$${trueCost['internet']}, laundry=$${trueCost['laundry']}, insurance=$${trueCost['renterInsurance']}, move-in=$${trueCost['moveInFees']}, TOTAL=$${trueCost['total']}/mo`
+    ? `True Cost Breakdown: rent=$${trueCost['rent'] ?? 0}, utilities=$${trueCost['utilities'] ?? 0}, parking=$${trueCost['parking'] ?? 0}, internet=$${trueCost['internet'] ?? 0}, laundry=$${trueCost['laundry'] ?? 0}, insurance=$${trueCost['renterInsurance'] ?? 0}, move-in=$${trueCost['moveInFees'] ?? 0}, TOTAL=$${trueCost['total'] ?? 0}/mo`
     : 'True cost not calculated yet.';
 
   const fairnessInfo = fairnessData
-    ? `Fairness: ${data.fairness_score}/10, predicted rent=$${fairnessData['predictedRent']}, delta=${fairnessData['delta']}%, ${fairnessData['comparableCount']} comparables`
+    ? `Fairness: ${data.fairness_score ?? 'N/A'}/10, predicted rent=$${fairnessData['predictedRent'] ?? 'N/A'}, delta=${fairnessData['delta'] ?? 'N/A'}%, ${fairnessData['comparableCount'] ?? 'N/A'} comparables`
     : 'Fairness data not available.';
 
   const modelContext = [

@@ -11,7 +11,11 @@ export async function explainLeaseTerm(
   args: Record<string, unknown>,
 ): Promise<ToolResult> {
   const parsed = inputSchema.parse(args);
-  const match = findLeaseTerm(parsed.term);
+  const trimmedTerm = parsed.term.trim();
+  if (trimmedTerm === '') {
+    throw new Error('Term cannot be empty or whitespace-only.');
+  }
+  const match = findLeaseTerm(trimmedTerm);
 
   if (!match) {
     return {

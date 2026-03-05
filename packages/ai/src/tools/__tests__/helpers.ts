@@ -90,4 +90,14 @@ export const SAMPLE_LISTING_ROW_2 = {
   bedrooms: 3,
   fairness_score: 6,
   true_cost_total: 1650,
+  true_cost: {
+    rent: 1400,
+    utilities: 100,
+    parking: 75,
+    internet: 60,
+    laundry: 0,
+    renterInsurance: 15,
+    moveInFees: 0,
+    total: 1650,
+  },
 };
