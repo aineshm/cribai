@@ -1,25 +1,55 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@campusnest/supabase/client';
+import { toast } from 'sonner';
 import Link from 'next/link';
+import { isEduEmail } from '@/lib/edu-validation';
+
+const ERROR_MESSAGES: Record<string, string> = {
+  auth_failed:
+    'Your magic link has expired or was already used. Please request a new one.',
+  link_expired:
+    'Your magic link has expired or was already used. Please request a new one.',
+  missing_code: 'Invalid sign-in link. Please request a new one.',
+  config: 'Sign-in is temporarily unavailable. Please try again later.',
+};
 
 export default function LoginPage() {
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const errorParam = searchParams.get('error');
+    if (errorParam) {
+      const message =
+        ERROR_MESSAGES[errorParam] ?? 'An unexpected error occurred.';
+      toast.error(message);
+      // Clear the error param from URL without navigation
+      window.history.replaceState({}, '', '/login');
+    }
+  }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
+    if (!isEduEmail(email)) {
+      setError('CampusNest requires a .edu email address');
+      setLoading(false);
+      return;
+    }
+
     const supabase = createClient();
     const { error: authError } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/callback`,
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
 
@@ -62,8 +92,7 @@ export default function LoginPage() {
         </Link>
         <h1 className="mt-4 font-[family-name:var(--font-display)] text-2xl text-[var(--surface-900)]">Sign in to CampusNest</h1>
         <p className="mt-2 text-sm text-[var(--surface-500)]">
-          Enter your email and we&apos;ll send you a magic link. Use a .edu
-          email for full access.
+          Enter your .edu email and we&apos;ll send you a magic link.
         </p>
 
         {error && (

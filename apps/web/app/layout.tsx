@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { DM_Serif_Display, Inter } from 'next/font/google';
+import { Toaster } from 'sonner';
 import './globals.css';
 
 const dmSerif = DM_Serif_Display({
@@ -30,6 +31,7 @@ export default function RootLayout({
     <html lang="en" className={`${dmSerif.variable} ${inter.variable}`}>
       <body className="min-h-screen bg-[var(--surface-50)] text-[var(--surface-900)] antialiased">
         {children}
+        <Toaster position="top-center" richColors />
       </body>
     </html>
   );
