@@ -136,6 +136,10 @@ body {
   border-radius: 50%;
   transition: transform 200ms;
 }
+.toggle-switch input:focus-visible + .slider {
+  outline: 2px solid var(--primary-600);
+  outline-offset: 2px;
+}
 .toggle-switch input:checked + .slider {
   background: var(--primary-600);
 }
