@@ -18,7 +18,7 @@ interface ListingCardProps {
 
 function fairnessColor(score: number): string {
   const v = getScoreColorVariants(score);
-  return `bg-[${v.bg}] text-[${v.text}]`;
+  return `${v.bg} ${v.text}`;
 }
 
 export function ListingCard({ listing, campusSlug }: ListingCardProps) {

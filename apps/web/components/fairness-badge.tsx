@@ -16,13 +16,11 @@ interface FairnessBadgeProps {
 
 function scoreColor(score: number): string {
   const v = getScoreColorVariants(score);
-  return `bg-[${v.bg}] text-[${v.text}] border-[${v.border}]`;
+  return `${v.bg} ${v.text} ${v.border}`;
 }
 
 function scoreBarColor(score: number): string {
-  if (score >= 7) return 'bg-[var(--fair-good)]';
-  if (score >= 4) return 'bg-[var(--fair-ok)]';
-  return 'bg-[var(--fair-bad)]';
+  return getScoreColorVariants(score).bgOnly;
 }
 
 function scoreLabel(score: number): string {
