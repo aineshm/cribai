@@ -3,7 +3,7 @@ import type { ToolResult } from '../types';
 import { findLeaseTerm, LEGAL_DISCLAIMER } from '../../knowledge/lease-terms';
 
 const inputSchema = z.object({
-  term: z.string().min(1),
+  term: z.string().trim().min(1),
   context: z.string().optional(),
 });
 
@@ -11,11 +11,7 @@ export async function explainLeaseTerm(
   args: Record<string, unknown>,
 ): Promise<ToolResult> {
   const parsed = inputSchema.parse(args);
-  const trimmedTerm = parsed.term.trim();
-  if (trimmedTerm === '') {
-    throw new Error('Term cannot be empty or whitespace-only.');
-  }
-  const match = findLeaseTerm(trimmedTerm);
+  const match = findLeaseTerm(parsed.term);
 
   if (!match) {
     return {

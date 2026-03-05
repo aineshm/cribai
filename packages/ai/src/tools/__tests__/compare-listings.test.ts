@@ -23,7 +23,6 @@ describe('compareListings', () => {
     );
 
     expect(result.clientBlock.type).toBe('comparison');
-    expect(result.clientBlock.type).toBe('comparison');
     if (result.clientBlock.type === 'comparison') {
       expect(result.clientBlock.listings).toHaveLength(2);
     }
