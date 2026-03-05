@@ -12,8 +12,8 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **AUTH-01**: User can sign in via magic link email and land on authenticated experience without redirect errors
 - [x] **AUTH-02**: User session persists across browser refresh and tab close/reopen
 - [x] **AUTH-03**: System validates that user email is a .edu address at signup (client-side check, not full verification)
-- [ ] **AUTH-04**: User can optionally create a profile (display name, avatar) with skip button at signup
-- [ ] **AUTH-05**: User can edit profile from a settings/profile page at any time
+- [x] **AUTH-04**: User can optionally create a profile (display name, avatar) with skip button at signup
+- [x] **AUTH-05**: User can edit profile from a settings/profile page at any time
 
 ### Search
 
@@ -99,8 +99,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUTH-01 | Phase 1 | Complete |
 | AUTH-02 | Phase 1 | Complete |
 | AUTH-03 | Phase 1 | Complete |
-| AUTH-04 | Phase 1 | Pending |
-| AUTH-05 | Phase 1 | Pending |
+| AUTH-04 | Phase 1 | Complete |
+| AUTH-05 | Phase 1 | Complete |
 | SRCH-01 | Phase 3 | Pending |
 | SRCH-02 | Phase 3 | Pending |
 | SRCH-03 | Phase 3 | Pending |

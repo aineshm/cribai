@@ -12,7 +12,7 @@ CampusNest has a substantial codebase but nothing shippable yet. The path to lau
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Auth and Platform Foundation** - Fix broken auth flow, establish UW Madison as primary campus, responsive design
+- [x] **Phase 1: Auth and Platform Foundation** - Fix broken auth flow, establish UW Madison as primary campus, responsive design
 - [ ] **Phase 2: Data Pipeline** - Reliable scraping of real listings for UW Madison with automation and freshness tracking
 - [ ] **Phase 3: Semantic Search** - Vector embeddings and hybrid search so CribAI ranks listings by qualitative relevance
 - [ ] **Phase 4: Saved Listings and Alerts** - Users can save favorites, track price changes, and view listing details with photos
@@ -34,9 +34,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Fix auth callback, add .edu validation, install sonner, unit tests
-- [ ] 01-02-PLAN.md — UW Madison seed data, root redirect, mobile-responsive layout
-- [ ] 01-03-PLAN.md — Profile system: migration, form, settings page, first-login modal
+- [x] 01-01-PLAN.md — Fix auth callback, add .edu validation, install sonner, unit tests
+- [x] 01-02-PLAN.md — UW Madison seed data, root redirect, mobile-responsive layout
+- [x] 01-03-PLAN.md — Profile system: migration, form, settings page, first-login modal
 
 ### Phase 2: Data Pipeline
 **Goal**: Real, current UW Madison listings are scraped nightly and kept fresh automatically
@@ -122,7 +122,7 @@ Note: Phase 5 depends on Phase 2 (not Phase 4), so Phases 4, 5, and 6 can potent
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Auth and Platform Foundation | 2/3 | In Progress|  |
+| 1. Auth and Platform Foundation | 3/3 | Complete | 2026-03-05 |
 | 2. Data Pipeline | 0/2 | Not started | - |
 | 3. Semantic Search | 0/3 | Not started | - |
 | 4. Saved Listings and Alerts | 0/2 | Not started | - |
