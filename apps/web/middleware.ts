@@ -38,8 +38,18 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
+  // Remember last visited campus when user hits /{campusSlug}/cribai
+  const campusMatch = pathname.match(/^\/([^/]+)\/cribai/);
+  if (campusMatch) {
+    response.cookies.set('last_campus', campusMatch[1], {
+      path: '/',
+      maxAge: 60 * 60 * 24 * 365,
+      sameSite: 'lax',
+    });
+  }
+
   // Protect /*/cribai routes — require auth
-  if (pathname.match(/^\/[^/]+\/cribai/) && !user) {
+  if (campusMatch && !user) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = '/login';
     loginUrl.searchParams.set('next', pathname);
