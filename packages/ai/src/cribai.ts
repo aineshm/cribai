@@ -141,7 +141,8 @@ export class CribAI {
         const toolArgs = (fc.args ?? {}) as Record<string, unknown>;
 
         // Check timeout before executing tool
-        if (Date.now() - startTime > TOTAL_TIMEOUT_MS) {
+        const toolRemainingMs = TOTAL_TIMEOUT_MS - (Date.now() - startTime);
+        if (toolRemainingMs <= 0) {
           yield { type: 'text', content: '\n\n(Response timed out. Please try a simpler question.)' };
           budgetExhausted = true;
           break;

@@ -202,7 +202,7 @@ export async function POST(request: NextRequest) {
     const toolContext = {
       supabase,
       campusId: campus.id as string,
-      campusSlug: campusSlug as string,
+      campusSlug,
       userId: userId ?? undefined,
     };
 
