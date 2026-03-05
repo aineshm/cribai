@@ -8,9 +8,9 @@ export default async function CribAIPage({
   const { campusSlug } = await params;
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <h1 className="text-2xl font-bold">CribAI</h1>
-      <p className="mt-1 text-sm text-gray-600">
+    <div className="mx-auto max-w-3xl animate-fade-in">
+      <h1 className="font-[family-name:var(--font-display)] text-3xl text-[var(--surface-900)]">CribAI</h1>
+      <p className="mt-1 text-sm text-[var(--surface-500)]">
         Your AI housing advisor. Ask about prices, neighborhoods, fairness scores, and more.
       </p>
       <div className="mt-4">

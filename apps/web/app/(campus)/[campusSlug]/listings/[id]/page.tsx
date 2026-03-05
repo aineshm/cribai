@@ -27,20 +27,20 @@ export default async function ListingDetailPage({
   const amenities: string[] = listing.amenities ?? [];
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <Link
         href={`/${campusSlug}/listings`}
-        className="text-sm text-gray-500 hover:text-gray-700"
+        className="text-sm text-[var(--surface-400)] hover:text-[var(--surface-600)] transition-colors"
       >
         &larr; Back to listings
       </Link>
 
       <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">{listing.address}</h1>
-          <p className="mt-1 text-3xl font-bold text-gray-900">
+          <h1 className="font-[family-name:var(--font-display)] text-3xl text-[var(--surface-900)]">{listing.address}</h1>
+          <p className="mt-1 text-3xl font-bold text-[var(--surface-900)]">
             ${listing.rent_monthly.toLocaleString()}
-            <span className="text-base font-normal text-gray-500">/mo</span>
+            <span className="text-base font-normal text-[var(--surface-400)]">/mo</span>
           </p>
         </div>
 
@@ -55,52 +55,52 @@ export default async function ListingDetailPage({
       <div className="mt-6 grid gap-8 lg:grid-cols-2">
         {/* Details */}
         <div className="space-y-6">
-          <section>
-            <h2 className="text-lg font-semibold">Details</h2>
+          <section className="rounded-xl bg-white p-5 shadow-[var(--shadow-card)]">
+            <h2 className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-900)]">Details</h2>
             <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
               {listing.bedrooms != null && (
                 <div>
-                  <dt className="text-gray-500">Bedrooms</dt>
-                  <dd className="font-medium">
+                  <dt className="text-xs uppercase tracking-wider text-[var(--surface-400)]">Bedrooms</dt>
+                  <dd className="mt-1 font-medium text-[var(--surface-700)]">
                     {listing.bedrooms === 0 ? 'Studio' : listing.bedrooms}
                   </dd>
                 </div>
               )}
               {listing.bathrooms != null && (
                 <div>
-                  <dt className="text-gray-500">Bathrooms</dt>
-                  <dd className="font-medium">{listing.bathrooms}</dd>
+                  <dt className="text-xs uppercase tracking-wider text-[var(--surface-400)]">Bathrooms</dt>
+                  <dd className="mt-1 font-medium text-[var(--surface-700)]">{listing.bathrooms}</dd>
                 </div>
               )}
               {listing.sqft != null && (
                 <div>
-                  <dt className="text-gray-500">Square Feet</dt>
-                  <dd className="font-medium">
+                  <dt className="text-xs uppercase tracking-wider text-[var(--surface-400)]">Square Feet</dt>
+                  <dd className="mt-1 font-medium text-[var(--surface-700)]">
                     {listing.sqft.toLocaleString()}
                   </dd>
                 </div>
               )}
               {listing.available_date && (
                 <div>
-                  <dt className="text-gray-500">Available</dt>
-                  <dd className="font-medium">{listing.available_date}</dd>
+                  <dt className="text-xs uppercase tracking-wider text-[var(--surface-400)]">Available</dt>
+                  <dd className="mt-1 font-medium text-[var(--surface-700)]">{listing.available_date}</dd>
                 </div>
               )}
               <div>
-                <dt className="text-gray-500">Source</dt>
-                <dd className="font-medium">{listing.source}</dd>
+                <dt className="text-xs uppercase tracking-wider text-[var(--surface-400)]">Source</dt>
+                <dd className="mt-1 font-medium text-[var(--surface-700)]">{listing.source}</dd>
               </div>
             </dl>
           </section>
 
           {amenities.length > 0 && (
-            <section>
-              <h2 className="text-lg font-semibold">Amenities</h2>
+            <section className="rounded-xl bg-white p-5 shadow-[var(--shadow-card)]">
+              <h2 className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-900)]">Amenities</h2>
               <div className="mt-3 flex flex-wrap gap-2">
                 {amenities.map((a) => (
                   <span
                     key={a}
-                    className="rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-700"
+                    className="rounded-full bg-[var(--primary-50)] px-3 py-1 text-sm text-[var(--primary-700)]"
                   >
                     {a.replace(/_/g, ' ')}
                   </span>

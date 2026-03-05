@@ -61,9 +61,9 @@ export function TrueCostCalculator({
   ];
 
   return (
-    <div className="rounded-lg border p-5">
-      <h3 className="text-lg font-semibold">True Cost Calculator</h3>
-      <p className="mt-1 text-sm text-gray-500">
+    <div className="rounded-xl bg-white p-5 shadow-[var(--shadow-card)]">
+      <h3 className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-900)]">True Cost Calculator</h3>
+      <p className="mt-1 text-sm text-[var(--surface-400)]">
         Toggle what&apos;s included to see your real monthly cost.
       </p>
 
@@ -123,17 +123,19 @@ export function TrueCostCalculator({
         />
       </div>
 
-      <div className="mt-5 border-t pt-4 space-y-1">
-        {items.map((item) => (
+      <div className="mt-5 border-t border-[var(--surface-200)] pt-4 space-y-1">
+        {items.map((item, index) => (
           <div
             key={item.label}
-            className="flex justify-between text-sm text-gray-700"
+            className={`flex justify-between text-sm py-1.5 px-2 rounded ${
+              index % 2 === 0 ? 'bg-[var(--surface-50)]' : ''
+            }`}
           >
-            <span>{item.label}</span>
-            <span>${item.value.toFixed(2)}</span>
+            <span className="text-[var(--surface-600)]">{item.label}</span>
+            <span className="text-[var(--surface-700)]">${item.value.toFixed(2)}</span>
           </div>
         ))}
-        <div className="flex justify-between border-t pt-2 text-base font-bold text-gray-900">
+        <div className="flex justify-between border-t border-[var(--surface-200)] pt-2 mt-2 text-base font-bold px-2 py-1.5 rounded bg-[var(--primary-50)] text-[var(--primary-800)]">
           <span>Total</span>
           <span>${cost.total.toFixed(2)}/mo</span>
         </div>
@@ -152,13 +154,15 @@ function Toggle({
   readonly onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="flex items-center gap-2 text-sm cursor-pointer">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="rounded"
-      />
+    <label className="flex items-center gap-3 text-sm text-[var(--surface-700)] cursor-pointer">
+      <span className="toggle-switch">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        <span className="slider" />
+      </span>
       {label}
     </label>
   );
@@ -176,13 +180,13 @@ function NumberInput({
   readonly onChange: (v: string) => void;
 }) {
   return (
-    <div className="ml-6">
+    <div className="ml-12">
       <input
         type="number"
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded border px-3 py-1.5 text-sm"
+        className="w-full rounded-lg border border-[var(--surface-200)] px-3 py-1.5 text-sm bg-white focus:border-[var(--primary-500)] focus:outline-none focus:ring-1 focus:ring-[var(--primary-500)] transition-colors"
         aria-label={label}
       />
     </div>

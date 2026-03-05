@@ -67,24 +67,24 @@ export default function VerifyEduPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center p-8">
-      <div className="w-full max-w-sm">
-        <Link href="/" className="text-sm text-gray-500 hover:text-gray-700">
+      <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow-[var(--shadow-card)] animate-fade-in">
+        <Link href="/" className="text-sm text-[var(--surface-400)] hover:text-[var(--surface-600)] transition-colors">
           &larr; Back
         </Link>
-        <h1 className="mt-4 text-2xl font-bold">Verify .edu Email</h1>
-        <p className="mt-2 text-sm text-gray-600">
+        <h1 className="mt-4 font-[family-name:var(--font-display)] text-2xl text-[var(--surface-900)]">Verify .edu Email</h1>
+        <p className="mt-2 text-sm text-[var(--surface-500)]">
           Verify your .edu email to unlock full access — reviews, AI features,
           and more.
         </p>
 
         {error && (
-          <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+          <div className="mt-4 rounded-lg bg-[var(--fair-bad-bg)] p-3 text-sm text-[var(--fair-bad)]">
             {error}
           </div>
         )}
 
         {result?.verified && (
-          <div className="mt-4 rounded-lg bg-green-50 p-3 text-sm text-green-700">
+          <div className="mt-4 rounded-lg bg-[var(--fair-good-bg)] p-3 text-sm text-[var(--fair-good)]">
             Verified! {result.campusName && `Campus: ${result.campusName}`}
             {result.message && ` — ${result.message}`}
           </div>
@@ -99,12 +99,12 @@ export default function VerifyEduPage() {
             required
             pattern=".+\\.edu$"
             title="Must be a .edu email address"
-            className="w-full rounded-lg border px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full rounded-xl border border-[var(--surface-200)] px-4 py-3 text-sm focus:border-[var(--primary-500)] focus:outline-none focus:ring-1 focus:ring-[var(--primary-500)] transition-colors"
           />
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-green-600 px-4 py-3 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+            className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
           >
             {loading ? 'Verifying...' : 'Verify my .edu email'}
           </button>

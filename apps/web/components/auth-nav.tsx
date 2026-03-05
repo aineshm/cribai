@@ -25,7 +25,7 @@ export function AuthNav({ userEmail, isEduVerified }: AuthNavProps) {
     return (
       <Link
         href="/login"
-        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        className="rounded-lg bg-[var(--primary-600)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--primary-700)] transition-colors"
       >
         Sign in
       </Link>
@@ -37,16 +37,16 @@ export function AuthNav({ userEmail, isEduVerified }: AuthNavProps) {
       {!isEduVerified && (
         <Link
           href="/verify-edu"
-          className="text-xs text-orange-600 hover:underline"
+          className="text-xs text-[var(--secondary-600)] hover:underline"
         >
           Verify .edu
         </Link>
       )}
-      <span className="text-sm text-gray-600">{userEmail}</span>
+      <span className="text-sm text-[var(--surface-500)]">{userEmail}</span>
       <button
         onClick={handleSignOut}
         disabled={loading}
-        className="rounded-lg border px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+        className="rounded-lg border border-[var(--surface-200)] px-3 py-1.5 text-sm text-[var(--surface-600)] hover:bg-[var(--surface-100)] disabled:opacity-50 transition-colors"
       >
         Sign out
       </button>

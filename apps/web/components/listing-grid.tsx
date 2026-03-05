@@ -18,9 +18,9 @@ interface ListingGridProps {
 export function ListingGrid({ listings, campusSlug }: ListingGridProps) {
   if (listings.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <p className="text-lg font-medium text-gray-900">No listings found</p>
-        <p className="mt-1 text-sm text-gray-500">
+      <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-in">
+        <p className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-800)]">No listings found</p>
+        <p className="mt-2 text-sm text-[var(--surface-400)]">
           Try adjusting your filters or check back later.
         </p>
       </div>
@@ -29,12 +29,14 @@ export function ListingGrid({ listings, campusSlug }: ListingGridProps) {
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {listings.map((listing) => (
-        <ListingCard
+      {listings.map((listing, index) => (
+        <div
           key={listing.id}
-          listing={listing}
-          campusSlug={campusSlug}
-        />
+          className="stagger-item"
+          style={{ '--stagger-index': index } as React.CSSProperties}
+        >
+          <ListingCard listing={listing} campusSlug={campusSlug} />
+        </div>
       ))}
     </div>
   );
