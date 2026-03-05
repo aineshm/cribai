@@ -5,6 +5,7 @@ import { createServerComponentClient } from '@campusnest/supabase/server';
 import { CampusProvider } from '../../../lib/campus-context';
 import { AuthNav } from '../../../components/auth-nav';
 import { MobileNav } from '../../../components/mobile-nav';
+import { ProfileModal } from '../../../components/profile-modal';
 
 export default async function CampusLayout({
   children,
@@ -49,13 +50,23 @@ export default async function CampusLayout({
   } = await supabase.auth.getUser();
 
   let isEduVerified = false;
+  let isProfileIncomplete = false;
+  let profileData = { displayName: null as string | null, avatarUrl: null as string | null, graduationYear: null as number | null, major: null as string | null };
+
   if (user) {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('is_edu_verified')
+      .select('is_edu_verified, display_name, avatar_url, graduation_year, major, profile_completed_at')
       .eq('id', user.id)
       .single();
     isEduVerified = profile?.is_edu_verified ?? false;
+    isProfileIncomplete = !profile?.display_name && !profile?.profile_completed_at;
+    profileData = {
+      displayName: profile?.display_name ?? null,
+      avatarUrl: profile?.avatar_url ?? null,
+      graduationYear: profile?.graduation_year ?? null,
+      major: profile?.major ?? null,
+    };
   }
 
   return (
@@ -103,6 +114,12 @@ export default async function CampusLayout({
           </div>
         </nav>
         <main className="mx-auto max-w-6xl px-6 py-8 min-h-[calc(100dvh-64px)]">{children}</main>
+        {user && isProfileIncomplete && (
+          <ProfileModal
+            initialData={profileData}
+            isProfileIncomplete={isProfileIncomplete}
+          />
+        )}
       </div>
     </CampusProvider>
   );
