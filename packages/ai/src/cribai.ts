@@ -85,7 +85,8 @@ export class CribAI {
 
     // Agentic loop: Gemini may call tools, requiring re-invocation
     while (toolCallCount < MAX_TOOL_CALLS) {
-      if (Date.now() - startTime > TOTAL_TIMEOUT_MS) {
+      const remainingMs = TOTAL_TIMEOUT_MS - (Date.now() - startTime);
+      if (remainingMs <= 0) {
         yield { type: 'text', content: '\n\n(Response timed out. Please try a simpler question.)' };
         break;
       }
@@ -138,6 +139,13 @@ export class CribAI {
         toolCallCount++;
         const toolName = fc.name ?? 'unknown';
         const toolArgs = (fc.args ?? {}) as Record<string, unknown>;
+
+        // Check timeout before executing tool
+        if (Date.now() - startTime > TOTAL_TIMEOUT_MS) {
+          yield { type: 'text', content: '\n\n(Response timed out. Please try a simpler question.)' };
+          budgetExhausted = true;
+          break;
+        }
 
         yield { type: 'tool_call', name: toolName, args: toolArgs };
 

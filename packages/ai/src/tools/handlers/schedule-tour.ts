@@ -3,9 +3,9 @@ import type { ToolContext, ToolResult } from '../types';
 
 const inputSchema = z.object({
   listing_id: z.string().uuid(),
-  student_name: z.string().min(1).max(200),
+  student_name: z.string().trim().min(1).max(200),
   student_email: z.string().email(),
-  preferred_dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD format')).min(1),
+  preferred_dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD format')).min(1).max(10),
   notes: z.string().max(500).optional(),
 });
 
@@ -52,7 +52,8 @@ export async function scheduleTour(
         'You already have a pending tour request for this listing. Please wait for a response or cancel it first.',
       );
     }
-    throw new Error(`Failed to schedule tour: ${error.message}`);
+    console.error('[schedule-tour] DB error:', error);
+    throw new Error('Failed to schedule tour. Please try again later.');
   }
 
   const modelContext = `Tour request submitted successfully for ${listing.address}. Request ID: ${tour.id}. The student will receive confirmation at ${parsed.student_email}.`;

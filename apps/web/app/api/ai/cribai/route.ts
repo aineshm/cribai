@@ -198,13 +198,7 @@ export async function POST(request: NextRequest) {
     // --- Parse conversation history -----------------------------------------
     const conversationHistory = parseHistory(history);
 
-    // --- Initialize CribAI --------------------------------------------------
-    const cribai = new CribAI({
-      geminiApiKey: geminiKey,
-      campusName: campus.name,
-    });
-
-    // --- Build ToolContext for the new engine (passed when available) --------
+    // --- Build ToolContext for the new engine --------------------------------
     const toolContext = {
       supabase,
       campusId: campus.id as string,
@@ -212,24 +206,35 @@ export async function POST(request: NextRequest) {
       userId: userId ?? undefined,
     };
 
+    // --- Initialize CribAI --------------------------------------------------
+    const cribai = new CribAI({
+      geminiApiKey: geminiKey,
+      campusName: campus.name,
+      toolContext,
+    });
+
     // --- Stream response with structured SSE events -------------------------
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          const chatArgs = { query, tree, conversationHistory, toolContext };
+          const chatArgs = { query, tree, conversationHistory };
+          let seenDone = false;
           for await (const chunk of cribai.chat(chatArgs)) {
             if (typeof chunk === 'string') {
               // Old engine yields plain strings — wrap as TextEvent
               controller.enqueue(encoder.encode(sseEncode({ type: 'text', content: chunk })));
             } else if (isStructuredEvent(chunk)) {
+              if (chunk.type === 'done') seenDone = true;
               // New engine yields ChatEvent objects — pass through
               controller.enqueue(encoder.encode(sseEncode(chunk)));
             }
           }
 
-          // Always emit a done sentinel so the client knows the stream ended
-          controller.enqueue(encoder.encode(sseEncode({ type: 'done' })));
+          // Only emit done if the upstream didn't already
+          if (!seenDone) {
+            controller.enqueue(encoder.encode(sseEncode({ type: 'done' })));
+          }
           controller.close();
 
           // --- Log the query (fire-and-forget) ------------------------------
