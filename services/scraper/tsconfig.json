@@ -6,5 +6,5 @@
     "module": "ESNext",
     "moduleResolution": "bundler"
   },
-  "include": ["*.ts", "scrapers/**/*.ts"]
+  "include": ["*.ts", "scrapers/**/*.ts", "__tests__/**/*.ts"]
 }

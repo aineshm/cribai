@@ -2,6 +2,8 @@ import { createClient } from '@supabase/supabase-js';
 import { ApartmentsComScraper } from './scrapers/apartments-com';
 import { normalizeListing } from './normalizer';
 import type { ScraperConfig } from './scrapers/base-scraper';
+import { outputMetrics } from './metrics';
+import { archiveStaleListings } from './lifecycle';
 
 async function main() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -24,6 +26,14 @@ async function main() {
   if (error) {
     throw new Error(`Failed to fetch campuses: ${error.message}`);
   }
+
+  const metrics: {
+    upserted: number;
+    staleMarked: number;
+    archived: number;
+    deleted: number;
+    errors: number;
+  } = { upserted: 0, staleMarked: 0, archived: 0, deleted: 0, errors: 0 };
 
   for (const campus of campuses ?? []) {
     const location = campus.location as { coordinates: [number, number] } | null;
@@ -52,7 +62,7 @@ async function main() {
           continue;
         }
 
-        // Upsert listings
+        // Upsert listings (including photo_urls and source_url)
         const rows = normalized.map((listing) => ({
           campus_id: config.campusId,
           external_id: listing.externalId,
@@ -68,6 +78,8 @@ async function main() {
           sqft: listing.sqft,
           amenities: listing.amenities,
           available_date: listing.availableDate,
+          photo_urls: listing.photoUrls,
+          source_url: listing.sourceUrl,
           is_active: true,
           last_seen_at: new Date().toISOString(),
         }));
@@ -78,25 +90,37 @@ async function main() {
 
         if (upsertError) {
           console.error(`[${scraper.source}] Upsert error: ${upsertError.message}`);
+          metrics.errors += 1;
         } else {
           console.log(`[${scraper.source}] Upserted ${normalized.length} listings`);
+          metrics.upserted += normalized.length;
         }
       } catch (err) {
         console.error(`[${scraper.source}] Scraper failed:`, err);
+        metrics.errors += 1;
       }
     }
 
     // Mark stale listings as inactive (not seen in 7 days)
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    await supabase
+    const { data: staleData } = await supabase
       .from('listings')
       .update({ is_active: false })
       .eq('campus_id', config.campusId)
       .eq('is_active', true)
-      .lt('last_seen_at', sevenDaysAgo);
+      .lt('last_seen_at', sevenDaysAgo)
+      .select('id');
+
+    metrics.staleMarked += staleData?.length ?? 0;
+
+    // Archive and delete listings inactive for 30+ days
+    const archiveResult = await archiveStaleListings(supabase, config.campusId);
+    metrics.archived += archiveResult.archived;
+    metrics.deleted += archiveResult.deleted;
   }
 
   console.log('\nScraping complete.');
+  outputMetrics(metrics);
 }
 
 main().catch((err) => {

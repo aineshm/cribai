@@ -1,8 +1,14 @@
 import { PlaywrightCrawler, type Log } from 'crawlee';
 import type { Page } from 'playwright';
+import { chromium } from 'playwright-extra';
+import stealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { BaseScraper, type RawListing } from './base-scraper';
+import { extractPhotos } from './photo-utils';
 
 const MAX_PAGES = 10;
+
+// Initialize stealth plugin
+chromium.use(stealthPlugin());
 
 export class ApartmentsComScraper extends BaseScraper {
   readonly source = 'apartments.com';
@@ -13,6 +19,10 @@ export class ApartmentsComScraper extends BaseScraper {
     console.log(`[${this.source}] Scraping for campus ${this.config.campusSlug}...`);
 
     const crawler = new PlaywrightCrawler({
+      launchContext: {
+        launcher: chromium,
+        launchOptions: { headless: true },
+      },
       maxRequestsPerMinute: 20,
       navigationTimeoutSecs: 30,
       headless: true,
@@ -115,8 +125,7 @@ export class ApartmentsComScraper extends BaseScraper {
       );
       const rent = this.parseRent(rentText);
       if (rent === null) {
-        log.warning(`No rent found at ${url}`);
-        return null;
+        log.info(`No rent found at ${url} -- saving with null rent`);
       }
 
       const bedBathText = await this.extractText(
@@ -135,6 +144,7 @@ export class ApartmentsComScraper extends BaseScraper {
       const availableDate = await this.extractAvailableDate(page);
       const coordinates = await this.extractCoordinates(page);
       const externalId = this.extractExternalId(url);
+      const photoUrls = await extractPhotos(page, log);
 
       return {
         externalId,
@@ -149,6 +159,8 @@ export class ApartmentsComScraper extends BaseScraper {
         latitude: coordinates?.lat ?? null,
         longitude: coordinates?.lng ?? null,
         rawData: { url, scrapedAt: new Date().toISOString() },
+        photoUrls,
+        sourceUrl: url,
       };
     } catch (err) {
       log.warning(`Failed to extract listing from ${url}: ${err}`);
