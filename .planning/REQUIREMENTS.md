@@ -48,9 +48,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Platform
 
-- [ ] **PLAT-01**: Platform launches with UW Madison as the primary campus
-- [ ] **PLAT-02**: Platform architecture supports 3-5 campuses (existing multi-tenancy works)
-- [ ] **PLAT-03**: Responsive design works on mobile browsers
+- [x] **PLAT-01**: Platform launches with UW Madison as the primary campus
+- [x] **PLAT-02**: Platform architecture supports 3-5 campuses (existing multi-tenancy works)
+- [x] **PLAT-03**: Responsive design works on mobile browsers
 
 ## v2 Requirements
 
@@ -120,9 +120,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CHAT-01 | Phase 6 | Pending |
 | CHAT-02 | Phase 6 | Pending |
 | CHAT-03 | Phase 6 | Pending |
-| PLAT-01 | Phase 1 | Pending |
-| PLAT-02 | Phase 1 | Pending |
-| PLAT-03 | Phase 1 | Pending |
+| PLAT-01 | Phase 1 | Complete |
+| PLAT-02 | Phase 1 | Complete |
+| PLAT-03 | Phase 1 | Complete |
 
 **Coverage:**
 - v1 requirements: 27 total
