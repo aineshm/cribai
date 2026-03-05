@@ -32,12 +32,12 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Data Pipeline
 
-- [ ] **DATA-01**: Apartments.com scraper runs reliably against UW Madison area listings
-- [ ] **DATA-02**: Scraper collects listing photos and stores/references them
+- [x] **DATA-01**: Apartments.com scraper runs reliably against UW Madison area listings
+- [x] **DATA-02**: Scraper collects listing photos and stores/references them
 - [ ] **DATA-03**: Manual listing submission form allows landlords or students to add listings directly
 - [ ] **DATA-04**: Multi-source scraping covers Madison-specific PM sites (Steve Brown, Madison Property Mgmt, JD McCormick, etc.)
 - [x] **DATA-05**: Nightly scrape automation runs via GitHub Actions with monitoring/alerting on failures
-- [ ] **DATA-06**: Stale listings are detected and marked inactive with freshness tracking
+- [x] **DATA-06**: Stale listings are detected and marked inactive with freshness tracking
 - [ ] **DATA-07**: Reddit/review scraping pipeline collects recent reviews for Madison-area properties
 
 ### AI Chat
@@ -110,12 +110,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | LIST-03 | Phase 4 | Pending |
 | LIST-04 | Phase 4 | Pending |
 | LIST-05 | Phase 5 | Pending |
-| DATA-01 | Phase 2 | Pending |
-| DATA-02 | Phase 2 | Pending |
+| DATA-01 | Phase 2 | Complete |
+| DATA-02 | Phase 2 | Complete |
 | DATA-03 | Phase 5 | Pending |
 | DATA-04 | Phase 5 | Pending |
 | DATA-05 | Phase 2 | Complete |
-| DATA-06 | Phase 2 | Pending |
+| DATA-06 | Phase 2 | Complete |
 | DATA-07 | Phase 5 | Pending |
 | CHAT-01 | Phase 6 | Pending |
 | CHAT-02 | Phase 6 | Pending |

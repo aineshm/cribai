@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-03-05T20:34:29Z"
-last_activity: 2026-03-05 -- Completed 02-02 Nightly Scrape Workflow
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-03-05T20:41:10Z"
+last_activity: 2026-03-05 -- Completed 02-01 Scraper Enhancement
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 6
-  completed_plans: 4
-  percent: 100
+  completed_plans: 5
+  percent: 83
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 ## Current Position
 
 Phase: 2 of 6 (Data Pipeline)
-Plan: 2 of 3 in current phase (02-02 complete)
+Plan: 2 of 3 in current phase (02-01, 02-02 complete)
 Status: In Progress
-Last activity: 2026-03-05 -- Completed 02-02 Nightly Scrape Workflow
+Last activity: 2026-03-05 -- Completed 02-01 Scraper Enhancement
 
-Progress: [███████░░░] 67% (4 of 6 plans)
+Progress: [████████░░] 83% (5 of 6 plans)
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Progress: [███████░░░] 67% (4 of 6 plans)
 | Phase 01 P01 | 5min | 2 tasks | 8 files |
 | Phase 01 P02 | 2min | 2 tasks | 6 files |
 | Phase 01 P03 | 15min | 4 tasks | 7 files |
+| Phase 02 P01 | 7min | 2 tasks | 16 files |
 | Phase 02 P02 | 1min | 1 tasks | 1 files |
 
 ## Accumulated Context
@@ -72,6 +73,8 @@ Recent decisions affecting current work:
 - [Phase 01-03]: Avatar is initials-only for Phase 1, avatar_url column reserved for future upload
 - [Phase 01-03]: Modal skip uses localStorage + DB column for dual persistence
 - [Deferred]: AI disclaimer for CribAI (not a legal expert) -- user feedback, tracked for future phase
+- [Phase 02-01]: Extracted extractPhotos into standalone photo-utils.ts for testability
+- [Phase 02-01]: Extracted metrics and lifecycle into separate modules for single-responsibility
 - [Phase 02-02]: Rely on GitHub Actions built-in email notifications for failure alerts (no external services)
 - [Phase 02-02]: Gate fairness recalculation on if: success() so it only runs after successful scrape
 
@@ -87,7 +90,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-05T20:34:29Z
-Stopped at: Completed 02-02-PLAN.md
-Resume file: .planning/phases/02-data-pipeline/02-02-SUMMARY.md
+Last session: 2026-03-05T20:41:10Z
+Stopped at: Completed 02-01-PLAN.md
+Resume file: .planning/phases/02-data-pipeline/02-01-SUMMARY.md
 Next: Phase 2 Plan 03
