@@ -1,85 +1,61 @@
-# Backend Codemap
+<!-- Generated: 2026-03-04 | Files scanned: ~20 | Token estimate: ~500 -->
+# Backend
 
-**Last Updated:** 2026-03-04
-**Entry Points:** `apps/web/middleware.ts`, `apps/web/app/api/`, `supabase/functions/`
+## API Routes (apps/web/app/api/)
 
-## Next.js API Routes
+```
+POST /api/ai/cribai     → validate query ≤500 → fetch pageindex_tree
+                         → PageIndexTraverser.traverse → CribAI.chat → SSE stream
+POST /api/webhooks/stripe → Stripe webhook handler
+GET  /callback           → Supabase Auth OTP/OAuth callback
+```
 
-| Route | Method | File | Status |
-|-------|--------|------|--------|
-| `/api/ai/cribai` | POST | `app/api/ai/cribai/route.ts` | Stub (Phase 5) |
-| `/api/webhooks/stripe` | POST | `app/api/webhooks/stripe/route.ts` | Stub (Phase 2) |
-| `/auth/callback` | GET | `app/(auth)/callback/route.ts` | Live — Supabase OAuth callback |
+## Edge Functions (supabase/functions/)
 
-## Middleware (`apps/web/middleware.ts`)
+```
+POST /functions/v1/rate-limiter
+  → count ai_query_logs in window → { allowed, remaining, limit }
+  Tiers: free=10/hr, pro=50/hr, premium=200/hr
 
-Runs on every non-static request. Two enforcement layers:
+POST /functions/v1/verify-edu
+  → validate .edu domain → match campus_configs.edu_domains
+  → update profiles.is_edu_verified + campus_id
 
-1. **Auth guard** — `GET /[campusSlug]/cribai` redirects to `/login?next=...` if no session.
-2. **Rate limit** — `POST /api/ai/*` calls `rate-limiter` edge function. Returns `429` if over quota.
-3. **Unauth block** — `POST /api/ai/*` with no session returns `401`.
+POST /functions/v1/rebuild-pageindex
+  → for each campus: group listings by beds → price tiers
+  → build PageIndexNode tree → upsert pageindex_trees
 
-Matcher excludes `_next/static`, `_next/image`, `favicon.ico`, and image extensions.
+POST /functions/v1/recalculate-fairness
+  → triggered post-scrape → recalculate fairness_score per listing
+```
 
-## Supabase Edge Functions (Deno)
+## Scraper Pipeline (services/scraper/)
 
-### `rate-limiter`
-- **Trigger:** Called by middleware on every `/api/ai/*` request
-- **Logic:** Reads `profiles.subscription_tier`, counts `ai_query_logs` rows in the rolling window
-- **Limits:** free=10/hr, pro=50/hr, premium=200/hr
-- **Returns:** `{ allowed, remaining, limit, windowMinutes }`
+```
+run.ts → ApartmentsComScraper.scrape() → RawListing[]
+       → normalizer.normalizeListing() → upsert listings table
+```
 
-### `verify-edu`
-- **Trigger:** Called from `/verify-edu` page (user-initiated)
-- **Logic:** Extracts domain from submitted `eduEmail`, matches against `campus_configs.edu_domains`
-- **Side effect:** Sets `profiles.is_edu_verified=true`, `campus_id`, `verification_status='verified'`
-- **Returns:** `{ verified, campusId }`
-- **Note:** MVP auto-verifies. Production TODO: send verification email first.
+## Key Classes
 
-### `recalculate-fairness`
-- **Trigger:** Called by nightly scrape GitHub Actions job post-scrape
-- **Auth:** Service role key check (bearer token contains secret key)
-- **Logic:** For each public campus, computes percentile-based fairness score across all active listings
-- **Side effect:** Updates `listings.fairness_score` (1–10) and `listings.fairness_data` (jsonb)
-- **Algorithm:** `score = 1 + (pctCheaperThanThis / total) * 9`
+```
+packages/ai/src/
+  PageIndexBuilder.build(campusId, listings) → PageIndexNode
+  PageIndexTraverser.traverse(tree, query) → string[] (relevant context)
+  CribAI.chat({ query, tree, history }) → AsyncGenerator<string>
 
-### `rebuild-pageindex`
-- **Trigger:** Planned for Phase 5
-- **Status:** Stub — not yet implemented
-- **Planned:** Builds hierarchical RAG summary tree using Claude Haiku, stores in `pageindex_trees`
+packages/utils/src/
+  calculateTrueCost(input) → { rent, utilities, parking, ..., total }
+  calculateFairnessScore(input) → { percentile, predictedRent, delta }
+  calculateEnhancedFairness(input) → FairnessData (OLS model)
+  selectComparables(config) → ComparableCandidate[]
+  trainPriceModel(features) → PriceModelCoefficients
+```
 
-## Scraper Service (`services/scraper/`)
+## Supabase Clients (packages/supabase/)
 
-| File | Purpose |
-|------|---------|
-| `scrapers/base-scraper.ts` | Abstract `BaseScraper` — `scrape(): Promise<RawListing[]>` |
-| `scrapers/apartments-com.ts` | Crawlee + Playwright implementation for apartments.com |
-| `normalizer.ts` | Converts `RawListing` → Supabase upsert payload |
-| `run.ts` | Entry point — loads campus configs, runs scrapers |
-
-**Scraper config:** `ScraperConfig` carries `campusId`, `campusSlug`, `latitude`, `longitude`, `radiusKm`.
-**Dedup key:** `UNIQUE(external_id, source)` in `listings` table.
-**Pagination:** Up to `MAX_PAGES=10` pages per campus search.
-
-## Shared Packages (business logic)
-
-### `packages/utils/`
-
-| Module | Exports | Purpose |
-|--------|---------|---------|
-| `cost-calculator.ts` | `calculateTrueCost(input)` | Adds utilities, parking, internet, laundry, insurance to base rent |
-| `fairness-scorer.ts` | `calculateFairnessScore()`, `calculateEnhancedFairness()` | Percentile + ML-based value scoring |
-| `comparable-selector.ts` | `selectComparables()` | Filters listings by bedroom count + distance |
-| `price-model.ts` | `trainPriceModel()`, `predictRent()` | Linear regression on amenity/size/distance features |
-
-### `packages/ai/` (Phase 5 stubs)
-
-| Module | Class | Status |
-|--------|-------|--------|
-| `cribai.ts` | `CribAI.chat(campusId, query)` | Stub — yields placeholder string |
-| `pageindex-builder.ts` | `PageIndexBuilder.build(campusId)` | Stub — returns placeholder root node |
-| `pageindex-traverser.ts` | `PageIndexTraverser` | Stub |
-
-## Related Codemaps
-- [architecture.md](./architecture.md) — system diagram
-- [data.md](./data.md) — tables queried by each function
+```
+client.ts  → createClient()                    (browser, SSR cookies)
+server.ts  → createServerComponentClient(cookies) (RSC read-only)
+           → createSecretClient()              (service role, privileged)
+```
