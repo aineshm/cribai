@@ -9,3 +9,5 @@ dist/
 .vercel
 .supabase
 coverage/
+.claude/
+.mcp.json
