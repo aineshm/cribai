@@ -31,12 +31,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. User signing up with a non-.edu email sees a validation error before the magic link is sent
   4. User can skip profile creation at signup and fill it in later from a settings page
   5. Platform loads with UW Madison as the default campus and the UI is usable on mobile browsers
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
-- [ ] 01-03: TBD
+- [ ] 01-01-PLAN.md — Fix auth callback, add .edu validation, install sonner, unit tests
+- [ ] 01-02-PLAN.md — UW Madison seed data, root redirect, mobile-responsive layout
+- [ ] 01-03-PLAN.md — Profile system: migration, form, settings page, first-login modal
 
 ### Phase 2: Data Pipeline
 **Goal**: Real, current UW Madison listings are scraped nightly and kept fresh automatically
@@ -122,7 +122,7 @@ Note: Phase 5 depends on Phase 2 (not Phase 4), so Phases 4, 5, and 6 can potent
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Auth and Platform Foundation | 0/3 | Not started | - |
+| 1. Auth and Platform Foundation | 0/3 | Planned | - |
 | 2. Data Pipeline | 0/2 | Not started | - |
 | 3. Semantic Search | 0/3 | Not started | - |
 | 4. Saved Listings and Alerts | 0/2 | Not started | - |
