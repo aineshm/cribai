@@ -47,11 +47,12 @@ Plans:
   2. Scraped listings include photos that display correctly on listing pages
   3. GitHub Actions runs the scraper nightly and sends alerts on failure
   4. Listings not seen in recent scrapes are marked inactive with visible staleness indicators
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
+- [ ] 02-01-PLAN.md — Scraper enhancement: photo extraction, optional rent, stealth, metrics, archive lifecycle
+- [ ] 02-02-PLAN.md — GitHub Actions: Playwright install, job summary reporting, failure alerting
+- [ ] 02-03-PLAN.md — Freshness UX: hero photos, freshness badges, stale section, photo gallery
 
 ### Phase 3: Semantic Search
 **Goal**: CribAI understands qualitative preferences and ranks listings by semantic relevance, not just SQL filters
@@ -123,7 +124,7 @@ Note: Phase 5 depends on Phase 2 (not Phase 4), so Phases 4, 5, and 6 can potent
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Auth and Platform Foundation | 3/3 | Complete | 2026-03-05 |
-| 2. Data Pipeline | 0/2 | Not started | - |
+| 2. Data Pipeline | 0/3 | Not started | - |
 | 3. Semantic Search | 0/3 | Not started | - |
 | 4. Saved Listings and Alerts | 0/2 | Not started | - |
 | 5. Multi-Source Data and Reviews | 0/3 | Not started | - |
