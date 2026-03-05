@@ -104,7 +104,7 @@ export default function VerifyEduPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+            className="w-full rounded-xl bg-[var(--primary-600)] px-4 py-3 text-sm font-medium text-white hover:bg-[var(--primary-700)] disabled:opacity-50 transition-colors"
           >
             {loading ? 'Verifying...' : 'Verify my .edu email'}
           </button>

@@ -160,6 +160,7 @@ function Toggle({
           type="checkbox"
           checked={checked}
           onChange={(e) => onChange(e.target.checked)}
+          aria-label={label}
         />
         <span className="slider" />
       </span>

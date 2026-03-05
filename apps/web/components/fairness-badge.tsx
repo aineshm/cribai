@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { getScoreColorVariants } from '../lib/score-colors';
 
 interface FairnessBadgeProps {
   readonly score: number;
@@ -14,9 +15,8 @@ interface FairnessBadgeProps {
 }
 
 function scoreColor(score: number): string {
-  if (score >= 7) return 'bg-[var(--fair-good-bg)] text-[var(--fair-good)] border-[var(--fair-good)]';
-  if (score >= 4) return 'bg-[var(--fair-ok-bg)] text-[var(--fair-ok)] border-[var(--fair-ok)]';
-  return 'bg-[var(--fair-bad-bg)] text-[var(--fair-bad)] border-[var(--fair-bad)]';
+  const v = getScoreColorVariants(score);
+  return `bg-[${v.bg}] text-[${v.text}] border-[${v.border}]`;
 }
 
 function scoreBarColor(score: number): string {

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getScoreColorVariants } from '../lib/score-colors';
 
 interface ListingCardProps {
   readonly listing: {
@@ -16,9 +17,8 @@ interface ListingCardProps {
 }
 
 function fairnessColor(score: number): string {
-  if (score >= 7) return 'bg-[var(--fair-good-bg)] text-[var(--fair-good)]';
-  if (score >= 4) return 'bg-[var(--fair-ok-bg)] text-[var(--fair-ok)]';
-  return 'bg-[var(--fair-bad-bg)] text-[var(--fair-bad)]';
+  const v = getScoreColorVariants(score);
+  return `bg-[${v.bg}] text-[${v.text}]`;
 }
 
 export function ListingCard({ listing, campusSlug }: ListingCardProps) {
