@@ -15,7 +15,20 @@ export const profileSchema = z.object({
   verificationStatus: verificationStatusSchema.default('unverified'),
   subscriptionTier: subscriptionTierSchema.default('free'),
   stripeCustomerId: z.string().nullable().default(null),
+  avatarUrl: z.string().url().nullable().default(null),
+  graduationYear: z.number().int().min(2020).max(2035).nullable().default(null),
+  major: z.string().max(200).nullable().default(null),
+  profileCompletedAt: z.string().datetime().nullable().default(null),
   createdAt: z.string().datetime().optional(),
 });
 
 export type Profile = z.infer<typeof profileSchema>;
+
+/** Form validation schema — subset of fields users can edit */
+export const profileFormSchema = z.object({
+  displayName: z.string().min(1, 'Display name is required').max(100),
+  graduationYear: z.number().int().min(2020).max(2035).optional(),
+  major: z.string().max(200).optional(),
+});
+
+export type ProfileFormData = z.infer<typeof profileFormSchema>;
