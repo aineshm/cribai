@@ -26,8 +26,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **LIST-01**: User can save/favorite listings and view them from a saved listings page
 - [ ] **LIST-02**: User receives alerts when a saved listing's price changes
-- [ ] **LIST-03**: Listing detail pages display photos scraped from source
-- [ ] **LIST-04**: Listings show freshness indicators (when last verified/updated, days since posted)
+- [x] **LIST-03**: Listing detail pages display photos scraped from source
+- [x] **LIST-04**: Listings show freshness indicators (when last verified/updated, days since posted)
 - [ ] **LIST-05**: Listings display scraped reviews from Reddit and other sources (recent, relevant)
 
 ### Data Pipeline
@@ -107,8 +107,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SRCH-04 | Phase 3 | Complete |
 | LIST-01 | Phase 4 | Complete |
 | LIST-02 | Phase 4 | Pending |
-| LIST-03 | Phase 4 | Pending |
-| LIST-04 | Phase 4 | Pending |
+| LIST-03 | Phase 4 | Complete |
+| LIST-04 | Phase 4 | Complete |
 | LIST-05 | Phase 5 | Pending |
 | DATA-01 | Phase 2 | Complete |
 | DATA-02 | Phase 2 | Complete |

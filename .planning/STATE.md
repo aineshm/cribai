@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 04-01-PLAN.md
+stopped_at: Completed 04-02-PLAN.md
 last_updated: "2026-03-06T16:04:30.000Z"
-last_activity: 2026-03-06 - Completed 04-01 (DB schema + types + HeartButton + ListingCard)
+last_activity: 2026-03-06 - Completed 04-02 (detail page + saved page + nav links)
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 13
-  completed_plans: 10
-  percent: 77
+  completed_plans: 11
+  percent: 85
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 ## Current Position
 
 Phase: 4 of 6 (Saved Listings and Alerts) -- EXECUTING
-Plan: 1 of 4 in current phase (04-01 complete, ready for 04-02)
-Status: 04-01 complete (DB schema + types + HeartButton + ListingCard integration)
-Last activity: 2026-03-06 - Completed 04-01
+Plan: 2 of 4 in current phase (04-02 complete, ready for 04-03)
+Status: 04-02 complete (detail page + saved page + nav links)
+Last activity: 2026-03-06 - Completed 04-02
 
-Progress: [███████░░░] 77% (10 of 13 plans)
+Progress: [████████░░] 85% (11 of 13 plans)
 
 ## Performance Metrics
 
@@ -60,6 +60,7 @@ Progress: [███████░░░] 77% (10 of 13 plans)
 | Phase 03 P02 | 7min | 2 tasks | 9 files |
 | Phase 03 P03 | 9min | 2 tasks | 8 files |
 | Phase 04 P01 | 4min | 4 tasks | 12 files |
+| Phase 04 P02 | 5min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -105,6 +106,9 @@ Recent decisions affecting current work:
 - [Phase 04-01]: CSS keyframes for heart animation instead of framer-motion (no new dependency)
 - [Phase 04-01]: HeartButton fetches auth inline via supabase.auth.getUser() instead of prop threading
 - [Phase 04-01]: Fixed vitest include pattern for .tsx in lib/__tests__
+- [Phase 04-02]: WKB hex parser for PostGIS geography POINT extraction (avoids new migration/RPC)
+- [Phase 04-02]: HeartButton inline variant with currentColor stroke for non-overlay usage
+- [Phase 04-02]: Desktop nav shows Saved link always; auth redirect handled by saved page
 
 ### Pending Todos
 
@@ -125,7 +129,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-06T16:04:30.000Z
-Stopped at: Completed 04-01-PLAN.md
-Resume file: .planning/phases/04-saved-listings-and-alerts/04-01-SUMMARY.md
-Next: Execute 04-02 (saved listings page + empty state). Phase 5 needs discussion (/gsd:discuss-phase 5) for agentic pipeline details.
+Last session: 2026-03-06T16:12:06Z
+Stopped at: Completed 04-02-PLAN.md
+Resume file: .planning/phases/04-saved-listings-and-alerts/04-02-SUMMARY.md
+Next: Execute 04-03 (notifications + price change detection). Phase 5 needs discussion (/gsd:discuss-phase 5) for agentic pipeline details.
