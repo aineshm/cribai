@@ -10,6 +10,7 @@ interface HeartButtonProps {
   readonly initialSaved: boolean;
   readonly campusSlug: string;
   readonly size?: 'sm' | 'md';
+  readonly variant?: 'overlay' | 'inline';
 }
 
 export function HeartButton({
@@ -17,6 +18,7 @@ export function HeartButton({
   initialSaved,
   campusSlug,
   size = 'sm',
+  variant = 'overlay',
 }: HeartButtonProps) {
   const [saved, setSaved] = useState(initialSaved);
   const [animating, setAnimating] = useState(false);
@@ -81,13 +83,13 @@ export function HeartButton({
     <button
       type="button"
       onClick={handleToggle}
-      className={`absolute top-3 right-3 z-10 ${padding} rounded-full bg-black/20 backdrop-blur-sm hover:bg-black/30 transition-colors`}
+      className={`${variant === 'overlay' ? 'absolute top-3 right-3 z-10 bg-black/20 backdrop-blur-sm hover:bg-black/30' : 'bg-[var(--surface-100)] hover:bg-[var(--surface-200)]'} ${padding} rounded-full transition-colors`}
       aria-label={saved ? 'Remove from favorites' : 'Save to favorites'}
     >
       <svg
         className={`${iconSize} transition-transform duration-200 ${animating ? 'animate-heart-pop' : ''}`}
         fill={saved ? '#ef4444' : 'none'}
-        stroke={saved ? '#ef4444' : 'white'}
+        stroke={saved ? '#ef4444' : variant === 'overlay' ? 'white' : 'currentColor'}
         strokeWidth={2}
         viewBox="0 0 24 24"
       >
