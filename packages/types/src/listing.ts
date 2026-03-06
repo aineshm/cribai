@@ -47,6 +47,8 @@ export const listingSchema = z.object({
   isActive: z.boolean().default(true),
   firstSeenAt: z.string().datetime().optional(),
   lastSeenAt: z.string().datetime().optional(),
+  embeddingText: z.string().nullable().optional(),
+  lastEmbeddedAt: z.string().datetime().nullable().optional(),
 });
 
 export type Listing = z.infer<typeof listingSchema>;

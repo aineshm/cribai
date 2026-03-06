@@ -61,6 +61,19 @@ export const toolLoadingBlockSchema = z.object({
   toolName: z.string(),
 });
 
+export const mapListingSchema = listingSummarySchema.extend({
+  latitude: z.number(),
+  longitude: z.number(),
+  photoUrl: z.string().nullable(),
+});
+
+export const mapBlockSchema = z.object({
+  type: z.literal('map'),
+  listings: z.array(mapListingSchema),
+  center: z.object({ lat: z.number(), lng: z.number() }),
+  zoom: z.number(),
+});
+
 export const chatBlockSchema = z.discriminatedUnion('type', [
   textBlockSchema,
   listingCardBlockSchema,
@@ -68,6 +81,7 @@ export const chatBlockSchema = z.discriminatedUnion('type', [
   tourConfirmationBlockSchema,
   legalDisclaimerBlockSchema,
   toolLoadingBlockSchema,
+  mapBlockSchema,
 ]);
 
 export type ChatBlock = z.infer<typeof chatBlockSchema>;
@@ -78,3 +92,5 @@ export type TourConfirmationBlock = z.infer<typeof tourConfirmationBlockSchema>;
 export type LegalDisclaimerBlock = z.infer<typeof legalDisclaimerBlockSchema>;
 export type RecommendationsBlock = z.infer<typeof recommendationsBlockSchema>;
 export type ToolLoadingBlock = z.infer<typeof toolLoadingBlockSchema>;
+export type MapBlock = z.infer<typeof mapBlockSchema>;
+export type MapListing = z.infer<typeof mapListingSchema>;

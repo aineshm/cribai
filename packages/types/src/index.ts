@@ -16,6 +16,10 @@ export {
   type LegalDisclaimerBlock,
   type RecommendationsBlock,
   type ToolLoadingBlock,
+  type MapBlock,
+  type MapListing,
+  mapBlockSchema,
+  mapListingSchema,
   type ListingSummary,
   type ScoredListing,
 } from './chat';
