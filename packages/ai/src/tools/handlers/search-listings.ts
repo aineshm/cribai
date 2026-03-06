@@ -93,15 +93,22 @@ async function semanticSearch(
       })
     : listings;
 
+  // Count unique properties by normalized address
+  const uniqueAddresses = new Set(
+    filtered.map(l => l.address.toLowerCase().trim()),
+  );
+  const uniqueCount = uniqueAddresses.size;
+
   // Build modelContext WITHOUT numeric similarity scores
+  const uniqueHint = `\n\n[Unique properties: ${uniqueCount}. If fewer than 1 unique property matched, consider using web_search to find more options.]`;
   const modelContext = filtered.length === 0
-    ? 'No listings found matching the criteria.'
+    ? 'No listings found matching the criteria.' + uniqueHint
     : `Found ${filtered.length} listing(s) matching "${parsed.semantic_query}":\n${filtered
         .map(
           (l, i) =>
             `${i + 1}. ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10`,
         )
-        .join('\n')}`;
+        .join('\n')}` + uniqueHint;
 
   // Build map block for 3+ results with lat/lng
   const filteredRows = parsed.amenities?.length
@@ -236,14 +243,21 @@ async function sqlSearch(
       })
     : listings;
 
+  // Count unique properties by normalized address
+  const sqlUniqueAddresses = new Set(
+    filtered.map(l => l.address.toLowerCase().trim()),
+  );
+  const sqlUniqueCount = sqlUniqueAddresses.size;
+
+  const sqlUniqueHint = `\n\n[Unique properties: ${sqlUniqueCount}. If fewer than 1 unique property matched, consider using web_search to find more options.]`;
   const modelContext = filtered.length === 0
-    ? 'No listings found matching the criteria.'
+    ? 'No listings found matching the criteria.' + sqlUniqueHint
     : `Found ${filtered.length} listing(s):\n${filtered
         .map(
           (l, i) =>
             `${i + 1}. ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10`,
         )
-        .join('\n')}`;
+        .join('\n')}` + sqlUniqueHint;
 
   return {
     modelContext,

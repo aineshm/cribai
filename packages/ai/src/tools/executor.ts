@@ -6,6 +6,7 @@ import { scheduleTour } from './handlers/schedule-tour';
 import { explainLeaseTerm } from './handlers/explain-lease-term';
 import { getLandlordInfo } from './handlers/get-landlord-info';
 import { getSavedListings } from './handlers/get-saved-listings';
+import { webSearch } from './handlers/web-search';
 
 const HANDLERS: Record<string, (args: Record<string, unknown>, context: ToolContext) => Promise<ToolResult>> = {
   search_listings: searchListings,
@@ -15,6 +16,7 @@ const HANDLERS: Record<string, (args: Record<string, unknown>, context: ToolCont
   explain_lease_term: explainLeaseTerm,
   get_landlord_info: getLandlordInfo,
   get_saved_listings: getSavedListings,
+  web_search: webSearch,
 };
 
 export async function executeTool(

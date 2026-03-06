@@ -23,8 +23,10 @@ describe('web-search-cache', () => {
   it('returns cached results for recently searched query', () => {
     setCachedResults('test query', [...sampleResults]);
     const result = getCachedResults('test query');
+    expect(result).not.toBeNull();
     expect(result).toHaveLength(2);
-    expect(result![0].title).toBe('Apt 1');
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    expect(result![0]!.title).toBe('Apt 1');
   });
 
   it('normalizes query to lowercase trimmed before storing', () => {

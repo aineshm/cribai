@@ -151,6 +151,26 @@ const getLandlordInfo: FunctionDeclaration = {
   },
 };
 
+const webSearch: FunctionDeclaration = {
+  name: 'web_search',
+  description:
+    'Search the web for rental listings and housing information when the local database does not have enough results. Use this when search_listings returns fewer than 1 unique property matching the query, or when the user explicitly asks to search the web.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      query: {
+        type: Type.STRING,
+        description: 'Search query describing what the user is looking for (e.g., "3 bedroom apartments near UW Madison under $1500")',
+      },
+      location: {
+        type: Type.STRING,
+        description: 'City or area to focus the search on (e.g., "Madison WI")',
+      },
+    },
+    required: ['query'],
+  },
+};
+
 const getSavedListings: FunctionDeclaration = {
   name: 'get_saved_listings',
   description:
@@ -179,4 +199,5 @@ export const CRIBAI_TOOLS: readonly FunctionDeclaration[] = [
   explainLeaseTerm,
   getLandlordInfo,
   getSavedListings,
+  webSearch,
 ];
