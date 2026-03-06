@@ -63,12 +63,12 @@ Plans:
   2. User asking CribAI for "quiet place near campus with natural light" gets semantically relevant results, not just keyword matches
   3. Hard filters (price, bedrooms) still work alongside semantic ranking in hybrid search
   4. CribAI can display search results on an interactive map within the chat
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
-- [ ] 03-03: TBD
+- [ ] 03-01-PLAN.md — pgvector migration, embedding pipeline (synthesize, embed, orchestrate), type updates
+- [ ] 03-02-PLAN.md — Hybrid search: upgrade search_listings with semantic_query + RPC, GH Actions embedding step
+- [ ] 03-03-PLAN.md — Map block: Mapbox GL JS map component with price pins, popups, block renderer integration
 
 ### Phase 4: Saved Listings and Alerts
 **Goal**: Students can save listings they like, see detailed listing pages with photos, and get notified of price changes
