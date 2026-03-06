@@ -24,3 +24,5 @@ export {
   type ScoredListing,
 } from './chat';
 export { tourRequestSchema, tourRequestInputSchema, type TourRequest, type TourRequestInput } from './tour';
+export { savedListingSchema, type SavedListing } from './saved-listing';
+export { notificationSchema, priceChangePayloadSchema, type Notification, type PriceChangePayload } from './notification';
