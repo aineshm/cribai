@@ -16,6 +16,8 @@ describe('outputMetrics', () => {
       archived: 1,
       deleted: 1,
       errors: 0,
+      notifications: 0,
+      perSource: {},
     };
 
     outputMetrics(metrics);
@@ -41,6 +43,8 @@ describe('outputMetrics', () => {
       archived: 0,
       deleted: 0,
       errors: 2,
+      notifications: 0,
+      perSource: {},
     };
 
     outputMetrics(metrics);
@@ -60,6 +64,8 @@ describe('outputMetrics', () => {
       archived: 0,
       deleted: 0,
       errors: 0,
+      notifications: 0,
+      perSource: {},
     };
 
     outputMetrics(metrics);

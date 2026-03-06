@@ -33,37 +33,54 @@ jobs:
           echo "$OUTPUT"
           METRICS=$(echo "$OUTPUT" | grep "^::metrics::" | sed 's/^::metrics:://')
           if [ -n "$METRICS" ]; then
-            echo "metrics=$METRICS" >> $GITHUB_OUTPUT
+            echo "metrics=$METRICS" >> "$GITHUB_OUTPUT"
+          fi
+          DIAGNOSTIC=$(echo "$OUTPUT" | grep "^::diagnostic::" | sed 's/^::diagnostic:://')
+          if [ -n "$DIAGNOSTIC" ]; then
+            {
+              echo "diagnostic<<DIAG_EOF"
+              echo "$DIAGNOSTIC"
+              echo "DIAG_EOF"
+            } >> "$GITHUB_OUTPUT"
           fi
           exit ${EXIT_CODE:-0}
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-          GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           ENABLE_APARTMENTS_COM: 'false'
 
       - name: Write job summary
         if: always()
+        env:
+          SCRAPE_OUTCOME: ${{ steps.scrape.outcome }}
+          SCRAPE_METRICS: ${{ steps.scrape.outputs.metrics }}
+          SCRAPE_DIAGNOSTIC: ${{ steps.scrape.outputs.diagnostic }}
         run: |
-          echo "## Nightly Scrape Report" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.scrape.outcome }}" = "failure" ]; then
-            echo "> **FAILED** -- Check logs for details" >> $GITHUB_STEP_SUMMARY
+          echo "## Nightly Scrape Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$SCRAPE_OUTCOME" = "failure" ]; then
+            echo "> **FAILED** -- Check logs for details" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "> **SUCCESS**" >> $GITHUB_STEP_SUMMARY
+            echo "> **SUCCESS**" >> "$GITHUB_STEP_SUMMARY"
           fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-          METRICS='${{ steps.scrape.outputs.metrics }}'
-          if [ -n "$METRICS" ]; then
-            echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
-            echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
-            echo "| Listings Upserted | $(echo $METRICS | jq -r '.upserted') |" >> $GITHUB_STEP_SUMMARY
-            echo "| Stale Marked | $(echo $METRICS | jq -r '.staleMarked') |" >> $GITHUB_STEP_SUMMARY
-            echo "| Archived | $(echo $METRICS | jq -r '.archived') |" >> $GITHUB_STEP_SUMMARY
-            echo "| Deleted | $(echo $METRICS | jq -r '.deleted') |" >> $GITHUB_STEP_SUMMARY
-            echo "| Errors | $(echo $METRICS | jq -r '.errors') |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$SCRAPE_METRICS" ]; then
+            echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
+            echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Listings Upserted | $(echo "$SCRAPE_METRICS" | jq -r '.upserted') |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Stale Marked | $(echo "$SCRAPE_METRICS" | jq -r '.staleMarked') |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Archived | $(echo "$SCRAPE_METRICS" | jq -r '.archived') |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Deleted | $(echo "$SCRAPE_METRICS" | jq -r '.deleted') |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Errors | $(echo "$SCRAPE_METRICS" | jq -r '.errors') |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Notifications | $(echo "$SCRAPE_METRICS" | jq -r '.notifications') |" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "*No metrics available -- scraper may have crashed before reporting.*" >> $GITHUB_STEP_SUMMARY
+            echo "*No metrics available -- scraper may have crashed before reporting.*" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          # Per-source diagnostic table from scraper output
+          if [ -n "$SCRAPE_DIAGNOSTIC" ]; then
+            echo "$SCRAPE_DIAGNOSTIC" >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Trigger fairness recalculation
