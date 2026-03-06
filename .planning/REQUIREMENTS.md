@@ -109,14 +109,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | LIST-02 | Phase 4 | Complete |
 | LIST-03 | Phase 4 | Complete |
 | LIST-04 | Phase 4 | Complete |
-| LIST-05 | Phase 5 | Pending |
+| LIST-05 | Phase 6 | Pending |
 | DATA-01 | Phase 2 | Complete |
 | DATA-02 | Phase 2 | Complete |
-| DATA-03 | Phase 5 | Pending |
+| DATA-03 | Phase 6 | Pending |
 | DATA-04 | Phase 5 | Pending |
 | DATA-05 | Phase 2 | Complete |
 | DATA-06 | Phase 2 | Complete |
-| DATA-07 | Phase 5 | Pending |
+| DATA-07 | Phase 6 | Pending |
 | CHAT-01 | Phase 6 | Pending |
 | CHAT-02 | Phase 6 | Pending |
 | CHAT-03 | Phase 6 | Pending |

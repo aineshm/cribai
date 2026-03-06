@@ -90,7 +90,7 @@ Plans:
 ### Phase 5: Agentic Data Pipeline + Web Search
 **Goal**: CribAI has enough real listings to be useful AND can research on-demand when the corpus is thin — this is the core differentiator over Apartments.com
 **Depends on**: Phase 3
-**Requirements**: DATA-03, DATA-07, AGENT-01, AGENT-02
+**Requirements**: DATA-04, AGENT-01, AGENT-02
 **Success Criteria** (what must be TRUE):
   1. Scraper produces 100+ real listings with rent/beds/photos from aggregator sources (Craigslist, Zillow/RentCafe, or local PM sites)
   2. Google Places no longer used as a listing source (remove or repurpose for lat/lng enrichment only)
@@ -102,12 +102,12 @@ Plans:
 Plans:
 - [ ] 05-01-PLAN.md — Scraper pipeline overhaul: remove Google Places, add Zillow scraper, fix Craigslist diagnostics, per-source reporting
 - [ ] 05-02-PLAN.md — web_search tool: Tavily API integration, session cache, schema/executor registration, search trigger hint
-- [ ] 05-03-PLAN.md — UI integration: source citations on ListingCard, web_search indicator, Google Places data cleanup
+- [ ] 05-03-PLAN.md — UI integration: source citations on ListingCard, web_search indicator, Google Places cleanup, save-web-result-to-DB flow
 
 ### Phase 6: Agent Tool Expansion + Polish
 **Goal**: CribAI demonstrates breadth of agentic capabilities — reviews, tour booking, PM contact, neighborhood info — and the app is shippable
 **Depends on**: Phase 5
-**Requirements**: CHAT-01, CHAT-02, CHAT-03, AGENT-03, AGENT-04
+**Requirements**: CHAT-01, CHAT-02, CHAT-03, AGENT-03, AGENT-04, DATA-03, DATA-07, LIST-05
 **Success Criteria** (what must be TRUE):
   1. User can close the app, return later, and resume a previous conversation with full history intact
   2. CribAI can discuss Reddit/Yelp/Google Maps reviews for a property (real or placeholder with clear "coming soon" UX)
