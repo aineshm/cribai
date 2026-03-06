@@ -19,6 +19,7 @@ interface ListingCardProps {
     readonly source_url: string | null;
     readonly last_seen_at: string | null;
     readonly is_active: boolean;
+    readonly source?: string;
   };
   readonly campusSlug: string;
   readonly isSaved?: boolean;
@@ -109,6 +110,16 @@ export function ListingCard({ listing, campusSlug, isSaved }: ListingCardProps) 
               ${listing.true_cost_total.toLocaleString()}/mo
             </span>
           </p>
+        )}
+
+        {listing.source && (
+          <span className="mt-2 block text-xs text-[var(--surface-400)]">
+            via {listing.source === 'apartments.com' ? 'Apartments.com'
+              : listing.source === 'craigslist' ? 'Craigslist'
+              : listing.source === 'zillow' ? 'Zillow'
+              : listing.source === 'web_search' ? 'web search'
+              : listing.source}
+          </span>
         )}
       </div>
     </Link>

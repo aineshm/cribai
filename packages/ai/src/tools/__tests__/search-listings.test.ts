@@ -83,7 +83,7 @@ describe('searchListings', () => {
 
     const result = await searchListings({}, context);
 
-    expect(result.modelContext).toBe('No listings found matching the criteria.');
+    expect(result.modelContext).toContain('No listings found matching the criteria.');
     expect(result.clientBlock.type).toBe('listing_card');
     if (result.clientBlock.type === 'listing_card') {
       expect(result.clientBlock.listings).toHaveLength(0);

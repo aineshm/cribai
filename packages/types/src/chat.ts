@@ -11,6 +11,8 @@ export const listingSummarySchema = z.object({
   trueCostTotal: z.number().nullable(),
   amenities: z.array(z.string()).default([]),
   campusSlug: z.string().optional(),
+  source: z.string().optional(),
+  sourceUrl: z.string().nullable().optional(),
 });
 
 export type ListingSummary = z.infer<typeof listingSummarySchema>;

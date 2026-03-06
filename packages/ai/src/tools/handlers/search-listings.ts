@@ -28,6 +28,7 @@ interface SemanticRpcRow {
   readonly latitude: number | null;
   readonly longitude: number | null;
   readonly similarity: number;
+  readonly source: string | null;
 }
 
 export async function searchListings(
@@ -81,6 +82,7 @@ async function semanticSearch(
     trueCostTotal: row.true_cost_total,
     amenities: Array.isArray(row.amenities) ? [...row.amenities] : [],
     campusSlug: context.campusSlug,
+    source: row.source ?? undefined,
   }));
 
   // Apply client-side amenity filter
@@ -176,7 +178,7 @@ async function sqlSearch(
   let query = context.supabase
     .from('listings')
     .select(
-      'id, address, rent_monthly, bedrooms, bathrooms, sqft, fairness_score, true_cost_total, amenities',
+      'id, address, rent_monthly, bedrooms, bathrooms, sqft, fairness_score, true_cost_total, amenities, source',
     )
     .eq('campus_id', context.campusId)
     .eq('is_active', true);
@@ -231,6 +233,7 @@ async function sqlSearch(
     trueCostTotal: row.true_cost_total as number | null,
     amenities: (row.amenities as string[] | null) ?? [],
     campusSlug: context.campusSlug,
+    source: (row.source as string | null) ?? undefined,
   }));
 
   // Filter by amenities client-side (jsonb contains is tricky)
