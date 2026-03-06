@@ -23,7 +23,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Install Playwright browsers
-        run: npx playwright install chromium --with-deps
+        run: pnpm --filter @campusnest/scraper exec playwright install chromium --with-deps
 
       - name: Run scraper
         id: scrape
