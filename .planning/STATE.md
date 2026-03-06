@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 05-01
-last_updated: "2026-03-06T18:42:00.000Z"
-last_activity: 2026-03-06 - Completed 05-01
+status: completed
+stopped_at: Completed 05-03 (awaiting human-verify checkpoint)
+last_updated: "2026-03-06T19:21:21.152Z"
+last_activity: 2026-03-06 - Completed 05-02
 progress:
   total_phases: 6
-  completed_phases: 4
-  total_plans: 13
-  completed_plans: 14
-  percent: 93
+  completed_phases: 5
+  total_plans: 16
+  completed_plans: 16
+  percent: 95
 ---
 
 # Project State
@@ -66,6 +66,7 @@ Progress: [█████████░] 95% (15 of 16 plans)
 | Phase 05 P01 | 10min | 3 tasks | 10 files |
 | Phase 05 P02 | 8min | 2 tasks | 7 files |
 | Phase 05 P01 | 5min | 2 tasks | 12 files |
+| Phase 05 P03 | 10min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -127,6 +128,9 @@ Recent decisions affecting current work:
 - [Phase 05-01]: GooglePlacesScraper removed from pipeline, file preserved for Phase 6 enrichment
 - [Phase 05-01]: Diagnostic output uses ::diagnostic:: prefix for GH Actions multiline output parsing
 - [Phase 05-01]: GOOGLE_PLACES_API_KEY removed from workflow, TAVILY_API_KEY added for future use
+- [Phase 05]: Web-sourced listings use persist-on-save pattern: ephemeral in chat, persisted only when user favorites
+- [Phase 05]: Service-role client for web listing upsert (needs write access to listings table)
+- [Phase 05]: Source citation uses friendly display names on ListingCard component
 
 ### Pending Todos
 
@@ -147,7 +151,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-06T18:44:00Z
-Stopped at: Completed 05-02
-Resume file: .planning/phases/05-agentic-data-pipeline-web-search/05-02-SUMMARY.md
+Last session: 2026-03-06T19:21:21.149Z
+Stopped at: Completed 05-03 (awaiting human-verify checkpoint)
+Resume file: None
 Next: Execute 05-03 (remaining Phase 5 plan, if exists)

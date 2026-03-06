@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Data Pipeline** - Reliable scraping of real listings for UW Madison with automation and freshness tracking (completed 2026-03-06)
 - [x] **Phase 3: Semantic Search** - Vector embeddings and hybrid search so CribAI ranks listings by qualitative relevance (completed 2026-03-06)
 - [ ] **Phase 4: Saved Listings and Alerts** - Users can save favorites, track price changes, and view listing details with photos
-- [ ] **Phase 5: Agentic Data Pipeline + Web Search** - Fix scraper for real listings, add web_search tool so CribAI researches on-demand
+- [x] **Phase 5: Agentic Data Pipeline + Web Search** - Fix scraper for real listings, add web_search tool so CribAI researches on-demand (completed 2026-03-06)
 - [ ] **Phase 6: Agent Tool Expansion + Polish** - Placeholder and real tools for reviews, tour booking, PM contact, neighborhood info; chat persistence; ship
 
 ## Phase Details
@@ -147,5 +147,5 @@ Phase 4 can proceed in parallel with Phase 5 planning/discussion.
 | 2. Data Pipeline | 3/3 | Complete | 2026-03-06 |
 | 3. Semantic Search | 3/3 | Complete | 2026-03-06 |
 | 4. Saved Listings and Alerts | 4/4 | Complete | 2026-03-06 |
-| 5. Agentic Data Pipeline + Web Search | 2/3 | In Progress|  |
+| 5. Agentic Data Pipeline + Web Search | 3/3 | Complete   | 2026-03-06 |
 | 6. Agent Tool Expansion + Polish | 0/3 | Not started | - |
