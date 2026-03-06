@@ -11,6 +11,7 @@ export interface ToolContext {
 export interface ToolResult {
   readonly modelContext: string;
   readonly clientBlock: ChatBlock;
+  readonly mapBlock?: ChatBlock;
 }
 
 export type ToolHandler = (

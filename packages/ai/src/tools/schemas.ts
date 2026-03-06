@@ -3,10 +3,15 @@ import { Type, type FunctionDeclaration } from '@google/genai';
 const searchListings: FunctionDeclaration = {
   name: 'search_listings',
   description:
-    'Search for student housing listings near campus. Use this whenever the user asks about available apartments, pricing, or wants to find housing.',
+    'Search for student housing listings near campus. Use this whenever the user asks about available apartments, pricing, or wants to find housing. Supports semantic search for qualitative preferences like "quiet place with natural light".',
   parameters: {
     type: Type.OBJECT,
     properties: {
+      semantic_query: {
+        type: Type.STRING,
+        description:
+          'Natural language description of what the user wants (e.g., "quiet place near campus with natural light"). Set this when the user describes qualitative preferences beyond just beds/price.',
+      },
       bedrooms: {
         type: Type.INTEGER,
         description: 'Number of bedrooms (0 for studio, 1-4+)',
@@ -30,8 +35,8 @@ const searchListings: FunctionDeclaration = {
       },
       sort: {
         type: Type.STRING,
-        enum: ['price_asc', 'price_desc', 'fairness'],
-        description: 'Sort order for results',
+        enum: ['price_asc', 'price_desc', 'fairness', 'relevance'],
+        description: 'Sort order for results. Use "relevance" with semantic_query for similarity-ranked results.',
       },
       limit: {
         type: Type.INTEGER,
