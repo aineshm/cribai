@@ -23,6 +23,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Install Playwright browsers
+        if: env.ENABLE_APARTMENTS_COM == 'true'
         run: pnpm --filter @campusnest/scraper exec playwright install chromium --with-deps
 
       - name: Run scraper
@@ -38,6 +39,8 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
+          ENABLE_APARTMENTS_COM: 'false'
 
       - name: Write job summary
         if: always()

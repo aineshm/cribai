@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
+import { CraigslistScraper } from './scrapers/craigslist';
+import { GooglePlacesScraper } from './scrapers/google-places';
 import { ApartmentsComScraper } from './scrapers/apartments-com';
 import { normalizeListing } from './normalizer';
 import type { ScraperConfig } from './scrapers/base-scraper';
+import type { BaseScraper } from './scrapers/base-scraper';
 import { outputMetrics } from './metrics';
 import { archiveStaleListings } from './lifecycle';
 
@@ -12,14 +15,11 @@ import { archiveStaleListings } from './lifecycle';
 function parseWkbPoint(hex: string): { latitude: number; longitude: number } | null {
   if (!hex || hex.length < 50) return null;
   try {
-    // EWKB with SRID: skip byte-order(1byte) + type(4bytes) + srid(4bytes) = 9 bytes = 18 hex chars
     const buf = Buffer.from(hex, 'hex');
-    // Byte order: 01 = little-endian
     const le = buf[0] === 1;
     const readDouble = le
       ? (offset: number) => buf.readDoubleLE(offset)
       : (offset: number) => buf.readDoubleBE(offset);
-    // For EWKB with SRID: type is at offset 1 (4 bytes), srid at offset 5 (4 bytes), coords start at offset 9
     const x = readDouble(9);  // longitude
     const y = readDouble(17); // latitude
     if (isNaN(x) || isNaN(y)) return null;
@@ -27,6 +27,21 @@ function parseWkbPoint(hex: string): { latitude: number; longitude: number } | n
   } catch {
     return null;
   }
+}
+
+function buildScrapers(config: ScraperConfig): readonly BaseScraper[] {
+  const scrapers: BaseScraper[] = [
+    // Primary sources (API-based, reliable)
+    new CraigslistScraper(config),
+    new GooglePlacesScraper(config),
+  ];
+
+  // Apartments.com as fallback — frequently blocked, kept for when it works
+  if (process.env.ENABLE_APARTMENTS_COM === 'true') {
+    scrapers.push(new ApartmentsComScraper(config));
+  }
+
+  return scrapers;
 }
 
 async function main() {
@@ -42,8 +57,6 @@ async function main() {
   });
 
   // Fetch active campus configs
-  // Note: PostGIS geography column returns WKB hex via Supabase JS client,
-  // so we query lat/lng separately using PostGIS functions.
   const { data: campuses, error } = await supabase
     .from('campus_configs')
     .select('id, slug, name, scrape_radius_km, is_public, location')
@@ -53,13 +66,7 @@ async function main() {
     throw new Error(`Failed to fetch campuses: ${error.message}`);
   }
 
-  const metrics: {
-    upserted: number;
-    staleMarked: number;
-    archived: number;
-    deleted: number;
-    errors: number;
-  } = { upserted: 0, staleMarked: 0, archived: 0, deleted: 0, errors: 0 };
+  const metrics = { upserted: 0, staleMarked: 0, archived: 0, deleted: 0, errors: 0 };
 
   for (const campus of campuses ?? []) {
     const coords = parseWkbPoint(campus.location as string);
@@ -78,10 +85,7 @@ async function main() {
 
     console.log(`\n=== Scraping ${campus.name} (${campus.slug}) ===`);
 
-    const scrapers = [
-      new ApartmentsComScraper(config),
-      // Add more scrapers here: ZillowScraper, ZumperScraper, etc.
-    ];
+    const scrapers = buildScrapers(config);
 
     for (const scraper of scrapers) {
       try {
@@ -93,7 +97,7 @@ async function main() {
           continue;
         }
 
-        // Upsert listings (including photo_urls and source_url)
+        // Upsert listings
         const rows = normalized.map((listing) => ({
           campus_id: config.campusId,
           external_id: listing.externalId,
