@@ -15,9 +15,8 @@ import { generateEmbedding } from '../generate-embedding';
 
 function createMockSupabase(listings: readonly Record<string, unknown>[]) {
   // Build a chainable mock for select queries:
-  // from('listings').select(...).eq('is_active', true).or(...)
-  const orMock = vi.fn().mockResolvedValue({ data: listings, error: null });
-  const eqSelectMock = vi.fn().mockReturnValue({ or: orMock });
+  // from('listings').select(...).eq('is_active', true)
+  const eqSelectMock = vi.fn().mockResolvedValue({ data: listings, error: null });
   const selectMock = vi.fn().mockReturnValue({ eq: eqSelectMock });
 
   // Build a chainable mock for update queries:
