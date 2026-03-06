@@ -7,6 +7,65 @@ import {
   type WebSearchResult,
 } from '../../lib/web-search-cache';
 
+interface PersistWebListingParams {
+  readonly address: string;
+  readonly sourceUrl: string;
+  readonly rentMonthly?: number;
+  readonly bedrooms?: number;
+  readonly content: string;
+}
+
+/**
+ * Web results are ephemeral in chat. They become persistent listings only when
+ * a user saves them to favorites, at which point persistWebListing creates the
+ * listing record and the Phase 3 embedding pipeline will embed it on the next run.
+ */
+export async function persistWebListing(
+  params: PersistWebListingParams,
+  context: ToolContext,
+): Promise<string | null> {
+  try {
+    const { data, error } = await context.supabase
+      .from('listings')
+      .upsert(
+        {
+          address: params.address,
+          source: 'web_search',
+          source_url: params.sourceUrl,
+          rent_monthly: params.rentMonthly ?? null,
+          bedrooms: params.bedrooms ?? null,
+          campus_id: context.campusId,
+          is_active: true,
+          raw_data: { web_content: params.content },
+        },
+        { onConflict: 'source,source_url' },
+      )
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('persistWebListing upsert failed:', error.message);
+      return null;
+    }
+
+    if (!data) {
+      return null;
+    }
+
+    // Trigger embedding pipeline by clearing last_embedded_at
+    await context.supabase
+      .from('listings')
+      .update({ last_embedded_at: null })
+      .eq('id', data.id);
+
+    return data.id;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error('persistWebListing unexpected error:', message);
+    return null;
+  }
+}
+
 const inputSchema = z.object({
   query: z.string(),
   location: z.string().optional(),

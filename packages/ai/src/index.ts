@@ -5,5 +5,6 @@ export type { CribAIConfig, ChatInput, ChatEvent } from './cribai';
 export type { PageIndexNode } from '@campusnest/types';
 export { CRIBAI_TOOLS, executeTool } from './tools';
 export type { ToolContext, ToolResult } from './tools';
+export { persistWebListing } from './tools/handlers/web-search';
 export { synthesizeListingText, generateEmbedding, generateQueryEmbedding, embedChangedListings } from './embeddings';
 export type { SynthesizeInput, EmbedMetrics } from './embeddings';
