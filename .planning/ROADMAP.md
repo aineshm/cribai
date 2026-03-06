@@ -2,7 +2,7 @@
 
 ## Overview
 
-CampusNest has a substantial codebase but nothing shippable yet. The path to launch starts with fixing broken auth and establishing UW Madison as the primary campus, then building a real data pipeline with scraped listings, then layering on semantic search (the core differentiator), then adding saved listings and alerts for retention, then expanding data sources and review content, and finally polishing the chat experience with persistence and map integration.
+CampusNest is an agentic apartment research assistant for college students. The core differentiator is not just listing aggregation — it's that CribAI actively researches, compares, and discusses options like a knowledgeable friend. Phases 1-3 established auth, data pipeline, and semantic search. The remaining phases focus on user retention (saved listings), fixing the data pipeline to get real listings + adding agentic web search (the key differentiator), expanding the agent's tool capabilities, and shipping.
 
 ## Phases
 
@@ -14,10 +14,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Auth and Platform Foundation** - Fix broken auth flow, establish UW Madison as primary campus, responsive design
 - [x] **Phase 2: Data Pipeline** - Reliable scraping of real listings for UW Madison with automation and freshness tracking (completed 2026-03-06)
-- [ ] **Phase 3: Semantic Search** - Vector embeddings and hybrid search so CribAI ranks listings by qualitative relevance
+- [x] **Phase 3: Semantic Search** - Vector embeddings and hybrid search so CribAI ranks listings by qualitative relevance (completed 2026-03-06)
 - [ ] **Phase 4: Saved Listings and Alerts** - Users can save favorites, track price changes, and view listing details with photos
-- [ ] **Phase 5: Multi-Source Data and Reviews** - Additional listing sources, manual submission, and scraped review content
-- [ ] **Phase 6: Chat Experience Polish** - Persistent conversation history, tour scheduling, and interactive map in chat
+- [ ] **Phase 5: Agentic Data Pipeline + Web Search** - Fix scraper for real listings, add web_search tool so CribAI researches on-demand
+- [ ] **Phase 6: Agent Tool Expansion + Polish** - Placeholder and real tools for reviews, tour booking, PM contact, neighborhood info; chat persistence; ship
 
 ## Phase Details
 
@@ -85,47 +85,65 @@ Plans:
 - [ ] 04-01: TBD
 - [ ] 04-02: TBD
 
-### Phase 5: Multi-Source Data and Reviews
-**Goal**: Listings come from multiple sources for better coverage and include community review content
-**Depends on**: Phase 2
-**Requirements**: DATA-03, DATA-04, DATA-07, LIST-05
+### Phase 5: Agentic Data Pipeline + Web Search
+**Goal**: CribAI has enough real listings to be useful AND can research on-demand when the corpus is thin — this is the core differentiator over Apartments.com
+**Depends on**: Phase 3
+**Requirements**: DATA-03, DATA-07, AGENT-01, AGENT-02
 **Success Criteria** (what must be TRUE):
-  1. A landlord or student can submit a listing via a manual entry form and it appears in search results
-  2. Scraper covers at least 2 Madison-specific PM sites beyond Apartments.com (e.g., Steve Brown, Madison Property Mgmt)
-  3. Reddit reviews for Madison-area properties are scraped and displayed on relevant listing detail pages
-  4. Cross-source deduplication prevents the same listing from appearing twice
+  1. Scraper produces 100+ real listings with rent/beds/photos from aggregator sources (Craigslist, Zillow/RentCafe, or local PM sites)
+  2. Google Places no longer used as a listing source (remove or repurpose for lat/lng enrichment only)
+  3. CribAI has a `web_search` tool that can search the web in real-time when corpus results are insufficient
+  4. User asking for something the corpus can't fully answer gets augmented results from live web research
+  5. Scraper caps removed — pulls all available listings, not artificial limits
 **Plans**: TBD
 
 Plans:
-- [ ] 05-01: TBD
-- [ ] 05-02: TBD
-- [ ] 05-03: TBD
+- [ ] 05-01: TBD — Scraper fix: remove Google Places as listing source, remove caps, add 1-2 real aggregator sources
+- [ ] 05-02: TBD — web_search tool: CribAI can search the web and present findings conversationally
+- [ ] 05-03: TBD — Embedding pipeline update for new listing volume + re-embed
 
-### Phase 6: Chat Experience Polish
-**Goal**: CribAI chat feels complete with persistent history, working tour scheduling, and map integration
-**Depends on**: Phase 3
-**Requirements**: CHAT-01, CHAT-02, CHAT-03
+### Phase 6: Agent Tool Expansion + Polish
+**Goal**: CribAI demonstrates breadth of agentic capabilities — reviews, tour booking, PM contact, neighborhood info — and the app is shippable
+**Depends on**: Phase 5
+**Requirements**: CHAT-01, CHAT-02, CHAT-03, AGENT-03, AGENT-04
 **Success Criteria** (what must be TRUE):
   1. User can close the app, return later, and resume a previous conversation with full history intact
-  2. User can schedule a tour through CribAI chat and receive a confirmation (mocked backend, no real PM integration)
-  3. CribAI can render an interactive map block in the chat showing listing locations
+  2. CribAI can discuss Reddit/Yelp/Google Maps reviews for a property (real or placeholder with clear "coming soon" UX)
+  3. CribAI can schedule tours with calendar awareness and PM contact (enhanced from current stub)
+  4. CribAI can provide neighborhood info (walkability, commute, safety, vibe) for a listing area
+  5. Placeholder tools return helpful stubs that communicate future capability without breaking UX
 **Plans**: TBD
 
+**CribAI Tool Inventory (V1):**
+
+| Tool | Status | Purpose |
+|------|--------|---------|
+| `search_listings` | Real | Semantic + filter search over corpus |
+| `web_search` | Real (Phase 5) | Live web research when corpus is thin |
+| `get_listing_detail` | Real | Full listing details, true cost |
+| `compare_listings` | Real | Side-by-side comparison with reasoning |
+| `explain_lease_term` | Real | 28-term KB with legal disclaimer |
+| `get_reviews` | Placeholder | Reddit/Yelp/Google Maps feedback for a property |
+| `schedule_tour` | Enhanced | Calendar awareness, confirm with PM |
+| `contact_pm` | Placeholder | Send inquiry/questions to property manager |
+| `get_neighborhood_info` | Placeholder | Walkability, safety, commute, vibe |
+
 Plans:
-- [ ] 06-01: TBD
-- [ ] 06-02: TBD
+- [ ] 06-01: TBD — Chat persistence: conversation history stored and resumable
+- [ ] 06-02: TBD — Agent tools: get_reviews, contact_pm, get_neighborhood_info (placeholders), enhanced schedule_tour
+- [ ] 06-03: TBD — Ship prep: production deploy, final polish
 
 ## Progress
 
 **Execution Order:**
 Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
-Note: Phase 5 depends on Phase 2 (not Phase 4), so Phases 4, 5, and 6 can potentially run in parallel after Phase 3.
+Phase 4 can proceed in parallel with Phase 5 planning/discussion.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Auth and Platform Foundation | 3/3 | Complete | 2026-03-05 |
-| 2. Data Pipeline | 3/3 | Complete   | 2026-03-06 |
-| 3. Semantic Search | 2/3 | In Progress|  |
+| 2. Data Pipeline | 3/3 | Complete | 2026-03-06 |
+| 3. Semantic Search | 3/3 | Complete | 2026-03-06 |
 | 4. Saved Listings and Alerts | 0/2 | Not started | - |
-| 5. Multi-Source Data and Reviews | 0/3 | Not started | - |
-| 6. Chat Experience Polish | 0/2 | Not started | - |
+| 5. Agentic Data Pipeline + Web Search | 0/3 | Not started | - |
+| 6. Agent Tool Expansion + Polish | 0/3 | Not started | - |

@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Phase 4 context gathered
-last_updated: "2026-03-06T04:31:29.908Z"
-last_activity: 2026-03-06 - Completed 03-03 map chat block
+status: planning
+stopped_at: Roadmap revised — Phases 5-6 rearchitected for agentic pipeline
+last_updated: "2026-03-06T14:55:00.000Z"
+last_activity: 2026-03-06 - Revised roadmap (Phases 5-6) based on architectural review
 progress:
   total_phases: 6
   completed_phases: 3
@@ -20,15 +20,15 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-03-05)
 
-**Core value:** Students can find off-campus housing through conversational AI search that understands what they actually want
-**Current focus:** Phase 3 - Semantic Search
+**Core value:** Students can find off-campus housing through an agentic AI assistant that researches, compares, and discusses options — not just a listing aggregator
+**Current focus:** Phase 4 (Saved Listings) + roadmap revision for Phases 5-6
 
 ## Current Position
 
 Phase: 3 of 6 (Semantic Search) -- COMPLETE
 Plan: 3 of 3 in current phase (03-03 complete)
-Status: Phase 3 Complete
-Last activity: 2026-03-06 - Completed 03-03 map chat block
+Status: Phases 1-3 Complete. Roadmap revised. Phase 4 ready to plan.
+Last activity: 2026-03-06 - Revised roadmap for agentic architecture
 
 Progress: [██████████] 100% (9 of 9 plans)
 
@@ -95,6 +95,12 @@ Recent decisions affecting current work:
 - [Phase 03-02]: CLI embed.ts via npx tsx for GH Actions (no build step needed)
 - [Phase 03]: Used happy-dom instead of jsdom for component testing (pnpm hoisting compatibility)
 - [Phase 03]: esbuild jsx: automatic in vitest config for JSX transform without React imports
+- [Arch Review]: Google Places returns buildings, not listings — remove as listing source, repurpose for enrichment only
+- [Arch Review]: Agentic web search is the core differentiator over Apartments.com — must be in v1
+- [Arch Review]: Scraper should use real aggregator sources (Craigslist, Zillow/RentCafe, local PM sites) not Google Maps metadata
+- [Arch Review]: Placeholder tools (get_reviews, contact_pm, get_neighborhood_info) demonstrate agent breadth in v1, fleshed out in v2
+- [Arch Review]: Phase 5 rearchitected: scraper fix + web_search tool (replaces "Multi-Source Data and Reviews")
+- [Arch Review]: Phase 6 rearchitected: agent tool expansion + chat persistence + ship (replaces "Chat Experience Polish")
 
 ### Pending Todos
 
@@ -115,7 +121,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-06T04:31:29.893Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-saved-listings-and-alerts/04-CONTEXT.md
-Next: All 9 plans across 3 phases complete. Ready for Phase 4 planning if applicable.
+Last session: 2026-03-06T14:55:00.000Z
+Stopped at: Roadmap revised — Phases 5-6 rearchitected
+Resume file: .planning/ROADMAP.md
+Next: Phase 4 ready to plan (/gsd:plan-phase 4). Phase 5 needs discussion (/gsd:discuss-phase 5) for agentic pipeline details.
