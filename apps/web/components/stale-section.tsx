@@ -22,9 +22,10 @@ interface ListingData {
 interface StaleSectionProps {
   readonly listings: readonly ListingData[];
   readonly campusSlug: string;
+  readonly savedListingIds?: ReadonlySet<string>;
 }
 
-export function StaleSection({ listings, campusSlug }: StaleSectionProps) {
+export function StaleSection({ listings, campusSlug, savedListingIds }: StaleSectionProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   if (listings.length === 0) return null;
@@ -53,7 +54,7 @@ export function StaleSection({ listings, campusSlug }: StaleSectionProps) {
               className="stagger-item"
               style={{ '--stagger-index': index } as React.CSSProperties}
             >
-              <ListingCard listing={listing} campusSlug={campusSlug} />
+              <ListingCard listing={listing} campusSlug={campusSlug} isSaved={savedListingIds?.has(listing.id)} />
             </div>
           ))}
         </div>

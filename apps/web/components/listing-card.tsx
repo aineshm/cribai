@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { getScoreColorVariants } from '../lib/score-colors';
 import { FreshnessBadge } from './freshness-badge';
+import { HeartButton } from './heart-button';
 
 interface ListingCardProps {
   readonly listing: {
@@ -20,6 +21,7 @@ interface ListingCardProps {
     readonly is_active: boolean;
   };
   readonly campusSlug: string;
+  readonly isSaved?: boolean;
 }
 
 function fairnessColor(score: number): string {
@@ -43,7 +45,7 @@ function RentDisplay({ rentMonthly }: { readonly rentMonthly: number | null }) {
   );
 }
 
-export function ListingCard({ listing, campusSlug }: ListingCardProps) {
+export function ListingCard({ listing, campusSlug, isSaved }: ListingCardProps) {
   const heroPhoto = listing.photo_urls[0] ?? null;
 
   return (
@@ -59,6 +61,12 @@ export function ListingCard({ listing, campusSlug }: ListingCardProps) {
             fill
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             className="object-cover"
+          />
+          <HeartButton
+            listingId={listing.id}
+            initialSaved={isSaved ?? false}
+            campusSlug={campusSlug}
+            size="sm"
           />
         </div>
       )}

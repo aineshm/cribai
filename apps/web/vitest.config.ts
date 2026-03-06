@@ -7,7 +7,7 @@ export default defineConfig({
   },
   test: {
     include: [
-      'lib/__tests__/**/*.test.ts',
+      'lib/__tests__/**/*.test.{ts,tsx}',
       '__tests__/**/*.test.{ts,tsx}',
       'components/**/__tests__/**/*.test.{ts,tsx}',
     ],

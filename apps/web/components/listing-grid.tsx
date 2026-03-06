@@ -20,9 +20,10 @@ interface ListingData {
 interface ListingGridProps {
   readonly listings: ReadonlyArray<ListingData>;
   readonly campusSlug: string;
+  readonly savedListingIds?: ReadonlySet<string>;
 }
 
-export function ListingGrid({ listings, campusSlug }: ListingGridProps) {
+export function ListingGrid({ listings, campusSlug, savedListingIds }: ListingGridProps) {
   const activeListings = listings.filter((l) => l.is_active);
   const staleListings = listings.filter((l) => !l.is_active);
 
@@ -47,14 +48,14 @@ export function ListingGrid({ listings, campusSlug }: ListingGridProps) {
               className="stagger-item"
               style={{ '--stagger-index': index } as React.CSSProperties}
             >
-              <ListingCard listing={listing} campusSlug={campusSlug} />
+              <ListingCard listing={listing} campusSlug={campusSlug} isSaved={savedListingIds?.has(listing.id)} />
             </div>
           ))}
         </div>
       )}
 
       {staleListings.length > 0 && (
-        <StaleSection listings={staleListings} campusSlug={campusSlug} />
+        <StaleSection listings={staleListings} campusSlug={campusSlug} savedListingIds={savedListingIds} />
       )}
     </div>
   );

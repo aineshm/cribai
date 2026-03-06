@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
-import { createSecretClient } from '@campusnest/supabase/server';
+import { cookies } from 'next/headers';
+import { createSecretClient, createServerComponentClient } from '@campusnest/supabase/server';
 import { ListingGrid } from '../../../../components/listing-grid';
 import { ListingFilters } from '../../../../components/listing-filters';
 
@@ -72,6 +73,25 @@ export default async function ListingsPage({
 
   const { data: listings } = await query;
 
+  // Fetch saved listing IDs for authenticated user (optional)
+  let savedListingIds = new Set<string>();
+  try {
+    const cookieStore = await cookies();
+    const authSupabase = createServerComponentClient(cookieStore);
+    const { data: { user } } = await authSupabase.auth.getUser();
+    if (user) {
+      const { data: saves } = await authSupabase
+        .from('saved_listings')
+        .select('listing_id')
+        .eq('user_id', user.id);
+      if (saves) {
+        savedListingIds = new Set(saves.map((s: { listing_id: string }) => s.listing_id));
+      }
+    }
+  } catch {
+    // Unauthenticated users — no saved listings
+  }
+
   return (
     <div className="animate-fade-in">
       <h1 className="font-[family-name:var(--font-display)] text-3xl text-[var(--surface-900)]">
@@ -86,7 +106,7 @@ export default async function ListingsPage({
         </Suspense>
       </div>
       <div className="mt-6">
-        <ListingGrid listings={listings ?? []} campusSlug={campusSlug} />
+        <ListingGrid listings={listings ?? []} campusSlug={campusSlug} savedListingIds={savedListingIds} />
       </div>
     </div>
   );
