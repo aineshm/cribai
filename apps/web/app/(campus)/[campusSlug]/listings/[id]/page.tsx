@@ -38,10 +38,14 @@ export default async function ListingDetailPage({
       <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-[family-name:var(--font-display)] text-3xl text-[var(--surface-900)]">{listing.address}</h1>
-          <p className="mt-1 text-3xl font-bold text-[var(--surface-900)]">
-            ${listing.rent_monthly.toLocaleString()}
-            <span className="text-base font-normal text-[var(--surface-400)]">/mo</span>
-          </p>
+          {listing.rent_monthly != null ? (
+            <p className="mt-1 text-3xl font-bold text-[var(--surface-900)]">
+              ${listing.rent_monthly.toLocaleString()}
+              <span className="text-base font-normal text-[var(--surface-400)]">/mo</span>
+            </p>
+          ) : (
+            <p className="mt-1 text-lg text-[var(--surface-400)]">Contact for pricing</p>
+          )}
         </div>
 
         {listing.fairness_score != null && (
@@ -111,12 +115,14 @@ export default async function ListingDetailPage({
         </div>
 
         {/* True Cost Calculator */}
-        <div>
-          <TrueCostCalculator
-            rentMonthly={listing.rent_monthly}
-            amenities={amenities}
-          />
-        </div>
+        {listing.rent_monthly != null && (
+          <div>
+            <TrueCostCalculator
+              rentMonthly={listing.rent_monthly}
+              amenities={amenities}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
