@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Phase 5 context gathered
-last_updated: "2026-03-06T18:04:53.308Z"
-last_activity: 2026-03-06 - Completed 04-03
+status: executing
+stopped_at: Completed 05-01
+last_updated: "2026-03-06T18:42:00.000Z"
+last_activity: 2026-03-06 - Completed 05-01
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 13
-  completed_plans: 13
-  percent: 92
+  completed_plans: 14
+  percent: 93
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Students can find off-campus housing through an agentic AI assistant that researches, compares, and discusses options — not just a listing aggregator
-**Current focus:** Phase 4 - Saved Listings and Alerts (executing)
+**Current focus:** Phase 5 - Agentic Data Pipeline & Web Search (executing)
 
 ## Current Position
 
-Phase: 4 of 6 (Saved Listings and Alerts) -- EXECUTING
-Plan: 3 of 4 in current phase (04-03 complete, ready for 04-04)
-Status: 04-03 complete (price change detection + notifications UI)
-Last activity: 2026-03-06 - Completed 04-03
+Phase: 5 of 6 (Agentic Data Pipeline & Web Search) -- EXECUTING
+Plan: 1 of 3 in current phase (05-01 complete, ready for 05-02)
+Status: 05-01 complete (scraper pipeline overhaul with Zillow + diagnostics)
+Last activity: 2026-03-06 - Completed 05-01
 
-Progress: [█████████░] 92% (12 of 13 plans)
+Progress: [█████████░] 93% (14 of 15 plans)
 
 ## Performance Metrics
 
@@ -63,6 +63,7 @@ Progress: [█████████░] 92% (12 of 13 plans)
 | Phase 04 P02 | 5min | 3 tasks | 8 files |
 | Phase 04 P03 | 4min | 4 tasks | 7 files |
 | Phase 04 P04 | 2min | 3 tasks | 1 files |
+| Phase 05 P01 | 5min | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -116,6 +117,10 @@ Recent decisions affecting current work:
 - [Phase 04-03]: Realtime channel filtered by user_id for per-user notification delivery
 - [Phase 04-03]: Notifications page marks all unread as read server-side on load
 - [Phase 04]: get_saved_listings tool returns sign-in prompt for unauthenticated users (auth gate pattern)
+- [Phase 05-01]: Zillow scraper uses __NEXT_DATA__ JSON extraction with JSON-LD fallback
+- [Phase 05-01]: GooglePlacesScraper removed from pipeline, file preserved for Phase 6 enrichment
+- [Phase 05-01]: Diagnostic output uses ::diagnostic:: prefix for GH Actions multiline output parsing
+- [Phase 05-01]: GOOGLE_PLACES_API_KEY removed from workflow, TAVILY_API_KEY added for future use
 
 ### Pending Todos
 
@@ -136,7 +141,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-06T18:04:53.295Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-agentic-data-pipeline-web-search/05-CONTEXT.md
-Next: Execute 04-04 (CribAI get_saved_listings tool if exists, or phase complete). Phase 5 needs discussion (/gsd:discuss-phase 5) for agentic pipeline details.
+Last session: 2026-03-06T18:42:00.000Z
+Stopped at: Completed 05-01
+Resume file: .planning/phases/05-agentic-data-pipeline-web-search/05-02-PLAN.md
+Next: Execute 05-02 (web search tool integration)
