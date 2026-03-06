@@ -5,3 +5,5 @@ export { ChatComparisonTable } from './chat-comparison-table';
 export { ChatTourConfirmation } from './chat-tour-confirmation';
 export { ChatLegalDisclaimer } from './chat-legal-disclaimer';
 export { ChatToolIndicator } from './chat-tool-indicator';
+export { ChatMapBlock } from './chat-map-block';
+export { ChatMapPopup } from './chat-map-popup';

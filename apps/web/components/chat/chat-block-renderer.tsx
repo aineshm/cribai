@@ -1,11 +1,22 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import type { ChatBlock } from '@campusnest/types';
 import { ChatListingCard } from './chat-listing-card';
 import { ChatComparisonTable } from './chat-comparison-table';
 import { ChatTourConfirmation } from './chat-tour-confirmation';
 import { ChatLegalDisclaimer } from './chat-legal-disclaimer';
 import { ChatToolIndicator } from './chat-tool-indicator';
+
+const ChatMapBlock = dynamic(
+  () => import('./chat-map-block').then((mod) => ({ default: mod.ChatMapBlock })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[300px] animate-pulse rounded-lg bg-gray-100" />
+    ),
+  }
+);
 
 function assertUnreachable(value: never): never {
   throw new Error(`Unhandled block type: ${(value as { type: string }).type}`);
@@ -65,6 +76,9 @@ export function ChatBlockRenderer({ block, campusSlug }: ChatBlockRendererProps)
 
     case 'tool_loading':
       return <ChatToolIndicator toolName={block.toolName} />;
+
+    case 'map':
+      return <ChatMapBlock block={block} campusSlug={campusSlug} />;
 
     default:
       return assertUnreachable(block);
