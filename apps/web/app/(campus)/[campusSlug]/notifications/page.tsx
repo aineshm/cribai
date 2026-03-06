@@ -55,13 +55,13 @@ function groupByDate(
   for (const n of notifications) {
     const d = new Date(n.created_at);
     if (d >= today) {
-      groups[0].items.push(n);
+      groups[0]!.items.push(n);
     } else if (d >= yesterday) {
-      groups[1].items.push(n);
+      groups[1]!.items.push(n);
     } else if (d >= weekAgo) {
-      groups[2].items.push(n);
+      groups[2]!.items.push(n);
     } else {
-      groups[3].items.push(n);
+      groups[3]!.items.push(n);
     }
   }
 
