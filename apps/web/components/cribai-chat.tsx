@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { createClient } from '@campusnest/supabase/client';
 import { ChatBlockRenderer } from './chat/chat-block-renderer';
 import type { ChatBlock } from './chat/chat-block-renderer';
 
@@ -11,6 +12,8 @@ interface Message {
 
 interface CribAIChatProps {
   readonly campusSlug: string;
+  readonly initialListingId?: string;
+  readonly initialAddress?: string;
 }
 
 interface SSEEvent {
@@ -31,7 +34,7 @@ function parseSSEEvent(data: string): SSEEvent | null {
   }
 }
 
-export function CribAIChat({ campusSlug }: CribAIChatProps) {
+export function CribAIChat({ campusSlug, initialListingId, initialAddress }: CribAIChatProps) {
   const [messages, setMessages] = useState<readonly Message[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -49,11 +52,11 @@ export function CribAIChat({ campusSlug }: CribAIChatProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
-  const sendMessage = useCallback(async () => {
-    const query = input.trim();
+  const sendMessage = useCallback(async (overrideQuery?: string) => {
+    const query = (overrideQuery ?? input).trim();
     if (!query || isStreaming) return;
 
-    setInput('');
+    if (!overrideQuery) setInput('');
     const userMessage: Message = {
       role: 'user',
       blocks: [{ type: 'text', content: query }],
@@ -72,9 +75,17 @@ export function CribAIChat({ campusSlug }: CribAIChatProps) {
         blocks: m.blocks,
       }));
 
+      // Get session token for authenticated tool calls (saved listings, tours, etc.)
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
       const response = await fetch('/api/ai/cribai', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ query, campusSlug, history }),
         signal: controller.signal,
       });
@@ -204,6 +215,22 @@ export function CribAIChat({ campusSlug }: CribAIChatProps) {
       abortRef.current = null;
     }
   }, [input, isStreaming, messages, campusSlug, scrollToBottom]);
+
+  // Auto-send when navigating from a listing detail page
+  const hasSentInitial = useRef(false);
+  useEffect(() => {
+    if (!initialListingId || hasSentInitial.current) return;
+
+    // Delay to avoid StrictMode abort race (mount → cleanup → remount)
+    const timer = setTimeout(() => {
+      if (hasSentInitial.current) return;
+      hasSentInitial.current = true;
+      const label = initialAddress ?? initialListingId;
+      sendMessage(`Tell me more about the property at ${label} — what's notable about this place?`);
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [initialListingId, initialAddress, sendMessage]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

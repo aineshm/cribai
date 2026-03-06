@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: '**.apartments.com' },
       { protocol: 'https', hostname: 'images1.apartments.com' },
       { protocol: 'https', hostname: 'cdngeneral.rentcafe.com' },
+      { protocol: 'https', hostname: 'places.googleapis.com' },
     ],
   },
 };

@@ -279,7 +279,7 @@ export default async function ListingDetailPage({
 
           {/* Ask CribAI CTA */}
           <Link
-            href={`/${campusSlug}/cribai?about=${listing.id}`}
+            href={`/${campusSlug}/cribai?about=${listing.id}&address=${encodeURIComponent(listing.address)}`}
             className="flex items-center justify-center gap-2 rounded-xl border border-[var(--primary-200)] bg-[var(--primary-50)] px-5 py-3 text-sm font-medium text-[var(--primary-700)] shadow-sm hover:bg-[var(--primary-100)] transition-colors"
           >
             <svg

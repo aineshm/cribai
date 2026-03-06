@@ -31,7 +31,7 @@ export default function RootLayout({
     <html lang="en" className={`${dmSerif.variable} ${inter.variable}`}>
       <body className="min-h-screen bg-[var(--surface-50)] text-[var(--surface-900)] antialiased">
         {children}
-        <Toaster position="top-center" richColors />
+        <Toaster position="top-center" richColors duration={2000} />
       </body>
     </html>
   );

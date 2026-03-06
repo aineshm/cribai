@@ -2,10 +2,13 @@ import { CribAIChat } from '../../../../components/cribai-chat';
 
 export default async function CribAIPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ campusSlug: string }>;
+  searchParams: Promise<{ about?: string; address?: string }>;
 }) {
   const { campusSlug } = await params;
+  const { about, address } = await searchParams;
 
   return (
     <div className="mx-auto max-w-3xl animate-fade-in">
@@ -14,7 +17,7 @@ export default async function CribAIPage({
         Your AI housing advisor. Ask about prices, neighborhoods, fairness scores, and more.
       </p>
       <div className="mt-4">
-        <CribAIChat campusSlug={campusSlug} />
+        <CribAIChat campusSlug={campusSlug} initialListingId={about} initialAddress={address} />
       </div>
     </div>
   );
