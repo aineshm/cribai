@@ -142,8 +142,6 @@ export default async function CampusLayout({
               <AuthNav
                 userEmail={user?.email ?? null}
                 isEduVerified={isEduVerified}
-                campusSlug={campusSlug}
-                priceChangedSavesCount={priceChangedSavesCount}
               />
             </div>
             <MobileNav

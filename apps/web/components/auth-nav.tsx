@@ -8,11 +8,9 @@ import { useRouter } from 'next/navigation';
 interface AuthNavProps {
   readonly userEmail: string | null;
   readonly isEduVerified: boolean;
-  readonly campusSlug?: string;
-  readonly priceChangedSavesCount?: number;
 }
 
-export function AuthNav({ userEmail, isEduVerified, campusSlug, priceChangedSavesCount = 0 }: AuthNavProps) {
+export function AuthNav({ userEmail, isEduVerified }: AuthNavProps) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
