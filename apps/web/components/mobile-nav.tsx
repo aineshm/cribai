@@ -80,6 +80,17 @@ export function MobileNav({ campusSlug, userEmail, isEduVerified }: MobileNavPro
             >
               Dashboard
             </Link>
+            <Link
+              href={`/${campusSlug}/saved`}
+              onClick={handleLinkClick}
+              className={`rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
+                pathname?.includes('/saved')
+                  ? 'bg-[var(--primary-50)] text-[var(--primary-700)]'
+                  : 'text-[var(--surface-600)] hover:bg-[var(--surface-50)]'
+              }`}
+            >
+              Saved
+            </Link>
             <div className="mt-2 border-t border-[var(--surface-100)] pt-3 px-4">
               <AuthNav userEmail={userEmail} isEduVerified={isEduVerified} />
             </div>

@@ -101,9 +101,16 @@ export default async function CampusLayout({
               >
                 Dashboard
               </Link>
+              <Link
+                href={`/${campusSlug}/saved`}
+                className="text-sm font-medium text-[var(--surface-500)] hover:text-[var(--surface-800)] transition-colors"
+              >
+                Saved
+              </Link>
               <AuthNav
                 userEmail={user?.email ?? null}
                 isEduVerified={isEduVerified}
+                campusSlug={campusSlug}
               />
             </div>
             <MobileNav

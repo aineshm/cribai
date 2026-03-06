@@ -8,9 +8,10 @@ import { useRouter } from 'next/navigation';
 interface AuthNavProps {
   readonly userEmail: string | null;
   readonly isEduVerified: boolean;
+  readonly campusSlug?: string;
 }
 
-export function AuthNav({ userEmail, isEduVerified }: AuthNavProps) {
+export function AuthNav({ userEmail, isEduVerified, campusSlug }: AuthNavProps) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
@@ -40,6 +41,14 @@ export function AuthNav({ userEmail, isEduVerified }: AuthNavProps) {
           className="text-xs text-[var(--secondary-600)] hover:underline"
         >
           Verify .edu
+        </Link>
+      )}
+      {campusSlug && (
+        <Link
+          href={`/${campusSlug}/saved`}
+          className="text-xs text-[var(--surface-500)] hover:text-[var(--surface-800)] hover:underline transition-colors"
+        >
+          Saved
         </Link>
       )}
       <Link
