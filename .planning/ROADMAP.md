@@ -97,12 +97,12 @@ Plans:
   3. CribAI has a `web_search` tool that can search the web in real-time when corpus results are insufficient
   4. User asking for something the corpus can't fully answer gets augmented results from live web research
   5. Scraper caps removed — pulls all available listings, not artificial limits
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 05-01: TBD — Scraper fix: remove Google Places as listing source, remove caps, add 1-2 real aggregator sources
-- [ ] 05-02: TBD — web_search tool: CribAI can search the web and present findings conversationally
-- [ ] 05-03: TBD — Embedding pipeline update for new listing volume + re-embed
+- [ ] 05-01-PLAN.md — Scraper pipeline overhaul: remove Google Places, add Zillow scraper, fix Craigslist diagnostics, per-source reporting
+- [ ] 05-02-PLAN.md — web_search tool: Tavily API integration, session cache, schema/executor registration, search trigger hint
+- [ ] 05-03-PLAN.md — UI integration: source citations on ListingCard, web_search indicator, Google Places data cleanup
 
 ### Phase 6: Agent Tool Expansion + Polish
 **Goal**: CribAI demonstrates breadth of agentic capabilities — reviews, tour booking, PM contact, neighborhood info — and the app is shippable
