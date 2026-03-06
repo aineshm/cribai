@@ -37,11 +37,17 @@ async function main() {
 
   for (const campus of campuses ?? []) {
     const location = campus.location as { coordinates: [number, number] } | null;
+    const hasValidCoordinates =
+      location &&
+      Array.isArray(location.coordinates) &&
+      location.coordinates.length === 2 &&
+      location.coordinates.every((c) => typeof c === 'number');
+
     const config: ScraperConfig = {
       campusId: campus.id,
       campusSlug: campus.slug,
-      latitude: location?.coordinates[1] ?? 0,
-      longitude: location?.coordinates[0] ?? 0,
+      latitude: hasValidCoordinates ? location.coordinates[1] : 0,
+      longitude: hasValidCoordinates ? location.coordinates[0] : 0,
       radiusKm: campus.scrape_radius_km,
     };
 
