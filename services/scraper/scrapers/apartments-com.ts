@@ -7,6 +7,12 @@ import { extractPhotos } from './photo-utils';
 
 const MAX_PAGES = 10;
 
+// Map campus slugs to apartments.com city-state URL slugs
+const CAMPUS_TO_CITY: Record<string, string> = {
+  'uw-madison': 'madison-wi',
+  'ut-austin': 'austin-tx',
+};
+
 // Initialize stealth plugin
 chromium.use(stealthPlugin());
 
@@ -26,7 +32,10 @@ export class ApartmentsComScraper extends BaseScraper {
     const crawler = new PlaywrightCrawler({
       launchContext: {
         launcher: chromium,
-        launchOptions: { headless: true },
+        launchOptions: {
+          headless: true,
+          args: ['--window-size=1920,1080', '--disable-blink-features=AutomationControlled'],
+        },
       },
       maxRequestsPerMinute: 12,
       navigationTimeoutSecs: 45,
@@ -34,6 +43,7 @@ export class ApartmentsComScraper extends BaseScraper {
       maxRequestRetries: 3,
       preNavigationHooks: [
         async ({ page }) => {
+          await page.setViewportSize({ width: 1920, height: 1080 });
           await page.setExtraHTTPHeaders({
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.9',
@@ -85,8 +95,11 @@ export class ApartmentsComScraper extends BaseScraper {
   }
 
   private buildSearchUrl(): string {
+    const citySlug = this.config.searchSlug
+      ?? CAMPUS_TO_CITY[this.config.campusSlug]
+      ?? this.config.campusSlug;
+
     const { latitude, longitude } = this.config;
-    // Use Apartments.com bounding-box search centered on campus
     const delta = this.config.radiusKm * 0.009; // ~0.009 degrees per km
     const south = latitude - delta;
     const north = latitude + delta;
@@ -94,9 +107,8 @@ export class ApartmentsComScraper extends BaseScraper {
     const east = longitude + delta;
     const bb = `${west},${south},${east},${north}`;
 
-    // Apartments.com expects a bounding box query, not a campus slug path.
-    // Use the generic /apartments/ path with the bb parameter.
-    return `https://www.apartments.com/apartments/?bb=${encodeURIComponent(bb)}`;
+    // Apartments.com requires a city-state slug in the URL path
+    return `https://www.apartments.com/${citySlug}/?bb=${encodeURIComponent(bb)}`;
   }
 
   private async handleSearchPage(
@@ -108,14 +120,23 @@ export class ApartmentsComScraper extends BaseScraper {
     }) => Promise<unknown>,
     log: Log,
   ): Promise<void> {
-    // Wait for listing cards to load
-    await page.waitForSelector('article.placard', { timeout: 15_000 }).catch(() => {
-      log.warning('No listing cards found on search page');
-    });
+    // Wait for listing cards to load — try multiple selectors
+    const cardSelector = '.placard-content, article.placard, li.mortar-wrapper';
+    const found = await page.waitForSelector(cardSelector, { timeout: 20_000 }).catch(() => null);
 
-    // Enqueue detail page links
+    if (!found) {
+      // Dump page diagnostics to help debug selector/blocking issues
+      const title = await page.title();
+      const url = page.url();
+      const bodyText = await page.locator('body').textContent({ timeout: 5_000 }).catch(() => '');
+      const snippet = (bodyText ?? '').slice(0, 500);
+      log.warning(`No listing cards found on search page. URL: ${url}, Title: "${title}", Body snippet: "${snippet}"`);
+      return;
+    }
+
+    // Enqueue detail page links — try multiple link selectors
     await enqueueLinks({
-      selector: 'a.property-link',
+      selector: 'a.property-link, .placard-content a[href*="apartments.com"], .property-title a',
       label: 'DETAIL',
       globs: ['https://www.apartments.com/*/'],
     });
@@ -124,12 +145,12 @@ export class ApartmentsComScraper extends BaseScraper {
     const currentPage = this.parsePageNumber(page.url());
     if (currentPage < MAX_PAGES) {
       await enqueueLinks({
-        selector: 'a.next',
+        selector: 'a.next, a[data-page], .paging a:has-text("Next")',
         label: 'SEARCH',
       });
     }
 
-    const count = await page.locator('article.placard').count();
+    const count = await page.locator(cardSelector).count();
     log.info(`Found ${count} listing cards on page ${currentPage}`);
   }
 
@@ -145,9 +166,13 @@ export class ApartmentsComScraper extends BaseScraper {
   ): Promise<RawListing | null> {
     try {
       // Wait for content to load
-      await page.waitForSelector('h1', { timeout: 10_000 });
+      await page.waitForSelector('h1, [data-testid="property-name"]', { timeout: 10_000 });
 
-      const address = await this.extractText(page, 'h1.propertyName, h1');
+      // Try to extract from JSON-LD first (most reliable, not affected by selector changes)
+      const jsonLdListing = await this.extractFromJsonLd(page, log);
+
+      const address = jsonLdListing?.name
+        ?? await this.extractText(page, 'h1.propertyName, h1[class*="property"], h1');
       if (!address) {
         log.warning(`No address found at ${url}`);
         return null;
@@ -155,7 +180,7 @@ export class ApartmentsComScraper extends BaseScraper {
 
       const rentText = await this.extractText(
         page,
-        '.rentInfoDetail .rentPrice, .pricingColumn .rent, [data-selenium="TextRent"], .rentRollup .price',
+        '.rentInfoDetail .rentPrice, .pricingColumn .rent, [data-selenium="TextRent"], .rentRollup .price, .price-range, [class*="rent"], [class*="price"]',
       );
       const rent = this.parseRent(rentText);
       if (rent === null) {
@@ -164,13 +189,13 @@ export class ApartmentsComScraper extends BaseScraper {
 
       const bedBathText = await this.extractText(
         page,
-        '.bedBathArea, .priceBedRangeInfo, [data-selenium="TextBedRange"]',
+        '.bedBathArea, .priceBedRangeInfo, [data-selenium="TextBedRange"], [class*="bedBath"], [class*="bed-bath"]',
       );
       const { bedrooms, bathrooms } = this.parseBedBath(bedBathText);
 
       const sqftText = await this.extractText(
         page,
-        '.sqftColumn .sqft, [data-selenium="TextSqFt"], .rentInfoDetail .sqft',
+        '.sqftColumn .sqft, [data-selenium="TextSqFt"], .rentInfoDetail .sqft, [class*="sqft"], [class*="square"]',
       );
       const sqft = this.parseSqft(sqftText);
 
@@ -200,6 +225,31 @@ export class ApartmentsComScraper extends BaseScraper {
       log.warning(`Failed to extract listing from ${url}: ${err}`);
       return null;
     }
+  }
+
+  private async extractFromJsonLd(
+    page: Page,
+    log: Log,
+  ): Promise<{ name?: string; streetAddress?: string } | null> {
+    const scripts = page.locator('script[type="application/ld+json"]');
+    const count = await scripts.count();
+    for (let i = 0; i < count; i++) {
+      const text = await scripts.nth(i).textContent({ timeout: 2_000 }).catch(() => null);
+      if (!text) continue;
+      try {
+        const data = JSON.parse(text);
+        // ApartmentComplex or SingleFamilyResidence or similar
+        if (data.name && (data['@type'] || data.address)) {
+          return {
+            name: data.name,
+            streetAddress: data.address?.streetAddress ?? data.address,
+          };
+        }
+      } catch {
+        log.debug(`Failed to parse JSON-LD block ${i}`);
+      }
+    }
+    return null;
   }
 
   private async extractText(page: Page, selector: string): Promise<string> {

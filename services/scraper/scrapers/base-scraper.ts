@@ -21,6 +21,7 @@ export interface ScraperConfig {
   readonly latitude: number;
   readonly longitude: number;
   readonly radiusKm: number;
+  readonly searchSlug?: string; // Source-specific city slug (e.g., "madison-wi" for apartments.com)
 }
 
 export abstract class BaseScraper {
