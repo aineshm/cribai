@@ -51,10 +51,12 @@ export class ApartmentsComScraper extends BaseScraper {
         },
       ],
       requestHandler: async ({ page, request, enqueueLinks, log }) => {
-        // Check for 403 / block page
-        const status = page.url().includes('blocked') || (await page.title()).toLowerCase().includes('access denied');
-        if (status) {
-          log.warning(`Blocked at ${request.url} — skipping`);
+        // Check for 403 / block / Cloudflare challenge pages
+        const pageTitle = (await page.title()).toLowerCase();
+        const blockedPatterns = ['access denied', 'just a moment', 'attention required', 'blocked', 'captcha', 'verify you are human'];
+        const isBlocked = page.url().includes('blocked') || blockedPatterns.some((p) => pageTitle.includes(p));
+        if (isBlocked) {
+          log.warning(`Blocked at ${request.url} (title: "${pageTitle}") — skipping`);
           return;
         }
 
@@ -92,7 +94,9 @@ export class ApartmentsComScraper extends BaseScraper {
     const east = longitude + delta;
     const bb = `${west},${south},${east},${north}`;
 
-    return `https://www.apartments.com/apartments/${this.config.campusSlug}/?bb=${encodeURIComponent(bb)}`;
+    // Apartments.com expects a bounding box query, not a campus slug path.
+    // Use the generic /apartments/ path with the bb parameter.
+    return `https://www.apartments.com/apartments/?bb=${encodeURIComponent(bb)}`;
   }
 
   private async handleSearchPage(

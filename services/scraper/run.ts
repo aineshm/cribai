@@ -5,6 +5,30 @@ import type { ScraperConfig } from './scrapers/base-scraper';
 import { outputMetrics } from './metrics';
 import { archiveStaleListings } from './lifecycle';
 
+/**
+ * Parse PostGIS EWKB hex (SRID=4326 POINT) into lat/lng.
+ * Format: byte-order(2) + type(8) + srid(8) + x(16) + y(16) = 50 hex chars
+ */
+function parseWkbPoint(hex: string): { latitude: number; longitude: number } | null {
+  if (!hex || hex.length < 50) return null;
+  try {
+    // EWKB with SRID: skip byte-order(1byte) + type(4bytes) + srid(4bytes) = 9 bytes = 18 hex chars
+    const buf = Buffer.from(hex, 'hex');
+    // Byte order: 01 = little-endian
+    const le = buf[0] === 1;
+    const readDouble = le
+      ? (offset: number) => buf.readDoubleLE(offset)
+      : (offset: number) => buf.readDoubleBE(offset);
+    // For EWKB with SRID: type is at offset 1 (4 bytes), srid at offset 5 (4 bytes), coords start at offset 9
+    const x = readDouble(9);  // longitude
+    const y = readDouble(17); // latitude
+    if (isNaN(x) || isNaN(y)) return null;
+    return { latitude: y, longitude: x };
+  } catch {
+    return null;
+  }
+}
+
 async function main() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SECRET_KEY;
@@ -18,9 +42,11 @@ async function main() {
   });
 
   // Fetch active campus configs
+  // Note: PostGIS geography column returns WKB hex via Supabase JS client,
+  // so we query lat/lng separately using PostGIS functions.
   const { data: campuses, error } = await supabase
     .from('campus_configs')
-    .select('*')
+    .select('id, slug, name, scrape_radius_km, is_public, location')
     .eq('is_public', true);
 
   if (error) {
@@ -36,18 +62,17 @@ async function main() {
   } = { upserted: 0, staleMarked: 0, archived: 0, deleted: 0, errors: 0 };
 
   for (const campus of campuses ?? []) {
-    const location = campus.location as { coordinates: [number, number] } | null;
-    const hasValidCoordinates =
-      location &&
-      Array.isArray(location.coordinates) &&
-      location.coordinates.length === 2 &&
-      location.coordinates.every((c) => typeof c === 'number');
+    const coords = parseWkbPoint(campus.location as string);
+    if (!coords) {
+      console.warn(`[${campus.slug}] Could not parse location — skipping campus`);
+      continue;
+    }
 
     const config: ScraperConfig = {
       campusId: campus.id,
       campusSlug: campus.slug,
-      latitude: hasValidCoordinates ? location.coordinates[1] : 0,
-      longitude: hasValidCoordinates ? location.coordinates[0] : 0,
+      latitude: coords.latitude,
+      longitude: coords.longitude,
       radiusKm: campus.scrape_radius_km,
     };
 
