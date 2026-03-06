@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 ## Current Position
 
 Phase: 5 of 6 (Agentic Data Pipeline & Web Search) -- EXECUTING
-Plan: 1 of 3 in current phase (05-01 complete, ready for 05-02)
-Status: 05-01 complete (scraper pipeline overhaul with Zillow + diagnostics)
-Last activity: 2026-03-06 - Completed 05-01
+Plan: 2 of 3 in current phase (05-02 complete, ready for 05-03)
+Status: 05-02 complete (web_search tool with Tavily API + session cache)
+Last activity: 2026-03-06 - Completed 05-02
 
-Progress: [█████████░] 93% (14 of 15 plans)
+Progress: [█████████░] 95% (15 of 16 plans)
 
 ## Performance Metrics
 
@@ -63,6 +63,8 @@ Progress: [█████████░] 93% (14 of 15 plans)
 | Phase 04 P02 | 5min | 3 tasks | 8 files |
 | Phase 04 P03 | 4min | 4 tasks | 7 files |
 | Phase 04 P04 | 2min | 3 tasks | 1 files |
+| Phase 05 P01 | 10min | 3 tasks | 10 files |
+| Phase 05 P02 | 8min | 2 tasks | 7 files |
 | Phase 05 P01 | 5min | 2 tasks | 12 files |
 
 ## Accumulated Context
@@ -117,6 +119,10 @@ Recent decisions affecting current work:
 - [Phase 04-03]: Realtime channel filtered by user_id for per-user notification delivery
 - [Phase 04-03]: Notifications page marks all unread as read server-side on load
 - [Phase 04]: get_saved_listings tool returns sign-in prompt for unauthenticated users (auth gate pattern)
+- [Phase 05-02]: Web results use text clientBlock (not ListingCard) since they lack UUID/structured fields
+- [Phase 05-02]: Tavily search uses 'basic' depth with 8 max results for speed and cost
+- [Phase 05-02]: Missing TAVILY_API_KEY returns graceful message rather than throwing
+- [Phase 05-02]: Cache key normalized to lowercase+trimmed for case-insensitive dedup
 - [Phase 05-01]: Zillow scraper uses __NEXT_DATA__ JSON extraction with JSON-LD fallback
 - [Phase 05-01]: GooglePlacesScraper removed from pipeline, file preserved for Phase 6 enrichment
 - [Phase 05-01]: Diagnostic output uses ::diagnostic:: prefix for GH Actions multiline output parsing
@@ -141,7 +147,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-06T18:42:00.000Z
-Stopped at: Completed 05-01
-Resume file: .planning/phases/05-agentic-data-pipeline-web-search/05-02-PLAN.md
-Next: Execute 05-02 (web search tool integration)
+Last session: 2026-03-06T18:44:00Z
+Stopped at: Completed 05-02
+Resume file: .planning/phases/05-agentic-data-pipeline-web-search/05-02-SUMMARY.md
+Next: Execute 05-03 (remaining Phase 5 plan, if exists)
