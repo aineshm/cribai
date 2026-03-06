@@ -18,9 +18,9 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Search
 
 - [x] **SRCH-01**: Listings are embedded with Gemini gemini-embedding-001 and stored as pgvector columns for semantic search
-- [ ] **SRCH-02**: CribAI performs hybrid search combining vector similarity (qualitative) with SQL filters (price, beds, campus)
+- [x] **SRCH-02**: CribAI performs hybrid search combining vector similarity (qualitative) with SQL filters (price, beds, campus)
 - [ ] **SRCH-03**: CribAI can display listings on an interactive map as a chat block (agent-triggered map tool)
-- [ ] **SRCH-04**: Search results are ranked by semantic relevance to the user's natural language query
+- [x] **SRCH-04**: Search results are ranked by semantic relevance to the user's natural language query
 
 ### Listings
 
@@ -102,9 +102,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUTH-04 | Phase 1 | Complete |
 | AUTH-05 | Phase 1 | Complete |
 | SRCH-01 | Phase 3 | Complete |
-| SRCH-02 | Phase 3 | Pending |
+| SRCH-02 | Phase 3 | Complete |
 | SRCH-03 | Phase 3 | Pending |
-| SRCH-04 | Phase 3 | Pending |
+| SRCH-04 | Phase 3 | Complete |
 | LIST-01 | Phase 4 | Pending |
 | LIST-02 | Phase 4 | Pending |
 | LIST-03 | Phase 4 | Pending |

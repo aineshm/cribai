@@ -125,7 +125,7 @@ Note: Phase 5 depends on Phase 2 (not Phase 4), so Phases 4, 5, and 6 can potent
 |-------|----------------|--------|-----------|
 | 1. Auth and Platform Foundation | 3/3 | Complete | 2026-03-05 |
 | 2. Data Pipeline | 3/3 | Complete   | 2026-03-06 |
-| 3. Semantic Search | 1/3 | In Progress|  |
+| 3. Semantic Search | 2/3 | In Progress|  |
 | 4. Saved Listings and Alerts | 0/2 | Not started | - |
 | 5. Multi-Source Data and Reviews | 0/3 | Not started | - |
 | 6. Chat Experience Polish | 0/2 | Not started | - |

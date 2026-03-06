@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-03-06T03:42:14Z"
-last_activity: "2026-03-06 - Completed 03-01 embedding foundation"
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-03-06T03:51:29Z"
+last_activity: "2026-03-06 - Completed 03-02 hybrid search integration"
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 9
-  completed_plans: 7
-  percent: 78
+  completed_plans: 8
+  percent: 89
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 ## Current Position
 
 Phase: 3 of 6 (Semantic Search)
-Plan: 1 of 3 in current phase (03-01 complete)
+Plan: 2 of 3 in current phase (03-02 complete)
 Status: In Progress
-Last activity: 2026-03-06 - Completed 03-01 embedding foundation
+Last activity: 2026-03-06 - Completed 03-02 hybrid search integration
 
-Progress: [███████░░░] 78% (7 of 9 plans)
+Progress: [████████░░] 89% (8 of 9 plans)
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Progress: [███████░░░] 78% (7 of 9 plans)
 | Phase 02 P02 | 1min | 1 tasks | 1 files |
 | Phase 02 P03 | 6min | 2 tasks | 8 files |
 | Phase 03 P01 | 4min | 2 tasks | 12 files |
+| Phase 03 P02 | 7min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -87,6 +88,10 @@ Recent decisions affecting current work:
 - [Phase 03-01]: Asymmetric embedding task types (RETRIEVAL_DOCUMENT vs RETRIEVAL_QUERY)
 - [Phase 03-01]: Sequential embedding processing to respect Gemini rate limits
 - [Phase 03-01]: Added updated_at column with trigger for embedding change detection
+- [Phase 03-02]: Optional mapBlock on ToolResult for backward-compatible map display
+- [Phase 03-02]: Map block threshold: 3+ results with lat/lng triggers map view
+- [Phase 03-02]: No numeric similarity scores in modelContext (user decision)
+- [Phase 03-02]: CLI embed.ts via npx tsx for GH Actions (no build step needed)
 
 ### Pending Todos
 
@@ -107,7 +112,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-06T03:42:14Z
-Stopped at: Completed 03-01-PLAN.md
-Resume file: .planning/phases/03-semantic-search/03-01-SUMMARY.md
-Next: Execute 03-02 (hybrid search integration) and 03-03 (map display).
+Last session: 2026-03-06T03:51:29Z
+Stopped at: Completed 03-02-PLAN.md
+Resume file: .planning/phases/03-semantic-search/03-02-SUMMARY.md
+Next: Execute 03-03 (map display component).
