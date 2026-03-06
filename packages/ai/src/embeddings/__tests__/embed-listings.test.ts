@@ -13,36 +13,22 @@ import { embedChangedListings } from '../embed-listings';
 import { synthesizeListingText } from '../synthesize-text';
 import { generateEmbedding } from '../generate-embedding';
 
-const mockSelect = vi.fn();
-const mockUpdate = vi.fn();
-const mockEq = vi.fn();
-const mockMatch = vi.fn();
-
 function createMockSupabase(listings: readonly Record<string, unknown>[]) {
-  const selectChain = {
-    select: mockSelect.mockReturnThis(),
-    or: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    is: vi.fn().mockResolvedValue({ data: listings, error: null }),
-  };
+  // Build a chainable mock for select queries:
+  // from('listings').select(...).eq('is_active', true).or(...)
+  const orMock = vi.fn().mockResolvedValue({ data: listings, error: null });
+  const eqSelectMock = vi.fn().mockReturnValue({ or: orMock });
+  const selectMock = vi.fn().mockReturnValue({ eq: eqSelectMock });
 
-  const updateChain = {
-    update: mockUpdate.mockReturnValue({
-      eq: mockEq.mockResolvedValue({ error: null }),
-    }),
-  };
+  // Build a chainable mock for update queries:
+  // from('listings').update({...}).eq('id', ...)
+  const eqUpdateMock = vi.fn().mockResolvedValue({ error: null });
+  const updateMock = vi.fn().mockReturnValue({ eq: eqUpdateMock });
 
   return {
-    from: vi.fn().mockImplementation((table: string) => {
-      // Return different chains for select vs update contexts
-      // The first call per listing is select, subsequent are update
-      return {
-        select: selectChain.select,
-        or: selectChain.or,
-        eq: selectChain.eq,
-        is: selectChain.is,
-        update: updateChain.update,
-      };
+    from: vi.fn().mockReturnValue({
+      select: selectMock,
+      update: updateMock,
     }),
   } as unknown as Parameters<typeof embedChangedListings>[0];
 }
