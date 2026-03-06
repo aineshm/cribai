@@ -36,17 +36,22 @@ export async function embedChangedListings(
   supabase: SupabaseClient,
 ): Promise<EmbedMetrics> {
   // Fetch listings needing embedding
-  const { data: listings, error: fetchError } = await supabase
+  // PostgREST can't do cross-column comparisons, so we fetch all active and filter in JS
+  const { data: allListings, error: fetchError } = await supabase
     .from('listings')
     .select('id, address, rent_monthly, bedrooms, bathrooms, sqft, amenities, photo_urls, last_embedded_at, updated_at')
-    .eq('is_active', true)
-    .or('last_embedded_at.is.null,updated_at.gt.last_embedded_at');
+    .eq('is_active', true);
+
+  const listings = (allListings ?? []).filter((l: ListingRow) =>
+    l.last_embedded_at === null ||
+    (l.updated_at !== null && l.updated_at > l.last_embedded_at)
+  );
 
   if (fetchError) {
     throw new Error(`Failed to fetch listings: ${fetchError.message}`);
   }
 
-  if (!listings || listings.length === 0) {
+  if (listings.length === 0) {
     return { embedded: 0, skipped: 0, errors: 0 };
   }
 
