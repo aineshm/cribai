@@ -9,9 +9,10 @@ interface AuthNavProps {
   readonly userEmail: string | null;
   readonly isEduVerified: boolean;
   readonly campusSlug?: string;
+  readonly priceChangedSavesCount?: number;
 }
 
-export function AuthNav({ userEmail, isEduVerified, campusSlug }: AuthNavProps) {
+export function AuthNav({ userEmail, isEduVerified, campusSlug, priceChangedSavesCount = 0 }: AuthNavProps) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
@@ -46,9 +47,14 @@ export function AuthNav({ userEmail, isEduVerified, campusSlug }: AuthNavProps) 
       {campusSlug && (
         <Link
           href={`/${campusSlug}/saved`}
-          className="text-xs text-[var(--surface-500)] hover:text-[var(--surface-800)] hover:underline transition-colors"
+          className="relative text-xs text-[var(--surface-500)] hover:text-[var(--surface-800)] hover:underline transition-colors"
         >
           Saved
+          {priceChangedSavesCount > 0 && (
+            <span className="absolute -top-2 -right-3 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
+              {priceChangedSavesCount > 9 ? '9+' : priceChangedSavesCount}
+            </span>
+          )}
         </Link>
       )}
       <Link
