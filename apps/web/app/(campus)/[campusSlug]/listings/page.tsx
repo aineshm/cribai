@@ -27,14 +27,13 @@ export default async function ListingsPage({
     return <p className="text-[var(--surface-400)]">Campus not found.</p>;
   }
 
-  // Build query
+  // Build query — fetch both active and stale listings
   let query = supabase
     .from('listings')
     .select(
-      'id, address, rent_monthly, bedrooms, bathrooms, sqft, fairness_score, true_cost_total, amenities'
+      'id, address, rent_monthly, bedrooms, bathrooms, sqft, fairness_score, true_cost_total, amenities, photo_urls, source_url, last_seen_at, is_active'
     )
-    .eq('campus_id', campus.id)
-    .eq('is_active', true);
+    .eq('campus_id', campus.id);
 
   if (filters.beds) {
     const beds = parseInt(filters.beds, 10);

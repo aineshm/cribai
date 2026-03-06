@@ -41,11 +41,12 @@ export function ListingPhotoGallery({
   }
 
   if (photoUrls.length === 1) {
+    const singlePhoto = photoUrls[0] as string;
     return (
       <div className="space-y-2">
         <div className="relative aspect-video overflow-hidden rounded-lg">
           <Image
-            src={photoUrls[0]}
+            src={singlePhoto}
             alt={`Photo of ${address}`}
             fill
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
