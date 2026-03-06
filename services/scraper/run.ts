@@ -7,6 +7,7 @@ import type { ScraperConfig } from './scrapers/base-scraper';
 import type { BaseScraper } from './scrapers/base-scraper';
 import { outputMetrics } from './metrics';
 import { archiveStaleListings } from './lifecycle';
+import { detectPriceChanges, createPriceChangeNotifications } from './price-change-detector';
 
 /**
  * Parse PostGIS EWKB hex (SRID=4326 POINT) into lat/lng.
@@ -66,7 +67,7 @@ async function main() {
     throw new Error(`Failed to fetch campuses: ${error.message}`);
   }
 
-  const metrics = { upserted: 0, staleMarked: 0, archived: 0, deleted: 0, errors: 0 };
+  const metrics = { upserted: 0, staleMarked: 0, archived: 0, deleted: 0, errors: 0, notifications: 0 };
 
   for (const campus of campuses ?? []) {
     const coords = parseWkbPoint(campus.location as string);
@@ -96,6 +97,14 @@ async function main() {
           console.log(`[${scraper.source}] No listings found`);
           continue;
         }
+
+        // Detect price changes BEFORE upsert (old prices still in DB)
+        const priceChanges = await detectPriceChanges(
+          supabase,
+          config.campusId,
+          config.campusSlug,
+          normalized,
+        );
 
         // Upsert listings
         const rows = normalized.map((listing) => ({
@@ -129,6 +138,13 @@ async function main() {
         } else {
           console.log(`[${scraper.source}] Upserted ${normalized.length} listings`);
           metrics.upserted += normalized.length;
+
+          // Create notifications for price changes AFTER successful upsert
+          if (priceChanges.length > 0) {
+            const notifCount = await createPriceChangeNotifications(supabase, priceChanges);
+            metrics.notifications += notifCount;
+            console.log(`[${scraper.source}] Created ${notifCount} price change notifications`);
+          }
         }
       } catch (err) {
         console.error(`[${scraper.source}] Scraper failed:`, err);
