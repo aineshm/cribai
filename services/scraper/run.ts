@@ -1,7 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import { CraigslistScraper } from './scrapers/craigslist';
-import { GooglePlacesScraper } from './scrapers/google-places';
+import { ZillowScraper } from './scrapers/zillow';
 import { ApartmentsComScraper } from './scrapers/apartments-com';
+// GooglePlacesScraper reserved for Phase 6 get_neighborhood_info enrichment
+// import { GooglePlacesScraper } from './scrapers/google-places';
 import { normalizeListing } from './normalizer';
 import type { ScraperConfig } from './scrapers/base-scraper';
 import type { BaseScraper } from './scrapers/base-scraper';
@@ -32,9 +34,8 @@ function parseWkbPoint(hex: string): { latitude: number; longitude: number } | n
 
 function buildScrapers(config: ScraperConfig): readonly BaseScraper[] {
   const scrapers: BaseScraper[] = [
-    // Primary sources (API-based, reliable)
     new CraigslistScraper(config),
-    new GooglePlacesScraper(config),
+    new ZillowScraper(config),
   ];
 
   // Apartments.com as fallback — frequently blocked, kept for when it works

@@ -1,6 +1,7 @@
 import { BaseScraper, type RawListing } from './base-scraper';
 
-const MAX_RESULTS = 20;
+// NOTE: This scraper is no longer used in the pipeline.
+// Reserved for Phase 6 get_neighborhood_info enrichment.
 
 interface PlaceResult {
   readonly id: string;
@@ -43,7 +44,7 @@ export class GooglePlacesScraper extends BaseScraper {
           radius: Math.min(radiusMeters, 50000), // API max 50km
         },
       },
-      maxResultCount: MAX_RESULTS,
+      maxResultCount: 60, // API max
     };
 
     const fieldMask = [

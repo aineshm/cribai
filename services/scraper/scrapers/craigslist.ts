@@ -108,14 +108,25 @@ export class CraigslistScraper extends BaseScraper {
     });
 
     if (!response.ok) {
-      // Craigslist blocks datacenter IPs (GitHub Actions) — this is expected, not an error
-      console.warn(`[${this.source}] RSS fetch returned ${response.status} — Craigslist may block datacenter IPs`);
+      const contentType = response.headers?.get?.('content-type') ?? 'unknown';
+      const bodyText = await response.text().catch(() => '(unreadable)');
+      console.warn(
+        `[${this.source}] RSS fetch failed — status=${response.status}, `
+        + `url=${url}, content-type=${contentType}, body-length=${bodyText.length}`,
+      );
       return [];
     }
 
     const xml = await response.text();
     const items = parseRssItems(xml);
-    console.log(`[${this.source}] Parsed ${items.length} items from RSS`);
+
+    if (items.length === 0) {
+      console.warn(
+        `[${this.source}] RSS returned OK but 0 items — feed may be empty or format changed`,
+      );
+    } else {
+      console.log(`[${this.source}] Parsed ${items.length} items from RSS`);
+    }
 
     return items.map((item): RawListing => {
       const parsed = parseCraigslistTitle(item.title);
