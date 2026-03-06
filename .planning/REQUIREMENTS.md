@@ -24,7 +24,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Listings
 
-- [ ] **LIST-01**: User can save/favorite listings and view them from a saved listings page
+- [x] **LIST-01**: User can save/favorite listings and view them from a saved listings page
 - [ ] **LIST-02**: User receives alerts when a saved listing's price changes
 - [ ] **LIST-03**: Listing detail pages display photos scraped from source
 - [ ] **LIST-04**: Listings show freshness indicators (when last verified/updated, days since posted)
@@ -105,7 +105,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SRCH-02 | Phase 3 | Complete |
 | SRCH-03 | Phase 3 | Complete |
 | SRCH-04 | Phase 3 | Complete |
-| LIST-01 | Phase 4 | Pending |
+| LIST-01 | Phase 4 | Complete |
 | LIST-02 | Phase 4 | Pending |
 | LIST-03 | Phase 4 | Pending |
 | LIST-04 | Phase 4 | Pending |

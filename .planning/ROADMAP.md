@@ -79,11 +79,13 @@ Plans:
   2. User receives an alert (in-app or email) when a saved listing's price changes
   3. Listing detail pages show scraped photos in a gallery view
   4. Listings display freshness indicators showing when they were last verified and how long ago they were posted
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 04-01: TBD
-- [ ] 04-02: TBD
+- [ ] 04-01-PLAN.md — Database schema (saved_listings + notifications tables), Zod types, HeartButton component, ListingCard integration
+- [ ] 04-02-PLAN.md — Enhanced listing detail page (gallery, map, freshness, CribAI CTA, similar), saved listings page, nav links
+- [ ] 04-03-PLAN.md — Price change detection pipeline, notifications bell + page UI
+- [ ] 04-04-PLAN.md — CribAI get_saved_listings tool, nav badge for price-changed saves
 
 ### Phase 5: Agentic Data Pipeline + Web Search
 **Goal**: CribAI has enough real listings to be useful AND can research on-demand when the corpus is thin — this is the core differentiator over Apartments.com
@@ -144,6 +146,6 @@ Phase 4 can proceed in parallel with Phase 5 planning/discussion.
 | 1. Auth and Platform Foundation | 3/3 | Complete | 2026-03-05 |
 | 2. Data Pipeline | 3/3 | Complete | 2026-03-06 |
 | 3. Semantic Search | 3/3 | Complete | 2026-03-06 |
-| 4. Saved Listings and Alerts | 0/2 | Not started | - |
+| 4. Saved Listings and Alerts | 1/4 | In Progress|  |
 | 5. Agentic Data Pipeline + Web Search | 0/3 | Not started | - |
 | 6. Agent Tool Expansion + Polish | 0/3 | Not started | - |
