@@ -10,6 +10,11 @@ const MAX_PAGES = 10;
 // Initialize stealth plugin
 chromium.use(stealthPlugin());
 
+function randomDelay(minMs: number, maxMs: number): Promise<void> {
+  const ms = Math.floor(Math.random() * (maxMs - minMs)) + minMs;
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export class ApartmentsComScraper extends BaseScraper {
   readonly source = 'apartments.com';
 
@@ -23,11 +28,36 @@ export class ApartmentsComScraper extends BaseScraper {
         launcher: chromium,
         launchOptions: { headless: true },
       },
-      maxRequestsPerMinute: 20,
-      navigationTimeoutSecs: 30,
+      maxRequestsPerMinute: 12,
+      navigationTimeoutSecs: 45,
       headless: true,
-      maxRequestRetries: 2,
+      maxRequestRetries: 3,
+      preNavigationHooks: [
+        async ({ page }) => {
+          await page.setExtraHTTPHeaders({
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Upgrade-Insecure-Requests': '1',
+          });
+          // Random delay before each navigation to mimic human behavior
+          await randomDelay(1500, 4000);
+        },
+      ],
       requestHandler: async ({ page, request, enqueueLinks, log }) => {
+        // Check for 403 / block page
+        const status = page.url().includes('blocked') || (await page.title()).toLowerCase().includes('access denied');
+        if (status) {
+          log.warning(`Blocked at ${request.url} — skipping`);
+          return;
+        }
+
         if (request.label === 'DETAIL') {
           const listing = await this.extractListing(page, request.url, log);
           if (listing) {
