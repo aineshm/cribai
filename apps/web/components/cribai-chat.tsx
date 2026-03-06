@@ -300,7 +300,7 @@ export function CribAIChat({ campusSlug, initialListingId, initialAddress }: Cri
             aria-label="Chat message input"
           />
           <button
-            onClick={sendMessage}
+            onClick={() => sendMessage()}
             disabled={isStreaming || !input.trim()}
             className="rounded-xl bg-[var(--primary-600)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--primary-700)] disabled:opacity-50 transition-colors"
             aria-label={isStreaming ? 'Thinking' : 'Send message'}
