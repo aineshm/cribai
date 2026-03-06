@@ -151,6 +151,26 @@ const getLandlordInfo: FunctionDeclaration = {
   },
 };
 
+const getSavedListings: FunctionDeclaration = {
+  name: 'get_saved_listings',
+  description:
+    "Get the user's saved/favorited listings. Use when the user asks about their saved listings, favorites, or references 'my saved', 'my favorites'.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      sort: {
+        type: Type.STRING,
+        enum: ['saved_date', 'price_asc', 'price_desc', 'fairness'],
+        description: 'Sort order for results',
+      },
+      limit: {
+        type: Type.INTEGER,
+        description: 'Maximum number of results (default 10, max 20)',
+      },
+    },
+  },
+};
+
 export const CRIBAI_TOOLS: readonly FunctionDeclaration[] = [
   searchListings,
   getListingDetail,
@@ -158,4 +178,5 @@ export const CRIBAI_TOOLS: readonly FunctionDeclaration[] = [
   scheduleTour,
   explainLeaseTerm,
   getLandlordInfo,
+  getSavedListings,
 ];
