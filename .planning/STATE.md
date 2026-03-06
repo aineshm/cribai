@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 Phase: 2 of 6 (Data Pipeline) -- COMPLETE
 Plan: 3 of 3 in current phase (02-01, 02-02, 02-03 complete)
 Status: Phase Complete
-Last activity: 2026-03-05 -- Completed 02-03 Frontend Listing Display
+Last activity: 2026-03-06 - Completed quick task 1: Fix GH Actions pnpm version mismatch
 
 Progress: [██████████] 100% (6 of 6 plans)
 
@@ -91,6 +91,12 @@ None yet.
 - ~~Magic link auth redirect is broken~~ -- FIXED in 01-01
 - pg_cron availability on Supabase free tier needs verification before Phase 4 (alert scheduling)
 - Fair Housing Act compliance flagged by research -- relevant for semantic search embedding inputs
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 1 | Fix GH Actions pnpm version mismatch | 2026-03-06 | 2e1a6dc | [1-fix-gh-actions-pnpm-version-mismatch](./quick/1-fix-gh-actions-pnpm-version-mismatch/) |
 
 ## Session Continuity
 
