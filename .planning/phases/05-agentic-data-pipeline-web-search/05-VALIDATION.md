@@ -38,13 +38,14 @@ created: 2026-03-06
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 05-01-01 | 01 | 1 | DATA-03 | unit | `pnpm --filter @campusnest/scraper test -- --run __tests__/zillow.test.ts` | No — W0 | pending |
-| 05-01-02 | 01 | 1 | DATA-03 | unit | `pnpm --filter @campusnest/scraper test -- --run __tests__/craigslist.test.ts` | No — W0 | pending |
-| 05-01-03 | 01 | 1 | DATA-03 | unit | `pnpm --filter @campusnest/scraper test -- --run __tests__/run.test.ts` | No — W0 | pending |
-| 05-01-04 | 01 | 1 | DATA-03 | unit | `pnpm --filter @campusnest/scraper test -- --run __tests__/diagnostics.test.ts` | No — W0 | pending |
+| 05-01-01 | 01 | 1 | DATA-04 | unit | `pnpm --filter @campusnest/scraper test -- --run __tests__/zillow.test.ts` | No — W0 | pending |
+| 05-01-02 | 01 | 1 | DATA-04 | unit | `pnpm --filter @campusnest/scraper test -- --run __tests__/craigslist.test.ts` | No — W0 | pending |
+| 05-01-03 | 01 | 1 | DATA-04 | unit | `pnpm --filter @campusnest/scraper test -- --run __tests__/run.test.ts` | No — W0 | pending |
+| 05-01-04 | 01 | 1 | DATA-04 | unit | `pnpm --filter @campusnest/scraper test -- --run __tests__/diagnostics.test.ts` | No — W0 | pending |
 | 05-02-01 | 02 | 1 | AGENT-01 | unit | `pnpm --filter @campusnest/ai test -- --run __tests__/web-search.test.ts` | No — W0 | pending |
 | 05-02-02 | 02 | 1 | AGENT-02 | unit | `pnpm --filter @campusnest/ai test -- --run __tests__/web-search-cache.test.ts` | No — W0 | pending |
 | 05-02-03 | 02 | 1 | AGENT-01 | unit | `pnpm --filter @campusnest/ai test -- --run __tests__/executor.test.ts` | No — W0 | pending |
+| 05-03-02 | 03 | 2 | AGENT-02 | unit | `pnpm --filter @campusnest/ai test -- --run __tests__/persist-web-listing.test.ts` | No — W0 | pending |
 
 *Status: pending · green · red · flaky*
 
@@ -59,6 +60,7 @@ created: 2026-03-06
 - [ ] `packages/ai/__tests__/web-search.test.ts` — stubs for Tavily handler with mocked API
 - [ ] `packages/ai/__tests__/web-search-cache.test.ts` — stubs for session cache TTL and dedup
 - [ ] `packages/ai/__tests__/executor.test.ts` — stubs for web_search registration
+- [ ] `packages/ai/__tests__/persist-web-listing.test.ts` — stubs for persistWebListing upsert/embedding
 
 ---
 
@@ -66,9 +68,9 @@ created: 2026-03-06
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| Scraper produces 100+ listings from live sources | DATA-03 | Depends on external site availability | Run nightly scrape locally, verify listing count in Supabase |
+| Scraper produces 100+ listings from live sources | DATA-04 | Depends on external site availability | Run nightly scrape locally, verify listing count in Supabase |
 | Web search indicator shows in chat UI | AGENT-02 | Visual/UX verification | Ask CribAI a query with no corpus matches, verify "Searching the web..." appears |
-| Source citations display on ListingCards | DATA-07 | Visual/UX verification | View listings page, verify "via Craigslist", "via Zillow", "via web search" labels |
+| Source citations display on ListingCards | AGENT-02 | Visual/UX verification | View listings page, verify "via Craigslist", "via Zillow", "via web search" labels |
 | Web results interleave with corpus results | AGENT-02 | Requires live Gemini + Tavily | Ask CribAI a mixed query, verify both corpus and web results appear together |
 
 ---
