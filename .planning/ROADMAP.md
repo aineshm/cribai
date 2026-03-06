@@ -13,7 +13,7 @@ CampusNest has a substantial codebase but nothing shippable yet. The path to lau
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Auth and Platform Foundation** - Fix broken auth flow, establish UW Madison as primary campus, responsive design
-- [ ] **Phase 2: Data Pipeline** - Reliable scraping of real listings for UW Madison with automation and freshness tracking
+- [x] **Phase 2: Data Pipeline** - Reliable scraping of real listings for UW Madison with automation and freshness tracking (completed 2026-03-06)
 - [ ] **Phase 3: Semantic Search** - Vector embeddings and hybrid search so CribAI ranks listings by qualitative relevance
 - [ ] **Phase 4: Saved Listings and Alerts** - Users can save favorites, track price changes, and view listing details with photos
 - [ ] **Phase 5: Multi-Source Data and Reviews** - Additional listing sources, manual submission, and scraped review content
@@ -124,7 +124,7 @@ Note: Phase 5 depends on Phase 2 (not Phase 4), so Phases 4, 5, and 6 can potent
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Auth and Platform Foundation | 3/3 | Complete | 2026-03-05 |
-| 2. Data Pipeline | 1/3 | In Progress|  |
+| 2. Data Pipeline | 3/3 | Complete   | 2026-03-06 |
 | 3. Semantic Search | 0/3 | Not started | - |
 | 4. Saved Listings and Alerts | 0/2 | Not started | - |
 | 5. Multi-Source Data and Reviews | 0/3 | Not started | - |
