@@ -5,7 +5,7 @@ milestone_name: milestone
 status: completed
 stopped_at: Phase 3 context gathered
 last_updated: "2026-03-06T03:22:01.350Z"
-last_activity: "2026-03-06 - Completed quick task 1: Fix GH Actions pnpm version mismatch"
+last_activity: "2026-03-06 - Completed quick task 2: Fix Playwright not found in GH Actions"
 progress:
   total_phases: 6
   completed_phases: 2
@@ -97,6 +97,7 @@ None yet.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 1 | Fix GH Actions pnpm version mismatch | 2026-03-06 | 2e1a6dc | [1-fix-gh-actions-pnpm-version-mismatch](./quick/1-fix-gh-actions-pnpm-version-mismatch/) |
+| 2 | Fix Playwright not found in GH Actions nightly scrape | 2026-03-06 | b70f963 | [2-fix-playwright-not-found-in-gh-actions-n](./quick/2-fix-playwright-not-found-in-gh-actions-n/) |
 
 ## Session Continuity
 
