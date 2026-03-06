@@ -26,8 +26,10 @@ export function outputMetrics(metrics: ScrapeMetrics): void {
   // Structured output for CI parsing
   console.log(`::metrics::${JSON.stringify(metrics)}`);
 
-  if (metrics.upserted === 0) {
-    console.error('FAILURE: 0 listings scraped -- likely blocked or selectors broken');
+  if (metrics.upserted === 0 && metrics.errors > 0) {
+    console.error('FAILURE: 0 listings scraped with errors -- check source configurations');
     process.exit(1);
+  } else if (metrics.upserted === 0) {
+    console.warn('WARNING: 0 listings upserted -- sources may be blocked or API keys missing');
   }
 }

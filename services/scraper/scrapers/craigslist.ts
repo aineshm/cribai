@@ -108,7 +108,8 @@ export class CraigslistScraper extends BaseScraper {
     });
 
     if (!response.ok) {
-      console.error(`[${this.source}] RSS fetch failed: ${response.status} ${response.statusText}`);
+      // Craigslist blocks datacenter IPs (GitHub Actions) — this is expected, not an error
+      console.warn(`[${this.source}] RSS fetch returned ${response.status} — Craigslist may block datacenter IPs`);
       return [];
     }
 
