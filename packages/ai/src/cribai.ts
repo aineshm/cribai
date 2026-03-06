@@ -154,6 +154,11 @@ export class CribAI {
           const result = await executeTool(toolName, toolArgs, this.toolContext);
           yield { type: 'tool_result', name: toolName, block: result.clientBlock };
 
+          // Emit optional map block as a separate event (e.g., for semantic search results)
+          if (result.mapBlock) {
+            yield { type: 'tool_result', name: `${toolName}_map`, block: result.mapBlock };
+          }
+
           functionResponseParts.push({
             functionResponse: {
               name: toolName,

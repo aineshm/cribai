@@ -33,11 +33,15 @@ export async function generateEmbedding(text: string): Promise<readonly number[]
     },
   });
 
-  if (!response.embedding?.values) {
+  // Support both old (embedding) and new (embeddings) API shapes
+  const values = response.embeddings?.[0]?.values
+    ?? (response as unknown as { embedding?: { values?: number[] } }).embedding?.values;
+
+  if (!values) {
     throw new Error('Embedding response missing values');
   }
 
-  return Object.freeze([...response.embedding.values]);
+  return Object.freeze([...values]);
 }
 
 /**
@@ -55,9 +59,13 @@ export async function generateQueryEmbedding(query: string): Promise<readonly nu
     },
   });
 
-  if (!response.embedding?.values) {
+  // Support both old (embedding) and new (embeddings) API shapes
+  const values = response.embeddings?.[0]?.values
+    ?? (response as unknown as { embedding?: { values?: number[] } }).embedding?.values;
+
+  if (!values) {
     throw new Error('Embedding response missing values');
   }
 
-  return Object.freeze([...response.embedding.values]);
+  return Object.freeze([...values]);
 }

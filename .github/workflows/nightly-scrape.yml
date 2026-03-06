@@ -73,3 +73,44 @@ jobs:
             "${SUPABASE_URL}/functions/v1/recalculate-fairness" \
             -H "Authorization: Bearer ${SUPABASE_KEY}" \
             -H "Content-Type: application/json"
+
+      - name: Generate embeddings for changed listings
+        if: success()
+        id: embed
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          OUTPUT=$(npx tsx packages/ai/src/cli/embed.ts 2>&1) || EXIT_CODE=$?
+          echo "$OUTPUT"
+          EMBED_METRICS=$(echo "$OUTPUT" | grep "^::embed-metrics::" | sed 's/^::embed-metrics:://')
+          if [ -n "$EMBED_METRICS" ]; then
+            echo "metrics=$EMBED_METRICS" >> "$GITHUB_OUTPUT"
+          fi
+          exit ${EXIT_CODE:-0}
+
+      - name: Write embedding summary
+        if: always() && steps.embed.outcome != 'skipped'
+        env:
+          EMBED_OUTCOME: ${{ steps.embed.outcome }}
+          EMBED_METRICS: ${{ steps.embed.outputs.metrics }}
+        run: |
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Embedding Generation" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$EMBED_OUTCOME" = "failure" ]; then
+            echo "> **FAILED** -- Check logs for details" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "> **SUCCESS**" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$EMBED_METRICS" ]; then
+            echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
+            echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Embedded | $(echo "$EMBED_METRICS" | jq -r '.embedded') |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Skipped | $(echo "$EMBED_METRICS" | jq -r '.skipped') |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Errors | $(echo "$EMBED_METRICS" | jq -r '.errors') |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "*No metrics available.*" >> "$GITHUB_STEP_SUMMARY"
+          fi
