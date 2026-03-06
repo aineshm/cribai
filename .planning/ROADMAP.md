@@ -146,6 +146,6 @@ Phase 4 can proceed in parallel with Phase 5 planning/discussion.
 | 1. Auth and Platform Foundation | 3/3 | Complete | 2026-03-05 |
 | 2. Data Pipeline | 3/3 | Complete | 2026-03-06 |
 | 3. Semantic Search | 3/3 | Complete | 2026-03-06 |
-| 4. Saved Listings and Alerts | 1/4 | In Progress|  |
+| 4. Saved Listings and Alerts | 3/4 | In Progress|  |
 | 5. Agentic Data Pipeline + Web Search | 0/3 | Not started | - |
 | 6. Agent Tool Expansion + Polish | 0/3 | Not started | - |
