@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   detectPriceChanges,
   createPriceChangeNotifications,
@@ -124,8 +124,8 @@ describe('detectPriceChanges', () => {
       [makeListing({ externalId: 'ext-1', source: 'craigslist', rentMonthly: 1200 })],
     );
     expect(result).toHaveLength(1);
-    expect(result[0].oldPrice).toBe(1500);
-    expect(result[0].newPrice).toBe(1200);
+    expect(result[0]!.oldPrice).toBe(1500);
+    expect(result[0]!.newPrice).toBe(1200);
   });
 
   it('ignores same-price listings', async () => {

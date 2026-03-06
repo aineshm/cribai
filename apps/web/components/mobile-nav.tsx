@@ -9,9 +9,10 @@ interface MobileNavProps {
   readonly campusSlug: string;
   readonly userEmail: string | null;
   readonly isEduVerified: boolean;
+  readonly unreadNotificationCount?: number;
 }
 
-export function MobileNav({ campusSlug, userEmail, isEduVerified }: MobileNavProps) {
+export function MobileNav({ campusSlug, userEmail, isEduVerified, unreadNotificationCount = 0 }: MobileNavProps) {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
 
@@ -90,6 +91,22 @@ export function MobileNav({ campusSlug, userEmail, isEduVerified }: MobileNavPro
               }`}
             >
               Saved
+            </Link>
+            <Link
+              href={`/${campusSlug}/notifications`}
+              onClick={handleLinkClick}
+              className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
+                pathname?.includes('/notifications')
+                  ? 'bg-[var(--primary-50)] text-[var(--primary-700)]'
+                  : 'text-[var(--surface-600)] hover:bg-[var(--surface-50)]'
+              }`}
+            >
+              Notifications
+              {unreadNotificationCount > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">
+                  {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
+                </span>
+              )}
             </Link>
             <div className="mt-2 border-t border-[var(--surface-100)] pt-3 px-4">
               <AuthNav userEmail={userEmail} isEduVerified={isEduVerified} />

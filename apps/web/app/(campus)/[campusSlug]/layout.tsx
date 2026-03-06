@@ -6,6 +6,7 @@ import { CampusProvider } from '../../../lib/campus-context';
 import { AuthNav } from '../../../components/auth-nav';
 import { MobileNav } from '../../../components/mobile-nav';
 import { ProfileModal } from '../../../components/profile-modal';
+import { NotificationBell } from '../../../components/notification-bell';
 
 export default async function CampusLayout({
   children,
@@ -52,6 +53,7 @@ export default async function CampusLayout({
   let isEduVerified = false;
   let isProfileIncomplete = false;
   let profileData = { displayName: null as string | null, avatarUrl: null as string | null, graduationYear: null as number | null, major: null as string | null };
+  let unreadNotificationCount = 0;
 
   if (user) {
     const { data: profile } = await supabase
@@ -67,6 +69,14 @@ export default async function CampusLayout({
       graduationYear: profile?.graduation_year ?? null,
       major: profile?.major ?? null,
     };
+
+    // Fetch unread notification count
+    const { count } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('is_read', false);
+    unreadNotificationCount = count ?? 0;
   }
 
   return (
@@ -107,6 +117,13 @@ export default async function CampusLayout({
               >
                 Saved
               </Link>
+              {user && (
+                <NotificationBell
+                  campusSlug={campusSlug}
+                  userId={user.id}
+                  initialCount={unreadNotificationCount}
+                />
+              )}
               <AuthNav
                 userEmail={user?.email ?? null}
                 isEduVerified={isEduVerified}
@@ -117,6 +134,7 @@ export default async function CampusLayout({
               campusSlug={campusSlug}
               userEmail={user?.email ?? null}
               isEduVerified={isEduVerified}
+              unreadNotificationCount={unreadNotificationCount}
             />
           </div>
         </nav>
