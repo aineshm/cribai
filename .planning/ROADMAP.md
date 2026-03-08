@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Data Pipeline** - Reliable scraping of real listings for UW Madison with automation and freshness tracking (completed 2026-03-06)
 - [x] **Phase 3: Semantic Search** - Vector embeddings and hybrid search so CribAI ranks listings by qualitative relevance (completed 2026-03-06)
 - [ ] **Phase 4: Saved Listings and Alerts** - Users can save favorites, track price changes, and view listing details with photos
-- [x] **Phase 5: Agentic Data Pipeline + Web Search** - Fix scraper for real listings, add web_search tool so CribAI researches on-demand (completed 2026-03-06)
+- [ ] **Phase 5: Agentic Data Pipeline + Web Search** - Fix scraper for real listings, add web_search tool so CribAI researches on-demand (UAT gap closure in progress)
 - [ ] **Phase 6: Agent Tool Expansion + Polish** - Placeholder and real tools for reviews, tour booking, PM contact, neighborhood info; chat persistence; ship
 
 ## Phase Details
@@ -97,12 +97,14 @@ Plans:
   3. CribAI has a `web_search` tool that can search the web in real-time when corpus results are insufficient
   4. User asking for something the corpus can't fully answer gets augmented results from live web research
   5. Scraper caps removed — pulls all available listings, not artificial limits
-**Plans**: 3 plans
+**Plans**: 5 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Scraper pipeline overhaul: remove Google Places, add Zillow scraper, fix Craigslist diagnostics, per-source reporting
-- [ ] 05-02-PLAN.md — web_search tool: Tavily API integration, session cache, schema/executor registration, search trigger hint
-- [ ] 05-03-PLAN.md — UI integration: source citations on ListingCard, web_search indicator, Google Places cleanup, save-web-result-to-DB flow
+- [x] 05-01-PLAN.md — Scraper pipeline overhaul: remove Google Places, add Zillow scraper, fix Craigslist diagnostics, per-source reporting
+- [x] 05-02-PLAN.md — web_search tool: Tavily API integration, session cache, schema/executor registration, search trigger hint
+- [x] 05-03-PLAN.md — UI integration: source citations on ListingCard, web_search indicator, Google Places cleanup, save-web-result-to-DB flow
+- [ ] 05-04-PLAN.md — Gap closure: web search auto-persist + structured web_result block type + clickable URLs in chat
+- [ ] 05-05-PLAN.md — Gap closure: chat sessionStorage persistence + dashboard real data queries
 
 ### Phase 6: Agent Tool Expansion + Polish
 **Goal**: CribAI demonstrates breadth of agentic capabilities — reviews, tour booking, PM contact, neighborhood info — and the app is shippable
@@ -147,5 +149,5 @@ Phase 4 can proceed in parallel with Phase 5 planning/discussion.
 | 2. Data Pipeline | 3/3 | Complete | 2026-03-06 |
 | 3. Semantic Search | 3/3 | Complete | 2026-03-06 |
 | 4. Saved Listings and Alerts | 4/4 | Complete | 2026-03-06 |
-| 5. Agentic Data Pipeline + Web Search | 3/3 | Complete   | 2026-03-06 |
+| 5. Agentic Data Pipeline + Web Search | 3/5 | Gap closure | - |
 | 6. Agent Tool Expansion + Polish | 0/3 | Not started | - |
