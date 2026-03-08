@@ -18,8 +18,11 @@ export {
   type ToolLoadingBlock,
   type MapBlock,
   type MapListing,
+  type WebResultBlock,
   mapBlockSchema,
   mapListingSchema,
+  webResultBlockSchema,
+  webResultItemSchema,
   type ListingSummary,
   type ScoredListing,
 } from './chat';

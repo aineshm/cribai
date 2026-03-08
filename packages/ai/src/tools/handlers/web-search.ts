@@ -73,7 +73,7 @@ const inputSchema = z.object({
 
 export async function webSearch(
   args: Record<string, unknown>,
-  _context: ToolContext,
+  context: ToolContext,
 ): Promise<ToolResult> {
   const parsed = inputSchema.parse(args);
 
@@ -123,7 +123,16 @@ export async function webSearch(
     }
 
     setCachedResults(searchQuery, webResults);
-    return buildResult(webResults);
+
+    const persistedIds = await Promise.all(
+      webResults.map(r => persistWebListing({
+        address: r.title,
+        sourceUrl: r.url,
+        content: r.content,
+      }, context))
+    );
+
+    return buildResult(webResults, persistedIds);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return {
@@ -136,7 +145,10 @@ export async function webSearch(
   }
 }
 
-function buildResult(results: readonly WebSearchResult[]): ToolResult {
+function buildResult(
+  results: readonly WebSearchResult[],
+  persistedIds: readonly (string | null)[] = [],
+): ToolResult {
   const modelContext = `Found ${results.length} web result(s):\n${results
     .map(
       (r, i) =>
@@ -144,15 +156,16 @@ function buildResult(results: readonly WebSearchResult[]): ToolResult {
     )
     .join('\n')}`;
 
-  const clientContent = `Found ${results.length} result(s) from the web:\n${results
-    .map((r, i) => `${i + 1}. **${r.title}** - ${r.url}`)
-    .join('\n')}`;
-
   return {
     modelContext,
     clientBlock: {
-      type: 'text',
-      content: clientContent,
+      type: 'web_result' as const,
+      results: results.map((r, i) => ({
+        title: r.title,
+        url: r.url,
+        snippet: r.content.slice(0, 200),
+        listingId: persistedIds[i] ?? null,
+      })),
     },
   };
 }

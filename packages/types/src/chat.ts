@@ -76,6 +76,18 @@ export const mapBlockSchema = z.object({
   zoom: z.number(),
 });
 
+export const webResultItemSchema = z.object({
+  title: z.string(),
+  url: z.string().url(),
+  snippet: z.string(),
+  listingId: z.string().uuid().nullable(),
+});
+
+export const webResultBlockSchema = z.object({
+  type: z.literal('web_result'),
+  results: z.array(webResultItemSchema),
+});
+
 export const chatBlockSchema = z.discriminatedUnion('type', [
   textBlockSchema,
   listingCardBlockSchema,
@@ -84,6 +96,7 @@ export const chatBlockSchema = z.discriminatedUnion('type', [
   legalDisclaimerBlockSchema,
   toolLoadingBlockSchema,
   mapBlockSchema,
+  webResultBlockSchema,
 ]);
 
 export type ChatBlock = z.infer<typeof chatBlockSchema>;
@@ -96,3 +109,4 @@ export type RecommendationsBlock = z.infer<typeof recommendationsBlockSchema>;
 export type ToolLoadingBlock = z.infer<typeof toolLoadingBlockSchema>;
 export type MapBlock = z.infer<typeof mapBlockSchema>;
 export type MapListing = z.infer<typeof mapListingSchema>;
+export type WebResultBlock = z.infer<typeof webResultBlockSchema>;
