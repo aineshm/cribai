@@ -116,7 +116,7 @@ Plans:
   3. CribAI can schedule tours with calendar awareness and PM contact (enhanced from current stub)
   4. CribAI can provide neighborhood info (walkability, commute, safety, vibe) for a listing area
   5. Placeholder tools return helpful stubs that communicate future capability without breaking UX
-**Plans**: TBD
+**Plans**: 3 plans
 
 **CribAI Tool Inventory (V1):**
 
@@ -133,9 +133,9 @@ Plans:
 | `get_neighborhood_info` | Placeholder | Walkability, safety, commute, vibe |
 
 Plans:
-- [ ] 06-01: TBD — Chat persistence: conversation history stored and resumable
-- [ ] 06-02: TBD — Agent tools: get_reviews, contact_pm, get_neighborhood_info (placeholders), enhanced schedule_tour
-- [ ] 06-03: TBD — Ship prep: production deploy, final polish
+- [ ] 06-01-PLAN.md — Chat persistence: DB-backed conversations + sidebar, replacing sessionStorage
+- [ ] 06-02-PLAN.md — Agent tools: get_reviews, contact_pm, get_neighborhood_info (placeholders), enhanced schedule_tour with conflict detection
+- [ ] 06-03-PLAN.md — Manual listing submission form (DATA-03) + Phase 6 end-to-end verification
 
 ## Progress
 
