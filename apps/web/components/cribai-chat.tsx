@@ -40,6 +40,7 @@ export function CribAIChat({ campusSlug, initialListingId, initialAddress }: Cri
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const supabaseRef = useRef(createClient());
 
   useEffect(() => {
     return () => {
@@ -76,8 +77,7 @@ export function CribAIChat({ campusSlug, initialListingId, initialAddress }: Cri
       }));
 
       // Get session token for authenticated tool calls (saved listings, tours, etc.)
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await supabaseRef.current.auth.getSession();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (session?.access_token) {
         headers['Authorization'] = `Bearer ${session.access_token}`;

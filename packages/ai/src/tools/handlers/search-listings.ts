@@ -102,7 +102,7 @@ async function semanticSearch(
   const uniqueCount = uniqueAddresses.size;
 
   // Build modelContext WITHOUT numeric similarity scores
-  const uniqueHint = `\n\n[Unique properties: ${uniqueCount}. If fewer than 1 unique property matched, consider using web_search to find more options.]`;
+  const uniqueHint = `\n\n[Unique properties: ${uniqueCount}. If no unique properties matched, consider using web_search to find more options.]`;
   const modelContext = filtered.length === 0
     ? 'No listings found matching the criteria.' + uniqueHint
     : `Found ${filtered.length} listing(s) matching "${parsed.semantic_query}":\n${filtered
