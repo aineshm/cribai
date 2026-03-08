@@ -16,6 +16,24 @@ interface CribAIChatProps {
   readonly initialAddress?: string;
 }
 
+const CHAT_STORAGE_KEY = 'cribai-chat-messages';
+
+function loadMessages(): readonly Message[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const stored = sessionStorage.getItem(CHAT_STORAGE_KEY);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored) as Message[];
+    // Filter out any tool_loading blocks that were in-flight when navigated away
+    return parsed.map(m => ({
+      ...m,
+      blocks: m.blocks.filter(b => b.type !== 'tool_loading'),
+    }));
+  } catch {
+    return [];
+  }
+}
+
 interface SSEEvent {
   readonly type?: string;
   readonly content?: string;
@@ -35,7 +53,7 @@ function parseSSEEvent(data: string): SSEEvent | null {
 }
 
 export function CribAIChat({ campusSlug, initialListingId, initialAddress }: CribAIChatProps) {
-  const [messages, setMessages] = useState<readonly Message[]>([]);
+  const [messages, setMessages] = useState<readonly Message[]>(loadMessages);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -48,6 +66,15 @@ export function CribAIChat({ campusSlug, initialListingId, initialAddress }: Cri
       abortRef.current = null;
     };
   }, []);
+
+  // Persist messages to sessionStorage on every change
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+    } catch {
+      // sessionStorage full or unavailable — degrade gracefully
+    }
+  }, [messages]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
