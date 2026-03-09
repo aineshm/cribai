@@ -42,9 +42,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### AI Chat
 
-- [ ] **CHAT-01**: Conversation history persists across sessions (user can resume previous chats)
+- [x] **CHAT-01**: Conversation history persists across sessions (user can resume previous chats)
 - [x] **CHAT-02**: Tour scheduling works end-to-end via chat (mocked backend for v1 -- no real PM integration)
-- [ ] **CHAT-03**: CribAI has a map tool that renders an interactive map block in the chat UI
+- [x] **CHAT-03**: CribAI has a map tool that renders an interactive map block in the chat UI
 
 ### Platform
 
@@ -117,9 +117,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DATA-05 | Phase 2 | Complete |
 | DATA-06 | Phase 2 | Complete |
 | DATA-07 | Phase 6 | Complete |
-| CHAT-01 | Phase 6 | Pending |
+| CHAT-01 | Phase 6 | Complete |
 | CHAT-02 | Phase 6 | Complete |
-| CHAT-03 | Phase 6 | Pending |
+| CHAT-03 | Phase 6 | Complete |
 | PLAT-01 | Phase 1 | Complete |
 | PLAT-02 | Phase 1 | Complete |
 | PLAT-03 | Phase 1 | Complete |

@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 
 ## Current Position
 
-Phase: 5 of 6 (Agentic Data Pipeline & Web Search) -- EXECUTING
-Plan: 2 of 3 in current phase (05-02 complete, ready for 05-03)
-Status: 05-02 complete (web_search tool with Tavily API + session cache)
-Last activity: 2026-03-09 - Completed quick task 3: Phase 7 scraper rewrite
+Phase: 6 of 6 (Agent Tool Expansion & Polish) -- EXECUTING
+Plan: 1 of 3 in current phase (06-01 complete, ready for 06-02)
+Status: 06-01 complete (chat persistence with conversations/messages DB + sidebar)
+Last activity: 2026-03-09 - Completed 06-01-PLAN.md
 
-Progress: [█████████░] 95% (15 of 16 plans)
+Progress: [█████████░] 96% (19 of 21 plans)
 
 ## Performance Metrics
 
@@ -69,6 +69,7 @@ Progress: [█████████░] 95% (15 of 16 plans)
 | Phase 05 P03 | 10min | 2 tasks | 10 files |
 | Phase 05 P04 | 2min | 2 tasks | 3 files |
 | Phase 05 P05 | 3min | 2 tasks | 8 files |
+| Phase 06 P01 | 4min | 2 tasks | 10 files |
 | Phase 06 P02 | 4min | 2 tasks | 10 files |
 
 ## Accumulated Context
@@ -137,6 +138,10 @@ Recent decisions affecting current work:
 - [Phase 05]: ChatWebResult as dedicated component rather than inline JSX in block renderer
 - [Phase 05]: sessionStorage (not localStorage) for chat persistence -- scoped to tab, clears on close
 - [Phase 05]: Dashboard limited to 3 items per section with View All link for saved listings
+- [Phase 06-01]: Server component page fetches auth + campusId, client wrapper manages sidebar/chat state
+- [Phase 06-01]: Conversation created lazily on first user message (not eagerly) to avoid empty conversations
+- [Phase 06-01]: Dual persistence: DB for authenticated, sessionStorage for unauthenticated
+- [Phase 06-01]: Messages persisted asynchronously (non-blocking) after each exchange
 - [Phase 06]: Placeholder tools return text blocks with actionable alternative sources (Reddit, Walk Score, Google Maps)
 - [Phase 06]: Schedule tour conflict detection warns via modelContext only, never blocks tour creation
 
@@ -160,7 +165,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T14:34:52.620Z
-Stopped at: Completed 06-02-PLAN.md
+Last session: 2026-03-09T14:33:45Z
+Stopped at: Completed 06-01-PLAN.md
 Resume file: None
-Next: Phase 7 remaining plans or Phase 6 execution
+Next: 06-03-PLAN.md (polish and ship)
