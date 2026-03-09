@@ -25,6 +25,10 @@ export {
   webResultItemSchema,
   type ListingSummary,
   type ScoredListing,
+  conversationSchema,
+  conversationMessageSchema,
+  type Conversation,
+  type ConversationMessage,
 } from './chat';
 export { tourRequestSchema, tourRequestInputSchema, type TourRequest, type TourRequestInput } from './tour';
 export { savedListingSchema, type SavedListing } from './saved-listing';

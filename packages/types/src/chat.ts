@@ -110,3 +110,27 @@ export type ToolLoadingBlock = z.infer<typeof toolLoadingBlockSchema>;
 export type MapBlock = z.infer<typeof mapBlockSchema>;
 export type MapListing = z.infer<typeof mapListingSchema>;
 export type WebResultBlock = z.infer<typeof webResultBlockSchema>;
+
+// ============================================================
+// Conversation persistence types
+// ============================================================
+
+export const conversationSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string(),
+  lastMessagePreview: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export type Conversation = z.infer<typeof conversationSchema>;
+
+export const conversationMessageSchema = z.object({
+  id: z.string().uuid(),
+  conversationId: z.string().uuid(),
+  role: z.enum(['user', 'assistant']),
+  blocks: z.array(chatBlockSchema),
+  createdAt: z.string(),
+});
+
+export type ConversationMessage = z.infer<typeof conversationMessageSchema>;
