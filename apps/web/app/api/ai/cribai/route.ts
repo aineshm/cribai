@@ -246,8 +246,16 @@ export async function POST(request: NextRequest) {
             });
           }
         } catch (err) {
-          const message =
+          const raw =
             err instanceof Error ? err.message : 'Stream error';
+          // Detect Gemini quota / rate-limit errors and return a friendly message
+          const isQuotaError =
+            raw.includes('RESOURCE_EXHAUSTED') ||
+            raw.includes('429') ||
+            raw.includes('quota');
+          const message = isQuotaError
+            ? 'CribAI is temporarily unavailable due to high demand. Please try again in a minute.'
+            : raw;
           controller.enqueue(
             encoder.encode(sseEncode({ type: 'error', message })),
           );

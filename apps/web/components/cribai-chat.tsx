@@ -301,7 +301,15 @@ export function CribAIChat({
           }
 
           if (event.type === 'error') {
-            throw new Error(event.message ?? 'Stream error');
+            // Show error inline as a text block instead of crashing
+            const errorMsg = event.message ?? 'Something went wrong. Please try again.';
+            assistantBlocks = [
+              ...assistantBlocks,
+              { type: 'text', content: `⚠ ${errorMsg}` },
+            ];
+            updateAssistantMessage(assistantBlocks);
+            setIsLoading(false);
+            return;
           }
 
           switch (event.type) {
