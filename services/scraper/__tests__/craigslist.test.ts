@@ -154,7 +154,7 @@ describe('CraigslistScraper (cheerio HTML)', () => {
     const { CraigslistScraper } = await import('../scrapers/craigslist');
     const scraper = new CraigslistScraper(MOCK_CONFIG);
 
-    const results = await scraper.scrape();
+    await scraper.scrape();
     // First category (/apa) should eventually succeed after retries
     // Second category (/sub) may also have retries
     expect(callCount).toBeGreaterThanOrEqual(3);
@@ -184,8 +184,8 @@ describe('CraigslistScraper (cheerio HTML)', () => {
     const { CraigslistScraper } = await import('../scrapers/craigslist');
     const scraper = new CraigslistScraper(MOCK_CONFIG);
 
-    const results = await scraper.scrape();
-    expect(results).toEqual([]);
+    const emptyResults = await scraper.scrape();
+    expect(emptyResults).toEqual([]);
   });
 
   it('has source set to craigslist', async () => {

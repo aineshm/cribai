@@ -3,8 +3,6 @@ import {
   runSearchScraper,
   runDetailScraper,
   type ZillowDetailResult,
-  type FloorPlan,
-  type FloorPlanUnit,
 } from '../clients/apify';
 
 export class ZillowScraper extends BaseScraper {
