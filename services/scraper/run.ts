@@ -20,27 +20,7 @@ import type { ScrapeMetrics } from './metrics';
 import { archiveStaleListings } from './lifecycle';
 import { detectPriceChanges, createPriceChangeNotifications } from './price-change-detector';
 import { createDiagnostic, formatDiagnosticReport, type SourceDiagnostic } from './diagnostics';
-
-/**
- * Parse PostGIS EWKB hex (SRID=4326 POINT) into lat/lng.
- * Format: byte-order(2) + type(8) + srid(8) + x(16) + y(16) = 50 hex chars
- */
-function parseWkbPoint(hex: string): { latitude: number; longitude: number } | null {
-  if (!hex || hex.length < 50) return null;
-  try {
-    const buf = Buffer.from(hex, 'hex');
-    const le = buf[0] === 1;
-    const readDouble = le
-      ? (offset: number) => buf.readDoubleLE(offset)
-      : (offset: number) => buf.readDoubleBE(offset);
-    const x = readDouble(9);  // longitude
-    const y = readDouble(17); // latitude
-    if (isNaN(x) || isNaN(y)) return null;
-    return { latitude: y, longitude: x };
-  } catch {
-    return null;
-  }
-}
+import { parseWkbPoint } from '@campusnest/utils';
 
 const VALID_SOURCES = ['zillow', 'craigslist', 'all'] as const;
 type Source = (typeof VALID_SOURCES)[number];

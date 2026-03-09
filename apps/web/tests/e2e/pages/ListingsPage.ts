@@ -9,11 +9,11 @@ import { type Page, type Locator, expect } from '@playwright/test';
  * Heading: <h1> "Listings — {campus.name}"
  * Subtitle: <p> "Search and compare student housing..."
  *
- * Filters (ListingFilters component — no data-testid, identified by role/placeholder):
- *   - <select> with option text "Bedrooms"  → beds filter
+ * Filters (ListingFilters component):
+ *   - <select data-testid="beds-filter">  → beds filter
  *   - <input type="number" placeholder="Min price">
  *   - <input type="number" placeholder="Max price">
- *   - <select> with option text "Sort by"   → sort filter
+ *   - <select data-testid="sort-filter">  → sort filter
  *
  * Listing grid (ListingGrid):
  *   - Empty state: "No listings found" + "Try adjusting your filters..."
@@ -44,10 +44,10 @@ export class ListingsPage {
     this.subtitle = page.getByText(
       'Search and compare student housing with True Cost and Fairness Scores.'
     );
-    this.bedsFilter = page.getByRole('combobox').first();
+    this.bedsFilter = page.getByTestId('beds-filter');
     this.minPriceInput = page.getByPlaceholder('Min price');
     this.maxPriceInput = page.getByPlaceholder('Max price');
-    this.sortFilter = page.getByRole('combobox').last();
+    this.sortFilter = page.getByTestId('sort-filter');
     this.noListingsHeading = page.getByText('No listings found');
     this.noListingsHint = page.getByText('Try adjusting your filters or check back later.');
     this.campusNotFound = page.getByText('Campus not found.');

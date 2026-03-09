@@ -16,9 +16,10 @@ interface PersistWebListingParams {
 }
 
 /**
- * Web results are ephemeral in chat. They become persistent listings only when
- * a user saves them to favorites, at which point persistWebListing creates the
- * listing record and the Phase 3 embedding pipeline will embed it on the next run.
+ * Persists a web search result as a listing in the database. Called for every
+ * web search result returned by webSearch(). Uses upsert on (external_id, source)
+ * so duplicate URLs are deduplicated. The Phase 3 embedding pipeline will embed
+ * new/changed rows on the next nightly run.
  */
 export async function persistWebListing(
   params: PersistWebListingParams,
@@ -109,10 +110,17 @@ export async function webSearch(
   const location = parsed.location ?? 'Madison WI';
   const searchQuery = `${parsed.query} apartments rentals near ${location}`;
 
-  // Check cache first
+  // Check cache first — still resolve persisted IDs so model context has them
   const cached = getCachedResults(searchQuery);
   if (cached) {
-    return buildResult(cached);
+    const cachedIds = await Promise.all(
+      cached.map(r => persistWebListing({
+        address: r.title,
+        sourceUrl: r.url,
+        content: r.content,
+      }, context))
+    );
+    return buildResult(cached, cachedIds);
   }
 
   try {

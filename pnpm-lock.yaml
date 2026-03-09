@@ -188,6 +188,9 @@ importers:
       '@campusnest/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@campusnest/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
       '@supabase/supabase-js':
         specifier: ^2.47.0
         version: 2.98.0
