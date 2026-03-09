@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 05-01
-last_updated: "2026-03-06T18:42:00.000Z"
-last_activity: 2026-03-06 - Completed 05-01
+status: verifying
+stopped_at: Completed 06-03-PLAN.md
+last_updated: "2026-03-09T14:53:37.684Z"
+last_activity: 2026-03-09 - Completed 06-03-PLAN.md
 progress:
   total_phases: 6
-  completed_phases: 4
-  total_plans: 13
-  completed_plans: 14
-  percent: 93
+  completed_phases: 6
+  total_plans: 21
+  completed_plans: 21
+  percent: 100
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Students can find off-campus housing through an agentic AI assistant that researches, compares, and discusses options — not just a listing aggregator
-**Current focus:** Phase 5 - Agentic Data Pipeline & Web Search (executing)
+**Current focus:** All phases complete -- v1 milestone reached
 
 ## Current Position
 
-Phase: 5 of 6 (Agentic Data Pipeline & Web Search) -- EXECUTING
-Plan: 2 of 3 in current phase (05-02 complete, ready for 05-03)
-Status: 05-02 complete (web_search tool with Tavily API + session cache)
-Last activity: 2026-03-06 - Completed 05-02
+Phase: 6 of 6 (Agent Tool Expansion & Polish) -- COMPLETE
+Plan: 3 of 3 in current phase (all complete)
+Status: Phase 6 complete (manual listing submission + end-to-end verification approved)
+Last activity: 2026-03-09 - Completed 06-03-PLAN.md
 
-Progress: [█████████░] 95% (15 of 16 plans)
+Progress: [██████████] 100% (21 of 21 plans)
 
 ## Performance Metrics
 
@@ -66,6 +66,12 @@ Progress: [█████████░] 95% (15 of 16 plans)
 | Phase 05 P01 | 10min | 3 tasks | 10 files |
 | Phase 05 P02 | 8min | 2 tasks | 7 files |
 | Phase 05 P01 | 5min | 2 tasks | 12 files |
+| Phase 05 P03 | 10min | 2 tasks | 10 files |
+| Phase 05 P04 | 2min | 2 tasks | 3 files |
+| Phase 05 P05 | 3min | 2 tasks | 8 files |
+| Phase 06 P01 | 4min | 2 tasks | 10 files |
+| Phase 06 P02 | 4min | 2 tasks | 10 files |
+| Phase 06 P03 | 2min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -127,6 +133,20 @@ Recent decisions affecting current work:
 - [Phase 05-01]: GooglePlacesScraper removed from pipeline, file preserved for Phase 6 enrichment
 - [Phase 05-01]: Diagnostic output uses ::diagnostic:: prefix for GH Actions multiline output parsing
 - [Phase 05-01]: GOOGLE_PLACES_API_KEY removed from workflow, TAVILY_API_KEY added for future use
+- [Phase 05]: Web-sourced listings use persist-on-save pattern: ephemeral in chat, persisted only when user favorites
+- [Phase 05]: Service-role client for web listing upsert (needs write access to listings table)
+- [Phase 05]: Source citation uses friendly display names on ListingCard component
+- [Phase 05]: ChatWebResult as dedicated component rather than inline JSX in block renderer
+- [Phase 05]: sessionStorage (not localStorage) for chat persistence -- scoped to tab, clears on close
+- [Phase 05]: Dashboard limited to 3 items per section with View All link for saved listings
+- [Phase 06-01]: Server component page fetches auth + campusId, client wrapper manages sidebar/chat state
+- [Phase 06-01]: Conversation created lazily on first user message (not eagerly) to avoid empty conversations
+- [Phase 06-01]: Dual persistence: DB for authenticated, sessionStorage for unauthenticated
+- [Phase 06-01]: Messages persisted asynchronously (non-blocking) after each exchange
+- [Phase 06]: Placeholder tools return text blocks with actionable alternative sources (Reddit, Walk Score, Google Maps)
+- [Phase 06]: Schedule tour conflict detection warns via modelContext only, never blocks tour creation
+- [Phase 06]: Service-role client for manual listing insert (same pattern as save-web-listing)
+- [Phase 06]: Auth required for submit-listing page with server-side redirect
 
 ### Pending Todos
 
@@ -144,10 +164,11 @@ None yet.
 |---|-------------|------|--------|-----------|
 | 1 | Fix GH Actions pnpm version mismatch | 2026-03-06 | 2e1a6dc | [1-fix-gh-actions-pnpm-version-mismatch](./quick/1-fix-gh-actions-pnpm-version-mismatch/) |
 | 2 | Fix Playwright not found in GH Actions nightly scrape | 2026-03-06 | b70f963 | [2-fix-playwright-not-found-in-gh-actions-n](./quick/2-fix-playwright-not-found-in-gh-actions-n/) |
+| 3 | Phase 7 scraper rewrite (Zillow Apify + CL cheerio + CLI) | 2026-03-09 | b4f25b8 | [3-phase-7-check-available-files-and-implem](./quick/3-phase-7-check-available-files-and-implem/) |
 
 ## Session Continuity
 
-Last session: 2026-03-06T18:44:00Z
-Stopped at: Completed 05-02
-Resume file: .planning/phases/05-agentic-data-pipeline-web-search/05-02-SUMMARY.md
-Next: Execute 05-03 (remaining Phase 5 plan, if exists)
+Last session: 2026-03-09T14:48:18.180Z
+Stopped at: Completed 06-03-PLAN.md
+Resume file: None
+Next: 06-03-PLAN.md (polish and ship)

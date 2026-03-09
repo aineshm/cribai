@@ -5,25 +5,17 @@
  * - RETRIEVAL_QUERY for search queries (what the user is looking for)
  */
 
-import { GoogleGenAI } from '@google/genai';
+import { createGeminiClient } from '../gemini-client';
 
 const MODEL = 'gemini-embedding-001';
 const DIMENSIONS = 768;
-
-function getClient(): GoogleGenAI {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY environment variable is required');
-  }
-  return new GoogleGenAI({ apiKey });
-}
 
 /**
  * Generate embedding for a listing document (indexed content).
  * Uses RETRIEVAL_DOCUMENT task type for asymmetric retrieval.
  */
 export async function generateEmbedding(text: string): Promise<readonly number[]> {
-  const ai = getClient();
+  const ai = createGeminiClient();
   const response = await ai.models.embedContent({
     model: MODEL,
     contents: text,
@@ -49,7 +41,7 @@ export async function generateEmbedding(text: string): Promise<readonly number[]
  * Uses RETRIEVAL_QUERY task type for asymmetric retrieval.
  */
 export async function generateQueryEmbedding(query: string): Promise<readonly number[]> {
-  const ai = getClient();
+  const ai = createGeminiClient();
   const response = await ai.models.embedContent({
     model: MODEL,
     contents: query,

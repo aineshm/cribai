@@ -1,8 +1,9 @@
-import { GoogleGenAI } from '@google/genai';
+import type { GoogleGenAI } from '@google/genai';
 import type { PageIndexNode } from '@campusnest/types';
+import { createGeminiClient } from './gemini-client';
 
 interface TraverseConfig {
-  readonly geminiApiKey: string;
+  readonly geminiApiKey?: string;
   readonly maxDepth?: number;
   readonly maxBranches?: number;
   readonly timeoutMs?: number;
@@ -15,7 +16,7 @@ export class PageIndexTraverser {
   private readonly timeoutMs: number;
 
   constructor(config: TraverseConfig) {
-    this.ai = new GoogleGenAI({ apiKey: config.geminiApiKey });
+    this.ai = createGeminiClient(config.geminiApiKey);
     this.maxDepth = config.maxDepth ?? 3;
     this.maxBranches = config.maxBranches ?? 3;
     this.timeoutMs = config.timeoutMs ?? 8000;

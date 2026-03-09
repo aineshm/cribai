@@ -1,4 +1,6 @@
-import { CribAIChat } from '../../../../components/cribai-chat';
+import { cookies } from 'next/headers';
+import { createServerComponentClient } from '@campusnest/supabase/server';
+import { CribAIChatPage } from './cribai-page-client';
 
 export default async function CribAIPage({
   params,
@@ -10,15 +12,31 @@ export default async function CribAIPage({
   const { campusSlug } = await params;
   const { about, address } = await searchParams;
 
+  const cookieStore = await cookies();
+  const supabase = createServerComponentClient(cookieStore);
+
+  // Check auth status
+  const { data: { user } } = await supabase.auth.getUser();
+  const isAuthenticated = !!user;
+
+  // Get campus ID for conversation creation
+  let campusId: string | undefined;
+  if (isAuthenticated) {
+    const { data: campus } = await supabase
+      .from('campus_configs')
+      .select('id')
+      .eq('slug', campusSlug)
+      .single();
+    campusId = campus?.id;
+  }
+
   return (
-    <div className="mx-auto max-w-3xl animate-fade-in">
-      <h1 className="font-[family-name:var(--font-display)] text-3xl text-[var(--surface-900)]">CribAI</h1>
-      <p className="mt-1 text-sm text-[var(--surface-500)]">
-        Your AI housing advisor. Ask about prices, neighborhoods, fairness scores, and more.
-      </p>
-      <div className="mt-4">
-        <CribAIChat campusSlug={campusSlug} initialListingId={about} initialAddress={address} />
-      </div>
-    </div>
+    <CribAIChatPage
+      campusSlug={campusSlug}
+      campusId={campusId}
+      isAuthenticated={isAuthenticated}
+      initialListingId={about}
+      initialAddress={address}
+    />
   );
 }

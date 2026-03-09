@@ -28,6 +28,7 @@ interface SemanticRpcRow {
   readonly latitude: number | null;
   readonly longitude: number | null;
   readonly similarity: number;
+  readonly source: string | null;
 }
 
 export async function searchListings(
@@ -81,6 +82,7 @@ async function semanticSearch(
     trueCostTotal: row.true_cost_total,
     amenities: Array.isArray(row.amenities) ? [...row.amenities] : [],
     campusSlug: context.campusSlug,
+    source: row.source ?? undefined,
   }));
 
   // Apply client-side amenity filter
@@ -100,13 +102,13 @@ async function semanticSearch(
   const uniqueCount = uniqueAddresses.size;
 
   // Build modelContext WITHOUT numeric similarity scores
-  const uniqueHint = `\n\n[Unique properties: ${uniqueCount}. If fewer than 1 unique property matched, consider using web_search to find more options.]`;
+  const uniqueHint = `\n\n[Unique properties: ${uniqueCount}. If no unique properties matched, consider using web_search to find more options.]`;
   const modelContext = filtered.length === 0
     ? 'No listings found matching the criteria.' + uniqueHint
     : `Found ${filtered.length} listing(s) matching "${parsed.semantic_query}":\n${filtered
         .map(
           (l, i) =>
-            `${i + 1}. ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10`,
+            `${i + 1}. [id:${l.id}] ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10`,
         )
         .join('\n')}` + uniqueHint;
 
@@ -176,7 +178,7 @@ async function sqlSearch(
   let query = context.supabase
     .from('listings')
     .select(
-      'id, address, rent_monthly, bedrooms, bathrooms, sqft, fairness_score, true_cost_total, amenities',
+      'id, address, rent_monthly, bedrooms, bathrooms, sqft, fairness_score, true_cost_total, amenities, source',
     )
     .eq('campus_id', context.campusId)
     .eq('is_active', true);
@@ -231,6 +233,7 @@ async function sqlSearch(
     trueCostTotal: row.true_cost_total as number | null,
     amenities: (row.amenities as string[] | null) ?? [],
     campusSlug: context.campusSlug,
+    source: (row.source as string | null) ?? undefined,
   }));
 
   // Filter by amenities client-side (jsonb contains is tricky)
@@ -255,7 +258,7 @@ async function sqlSearch(
     : `Found ${filtered.length} listing(s):\n${filtered
         .map(
           (l, i) =>
-            `${i + 1}. ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10`,
+            `${i + 1}. [id:${l.id}] ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10`,
         )
         .join('\n')}` + sqlUniqueHint;
 

@@ -12,8 +12,29 @@ interface Message {
 
 interface CribAIChatProps {
   readonly campusSlug: string;
+  readonly campusId?: string;
   readonly initialListingId?: string;
   readonly initialAddress?: string;
+  readonly conversationId?: string | null;
+  readonly isAuthenticated?: boolean;
+  readonly onConversationCreated?: (id: string) => void;
+}
+
+const CHAT_STORAGE_KEY = 'cribai-chat-messages';
+
+function loadSessionMessages(): readonly Message[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const stored = sessionStorage.getItem(CHAT_STORAGE_KEY);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored) as Message[];
+    return parsed.map(m => ({
+      ...m,
+      blocks: m.blocks.filter(b => b.type !== 'tool_loading'),
+    }));
+  } catch {
+    return [];
+  }
 }
 
 interface SSEEvent {
@@ -34,12 +55,119 @@ function parseSSEEvent(data: string): SSEEvent | null {
   }
 }
 
-export function CribAIChat({ campusSlug, initialListingId, initialAddress }: CribAIChatProps) {
+/** Save a message to the conversation in the database */
+async function persistMessage(
+  conversationId: string,
+  role: 'user' | 'assistant',
+  blocks: readonly ChatBlock[],
+): Promise<void> {
+  try {
+    await fetch(`/api/conversations/${conversationId}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role, blocks }),
+    });
+  } catch {
+    // Non-critical — message displays in UI regardless
+    console.error('[CribAI] Failed to persist message');
+  }
+}
+
+/** Create a new conversation via API */
+async function createConversation(
+  campusId: string,
+  title: string,
+): Promise<string | null> {
+  try {
+    const res = await fetch('/api/conversations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ campusId, title }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { id: string };
+    return data.id;
+  } catch {
+    return null;
+  }
+}
+
+/** Load messages from a conversation */
+async function loadConversationMessages(
+  conversationId: string,
+): Promise<readonly Message[]> {
+  try {
+    const res = await fetch(`/api/conversations/${conversationId}`);
+    if (!res.ok) return [];
+    const data = (await res.json()) as {
+      messages: Array<{ role: 'user' | 'assistant'; blocks: ChatBlock[] }>;
+    };
+    return data.messages.map(m => ({
+      role: m.role,
+      blocks: m.blocks.filter(b => b.type !== 'tool_loading'),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export function CribAIChat({
+  campusSlug,
+  campusId,
+  initialListingId,
+  initialAddress,
+  conversationId: externalConversationId,
+  isAuthenticated = false,
+  onConversationCreated,
+}: CribAIChatProps) {
   const [messages, setMessages] = useState<readonly Message[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(
+    externalConversationId ?? null,
+  );
   const abortRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const supabaseRef = useRef(createClient());
+  const hasInitialized = useRef(false);
+
+  // Load initial messages based on auth state and conversationId
+  useEffect(() => {
+    if (hasInitialized.current) return;
+    hasInitialized.current = true;
+
+    if (isAuthenticated && externalConversationId) {
+      // Load from DB
+      loadConversationMessages(externalConversationId).then(msgs => {
+        setMessages(msgs);
+      });
+    } else if (!isAuthenticated) {
+      // Fallback to sessionStorage for unauthenticated users
+      setMessages(loadSessionMessages());
+    }
+    // New authenticated chat with no conversationId starts empty
+  }, [isAuthenticated, externalConversationId]);
+
+  // When external conversationId changes (user selects different conversation)
+  useEffect(() => {
+    if (externalConversationId === undefined) return;
+    setConversationId(externalConversationId ?? null);
+    hasInitialized.current = false;
+  }, [externalConversationId]);
+
+  // Re-trigger load when conversationId changes via external prop
+  useEffect(() => {
+    if (!hasInitialized.current && externalConversationId !== undefined) {
+      hasInitialized.current = true;
+      if (isAuthenticated && externalConversationId) {
+        loadConversationMessages(externalConversationId).then(msgs => {
+          setMessages(msgs);
+        });
+      } else if (isAuthenticated && !externalConversationId) {
+        setMessages([]);
+      }
+    }
+  }, [externalConversationId, isAuthenticated]);
 
   useEffect(() => {
     return () => {
@@ -47,6 +175,16 @@ export function CribAIChat({ campusSlug, initialListingId, initialAddress }: Cri
       abortRef.current = null;
     };
   }, []);
+
+  // Persist messages to sessionStorage for unauthenticated users
+  useEffect(() => {
+    if (isAuthenticated) return;
+    try {
+      sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+    } catch {
+      // sessionStorage full or unavailable
+    }
+  }, [messages, isAuthenticated]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -65,6 +203,22 @@ export function CribAIChat({ campusSlug, initialListingId, initialAddress }: Cri
     setMessages(updatedMessages);
     setIsStreaming(true);
 
+    // For authenticated users: create conversation on first message
+    let activeConvId = conversationId;
+    if (isAuthenticated && !activeConvId && campusId) {
+      const title = query.length > 50 ? `${query.slice(0, 47)}...` : query;
+      activeConvId = await createConversation(campusId, title);
+      if (activeConvId) {
+        setConversationId(activeConvId);
+        onConversationCreated?.(activeConvId);
+      }
+    }
+
+    // Persist user message to DB
+    if (isAuthenticated && activeConvId) {
+      persistMessage(activeConvId, 'user', userMessage.blocks);
+    }
+
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -75,9 +229,7 @@ export function CribAIChat({ campusSlug, initialListingId, initialAddress }: Cri
         blocks: m.blocks,
       }));
 
-      // Get session token for authenticated tool calls (saved listings, tours, etc.)
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await supabaseRef.current.auth.getSession();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (session?.access_token) {
         headers['Authorization'] = `Bearer ${session.access_token}`;
@@ -120,7 +272,6 @@ export function CribAIChat({ campusSlug, initialListingId, initialAddress }: Cri
 
         sseBuffer += decoder.decode(value, { stream: true });
         const lines = sseBuffer.split('\n');
-        // Keep the last (possibly incomplete) line in the buffer
         sseBuffer = lines.pop() ?? '';
 
         for (const line of lines) {
@@ -131,7 +282,6 @@ export function CribAIChat({ campusSlug, initialListingId, initialAddress }: Cri
           const event = parseSSEEvent(data);
           if (!event) continue;
 
-          // Handle old format: { text: "..." } without type
           if (event.text && !event.type) {
             currentTextContent += event.text;
             const lastBlock = assistantBlocks[assistantBlocks.length - 1];
@@ -151,7 +301,15 @@ export function CribAIChat({ campusSlug, initialListingId, initialAddress }: Cri
           }
 
           if (event.type === 'error') {
-            throw new Error(event.message ?? 'Stream error');
+            // Show error inline as a text block instead of crashing
+            const errorMsg = event.message ?? 'Something went wrong. Please try again.';
+            assistantBlocks = [
+              ...assistantBlocks,
+              { type: 'text', content: `⚠ ${errorMsg}` },
+            ];
+            updateAssistantMessage(assistantBlocks);
+            setIsStreaming(false);
+            return;
           }
 
           switch (event.type) {
@@ -200,6 +358,12 @@ export function CribAIChat({ campusSlug, initialListingId, initialAddress }: Cri
           }
         }
       }
+
+      // Persist assistant response to DB after streaming completes
+      if (isAuthenticated && activeConvId && assistantBlocks.length > 0) {
+        const blocksToSave = assistantBlocks.filter(b => b.type !== 'tool_loading');
+        persistMessage(activeConvId, 'assistant', blocksToSave);
+      }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
       console.error('[CribAI] Stream error:', err);
@@ -214,14 +378,13 @@ export function CribAIChat({ campusSlug, initialListingId, initialAddress }: Cri
       setIsStreaming(false);
       abortRef.current = null;
     }
-  }, [input, isStreaming, messages, campusSlug, scrollToBottom]);
+  }, [input, isStreaming, messages, campusSlug, campusId, conversationId, isAuthenticated, onConversationCreated, scrollToBottom]);
 
   // Auto-send when navigating from a listing detail page
   const hasSentInitial = useRef(false);
   useEffect(() => {
     if (!initialListingId || hasSentInitial.current) return;
 
-    // Delay to avoid StrictMode abort race (mount → cleanup → remount)
     const timer = setTimeout(() => {
       if (hasSentInitial.current) return;
       hasSentInitial.current = true;

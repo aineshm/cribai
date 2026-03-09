@@ -1,13 +1,14 @@
-import { GoogleGenAI } from '@google/genai';
-import type { Content, FunctionCall, Part } from '@google/genai';
+import type { GoogleGenAI, Content, FunctionCall, Part } from '@google/genai';
 import type { ChatBlock, PageIndexNode } from '@campusnest/types';
+import { createGeminiClient } from './gemini-client';
+import { logTokenUsage } from './cost-logger';
 import { PageIndexTraverser } from './pageindex-traverser';
 import { CRIBAI_TOOLS } from './tools/schemas';
 import { executeTool } from './tools/executor';
 import type { ToolContext } from './tools/types';
 
 export interface CribAIConfig {
-  readonly geminiApiKey: string;
+  readonly geminiApiKey?: string;
   readonly campusName: string;
   readonly toolContext?: ToolContext;
 }
@@ -52,7 +53,7 @@ export class CribAI {
   private readonly toolContext: ToolContext | undefined;
 
   constructor(config: CribAIConfig) {
-    this.ai = new GoogleGenAI({ apiKey: config.geminiApiKey });
+    this.ai = createGeminiClient(config.geminiApiKey);
     this.traverser = new PageIndexTraverser({ geminiApiKey: config.geminiApiKey });
     this.campusName = config.campusName;
     this.toolContext = config.toolContext;
@@ -102,6 +103,7 @@ export class CribAI {
 
       let hasToolCalls = false;
       const functionCalls: FunctionCall[] = [];
+      let lastUsageMetadata: Record<string, unknown> | undefined;
 
       for await (const chunk of response) {
         // Yield text parts
@@ -118,7 +120,19 @@ export class CribAI {
             }
           }
         }
+
+        // Track usage metadata (final chunk contains totals)
+        if (chunk.usageMetadata) {
+          lastUsageMetadata = chunk.usageMetadata as Record<string, unknown>;
+        }
       }
+
+      // Log token usage for cost monitoring
+      logTokenUsage('gemini-2.5-flash', lastUsageMetadata as {
+        promptTokenCount?: number;
+        candidatesTokenCount?: number;
+        cachedContentTokenCount?: number;
+      } | undefined);
 
       // If no tool calls, we're done
       if (!hasToolCalls || !this.toolContext) {

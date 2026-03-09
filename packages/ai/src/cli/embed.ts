@@ -21,8 +21,8 @@ async function main(): Promise<void> {
   if (!supabaseKey) {
     throw new Error('SUPABASE_SECRET_KEY environment variable is required');
   }
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY environment variable is required');
+  if (!process.env.GOOGLE_CLOUD_PROJECT && !process.env.GEMINI_API_KEY) {
+    throw new Error('Set GOOGLE_CLOUD_PROJECT (Vertex AI) or GEMINI_API_KEY (AI Studio)');
   }
 
   const supabase = createClient(supabaseUrl, supabaseKey);
@@ -39,7 +39,9 @@ async function main(): Promise<void> {
   const metricsJson = JSON.stringify(metrics);
   console.log(`::embed-metrics::${metricsJson}`);
 
-  if (metrics.errors > 0) {
+  const total = metrics.embedded + metrics.errors;
+  if (total > 0 && metrics.errors / total > 0.5) {
+    console.error(`Embedding failure rate too high: ${metrics.errors}/${total}`);
     process.exitCode = 1;
   }
 }

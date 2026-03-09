@@ -7,6 +7,9 @@ import { explainLeaseTerm } from './handlers/explain-lease-term';
 import { getLandlordInfo } from './handlers/get-landlord-info';
 import { getSavedListings } from './handlers/get-saved-listings';
 import { webSearch } from './handlers/web-search';
+import { getReviews } from './handlers/get-reviews';
+import { contactPm } from './handlers/contact-pm';
+import { getNeighborhoodInfo } from './handlers/get-neighborhood-info';
 
 const HANDLERS: Record<string, (args: Record<string, unknown>, context: ToolContext) => Promise<ToolResult>> = {
   search_listings: searchListings,
@@ -17,6 +20,9 @@ const HANDLERS: Record<string, (args: Record<string, unknown>, context: ToolCont
   get_landlord_info: getLandlordInfo,
   get_saved_listings: getSavedListings,
   web_search: webSearch,
+  get_reviews: getReviews,
+  contact_pm: contactPm,
+  get_neighborhood_info: getNeighborhoodInfo,
 };
 
 export async function executeTool(

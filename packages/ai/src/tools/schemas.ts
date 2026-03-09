@@ -191,6 +191,69 @@ const getSavedListings: FunctionDeclaration = {
   },
 };
 
+const getReviews: FunctionDeclaration = {
+  name: 'get_reviews',
+  description:
+    'Get reviews and community feedback for a property or landlord. Use when the user asks about reviews, ratings, or tenant experiences for a listing.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      listing_id: {
+        type: Type.STRING,
+        description: 'UUID of the listing to get reviews for',
+      },
+      address: {
+        type: Type.STRING,
+        description: 'Address of the property to search reviews for',
+      },
+    },
+  },
+};
+
+const contactPm: FunctionDeclaration = {
+  name: 'contact_pm',
+  description:
+    'Send a message or inquiry to a property manager. Use when the user wants to contact a landlord or property manager about a listing.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      listing_id: {
+        type: Type.STRING,
+        description: 'UUID of the listing whose property manager to contact',
+      },
+      message: {
+        type: Type.STRING,
+        description: 'Optional message to send to the property manager (max 500 characters)',
+      },
+    },
+    required: ['listing_id'],
+  },
+};
+
+const getNeighborhoodInfo: FunctionDeclaration = {
+  name: 'get_neighborhood_info',
+  description:
+    'Get neighborhood information including walkability, safety, commute times, and local vibe. Use when the user asks about the area around a listing.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      address: {
+        type: Type.STRING,
+        description: 'Address to get neighborhood info for',
+      },
+      listing_id: {
+        type: Type.STRING,
+        description: 'UUID of the listing to get neighborhood info for',
+      },
+      topics: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+        description: 'Specific topics to cover (e.g., "walkability", "safety", "commute", "vibe")',
+      },
+    },
+  },
+};
+
 export const CRIBAI_TOOLS: readonly FunctionDeclaration[] = [
   searchListings,
   getListingDetail,
@@ -200,4 +263,7 @@ export const CRIBAI_TOOLS: readonly FunctionDeclaration[] = [
   getLandlordInfo,
   getSavedListings,
   webSearch,
+  getReviews,
+  contactPm,
+  getNeighborhoodInfo,
 ];

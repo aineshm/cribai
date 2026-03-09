@@ -9,7 +9,7 @@ import { ListingPhotoGallery } from '../../../../../components/listing-photo-gal
 import { ListingLocationMap } from '../../../../../components/listing-location-map';
 import { HeartButton } from '../../../../../components/heart-button';
 import { ListingCard } from '../../../../../components/listing-card';
-import { parseWkbPoint } from '../../../../../lib/parse-wkb-point';
+import { parseWkbPoint } from '@campusnest/utils';
 
 interface ListingDetailPageProps {
   params: Promise<{ campusSlug: string; id: string }>;

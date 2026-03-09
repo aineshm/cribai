@@ -84,7 +84,7 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <div className="mt-4 rounded-lg bg-[var(--fair-bad-bg)] p-3 text-sm text-[var(--fair-bad)]">
+            <div data-testid="error-message" className="mt-4 rounded-lg bg-[var(--fair-bad-bg)] p-3 text-sm text-[var(--fair-bad)]">
               {error}
             </div>
           )}
@@ -134,7 +134,7 @@ export default function LoginPage() {
         </p>
 
         {error && (
-          <div className="mt-4 rounded-lg bg-[var(--fair-bad-bg)] p-3 text-sm text-[var(--fair-bad)]">
+          <div data-testid="error-message" className="mt-4 rounded-lg bg-[var(--fair-bad-bg)] p-3 text-sm text-[var(--fair-bad)]">
             {error}
           </div>
         )}

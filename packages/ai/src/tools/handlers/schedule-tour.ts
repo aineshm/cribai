@@ -9,6 +9,42 @@ const inputSchema = z.object({
   notes: z.string().max(500).optional(),
 });
 
+interface ExistingTour {
+  readonly preferred_dates: readonly string[];
+  readonly listing_id: string;
+  readonly id: string;
+}
+
+interface ConflictListing {
+  readonly id: string;
+  readonly address: string;
+}
+
+function findDateConflicts(
+  requestedDates: readonly string[],
+  existingTours: readonly ExistingTour[],
+): { readonly overlappingDates: readonly string[]; readonly conflictingTours: readonly ExistingTour[] } {
+  const requestedSet = new Set(requestedDates);
+  const conflictingTours: ExistingTour[] = [];
+  const overlappingDates = new Set<string>();
+
+  for (const tour of existingTours) {
+    const tourDates = tour.preferred_dates ?? [];
+    const overlap = tourDates.filter((d) => requestedSet.has(d));
+    if (overlap.length > 0) {
+      conflictingTours.push(tour);
+      for (const d of overlap) {
+        overlappingDates.add(d);
+      }
+    }
+  }
+
+  return {
+    overlappingDates: [...overlappingDates].sort(),
+    conflictingTours,
+  };
+}
+
 export async function scheduleTour(
   args: Record<string, unknown>,
   context: ToolContext,
@@ -32,6 +68,20 @@ export async function scheduleTour(
     throw new Error('Listing not found or no longer available.');
   }
 
+  // Check for date conflicts with existing pending tours
+  const { data: existingTours } = await context.supabase
+    .from('tour_requests')
+    .select('preferred_dates, listing_id, id')
+    .eq('user_id', context.userId)
+    .eq('status', 'pending')
+    .limit(100);
+
+  const conflicts = findDateConflicts(
+    parsed.preferred_dates,
+    (existingTours as ExistingTour[] | null) ?? [],
+  );
+
+  // Insert the tour request (conflicts are warnings only, not blocking)
   const { data: tour, error } = await context.supabase
     .from('tour_requests')
     .insert({
@@ -56,7 +106,27 @@ export async function scheduleTour(
     throw new Error('Failed to schedule tour. Please try again later.');
   }
 
-  const modelContext = `Tour request submitted successfully for ${listing.address}. Request ID: ${tour.id}. The student will receive confirmation at ${parsed.student_email}.`;
+  let modelContext = `Tour request submitted successfully for ${listing.address}. Request ID: ${tour.id}. The student will receive confirmation at ${parsed.student_email}.`;
+
+  // Append conflict warning if any
+  if (conflicts.conflictingTours.length > 0) {
+    const conflictListingIds = conflicts.conflictingTours.map((c) => c.listing_id);
+    const { data: conflictListings } = await context.supabase
+      .from('listings')
+      .select('id, address')
+      .in('id', conflictListingIds)
+      .limit(100);
+
+    const addressMap = new Map(
+      ((conflictListings as ConflictListing[] | null) ?? []).map((l) => [l.id, l.address]),
+    );
+
+    const conflictDetails = conflicts.conflictingTours
+      .map((t) => addressMap.get(t.listing_id) ?? 'unknown address')
+      .join(', ');
+
+    modelContext += ` Note: The student has existing pending tours on ${conflicts.overlappingDates.join(', ')} at ${conflictDetails}. You may want to mention this scheduling overlap.`;
+  }
 
   return {
     modelContext,

@@ -1,5 +1,5 @@
 export { campusConfigSchema, type CampusConfig } from './campus';
-export { listingSchema, type Listing, type TrueCost, type FairnessData } from './listing';
+export { listingSchema, listingSubmissionSchema, type Listing, type ListingSubmission, type TrueCost, type FairnessData } from './listing';
 export { profileSchema, profileFormSchema, type Profile, type ProfileFormData, type SubscriptionTier, type VerificationStatus } from './profile';
 export { landlordSchema, landlordReviewSchema, type Landlord, type LandlordReview } from './landlord';
 export { pageindexTreeSchema, type PageIndexTree, type PageIndexNode } from './pageindex';
@@ -18,10 +18,17 @@ export {
   type ToolLoadingBlock,
   type MapBlock,
   type MapListing,
+  type WebResultBlock,
   mapBlockSchema,
   mapListingSchema,
+  webResultBlockSchema,
+  webResultItemSchema,
   type ListingSummary,
   type ScoredListing,
+  conversationSchema,
+  conversationMessageSchema,
+  type Conversation,
+  type ConversationMessage,
 } from './chat';
 export { tourRequestSchema, tourRequestInputSchema, type TourRequest, type TourRequestInput } from './tour';
 export { savedListingSchema, type SavedListing } from './saved-listing';

@@ -1,9 +1,28 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { resolve, dirname } from 'path';
 import type { RawListing } from '../scrapers/base-scraper';
+import { normalizeListing } from '../normalizer';
 
-// Mock global fetch
-const mockFetch = vi.fn();
-vi.stubGlobal('fetch', mockFetch);
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Load real fixtures
+const searchFixture = JSON.parse(
+  readFileSync(resolve(__dirname, '../fixtures/apify-zillow-search.json'), 'utf-8'),
+);
+const detailFixture = JSON.parse(
+  readFileSync(resolve(__dirname, '../fixtures/apify-zillow-detail.json'), 'utf-8'),
+);
+
+// Mock the apify client module
+const mockRunSearchScraper = vi.fn();
+const mockRunDetailScraper = vi.fn();
+
+vi.mock('../clients/apify', () => ({
+  runSearchScraper: (...args: unknown[]) => mockRunSearchScraper(...args),
+  runDetailScraper: (...args: unknown[]) => mockRunDetailScraper(...args),
+}));
 
 // Suppress console during tests
 vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -17,128 +36,181 @@ const MOCK_CONFIG = {
   radiusKm: 5,
 } as const;
 
-// Realistic __NEXT_DATA__ structure from Zillow rental search
-const MOCK_NEXT_DATA = {
-  props: {
-    pageProps: {
-      searchPageState: {
-        cat1: {
-          searchResults: {
-            listResults: [
-              {
-                zpid: '12345678',
-                addressStreet: '123 State St',
-                addressCity: 'Madison',
-                addressState: 'WI',
-                addressZipcode: '53703',
-                units: [
-                  {
-                    price: '$1,200+/mo',
-                    beds: 2,
-                  },
-                ],
-                latLong: { latitude: 43.074, longitude: -89.395 },
-                imgSrc: 'https://photos.zillowstatic.com/photo1.jpg',
-                detailUrl: '/b/123-state-st-madison-wi/12345678_zpid/',
-                buildingName: 'State Street Apartments',
-              },
-              {
-                zpid: '87654321',
-                addressStreet: '456 University Ave',
-                addressCity: 'Madison',
-                addressState: 'WI',
-                addressZipcode: '53715',
-                price: '$950/mo',
-                beds: 1,
-                latLong: { latitude: 43.071, longitude: -89.410 },
-                imgSrc: 'https://photos.zillowstatic.com/photo2.jpg',
-                detailUrl: '/b/456-university-ave-madison-wi/87654321_zpid/',
-              },
-            ],
-          },
-        },
-      },
-    },
-  },
-};
-
-function makeHtmlWithNextData(data: unknown): string {
-  return `<!DOCTYPE html><html><head></head><body>
-    <script id="__NEXT_DATA__" type="application/json">${JSON.stringify(data)}</script>
-  </body></html>`;
-}
-
-describe('ZillowScraper', () => {
+describe('ZillowScraper (Apify two-pass)', () => {
   beforeEach(() => {
-    mockFetch.mockReset();
+    vi.clearAllMocks();
+    process.env.APIFY_API_TOKEN = 'test-token';
+    mockRunSearchScraper.mockResolvedValue(searchFixture);
+    mockRunDetailScraper.mockResolvedValue(detailFixture);
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    delete process.env.APIFY_API_TOKEN;
   });
 
-  it('parses __NEXT_DATA__ HTML into RawListing array', async () => {
+  it('extracts detail URLs from search results', async () => {
     const { ZillowScraper } = await import('../scrapers/zillow');
     const scraper = new ZillowScraper(MOCK_CONFIG);
 
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      text: async () => makeHtmlWithNextData(MOCK_NEXT_DATA),
-    });
+    await scraper.scrape();
+
+    // runSearchScraper should be called
+    expect(mockRunSearchScraper).toHaveBeenCalledWith(
+      'test-token',
+      expect.stringContaining('zillow.com/madison-wi/apartments/'),
+      undefined,
+    );
+
+    // Detail scraper should receive URLs extracted from search fixture
+    const detailCall = mockRunDetailScraper.mock.calls[0];
+    const urls = detailCall?.[1] as string[];
+    expect(urls).toHaveLength(5);
+    // All URLs should be absolute
+    for (const url of urls) {
+      expect(url).toMatch(/^https:\/\//);
+    }
+  });
+
+  it('flattens floorPlans into individual RawListings', async () => {
+    const { ZillowScraper } = await import('../scrapers/zillow');
+    const scraper = new ZillowScraper(MOCK_CONFIG);
 
     const results = await scraper.scrape();
 
+    // McKenzie Place has 2 floorPlans with 1 unit each = 2 RawListings
+    // But fixture has 2 DUPLICATE building objects (same zpid 452652518)
+    // After dedup, still 1 building with 2 floorPlans = 2 units
     expect(results.length).toBe(2);
+  });
 
+  it('maps fields correctly', async () => {
+    const { ZillowScraper } = await import('../scrapers/zillow');
+    const scraper = new ZillowScraper(MOCK_CONFIG);
+
+    const results = await scraper.scrape();
     const first = results[0] as RawListing;
-    expect(first.externalId).toBe('12345678');
+
+    expect(first.bedrooms).toBe(1);
+    expect(first.bathrooms).toBe(1);
+    expect(first.rentMonthly).toBe(1750);
+    expect(first.sqft).toBe(772);
+    expect(first.address).toContain('2221 Sherman Ave');
     expect(first.source).toBe('zillow');
-    expect(first.address).toContain('123 State St');
-    expect(first.rentMonthly).toBe(1200);
-    expect(first.bedrooms).toBe(2);
-    expect(first.sourceUrl).toContain('12345678');
+    expect(first.externalId).toContain('452652518');
+    expect(first.latitude).toBe(43.102451);
+    expect(first.longitude).toBe(-89.364288);
+    expect(first.sourceUrl).toContain('zillow.com');
+  });
+
+  it('extracts up to 10 image URLs from galleryPhotos', async () => {
+    const { ZillowScraper } = await import('../scrapers/zillow');
+    const scraper = new ZillowScraper(MOCK_CONFIG);
+
+    const results = await scraper.scrape();
+    const first = results[0] as RawListing;
+
     expect(first.photoUrls.length).toBeGreaterThan(0);
-    expect(first.latitude).toBe(43.074);
-    expect(first.longitude).toBe(-89.395);
+    expect(first.photoUrls.length).toBeLessThanOrEqual(10);
+    // Each should be a JPEG URL (800px variant)
+    for (const url of first.photoUrls) {
+      expect(url).toMatch(/\.jpg$/);
+    }
+  });
 
+  it('includes amenities from buildingAttributes', async () => {
+    const { ZillowScraper } = await import('../scrapers/zillow');
+    const scraper = new ZillowScraper(MOCK_CONFIG);
+
+    const results = await scraper.scrape();
+    const first = results[0] as RawListing;
+
+    expect(first.amenities).toContain('Dishwasher');
+    expect(first.amenities).toContain('Washer');
+    expect(first.amenities).toContain('GarbageDisposal');
+    expect(first.amenities).toContain('Dryer');
+  });
+
+  it('handles deduplication of same zpid', async () => {
+    const { ZillowScraper } = await import('../scrapers/zillow');
+    const scraper = new ZillowScraper(MOCK_CONFIG);
+
+    // Detail fixture has 2 identical objects with zpid 452652518
+    const results = await scraper.scrape();
+
+    // Should produce same count as if there was only 1 building
+    // McKenzie Place: 2 floorPlans x 1 unit each = 2
+    expect(results.length).toBe(2);
+  });
+
+  it('output passes normalizer without errors', async () => {
+    const { ZillowScraper } = await import('../scrapers/zillow');
+    const scraper = new ZillowScraper(MOCK_CONFIG);
+
+    const results = await scraper.scrape();
+
+    for (const listing of results) {
+      expect(() => normalizeListing(listing)).not.toThrow();
+    }
+  });
+
+  it('handles building with no floorPlans', async () => {
+    const { ZillowScraper } = await import('../scrapers/zillow');
+    const scraper = new ZillowScraper(MOCK_CONFIG);
+
+    // Mock detail result with empty floorPlans
+    mockRunDetailScraper.mockResolvedValueOnce([
+      {
+        zpid: '999999',
+        buildingName: 'Empty Building',
+        streetAddress: '100 Test St',
+        latitude: 43.0,
+        longitude: -89.0,
+        address: { city: 'Madison', state: 'WI', zipcode: '53703' },
+        floorPlans: [],
+        galleryPhotos: [],
+        description: '',
+        bdpUrl: '/test/',
+      },
+    ]);
+
+    const results = await scraper.scrape();
+    expect(results.length).toBe(0);
+  });
+
+  it('throws when APIFY_API_TOKEN missing', async () => {
+    delete process.env.APIFY_API_TOKEN;
+
+    const { ZillowScraper } = await import('../scrapers/zillow');
+    const scraper = new ZillowScraper(MOCK_CONFIG);
+
+    await expect(scraper.scrape()).rejects.toThrow('APIFY_API_TOKEN');
+  });
+
+  it('maps second floor plan correctly (2BR)', async () => {
+    const { ZillowScraper } = await import('../scrapers/zillow');
+    const scraper = new ZillowScraper(MOCK_CONFIG);
+
+    const results = await scraper.scrape();
     const second = results[1] as RawListing;
-    expect(second.externalId).toBe('87654321');
-    expect(second.rentMonthly).toBe(950);
-    expect(second.bedrooms).toBe(1);
-  });
 
-  it('returns empty array when __NEXT_DATA__ is missing', async () => {
-    const { ZillowScraper } = await import('../scrapers/zillow');
-    const scraper = new ZillowScraper(MOCK_CONFIG);
-
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      text: async () => '<html><body>No data here</body></html>',
-    });
-
-    const results = await scraper.scrape();
-    expect(results).toEqual([]);
-  });
-
-  it('returns empty array on 403 response', async () => {
-    const { ZillowScraper } = await import('../scrapers/zillow');
-    const scraper = new ZillowScraper(MOCK_CONFIG);
-
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 403,
-      text: async () => 'Forbidden',
-    });
-
-    const results = await scraper.scrape();
-    expect(results).toEqual([]);
+    expect(second.bedrooms).toBe(2);
+    expect(second.bathrooms).toBe(2);
+    expect(second.rentMonthly).toBe(2410);
+    expect(second.sqft).toBe(1063);
   });
 
   it('has source set to zillow', async () => {
     const { ZillowScraper } = await import('../scrapers/zillow');
     const scraper = new ZillowScraper(MOCK_CONFIG);
     expect(scraper.source).toBe('zillow');
+  });
+
+  it('skips campuses without a configured Zillow URL', async () => {
+    const { ZillowScraper } = await import('../scrapers/zillow');
+    const scraper = new ZillowScraper({ ...MOCK_CONFIG, campusSlug: 'ut-austin' });
+
+    const results = await scraper.scrape();
+    expect(results.length).toBe(0);
+    expect(mockRunSearchScraper).not.toHaveBeenCalled();
   });
 });

@@ -52,3 +52,18 @@ export const listingSchema = z.object({
 });
 
 export type Listing = z.infer<typeof listingSchema>;
+
+export const listingSubmissionSchema = z.object({
+  address: z.string().min(5, 'Address must be at least 5 characters').max(200),
+  rent_monthly: z.number().positive('Rent must be positive').max(10000),
+  bedrooms: z.number().int().min(0).max(10),
+  bathrooms: z.number().min(0).max(10).optional(),
+  sqft: z.number().positive().optional(),
+  amenities: z.array(z.string()).default([]),
+  available_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').optional(),
+  description: z.string().max(2000).optional(),
+  contact_email: z.string().email('Invalid email address'),
+  source_url: z.string().url('Invalid URL').optional().or(z.literal('')),
+});
+
+export type ListingSubmission = z.infer<typeof listingSubmissionSchema>;

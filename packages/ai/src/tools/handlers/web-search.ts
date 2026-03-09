@@ -7,6 +7,84 @@ import {
   type WebSearchResult,
 } from '../../lib/web-search-cache';
 
+interface PersistWebListingParams {
+  readonly address: string;
+  readonly sourceUrl: string;
+  readonly rentMonthly?: number;
+  readonly bedrooms?: number;
+  readonly content: string;
+}
+
+/**
+ * Persists a web search result as a listing in the database. Called for every
+ * web search result returned by webSearch(). Uses upsert on (external_id, source)
+ * so duplicate URLs are deduplicated. The Phase 3 embedding pipeline will embed
+ * new/changed rows on the next nightly run.
+ */
+export async function persistWebListing(
+  params: PersistWebListingParams,
+  context: ToolContext,
+): Promise<string | null> {
+  try {
+    const { data, error } = await context.supabase
+      .from('listings')
+      .upsert(
+        {
+          external_id: params.sourceUrl,
+          address: params.address,
+          source: 'web_search',
+          source_url: params.sourceUrl,
+          rent_monthly: params.rentMonthly ?? null,
+          bedrooms: params.bedrooms ?? null,
+          campus_id: context.campusId,
+          is_active: true,
+          raw_data: { web_content: params.content },
+        },
+        { onConflict: 'external_id,source' },
+      )
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('persistWebListing upsert failed:', error.message);
+      return null;
+    }
+
+    if (!data) {
+      return null;
+    }
+
+    // Only trigger embedding if content actually changed (new insert or updated content).
+    // The upsert returns the row whether inserted or updated — check raw_data to detect change.
+    const { data: existing } = await context.supabase
+      .from('listings')
+      .select('raw_data, last_embedded_at')
+      .eq('id', data.id)
+      .single();
+
+    const contentChanged =
+      !existing?.last_embedded_at ||
+      (existing?.raw_data as Record<string, unknown>)?.web_content !== params.content;
+
+    if (contentChanged) {
+      const { error: updateError } = await context.supabase
+        .from('listings')
+        .update({ last_embedded_at: null })
+        .eq('id', data.id);
+
+      if (updateError) {
+        console.error('persistWebListing embedding reset failed:', updateError.message);
+      }
+    }
+
+    return data.id;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error('persistWebListing unexpected error:', message);
+    return null;
+  }
+}
+
 const inputSchema = z.object({
   query: z.string(),
   location: z.string().optional(),
@@ -14,7 +92,7 @@ const inputSchema = z.object({
 
 export async function webSearch(
   args: Record<string, unknown>,
-  _context: ToolContext,
+  context: ToolContext,
 ): Promise<ToolResult> {
   const parsed = inputSchema.parse(args);
 
@@ -32,10 +110,17 @@ export async function webSearch(
   const location = parsed.location ?? 'Madison WI';
   const searchQuery = `${parsed.query} apartments rentals near ${location}`;
 
-  // Check cache first
+  // Check cache first — still resolve persisted IDs so model context has them
   const cached = getCachedResults(searchQuery);
   if (cached) {
-    return buildResult(cached);
+    const cachedIds = await Promise.all(
+      cached.map(r => persistWebListing({
+        address: r.title,
+        sourceUrl: r.url,
+        content: r.content,
+      }, context))
+    );
+    return buildResult(cached, cachedIds);
   }
 
   try {
@@ -64,7 +149,16 @@ export async function webSearch(
     }
 
     setCachedResults(searchQuery, webResults);
-    return buildResult(webResults);
+
+    const persistedIds = await Promise.all(
+      webResults.map(r => persistWebListing({
+        address: r.title,
+        sourceUrl: r.url,
+        content: r.content,
+      }, context))
+    );
+
+    return buildResult(webResults, persistedIds);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return {
@@ -77,23 +171,30 @@ export async function webSearch(
   }
 }
 
-function buildResult(results: readonly WebSearchResult[]): ToolResult {
+function buildResult(
+  results: readonly WebSearchResult[],
+  persistedIds: readonly (string | null)[] = [],
+): ToolResult {
   const modelContext = `Found ${results.length} web result(s):\n${results
     .map(
-      (r, i) =>
-        `${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${r.content.slice(0, 200)}`,
+      (r, i) => {
+        const id = persistedIds[i];
+        const idSuffix = id ? `\n   Listing ID: ${id}` : '';
+        return `${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${r.content.slice(0, 200)}${idSuffix}`;
+      },
     )
-    .join('\n')}`;
-
-  const clientContent = `Found ${results.length} result(s) from the web:\n${results
-    .map((r, i) => `${i + 1}. **${r.title}** - ${r.url}`)
     .join('\n')}`;
 
   return {
     modelContext,
     clientBlock: {
-      type: 'text',
-      content: clientContent,
+      type: 'web_result' as const,
+      results: results.map((r, i) => ({
+        title: r.title,
+        url: r.url,
+        snippet: r.content.slice(0, 200),
+        listingId: persistedIds[i] ?? null,
+      })),
     },
   };
 }

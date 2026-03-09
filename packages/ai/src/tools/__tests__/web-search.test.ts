@@ -55,7 +55,14 @@ describe('webSearch handler', () => {
     expect(result.modelContext).toContain('Found 2 web result(s)');
     expect(result.modelContext).toContain('Nice Apt');
     expect(result.modelContext).toContain('https://example.com/1');
-    expect(result.clientBlock.type).toBe('text');
+    expect(result.clientBlock.type).toBe('web_result');
+    const block = result.clientBlock as { type: 'web_result'; results: Array<{ title: string; url: string; snippet: string; listingId: string | null }> };
+    expect(block.results).toHaveLength(2);
+    const first = block.results[0]!;
+    expect(first.title).toBe('Nice Apt');
+    expect(first.url).toBe('https://example.com/1');
+    expect(first.snippet).toBeTruthy();
+    expect(first.listingId).toBeNull(); // persist fails gracefully with mock context
   });
 
   it('returns cached results without calling Tavily', async () => {

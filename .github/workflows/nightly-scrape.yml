@@ -8,7 +8,7 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +29,7 @@ jobs:
       - name: Run scraper
         id: scrape
         run: |
-          OUTPUT=$(pnpm --filter @campusnest/scraper start 2>&1) || EXIT_CODE=$?
+          OUTPUT=$(pnpm --filter @campusnest/scraper start -- --limit 500 2>&1) || EXIT_CODE=$?
           echo "$OUTPUT"
           METRICS=$(echo "$OUTPUT" | grep "^::metrics::" | sed 's/^::metrics:://')
           if [ -n "$METRICS" ]; then
@@ -48,6 +48,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
           ENABLE_APARTMENTS_COM: 'false'
 
       - name: Write job summary
@@ -98,6 +99,8 @@ jobs:
         if: success()
         id: embed
         env:
+          GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}

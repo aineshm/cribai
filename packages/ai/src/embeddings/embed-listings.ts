@@ -59,8 +59,30 @@ export async function embedChangedListings(
   let skipped = 0;
   let errors = 0;
 
-  // Process sequentially to respect rate limits
-  for (const listing of listings as ListingRow[]) {
+  // Vertex AI pay-as-you-go: 1,500 RPM for embedding models.
+  // Keep conservative spacing to avoid burst throttling.
+  // 429 handling still present for safety.
+  const REQUEST_DELAY_MS = 200;
+  const MAX_RPM_RETRIES = 1; // retry once for transient RPM 429s
+  let dailyQuotaExhausted = false;
+  let consecutive429s = 0;
+
+  console.log(`Embedding ${(listings as ListingRow[]).length} listings (RPD budget: ~1000/day)`);
+
+  // Process sequentially with per-request throttling
+  for (let i = 0; i < (listings as ListingRow[]).length; i++) {
+    if (dailyQuotaExhausted) {
+      skipped += (listings as ListingRow[]).length - i;
+      console.log(`Daily quota exhausted — skipping remaining ${(listings as ListingRow[]).length - i} listings (will retry tomorrow)`);
+      break;
+    }
+    if (i > 0) {
+      await new Promise((resolve) => setTimeout(resolve, REQUEST_DELAY_MS));
+    }
+    if (i > 0 && i % 50 === 0) {
+      console.log(`Embedding progress: ${embedded} embedded, ${errors} errors, ${skipped} skipped out of ${i} processed`);
+    }
+    const listing = (listings as ListingRow[])[i]!;
     try {
       const amenities = Array.isArray(listing.amenities)
         ? listing.amenities as string[]
@@ -79,7 +101,52 @@ export async function embedChangedListings(
         photoCount: photoUrls.length,
       });
 
-      const embedding = await generateEmbedding(text);
+      let embedding: readonly number[] | null = null;
+      for (let attempt = 0; attempt <= MAX_RPM_RETRIES; attempt++) {
+        try {
+          embedding = await generateEmbedding(text);
+          break;
+        } catch (retryErr) {
+          const msg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+          const is429 = msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED');
+          if (!is429) throw retryErr;
+
+          // Distinguish daily quota (RPD) from per-minute (RPM)
+          const isDailyQuota = msg.includes('per day') || msg.includes('PerDay')
+            || msg.includes('daily') || msg.includes('RPD');
+          if (isDailyQuota) {
+            console.log(`Daily quota (RPD) exhausted after ${embedded} embeddings`);
+            dailyQuotaExhausted = true;
+            skipped++; // count this listing as skipped, not error
+            break;
+          }
+
+          // RPM transient — back off and retry once
+          if (attempt < MAX_RPM_RETRIES) {
+            const backoff = 30_000;
+            console.log(`RPM rate limited on listing ${listing.id}, backing off ${backoff / 1000}s`);
+            await new Promise((resolve) => setTimeout(resolve, backoff));
+            continue;
+          }
+
+          // If retry also failed with 429, likely RPD (3 consecutive = give up)
+          consecutive429s++;
+          if (consecutive429s >= 3) {
+            console.log(`3 consecutive 429s after retries — treating as daily quota exhaustion (${embedded} embedded so far)`);
+            dailyQuotaExhausted = true;
+            skipped++;
+            break;
+          }
+          throw retryErr;
+        }
+      }
+
+      if (dailyQuotaExhausted) continue;
+
+      if (!embedding) {
+        errors++;
+        continue;
+      }
 
       const { error: updateError } = await supabase
         .from('listings')
@@ -95,7 +162,7 @@ export async function embedChangedListings(
         errors++;
       } else {
         embedded++;
-        console.log(`Embedded listing ${listing.id} (${listing.address})`);
+        consecutive429s = 0; // reset on success
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';

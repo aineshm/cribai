@@ -71,6 +71,19 @@ export function MobileNav({ campusSlug, userEmail, isEduVerified, unreadNotifica
             >
               CribAI
             </Link>
+            {userEmail && (
+              <Link
+                href={`/${campusSlug}/submit-listing`}
+                onClick={handleLinkClick}
+                className={`rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
+                  pathname?.includes('/submit-listing')
+                    ? 'bg-[var(--primary-50)] text-[var(--primary-700)]'
+                    : 'text-[var(--surface-600)] hover:bg-[var(--surface-50)]'
+                }`}
+              >
+                Submit Listing
+              </Link>
+            )}
             <Link
               href={`/${campusSlug}/dashboard`}
               onClick={handleLinkClick}

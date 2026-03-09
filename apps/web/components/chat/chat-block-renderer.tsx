@@ -7,6 +7,7 @@ import { ChatComparisonTable } from './chat-comparison-table';
 import { ChatTourConfirmation } from './chat-tour-confirmation';
 import { ChatLegalDisclaimer } from './chat-legal-disclaimer';
 import { ChatToolIndicator } from './chat-tool-indicator';
+import { ChatWebResult } from './chat-web-result';
 
 const ChatMapBlock = dynamic(
   () => import('./chat-map-block').then((mod) => ({ default: mod.ChatMapBlock })),
@@ -79,6 +80,9 @@ export function ChatBlockRenderer({ block, campusSlug }: ChatBlockRendererProps)
 
     case 'map':
       return <ChatMapBlock block={block} campusSlug={campusSlug} />;
+
+    case 'web_result':
+      return <ChatWebResult results={block.results} campusSlug={campusSlug} />;
 
     default:
       return assertUnreachable(block);

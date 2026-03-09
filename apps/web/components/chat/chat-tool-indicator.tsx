@@ -7,6 +7,8 @@ const TOOL_LABELS: Record<string, string> = {
   schedule_tour: 'Scheduling tour',
   explain_lease_term: 'Looking up lease term',
   get_landlord_info: 'Fetching landlord info',
+  web_search: 'Searching the web for more options',
+  get_saved_listings: 'Loading saved listings',
 };
 
 interface ChatToolIndicatorProps {

@@ -131,8 +131,8 @@ export async function POST(request: NextRequest) {
       return jsonError('Query too long (max 500 chars)', 400);
     }
 
-    const geminiKey = process.env.GEMINI_API_KEY;
-    if (!geminiKey) {
+    // Gemini client auto-detects: GOOGLE_CLOUD_PROJECT → Vertex AI, else GEMINI_API_KEY → AI Studio
+    if (!process.env.GOOGLE_CLOUD_PROJECT && !process.env.GEMINI_API_KEY) {
       return jsonError('AI service not configured', 503);
     }
 
@@ -208,7 +208,6 @@ export async function POST(request: NextRequest) {
 
     // --- Initialize CribAI --------------------------------------------------
     const cribai = new CribAI({
-      geminiApiKey: geminiKey,
       campusName: campus.name,
       toolContext,
     });
@@ -246,8 +245,16 @@ export async function POST(request: NextRequest) {
             });
           }
         } catch (err) {
-          const message =
+          const raw =
             err instanceof Error ? err.message : 'Stream error';
+          // Detect Gemini quota / rate-limit errors and return a friendly message
+          const isQuotaError =
+            raw.includes('RESOURCE_EXHAUSTED') ||
+            raw.includes('429') ||
+            raw.includes('quota');
+          const message = isQuotaError
+            ? 'CribAI is temporarily unavailable due to high demand. Please try again in a minute.'
+            : raw;
           controller.enqueue(
             encoder.encode(sseEncode({ type: 'error', message })),
           );
