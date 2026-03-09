@@ -21,8 +21,8 @@ async function main(): Promise<void> {
   if (!supabaseKey) {
     throw new Error('SUPABASE_SECRET_KEY environment variable is required');
   }
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY environment variable is required');
+  if (!process.env.GOOGLE_CLOUD_PROJECT && !process.env.GEMINI_API_KEY) {
+    throw new Error('Set GOOGLE_CLOUD_PROJECT (Vertex AI) or GEMINI_API_KEY (AI Studio)');
   }
 
   const supabase = createClient(supabaseUrl, supabaseKey);
