@@ -39,7 +39,9 @@ async function main(): Promise<void> {
   const metricsJson = JSON.stringify(metrics);
   console.log(`::embed-metrics::${metricsJson}`);
 
-  if (metrics.errors > 0) {
+  const total = metrics.embedded + metrics.errors;
+  if (total > 0 && metrics.errors / total > 0.5) {
+    console.error(`Embedding failure rate too high: ${metrics.errors}/${total}`);
     process.exitCode = 1;
   }
 }

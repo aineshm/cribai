@@ -59,8 +59,18 @@ export async function embedChangedListings(
   let skipped = 0;
   let errors = 0;
 
-  // Process sequentially to respect rate limits
-  for (const listing of listings as ListingRow[]) {
+  // Gemini free tier: 100 embed requests/minute. Batch with pauses to stay under.
+  const BATCH_SIZE = 90;
+  const BATCH_DELAY_MS = 62_000; // 62s to be safe
+
+  // Process sequentially with rate-limit pauses
+  for (let i = 0; i < (listings as ListingRow[]).length; i++) {
+    // Pause between batches to respect rate limit
+    if (i > 0 && i % BATCH_SIZE === 0) {
+      console.log(`Rate limit pause: embedded ${embedded} so far, waiting 62s before next batch...`);
+      await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));
+    }
+    const listing = (listings as ListingRow[])[i]!;
     try {
       const amenities = Array.isArray(listing.amenities)
         ? listing.amenities as string[]
