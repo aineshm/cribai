@@ -58,10 +58,11 @@ describe('webSearch handler', () => {
     expect(result.clientBlock.type).toBe('web_result');
     const block = result.clientBlock as { type: 'web_result'; results: Array<{ title: string; url: string; snippet: string; listingId: string | null }> };
     expect(block.results).toHaveLength(2);
-    expect(block.results[0].title).toBe('Nice Apt');
-    expect(block.results[0].url).toBe('https://example.com/1');
-    expect(block.results[0].snippet).toBeTruthy();
-    expect(block.results[0].listingId).toBeNull(); // persist fails gracefully with mock context
+    const first = block.results[0]!;
+    expect(first.title).toBe('Nice Apt');
+    expect(first.url).toBe('https://example.com/1');
+    expect(first.snippet).toBeTruthy();
+    expect(first.listingId).toBeNull(); // persist fails gracefully with mock context
   });
 
   it('returns cached results without calling Tavily', async () => {
