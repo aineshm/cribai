@@ -5,6 +5,13 @@ import {
   type ZillowDetailResult,
 } from '../clients/apify';
 
+// Campus-specific Zillow search URLs with searchQueryState (required by Apify actor).
+// Each URL defines map bounds around the campus area and filters for rentals only.
+const CAMPUS_ZILLOW_URLS: Record<string, string> = {
+  'uw-madison':
+    'https://www.zillow.com/madison-wi/apartments/?searchQueryState=%7B%22isMapVisible%22%3Atrue%2C%22mapBounds%22%3A%7B%22north%22%3A43.113614418178116%2C%22south%22%3A43.02683653577741%2C%22east%22%3A-89.33942318737792%2C%22west%22%3A-89.4702291566162%7D%2C%22filterState%22%3A%7B%22sort%22%3A%7B%22value%22%3A%22priorityscore%22%7D%2C%22fr%22%3A%7B%22value%22%3Atrue%7D%2C%22fsba%22%3A%7B%22value%22%3Afalse%7D%2C%22fsbo%22%3A%7B%22value%22%3Afalse%7D%2C%22nc%22%3A%7B%22value%22%3Afalse%7D%2C%22cmsn%22%3A%7B%22value%22%3Afalse%7D%2C%22auc%22%3A%7B%22value%22%3Afalse%7D%2C%22fore%22%3A%7B%22value%22%3Afalse%7D%2C%22mf%22%3A%7B%22value%22%3Afalse%7D%2C%22land%22%3A%7B%22value%22%3Afalse%7D%2C%22manu%22%3A%7B%22value%22%3Afalse%7D%2C%22tow%22%3A%7B%22value%22%3Afalse%7D%2C%22sf%22%3A%7B%22value%22%3Afalse%7D%7D%2C%22isListVisible%22%3Atrue%2C%22mapZoom%22%3A13%2C%22usersSearchTerm%22%3A%22Madison%20WI%20apartments%22%2C%22regionSelection%22%3A%5B%7B%22regionId%22%3A398849%2C%22regionType%22%3A6%7D%5D%2C%22pagination%22%3A%7B%7D%2C%22category%22%3A%22cat1%22%7D',
+};
+
 export class ZillowScraper extends BaseScraper {
   readonly source = 'zillow';
   private readonly maxItems?: number;
@@ -22,9 +29,14 @@ export class ZillowScraper extends BaseScraper {
       );
     }
 
-    // Step 1: Search pass
-    const searchUrl = 'https://www.zillow.com/madison-wi/rentals/';
-    console.log(`[${this.source}] Running Apify search scraper for ${searchUrl}`);
+    // Look up campus-specific search URL (Apify actor requires searchQueryState param)
+    const searchUrl = CAMPUS_ZILLOW_URLS[this.config.campusSlug];
+    if (!searchUrl) {
+      console.log(`[${this.source}] No Zillow search URL configured for campus "${this.config.campusSlug}" — skipping`);
+      return [];
+    }
+
+    console.log(`[${this.source}] Running Apify search scraper for ${this.config.campusSlug}`);
 
     const searchResults = await runSearchScraper(token, searchUrl, this.maxItems);
     console.log(`[${this.source}] Search found ${searchResults.length} listings`);
@@ -119,7 +131,8 @@ export class ZillowScraper extends BaseScraper {
 
         for (const unit of units) {
           const unitId = unit.unitNumber ?? `unit_${units.indexOf(unit)}`;
-          const availableFrom = unit.availableFrom === '0' ? null : (unit.availableFrom ?? null);
+          const rawAvail = unit.availableFrom;
+          const availableFrom = parseAvailableDate(rawAvail);
 
           listings.push(
             createListing({
@@ -198,6 +211,21 @@ function extractPhotoUrls(building: ZillowDetailResult): readonly string[] {
       return photo.url ?? null;
     })
     .filter((url): url is string => url !== null);
+}
+
+/** Convert Zillow availableFrom to ISO date string. Handles: "0" (now), Unix ms timestamps, ISO strings. */
+function parseAvailableDate(raw: string | number | null | undefined): string | null {
+  if (raw == null || raw === '0' || raw === 0 || raw === '') return null;
+  const num = typeof raw === 'string' ? Number(raw) : raw;
+  // Unix millisecond timestamps are > 1e12 (year ~2001+)
+  if (!isNaN(num) && num > 1e12) {
+    return new Date(num).toISOString().split('T')[0] ?? null;
+  }
+  // If it's already a date-like string, pass through
+  if (typeof raw === 'string' && raw.match(/^\d{4}-\d{2}/)) {
+    return raw.split('T')[0] ?? null;
+  }
+  return null;
 }
 
 function extractAmenities(building: ZillowDetailResult): readonly string[] {

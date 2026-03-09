@@ -57,7 +57,7 @@ describe('ZillowScraper (Apify two-pass)', () => {
     // runSearchScraper should be called
     expect(mockRunSearchScraper).toHaveBeenCalledWith(
       'test-token',
-      'https://www.zillow.com/madison-wi/rentals/',
+      expect.stringContaining('zillow.com/madison-wi/apartments/'),
       undefined,
     );
 
@@ -203,5 +203,14 @@ describe('ZillowScraper (Apify two-pass)', () => {
     const { ZillowScraper } = await import('../scrapers/zillow');
     const scraper = new ZillowScraper(MOCK_CONFIG);
     expect(scraper.source).toBe('zillow');
+  });
+
+  it('skips campuses without a configured Zillow URL', async () => {
+    const { ZillowScraper } = await import('../scrapers/zillow');
+    const scraper = new ZillowScraper({ ...MOCK_CONFIG, campusSlug: 'ut-austin' });
+
+    const results = await scraper.scrape();
+    expect(results.length).toBe(0);
+    expect(mockRunSearchScraper).not.toHaveBeenCalled();
   });
 });
