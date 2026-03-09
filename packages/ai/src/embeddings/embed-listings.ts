@@ -59,13 +59,10 @@ export async function embedChangedListings(
   let skipped = 0;
   let errors = 0;
 
-  // Gemini free tier limits:
-  //   RPM: 100 requests/minute (rolling window)
-  //   RPD: 1,000 requests/day
-  // Space requests ~670ms apart (~89 req/min) to stay under RPM.
-  // Stop gracefully when daily quota (RPD) is exhausted — remaining listings
-  // will be picked up on the next run via last_embedded_at tracking.
-  const REQUEST_DELAY_MS = 670;
+  // Vertex AI pay-as-you-go: 1,500 RPM for embedding models.
+  // Keep conservative spacing to avoid burst throttling.
+  // 429 handling still present for safety.
+  const REQUEST_DELAY_MS = 200;
   const MAX_RPM_RETRIES = 1; // retry once for transient RPM 429s
   let dailyQuotaExhausted = false;
   let consecutive429s = 0;

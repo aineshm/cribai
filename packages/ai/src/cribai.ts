@@ -1,6 +1,7 @@
 import type { GoogleGenAI, Content, FunctionCall, Part } from '@google/genai';
 import type { ChatBlock, PageIndexNode } from '@campusnest/types';
 import { createGeminiClient } from './gemini-client';
+import { logTokenUsage } from './cost-logger';
 import { PageIndexTraverser } from './pageindex-traverser';
 import { CRIBAI_TOOLS } from './tools/schemas';
 import { executeTool } from './tools/executor';
@@ -102,6 +103,7 @@ export class CribAI {
 
       let hasToolCalls = false;
       const functionCalls: FunctionCall[] = [];
+      let lastUsageMetadata: Record<string, unknown> | undefined;
 
       for await (const chunk of response) {
         // Yield text parts
@@ -118,7 +120,19 @@ export class CribAI {
             }
           }
         }
+
+        // Track usage metadata (final chunk contains totals)
+        if (chunk.usageMetadata) {
+          lastUsageMetadata = chunk.usageMetadata as Record<string, unknown>;
+        }
       }
+
+      // Log token usage for cost monitoring
+      logTokenUsage('gemini-2.5-flash', lastUsageMetadata as {
+        promptTokenCount?: number;
+        candidatesTokenCount?: number;
+        cachedContentTokenCount?: number;
+      } | undefined);
 
       // If no tool calls, we're done
       if (!hasToolCalls || !this.toolContext) {
