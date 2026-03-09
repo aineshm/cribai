@@ -53,11 +53,28 @@ export async function persistWebListing(
       return null;
     }
 
-    // Trigger embedding pipeline by clearing last_embedded_at
-    await context.supabase
+    // Only trigger embedding if content actually changed (new insert or updated content).
+    // The upsert returns the row whether inserted or updated — check raw_data to detect change.
+    const { data: existing } = await context.supabase
       .from('listings')
-      .update({ last_embedded_at: null })
-      .eq('id', data.id);
+      .select('raw_data, last_embedded_at')
+      .eq('id', data.id)
+      .single();
+
+    const contentChanged =
+      !existing?.last_embedded_at ||
+      (existing?.raw_data as Record<string, unknown>)?.web_content !== params.content;
+
+    if (contentChanged) {
+      const { error: updateError } = await context.supabase
+        .from('listings')
+        .update({ last_embedded_at: null })
+        .eq('id', data.id);
+
+      if (updateError) {
+        console.error('persistWebListing embedding reset failed:', updateError.message);
+      }
+    }
 
     return data.id;
   } catch (err: unknown) {
@@ -152,8 +169,11 @@ function buildResult(
 ): ToolResult {
   const modelContext = `Found ${results.length} web result(s):\n${results
     .map(
-      (r, i) =>
-        `${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${r.content.slice(0, 200)}`,
+      (r, i) => {
+        const id = persistedIds[i];
+        const idSuffix = id ? `\n   Listing ID: ${id}` : '';
+        return `${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${r.content.slice(0, 200)}${idSuffix}`;
+      },
     )
     .join('\n')}`;
 

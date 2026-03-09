@@ -42,18 +42,29 @@ function parseWkbPoint(hex: string): { latitude: number; longitude: number } | n
   }
 }
 
-function parseArgs(): { source: 'zillow' | 'craigslist' | 'all'; limit: number; dryRun: boolean } {
+const VALID_SOURCES = ['zillow', 'craigslist', 'all'] as const;
+type Source = (typeof VALID_SOURCES)[number];
+
+function parseArgs(): { source: Source; limit: number; dryRun: boolean } {
   const args = process.argv.slice(2);
-  let source: 'zillow' | 'craigslist' | 'all' = 'all';
+  let source: Source = 'all';
   let limit = 500;
   let dryRun = false;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--source' && args[i + 1]) {
-      source = args[i + 1] as 'zillow' | 'craigslist' | 'all';
+      const val = args[i + 1]!;
+      if (!(VALID_SOURCES as readonly string[]).includes(val)) {
+        throw new Error(`Invalid --source "${val}". Must be one of: ${VALID_SOURCES.join(', ')}`);
+      }
+      source = val as Source;
       i++;
     }
     if (args[i] === '--limit' && args[i + 1]) {
-      limit = parseInt(args[i + 1]!, 10);
+      const parsed = parseInt(args[i + 1]!, 10);
+      if (isNaN(parsed) || parsed <= 0) {
+        throw new Error(`Invalid --limit "${args[i + 1]}". Must be a positive integer.`);
+      }
+      limit = parsed;
       i++;
     }
     if (args[i] === '--dry-run') {
@@ -65,7 +76,7 @@ function parseArgs(): { source: 'zillow' | 'craigslist' | 'all'; limit: number; 
 
 function buildScrapers(
   config: ScraperConfig,
-  source: 'zillow' | 'craigslist' | 'all',
+  source: Source,
   limit: number,
 ): readonly BaseScraper[] {
   const scrapers: BaseScraper[] = [];
