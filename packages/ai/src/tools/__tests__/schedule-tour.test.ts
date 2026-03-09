@@ -11,15 +11,18 @@ describe('scheduleTour', () => {
     notes: 'Morning preferred',
   };
 
-  it('creates tour request successfully', async () => {
+  it('creates tour request successfully with no conflicts', async () => {
     // First call: listing lookup
     const listingBuilder = createMockQueryBuilder({ id: SAMPLE_LISTING_ROW.id, address: SAMPLE_LISTING_ROW.address });
-    // Second call: insert
+    // Second call: existing tours query (no conflicts)
+    const existingToursBuilder = createMockQueryBuilder([]);
+    // Third call: insert
     const insertBuilder = createMockQueryBuilder({ id: 'new-tour-id' });
 
     const context = createMockContext();
     vi.mocked(context.supabase.from)
       .mockReturnValueOnce(listingBuilder as never)
+      .mockReturnValueOnce(existingToursBuilder as never)
       .mockReturnValueOnce(insertBuilder as never);
 
     const result = await scheduleTour(validArgs, context);
@@ -30,6 +33,72 @@ describe('scheduleTour', () => {
       expect(result.clientBlock.listingAddress).toBe('123 Langdon St');
     }
     expect(result.modelContext).toContain('Tour request submitted');
+    expect(result.modelContext).not.toContain('existing pending tours');
+  });
+
+  it('warns about date conflicts with existing tours', async () => {
+    // First call: listing lookup
+    const listingBuilder = createMockQueryBuilder({ id: SAMPLE_LISTING_ROW.id, address: SAMPLE_LISTING_ROW.address });
+    // Second call: existing tours with overlapping date
+    const existingToursBuilder = createMockQueryBuilder([
+      {
+        preferred_dates: ['2026-04-01', '2026-04-05'],
+        listing_id: '22222222-2222-2222-2222-222222222222',
+        id: 'existing-tour-1',
+      },
+    ]);
+    // Third call: insert (tour still created)
+    const insertBuilder = createMockQueryBuilder({ id: 'new-tour-id' });
+    // Fourth call: fetch conflicting listing addresses
+    const conflictListingsBuilder = createMockQueryBuilder([
+      { id: '22222222-2222-2222-2222-222222222222', address: '456 State St' },
+    ]);
+
+    const context = createMockContext();
+    vi.mocked(context.supabase.from)
+      .mockReturnValueOnce(listingBuilder as never)
+      .mockReturnValueOnce(existingToursBuilder as never)
+      .mockReturnValueOnce(insertBuilder as never)
+      .mockReturnValueOnce(conflictListingsBuilder as never);
+
+    const result = await scheduleTour(validArgs, context);
+
+    // Tour is still created (not blocked)
+    expect(result.clientBlock.type).toBe('tour_confirmation');
+    // But modelContext warns about conflict
+    expect(result.modelContext).toContain('existing pending tours');
+    expect(result.modelContext).toContain('2026-04-01');
+    expect(result.modelContext).toContain('456 State St');
+  });
+
+  it('creates tour despite conflicts (not blocked)', async () => {
+    const listingBuilder = createMockQueryBuilder({ id: SAMPLE_LISTING_ROW.id, address: SAMPLE_LISTING_ROW.address });
+    const existingToursBuilder = createMockQueryBuilder([
+      {
+        preferred_dates: ['2026-04-03'],
+        listing_id: '33333333-3333-3333-3333-333333333333',
+        id: 'existing-tour-2',
+      },
+    ]);
+    const insertBuilder = createMockQueryBuilder({ id: 'new-tour-id' });
+    const conflictListingsBuilder = createMockQueryBuilder([
+      { id: '33333333-3333-3333-3333-333333333333', address: '789 University Ave' },
+    ]);
+
+    const context = createMockContext();
+    vi.mocked(context.supabase.from)
+      .mockReturnValueOnce(listingBuilder as never)
+      .mockReturnValueOnce(existingToursBuilder as never)
+      .mockReturnValueOnce(insertBuilder as never)
+      .mockReturnValueOnce(conflictListingsBuilder as never);
+
+    const result = await scheduleTour(validArgs, context);
+
+    // Tour still created
+    expect(result.clientBlock.type).toBe('tour_confirmation');
+    if (result.clientBlock.type === 'tour_confirmation') {
+      expect(result.clientBlock.tourRequestId).toBe('new-tour-id');
+    }
   });
 
   it('throws when user is not authenticated', async () => {
@@ -55,11 +124,13 @@ describe('scheduleTour', () => {
 
   it('handles duplicate tour request error', async () => {
     const listingBuilder = createMockQueryBuilder({ id: SAMPLE_LISTING_ROW.id, address: SAMPLE_LISTING_ROW.address });
+    const existingToursBuilder = createMockQueryBuilder([]);
     const insertBuilder = createMockQueryBuilder(null, { code: '23505', message: 'unique violation' });
 
     const context = createMockContext();
     vi.mocked(context.supabase.from)
       .mockReturnValueOnce(listingBuilder as never)
+      .mockReturnValueOnce(existingToursBuilder as never)
       .mockReturnValueOnce(insertBuilder as never);
 
     await expect(scheduleTour(validArgs, context)).rejects.toThrow('already have a pending tour');
