@@ -190,8 +190,6 @@ async function main() {
             normalized,
           );
 
-          // Upsert listings — track which chunks succeeded for notifications
-          const successfulIndices = new Set<number>();
           const rows = normalized.map((listing) => ({
             campus_id: config.campusId,
             external_id: listing.externalId,
@@ -227,9 +225,6 @@ async function main() {
               chunkErrors++;
             } else {
               scraperUpserted += chunk.length;
-              for (let j = c; j < c + chunk.length; j++) {
-                successfulIndices.add(j);
-              }
             }
           }
 
@@ -243,10 +238,13 @@ async function main() {
             console.log(`[${scraper.source}] Upserted ${scraperUpserted} listings`);
             metrics.upserted += scraperUpserted;
 
-            // Only notify for price changes on rows that were actually persisted
-            const persistedChanges = priceChanges.filter((_, i) => successfulIndices.has(i));
-            if (persistedChanges.length > 0) {
-              const notifCount = await createPriceChangeNotifications(supabase, persistedChanges);
+            // Only notify when all chunks succeeded. Price changes reference
+            // existing DB rows (which rarely fail on update), but we can't
+            // reliably map PriceChange.listingId (UUID) back to chunk membership
+            // without an extra DB round-trip. Skip notifications on partial failure
+            // to avoid notifying for rows that weren't actually persisted.
+            if (chunkErrors === 0 && priceChanges.length > 0) {
+              const notifCount = await createPriceChangeNotifications(supabase, priceChanges);
               metrics.notifications += notifCount;
               console.log(`[${scraper.source}] Created ${notifCount} price change notifications`);
             }
