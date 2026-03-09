@@ -115,6 +115,14 @@ export default async function CampusLayout({
               >
                 CribAI
               </Link>
+              {user && (
+                <Link
+                  href={`/${campusSlug}/submit-listing`}
+                  className="text-sm font-medium text-[var(--surface-500)] hover:text-[var(--surface-800)] transition-colors"
+                >
+                  Submit Listing
+                </Link>
+              )}
               <Link
                 href={`/${campusSlug}/dashboard`}
                 className="text-sm font-medium text-[var(--surface-500)] hover:text-[var(--surface-800)] transition-colors"
