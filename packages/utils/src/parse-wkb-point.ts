@@ -33,6 +33,9 @@ export function parseWkbPoint(hex: string | null): Coordinates | null {
       ? buf.readUInt32LE(1)
       : buf.readUInt32BE(1);
 
+    // Reject non-POINT geometry types (POINT = type 1 in low-order bits)
+    if ((geomType & 0xFF) !== 1) return null;
+
     // Determine offset based on whether SRID is present
     // Type with SRID flag has bit 0x20000000 set
     const hasSrid = (geomType & 0x20000000) !== 0;

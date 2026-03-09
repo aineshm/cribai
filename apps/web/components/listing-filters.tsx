@@ -29,6 +29,7 @@ export function ListingFilters() {
       <div className="flex flex-wrap gap-3">
         <select
           data-testid="beds-filter"
+          aria-label="Number of bedrooms"
           value={searchParams.get('beds') ?? ''}
           onChange={(e) => updateParam('beds', e.target.value)}
           className={inputClass}
@@ -59,6 +60,7 @@ export function ListingFilters() {
 
         <select
           data-testid="sort-filter"
+          aria-label="Sort order"
           value={searchParams.get('sort') ?? ''}
           onChange={(e) => updateParam('sort', e.target.value)}
           className={inputClass}

@@ -110,7 +110,10 @@ export class ListingsPage {
   }
 
   async waitForFilterNavigation() {
-    await this.page.waitForURL(/listings/);
+    const currentUrl = this.page.url();
+    await this.page.waitForURL((url) =>
+      url.pathname.includes('listings') && url.href !== currentUrl,
+    );
   }
 
   async assertEmptyState() {

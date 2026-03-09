@@ -157,6 +157,7 @@ async function main() {
     console.log(`\n=== Scraping ${campus.name} (${campus.slug}) ===`);
 
     const scrapers = buildScrapers(config, source, limit);
+    let campusHadFailure = false;
 
     for (const scraper of scrapers) {
       const scraperStart = Date.now();
@@ -189,14 +190,15 @@ async function main() {
             normalized,
           );
 
-          // Upsert listings
+          // Upsert listings — track which chunks succeeded for notifications
+          const successfulIndices = new Set<number>();
           const rows = normalized.map((listing) => ({
             campus_id: config.campusId,
             external_id: listing.externalId,
             source: listing.source,
             raw_data: listing.rawData,
             address: listing.address,
-            location: listing.latitude && listing.longitude
+            location: listing.latitude != null && listing.longitude != null
               ? `POINT(${listing.longitude} ${listing.latitude})`
               : null,
             rent_monthly: listing.rentMonthly,
@@ -225,21 +227,26 @@ async function main() {
               chunkErrors++;
             } else {
               scraperUpserted += chunk.length;
+              for (let j = c; j < c + chunk.length; j++) {
+                successfulIndices.add(j);
+              }
             }
           }
 
           if (chunkErrors > 0) {
             metrics.errors += chunkErrors;
             scraperError = `Upsert failed: ${chunkErrors} chunk(s) errored`;
+            campusHadFailure = true;
           }
 
           if (scraperUpserted > 0) {
             console.log(`[${scraper.source}] Upserted ${scraperUpserted} listings`);
             metrics.upserted += scraperUpserted;
 
-            // Create notifications for price changes AFTER successful upsert
-            if (priceChanges.length > 0) {
-              const notifCount = await createPriceChangeNotifications(supabase, priceChanges);
+            // Only notify for price changes on rows that were actually persisted
+            const persistedChanges = priceChanges.filter((_, i) => successfulIndices.has(i));
+            if (persistedChanges.length > 0) {
+              const notifCount = await createPriceChangeNotifications(supabase, persistedChanges);
               metrics.notifications += notifCount;
               console.log(`[${scraper.source}] Created ${notifCount} price change notifications`);
             }
@@ -250,6 +257,7 @@ async function main() {
         console.error(`[${scraper.source}] Scraper failed:`, err);
         metrics.errors += 1;
         scraperError = errMsg;
+        campusHadFailure = true;
       }
 
       // Record diagnostic for this scraper
@@ -270,7 +278,8 @@ async function main() {
     }
 
     // Mark stale listings as inactive (not seen in 7 days)
-    if (!dryRun && supabase && source === 'all') {
+    // Only run lifecycle cleanup when all sources ran successfully
+    if (!dryRun && supabase && source === 'all' && !campusHadFailure) {
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       const { data: staleData } = await supabase
         .from('listings')
