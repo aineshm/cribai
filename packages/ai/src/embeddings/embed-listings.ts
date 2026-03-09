@@ -59,16 +59,31 @@ export async function embedChangedListings(
   let skipped = 0;
   let errors = 0;
 
-  // Gemini free tier: 100 embed requests/minute. Batch with pauses to stay under.
-  const BATCH_SIZE = 90;
-  const BATCH_DELAY_MS = 62_000; // 62s to be safe
+  // Gemini free tier limits:
+  //   RPM: 100 requests/minute (rolling window)
+  //   RPD: 1,000 requests/day
+  // Space requests ~670ms apart (~89 req/min) to stay under RPM.
+  // Stop gracefully when daily quota (RPD) is exhausted — remaining listings
+  // will be picked up on the next run via last_embedded_at tracking.
+  const REQUEST_DELAY_MS = 670;
+  const MAX_RPM_RETRIES = 1; // retry once for transient RPM 429s
+  let dailyQuotaExhausted = false;
+  let consecutive429s = 0;
 
-  // Process sequentially with rate-limit pauses
+  console.log(`Embedding ${(listings as ListingRow[]).length} listings (RPD budget: ~1000/day)`);
+
+  // Process sequentially with per-request throttling
   for (let i = 0; i < (listings as ListingRow[]).length; i++) {
-    // Pause between batches to respect rate limit
-    if (i > 0 && i % BATCH_SIZE === 0) {
-      console.log(`Rate limit pause: embedded ${embedded} so far, waiting 62s before next batch...`);
-      await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));
+    if (dailyQuotaExhausted) {
+      skipped += (listings as ListingRow[]).length - i;
+      console.log(`Daily quota exhausted — skipping remaining ${(listings as ListingRow[]).length - i} listings (will retry tomorrow)`);
+      break;
+    }
+    if (i > 0) {
+      await new Promise((resolve) => setTimeout(resolve, REQUEST_DELAY_MS));
+    }
+    if (i > 0 && i % 50 === 0) {
+      console.log(`Embedding progress: ${embedded} embedded, ${errors} errors, ${skipped} skipped out of ${i} processed`);
     }
     const listing = (listings as ListingRow[])[i]!;
     try {
@@ -89,7 +104,52 @@ export async function embedChangedListings(
         photoCount: photoUrls.length,
       });
 
-      const embedding = await generateEmbedding(text);
+      let embedding: readonly number[] | null = null;
+      for (let attempt = 0; attempt <= MAX_RPM_RETRIES; attempt++) {
+        try {
+          embedding = await generateEmbedding(text);
+          break;
+        } catch (retryErr) {
+          const msg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+          const is429 = msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED');
+          if (!is429) throw retryErr;
+
+          // Distinguish daily quota (RPD) from per-minute (RPM)
+          const isDailyQuota = msg.includes('per day') || msg.includes('PerDay')
+            || msg.includes('daily') || msg.includes('RPD');
+          if (isDailyQuota) {
+            console.log(`Daily quota (RPD) exhausted after ${embedded} embeddings`);
+            dailyQuotaExhausted = true;
+            skipped++; // count this listing as skipped, not error
+            break;
+          }
+
+          // RPM transient — back off and retry once
+          if (attempt < MAX_RPM_RETRIES) {
+            const backoff = 30_000;
+            console.log(`RPM rate limited on listing ${listing.id}, backing off ${backoff / 1000}s`);
+            await new Promise((resolve) => setTimeout(resolve, backoff));
+            continue;
+          }
+
+          // If retry also failed with 429, likely RPD (3 consecutive = give up)
+          consecutive429s++;
+          if (consecutive429s >= 3) {
+            console.log(`3 consecutive 429s after retries — treating as daily quota exhaustion (${embedded} embedded so far)`);
+            dailyQuotaExhausted = true;
+            skipped++;
+            break;
+          }
+          throw retryErr;
+        }
+      }
+
+      if (dailyQuotaExhausted) continue;
+
+      if (!embedding) {
+        errors++;
+        continue;
+      }
 
       const { error: updateError } = await supabase
         .from('listings')
@@ -105,7 +165,7 @@ export async function embedChangedListings(
         errors++;
       } else {
         embedded++;
-        console.log(`Embedded listing ${listing.id} (${listing.address})`);
+        consecutive429s = 0; // reset on success
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';

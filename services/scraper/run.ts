@@ -175,7 +175,12 @@ async function main() {
 
       try {
         const rawListings = await scraper.scrape();
-        const normalized = rawListings.map(normalizeListing);
+        const allNormalized = rawListings.map(normalizeListing);
+        // Filter out listings missing required fields (e.g. null rent violates NOT NULL constraint)
+        const normalized = allNormalized.filter((l) => l.rentMonthly !== null);
+        if (normalized.length < allNormalized.length) {
+          console.log(`[${scraper.source}] Filtered ${allNormalized.length - normalized.length} listings with missing rent`);
+        }
         scraperFound = normalized.length;
 
         if (normalized.length === 0) {
@@ -215,18 +220,31 @@ async function main() {
             last_seen_at: new Date().toISOString(),
           }));
 
-          const { error: upsertError } = await supabase
-            .from('listings')
-            .upsert(rows, { onConflict: 'external_id,source' });
+          // Upsert in chunks to prevent one bad row from killing the entire batch
+          const CHUNK_SIZE = 200;
+          let chunkErrors = 0;
+          for (let c = 0; c < rows.length; c += CHUNK_SIZE) {
+            const chunk = rows.slice(c, c + CHUNK_SIZE);
+            const { error: upsertError } = await supabase
+              .from('listings')
+              .upsert(chunk, { onConflict: 'external_id,source' });
 
-          if (upsertError) {
-            console.error(`[${scraper.source}] Upsert error: ${upsertError.message}`);
-            metrics.errors += 1;
-            scraperError = `Upsert failed: ${upsertError.message}`;
-          } else {
-            scraperUpserted = normalized.length;
-            console.log(`[${scraper.source}] Upserted ${normalized.length} listings`);
-            metrics.upserted += normalized.length;
+            if (upsertError) {
+              console.error(`[${scraper.source}] Upsert error (chunk ${Math.floor(c / CHUNK_SIZE) + 1}): ${upsertError.message}`);
+              chunkErrors++;
+            } else {
+              scraperUpserted += chunk.length;
+            }
+          }
+
+          if (chunkErrors > 0) {
+            metrics.errors += chunkErrors;
+            scraperError = `Upsert failed: ${chunkErrors} chunk(s) errored`;
+          }
+
+          if (scraperUpserted > 0) {
+            console.log(`[${scraper.source}] Upserted ${scraperUpserted} listings`);
+            metrics.upserted += scraperUpserted;
 
             // Create notifications for price changes AFTER successful upsert
             if (priceChanges.length > 0) {
