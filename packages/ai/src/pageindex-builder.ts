@@ -1,5 +1,6 @@
-import { GoogleGenAI } from '@google/genai';
+import type { GoogleGenAI } from '@google/genai';
 import type { PageIndexNode } from '@campusnest/types';
+import { createGeminiClient } from './gemini-client';
 
 interface ListingRow {
   readonly id: string;
@@ -13,14 +14,14 @@ interface ListingRow {
 }
 
 interface BuildConfig {
-  readonly geminiApiKey: string;
+  readonly geminiApiKey?: string;
 }
 
 export class PageIndexBuilder {
   private readonly ai: GoogleGenAI;
 
   constructor(config: BuildConfig) {
-    this.ai = new GoogleGenAI({ apiKey: config.geminiApiKey });
+    this.ai = createGeminiClient(config.geminiApiKey);
   }
 
   async build(_campusId: string, listings: readonly ListingRow[]): Promise<PageIndexNode> {

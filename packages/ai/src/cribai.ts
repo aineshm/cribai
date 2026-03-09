@@ -1,13 +1,13 @@
-import { GoogleGenAI } from '@google/genai';
-import type { Content, FunctionCall, Part } from '@google/genai';
+import type { GoogleGenAI, Content, FunctionCall, Part } from '@google/genai';
 import type { ChatBlock, PageIndexNode } from '@campusnest/types';
+import { createGeminiClient } from './gemini-client';
 import { PageIndexTraverser } from './pageindex-traverser';
 import { CRIBAI_TOOLS } from './tools/schemas';
 import { executeTool } from './tools/executor';
 import type { ToolContext } from './tools/types';
 
 export interface CribAIConfig {
-  readonly geminiApiKey: string;
+  readonly geminiApiKey?: string;
   readonly campusName: string;
   readonly toolContext?: ToolContext;
 }
@@ -52,7 +52,7 @@ export class CribAI {
   private readonly toolContext: ToolContext | undefined;
 
   constructor(config: CribAIConfig) {
-    this.ai = new GoogleGenAI({ apiKey: config.geminiApiKey });
+    this.ai = createGeminiClient(config.geminiApiKey);
     this.traverser = new PageIndexTraverser({ geminiApiKey: config.geminiApiKey });
     this.campusName = config.campusName;
     this.toolContext = config.toolContext;
