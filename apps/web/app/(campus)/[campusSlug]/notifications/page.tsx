@@ -1,7 +1,7 @@
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { createServerComponentClient } from '@campusnest/supabase/server';
+import { getCurrentUser } from '../../../../lib/get-current-user';
+import { createSecretClient } from '@campusnest/supabase/server';
 
 interface NotificationRow {
   readonly id: string;
@@ -78,19 +78,17 @@ export default async function NotificationsPage({
   params: Promise<{ campusSlug: string }>;
 }) {
   const { campusSlug } = await params;
-  const cookieStore = await cookies();
-  const supabase = createServerComponentClient(cookieStore);
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user, supabase } = await getCurrentUser();
 
   if (!user) {
     redirect(`/login?returnTo=/${campusSlug}/notifications`);
   }
 
+  // Use service-role client for dev mode (bypasses RLS), regular client otherwise
+  const queryClient = user.isDevMode ? createSecretClient() : supabase;
+
   // Fetch notifications
-  const { data: notifications } = await supabase
+  const { data: notifications } = await queryClient
     .from('notifications')
     .select('id, type, listing_id, payload, is_read, created_at')
     .eq('user_id', user.id)
@@ -98,7 +96,7 @@ export default async function NotificationsPage({
     .limit(50);
 
   // Mark all unread as read
-  await supabase
+  await queryClient
     .from('notifications')
     .update({ is_read: true })
     .eq('user_id', user.id)

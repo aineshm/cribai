@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { getScoreColorVariants } from '../lib/score-colors';
 
 interface FairnessBadgeProps {
@@ -32,18 +32,49 @@ function scoreLabel(score: number): string {
 
 export function FairnessBadge({ score, data }: FairnessBadgeProps) {
   const [showDetails, setShowDetails] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!showDetails) return;
+
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowDetails(false);
+      }
+    }
+
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setShowDetails(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [showDetails]);
 
   return (
-    <div className="relative inline-block">
+    <div className="relative inline-block" ref={containerRef}>
       <button
         onClick={() => setShowDetails(!showDetails)}
         className={`rounded-full border px-3 py-1.5 text-sm font-semibold ${scoreColor(score)} cursor-pointer transition-colors`}
+        aria-expanded={showDetails}
+        aria-haspopup="true"
       >
         {score}/10 — {scoreLabel(score)}
       </button>
 
       {showDetails && data && (
-        <div className="absolute right-0 top-full z-10 mt-2 w-72 rounded-xl border border-[var(--surface-200)] bg-white p-4 shadow-[var(--shadow-card-hover)] animate-fade-in">
+        <div
+          className="absolute right-0 top-full z-10 mt-2 w-72 rounded-xl border border-[var(--surface-200)] bg-white p-4 shadow-[var(--shadow-card-hover)] animate-fade-in"
+          role="dialog"
+          aria-label="Price fairness details"
+        >
           <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--surface-400)]">Price Fairness</h4>
 
           {/* Score bar */}
@@ -77,12 +108,6 @@ export function FairnessBadge({ score, data }: FairnessBadgeProps) {
               <dd className="font-medium text-[var(--surface-700)]">{data.comparableCount}</dd>
             </div>
           </dl>
-          <button
-            onClick={() => setShowDetails(false)}
-            className="mt-3 text-xs text-[var(--surface-400)] hover:text-[var(--surface-600)] transition-colors"
-          >
-            Close
-          </button>
         </div>
       )}
     </div>

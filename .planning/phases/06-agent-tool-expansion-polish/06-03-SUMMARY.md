@@ -73,7 +73,7 @@ Each task was committed atomically:
 1. **Task 1: Manual listing submission form and API** - `8a825c2` (feat)
 2. **Task 2: Phase 6 end-to-end verification** - checkpoint:human-verify (approved)
 
-**Plan metadata:** [pending] (docs: complete plan)
+**Plan metadata:** `90d7d57` (docs: complete plan)
 
 ## Files Created/Modified
 - `packages/types/src/listing.ts` - listingSubmissionSchema with Zod validation

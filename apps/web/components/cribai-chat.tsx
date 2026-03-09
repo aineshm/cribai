@@ -403,23 +403,37 @@ export function CribAIChat({
   }, [sendMessage]);
 
   return (
-    <div className="flex h-[600px] flex-col rounded-xl border border-[var(--surface-200)] bg-white shadow-[var(--shadow-card)]">
+    <div className="flex h-[calc(100dvh-220px)] md:h-[600px] flex-col rounded-xl border border-[var(--surface-200)] bg-white shadow-[var(--shadow-card)]">
       {/* Messages */}
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
         {messages.length === 0 && (
           <div className="flex h-full items-center justify-center text-[var(--surface-400)]">
             <div className="text-center animate-fade-in">
               <p className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-600)]">Ask CribAI anything</p>
-              <p className="mt-2 text-sm">Try: &quot;Find me a 2-bedroom under $1200&quot;</p>
-              <p className="mt-0.5 text-xs text-[var(--surface-300)]">
-                I can search listings, compare apartments, explain lease terms, and schedule tours.
-              </p>
+              <p className="mt-2 text-sm">I can search listings, compare apartments, explain lease terms, and schedule tours.</p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                {[
+                  'Find me a 2-bedroom under $1200',
+                  'Compare my saved listings',
+                  'Explain security deposits',
+                  "What's fair rent for a 2BR?",
+                ].map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() => sendMessage(suggestion)}
+                    className="rounded-full border border-[var(--surface-200)] bg-white px-3.5 py-2 text-xs text-[var(--surface-600)] hover:border-[var(--primary-400)] hover:text-[var(--primary-700)] hover:bg-[var(--primary-50)] transition-colors"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
         {messages.map((msg, i) => (
           <div
-            key={i}
+            key={`${msg.role}-${i}-${msg.blocks.length}`}
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div

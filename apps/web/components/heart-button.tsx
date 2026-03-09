@@ -60,7 +60,7 @@ export function HeartButton({
           toast.error('Could not save listing');
           return;
         }
-        toast.success('Saved to favorites');
+        toast.success('Added to Saved');
       } else {
         const { error } = await supabase
           .from('saved_listings')
@@ -73,7 +73,7 @@ export function HeartButton({
           toast.error('Could not remove from favorites');
           return;
         }
-        toast.success('Removed from favorites');
+        toast.success('Removed from Saved');
       }
     },
     [saved, listingId, campusSlug, router],

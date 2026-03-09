@@ -1,7 +1,7 @@
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { createServerComponentClient } from '@campusnest/supabase/server';
+import { createSecretClient } from '@campusnest/supabase/server';
+import { getCurrentUser } from '../../../../lib/get-current-user';
 
 interface DashboardPageProps {
   params: Promise<{ campusSlug: string }>;
@@ -9,19 +9,17 @@ interface DashboardPageProps {
 
 export default async function DashboardPage({ params }: DashboardPageProps) {
   const { campusSlug } = await params;
-  const cookieStore = await cookies();
-  const supabase = createServerComponentClient(cookieStore);
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user, supabase, devUser } = await getCurrentUser();
 
   if (!user) {
     redirect('/login');
   }
 
+  // In dev mode, use service-role client to bypass RLS
+  const queryClient = devUser ? createSecretClient() : supabase;
+
   // Fetch saved listings (most recent 3)
-  const { data: savedEntries } = await supabase
+  const { data: savedEntries } = await queryClient
     .from('saved_listings')
     .select(`
       listing_id,
@@ -35,7 +33,7 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
     .limit(3);
 
   // Fetch upcoming tour requests (next 3)
-  const { data: tourRequests } = await supabase
+  const { data: tourRequests } = await queryClient
     .from('tour_requests')
     .select('id, listing_address, preferred_date, status')
     .eq('user_id', user.id)

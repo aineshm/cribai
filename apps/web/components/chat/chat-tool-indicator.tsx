@@ -20,8 +20,8 @@ export function ChatToolIndicator({ toolName }: ChatToolIndicatorProps) {
 
   return (
     <div className="flex items-center gap-2 py-1" role="status" aria-label={label}>
-      <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-      <span className="text-xs text-gray-500">{label}...</span>
+      <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-[var(--primary-500)] border-t-transparent" />
+      <span className="text-xs text-[var(--surface-500)]">{label}...</span>
     </div>
   );
 }

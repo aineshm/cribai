@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { listingSubmissionSchema } from '@campusnest/types';
 
@@ -19,10 +20,15 @@ const INITIAL_FORM = {
   source_url: '',
 };
 
-export function SubmitListingForm() {
+interface SubmitListingFormProps {
+  readonly campusSlug?: string;
+}
+
+export function SubmitListingForm({ campusSlug }: SubmitListingFormProps) {
   const [form, setForm] = useState(INITIAL_FORM);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
 
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -83,12 +89,46 @@ export function SubmitListingForm() {
       }
 
       toast.success('Listing submitted successfully!');
-      setForm(INITIAL_FORM);
+      setIsSubmitted(true);
     } catch {
       toast.error('Network error. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  if (isSubmitted) {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-xl border border-[var(--surface-200)] bg-white p-10 text-center shadow-sm animate-fade-in">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
+          <svg className="h-8 w-8 text-emerald-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <h2 className="mt-4 font-[family-name:var(--font-display)] text-xl text-[var(--surface-900)]">
+          Listing submitted!
+        </h2>
+        <p className="mt-2 max-w-sm text-sm text-[var(--surface-500)]">
+          Your listing will be reviewed and added to CampusNest. Fellow students will be able to discover it soon.
+        </p>
+        <div className="mt-6 flex gap-3">
+          <button
+            onClick={() => { setIsSubmitted(false); setForm(INITIAL_FORM); }}
+            className="rounded-lg border border-[var(--surface-200)] px-5 py-2.5 text-sm font-medium text-[var(--surface-700)] hover:bg-[var(--surface-50)] transition-colors"
+          >
+            Submit another
+          </button>
+          {campusSlug && (
+            <Link
+              href={`/${campusSlug}/listings`}
+              className="rounded-lg bg-[var(--primary-600)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--primary-700)] transition-colors"
+            >
+              Browse listings
+            </Link>
+          )}
+        </div>
+      </div>
+    );
   }
 
   return (

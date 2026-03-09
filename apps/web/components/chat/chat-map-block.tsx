@@ -28,6 +28,16 @@ export function ChatMapBlock({ block, campusSlug }: ChatMapBlockProps) {
     return null;
   }
 
+  const mapToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+
+  if (!mapToken) {
+    return (
+      <div className="flex h-48 items-center justify-center rounded-lg bg-[var(--surface-100)]">
+        <p className="text-xs text-[var(--surface-400)]">Map unavailable</p>
+      </div>
+    );
+  }
+
   const selectedListing = block.listings.find(
     (l) => l.id === selectedListingId
   );
@@ -35,7 +45,7 @@ export function ChatMapBlock({ block, campusSlug }: ChatMapBlockProps) {
   return (
     <div className="overflow-hidden rounded-lg">
       <Map
-        mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
+        mapboxAccessToken={mapToken}
         initialViewState={{
           latitude: block.center.lat,
           longitude: block.center.lng,
@@ -56,8 +66,8 @@ export function ChatMapBlock({ block, campusSlug }: ChatMapBlockProps) {
               <div
                 className={`cursor-pointer rounded-full border px-2 py-1 text-xs font-bold shadow-md ${
                   isSelected
-                    ? 'border-blue-700 bg-blue-600 text-white'
-                    : 'border-gray-200 bg-white text-gray-900'
+                    ? 'border-[var(--primary-700)] bg-[var(--primary-600)] text-white'
+                    : 'border-[var(--surface-200)] bg-white text-[var(--surface-900)]'
                 }`}
               >
                 ${listing.rentMonthly.toLocaleString()}

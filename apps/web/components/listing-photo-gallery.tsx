@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 
 interface ListingPhotoGalleryProps {
@@ -22,12 +22,117 @@ function SourceLink({ sourceUrl }: { readonly sourceUrl: string }) {
   );
 }
 
+function Lightbox({
+  photoUrls,
+  activeIndex,
+  address,
+  onClose,
+  onNext,
+  onPrev,
+}: {
+  readonly photoUrls: readonly string[];
+  readonly activeIndex: number;
+  readonly address: string;
+  readonly onClose: () => void;
+  readonly onNext: () => void;
+  readonly onPrev: () => void;
+}) {
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowRight') onNext();
+      if (e.key === 'ArrowLeft') onPrev();
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [onClose, onNext, onPrev]);
+
+  const url = photoUrls[activeIndex]!;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Photo ${activeIndex + 1} of ${photoUrls.length}`}
+    >
+      {/* Close button */}
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+        aria-label="Close lightbox"
+      >
+        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+
+      {/* Counter */}
+      <span className="absolute top-4 left-4 rounded-full bg-white/10 px-3 py-1.5 text-sm text-white">
+        {activeIndex + 1} / {photoUrls.length}
+      </span>
+
+      {/* Prev button */}
+      {photoUrls.length > 1 && (
+        <button
+          onClick={onPrev}
+          className="absolute left-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+          aria-label="Previous photo"
+        >
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+      )}
+
+      {/* Image */}
+      <div className="relative h-[80vh] w-[90vw] md:w-[80vw]">
+        <Image
+          src={url}
+          alt={`Photo ${activeIndex + 1} of ${address}`}
+          fill
+          sizes="90vw"
+          className="object-contain"
+          priority
+        />
+      </div>
+
+      {/* Next button */}
+      {photoUrls.length > 1 && (
+        <button
+          onClick={onNext}
+          className="absolute right-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+          aria-label="Next photo"
+        >
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function ListingPhotoGallery({
   photoUrls,
   sourceUrl,
   address,
 }: ListingPhotoGalleryProps) {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  const closeLightbox = useCallback(() => setLightboxOpen(false), []);
+  const nextPhoto = useCallback(() => {
+    setActiveIndex((i) => (i + 1) % photoUrls.length);
+  }, [photoUrls.length]);
+  const prevPhoto = useCallback(() => {
+    setActiveIndex((i) => (i - 1 + photoUrls.length) % photoUrls.length);
+  }, [photoUrls.length]);
 
   if (photoUrls.length === 0) {
     if (sourceUrl) {
@@ -44,7 +149,11 @@ export function ListingPhotoGallery({
     const singlePhoto = photoUrls[0] as string;
     return (
       <div className="space-y-2">
-        <div className="relative aspect-video overflow-hidden rounded-lg">
+        <button
+          type="button"
+          onClick={() => setLightboxOpen(true)}
+          className="relative aspect-video w-full overflow-hidden rounded-lg cursor-zoom-in"
+        >
           <Image
             src={singlePhoto}
             alt={`Photo of ${address}`}
@@ -52,7 +161,7 @@ export function ListingPhotoGallery({
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             className="object-cover"
           />
-        </div>
+        </button>
         {sourceUrl && (
           <div className="text-right">
             <a
@@ -65,6 +174,16 @@ export function ListingPhotoGallery({
             </a>
           </div>
         )}
+        {lightboxOpen && (
+          <Lightbox
+            photoUrls={photoUrls}
+            activeIndex={activeIndex}
+            address={address}
+            onClose={closeLightbox}
+            onNext={nextPhoto}
+            onPrev={prevPhoto}
+          />
+        )}
       </div>
     );
   }
@@ -76,8 +195,11 @@ export function ListingPhotoGallery({
           <button
             key={url}
             type="button"
-            onClick={() => setActiveIndex(index)}
-            className={`relative flex-shrink-0 w-72 aspect-video overflow-hidden rounded-lg snap-center ${
+            onClick={() => {
+              setActiveIndex(index);
+              setLightboxOpen(true);
+            }}
+            className={`relative flex-shrink-0 w-72 aspect-video overflow-hidden rounded-lg snap-center cursor-zoom-in ${
               index === activeIndex
                 ? 'ring-2 ring-[var(--primary-500)]'
                 : ''
@@ -122,6 +244,17 @@ export function ListingPhotoGallery({
           </a>
         )}
       </div>
+
+      {lightboxOpen && (
+        <Lightbox
+          photoUrls={photoUrls}
+          activeIndex={activeIndex}
+          address={address}
+          onClose={closeLightbox}
+          onNext={nextPhoto}
+          onPrev={prevPhoto}
+        />
+      )}
     </div>
   );
 }

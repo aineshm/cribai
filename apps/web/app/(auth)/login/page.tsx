@@ -1,20 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@campusnest/supabase/client';
 import { toast } from 'sonner';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { isEduEmail } from '@/lib/edu-validation';
 
 export default function LoginPage() {
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState<'email' | 'otp'>('email');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSendOtp(e: React.FormEvent) {
-    e.preventDefault();
+  const sendOtpEmail = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -40,6 +41,11 @@ export default function LoginPage() {
     }
 
     setStep('otp');
+  }, [email]);
+
+  async function handleSendOtp(e: React.FormEvent) {
+    e.preventDefault();
+    sendOtpEmail();
   }
 
   async function handleVerifyOtp(e: React.FormEvent) {
@@ -62,8 +68,21 @@ export default function LoginPage() {
     }
 
     toast.success('Signed in successfully!');
-    window.location.href = '/uw-madison/cribai';
+    const returnTo = searchParams.get('returnTo');
+    // Validate returnTo is a relative path to prevent open redirect
+    const destination = returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//')
+      ? returnTo
+      : '/uw-madison/cribai';
+    window.location.href = destination;
   }
+
+  // Auto-submit when OTP reaches 8 digits (L1)
+  useEffect(() => {
+    if (step === 'otp' && otp.length === 8 && !loading) {
+      handleVerifyOtp({ preventDefault: () => {} } as React.FormEvent);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [otp, step]);
 
   if (step === 'otp') {
     return (
@@ -112,7 +131,7 @@ export default function LoginPage() {
           </form>
 
           <button
-            onClick={() => { setError(null); handleSendOtp(new Event('submit') as unknown as React.FormEvent); }}
+            onClick={() => { setError(null); sendOtpEmail(); }}
             className="mt-4 w-full text-sm text-[var(--primary-600)] hover:underline"
           >
             Resend code

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { createClient } from '@campusnest/supabase/client';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 type VerifyResult = {
   readonly verified: boolean;
@@ -11,6 +11,7 @@ type VerifyResult = {
 };
 
 export default function VerifyEduPage() {
+  const router = useRouter();
   const [eduEmail, setEduEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<VerifyResult | null>(null);
@@ -68,9 +69,12 @@ export default function VerifyEduPage() {
   return (
     <main className="flex min-h-screen items-center justify-center p-8">
       <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow-[var(--shadow-card)] animate-fade-in">
-        <Link href="/" className="text-sm text-[var(--surface-400)] hover:text-[var(--surface-600)] transition-colors">
+        <button
+          onClick={() => router.back()}
+          className="text-sm text-[var(--surface-400)] hover:text-[var(--surface-600)] transition-colors"
+        >
           &larr; Back
-        </Link>
+        </button>
         <h1 className="mt-4 font-[family-name:var(--font-display)] text-2xl text-[var(--surface-900)]">Verify .edu Email</h1>
         <p className="mt-2 text-sm text-[var(--surface-500)]">
           Verify your .edu email to unlock full access — reviews, AI features,

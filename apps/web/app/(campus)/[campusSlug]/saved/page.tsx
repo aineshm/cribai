@@ -1,29 +1,32 @@
 import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
 import Link from 'next/link';
-import { createServerComponentClient } from '@campusnest/supabase/server';
+import { getCurrentUser } from '../../../../lib/get-current-user';
+import { createSecretClient } from '@campusnest/supabase/server';
 import { ListingCard } from '../../../../components/listing-card';
+import { SavedSortSelect } from '../../../../components/saved-sort-select';
 
 interface SavedListingsPageProps {
   params: Promise<{ campusSlug: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }
 
 export default async function SavedListingsPage({
   params,
+  searchParams,
 }: SavedListingsPageProps) {
   const { campusSlug } = await params;
-  const cookieStore = await cookies();
-  const supabase = createServerComponentClient(cookieStore);
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const filters = await searchParams;
+  const sortBy = filters.sort ?? 'date_saved';
+  const { user, supabase } = await getCurrentUser();
 
   if (!user) {
     redirect(`/login?returnTo=/${campusSlug}/saved`);
   }
 
-  const { data: savedEntries } = await supabase
+  // Use service-role client for dev mode (bypasses RLS), regular client otherwise
+  const queryClient = user.isDevMode ? createSecretClient() : supabase;
+
+  const { data: savedEntries } = await queryClient
     .from('saved_listings')
     .select(
       `
@@ -61,18 +64,37 @@ export default async function SavedListingsPage({
     })
     .filter(Boolean);
 
-  const count = listings.length;
+  // Sort listings based on search param
+  const sortedListings = [...listings].sort((a, b) => {
+    switch (sortBy) {
+      case 'price_asc':
+        return (a.rent_monthly ?? Infinity) - (b.rent_monthly ?? Infinity);
+      case 'price_desc':
+        return (b.rent_monthly ?? 0) - (a.rent_monthly ?? 0);
+      case 'fairness':
+        return (b.fairness_score ?? 0) - (a.fairness_score ?? 0);
+      default:
+        return 0; // date_saved — already ordered by created_at desc from DB
+    }
+  });
+
+  const count = sortedListings.length;
 
   return (
     <div className="animate-fade-in">
-      <h1 className="font-[family-name:var(--font-display)] text-3xl text-[var(--surface-900)]">
-        Saved Listings
-        {count > 0 && (
-          <span className="ml-2 text-lg font-normal text-[var(--surface-400)]">
-            ({count})
-          </span>
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h1 className="font-[family-name:var(--font-display)] text-3xl text-[var(--surface-900)]">
+          Saved Listings
+          {count > 0 && (
+            <span className="ml-2 text-lg font-normal text-[var(--surface-400)]">
+              ({count})
+            </span>
+          )}
+        </h1>
+        {count > 1 && (
+          <SavedSortSelect currentSort={sortBy} />
         )}
-      </h1>
+      </div>
 
       {count === 0 ? (
         <div className="mt-16 flex flex-col items-center justify-center text-center">
@@ -106,7 +128,7 @@ export default async function SavedListingsPage({
         </div>
       ) : (
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {listings.map((listing, index) => (
+          {sortedListings.map((listing, index) => (
             <div
               key={listing.id}
               className="stagger-item"

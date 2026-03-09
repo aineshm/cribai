@@ -19,15 +19,20 @@ export function ConversationSidebar({
   const [conversations, setConversations] = useState<readonly Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
 
   const fetchConversations = useCallback(async () => {
+    setFetchError(false);
     try {
       const res = await fetch('/api/conversations');
-      if (!res.ok) return;
+      if (!res.ok) {
+        setFetchError(true);
+        return;
+      }
       const data = (await res.json()) as { conversations: Conversation[] };
       setConversations(data.conversations);
     } catch {
-      // Silently fail — sidebar is non-critical
+      setFetchError(true);
     } finally {
       setIsLoading(false);
     }
@@ -36,6 +41,20 @@ export function ConversationSidebar({
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations, refreshTrigger]);
+
+  // Escape key to close mobile sidebar
+  useEffect(() => {
+    if (!isOpen) return;
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
 
   return (
     <>
@@ -52,6 +71,9 @@ export function ConversationSidebar({
 
       {/* Sidebar panel */}
       <div
+        role={isOpen ? 'dialog' : undefined}
+        aria-modal={isOpen ? 'true' : undefined}
+        aria-label={isOpen ? 'Conversation history' : undefined}
         className={`
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
           md:translate-x-0
@@ -86,7 +108,19 @@ export function ConversationSidebar({
             </div>
           )}
 
-          {!isLoading && conversations.length === 0 && (
+          {!isLoading && fetchError && (
+            <div className="px-3 py-8 text-center">
+              <p className="text-xs text-[var(--surface-500)]">Couldn&apos;t load conversations</p>
+              <button
+                onClick={fetchConversations}
+                className="mt-2 text-xs font-medium text-[var(--primary-600)] hover:text-[var(--primary-700)] transition-colors"
+              >
+                Tap to retry
+              </button>
+            </div>
+          )}
+
+          {!isLoading && !fetchError && conversations.length === 0 && (
             <div className="px-3 py-8 text-center">
               <p className="text-xs text-[var(--surface-400)]">No conversations yet</p>
               <p className="mt-1 text-xs text-[var(--surface-300)]">Start chatting with CribAI</p>
@@ -122,6 +156,7 @@ export function ConversationSidebar({
         <div
           className="fixed inset-0 z-20 bg-black/30 md:hidden"
           onClick={() => setIsOpen(false)}
+          aria-hidden="true"
         />
       )}
     </>

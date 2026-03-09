@@ -38,22 +38,22 @@ export function ChatWebResult({ results, campusSlug }: ChatWebResultProps) {
         <div
           key={item.url}
           role="listitem"
-          className="rounded-lg border border-gray-200 p-3 transition-colors hover:border-blue-300"
+          className="rounded-lg border border-[var(--surface-200)] p-3 transition-colors hover:border-[var(--primary-400)]"
         >
           <a
             href={item.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm font-medium text-blue-600 hover:underline"
+            className="text-sm font-medium text-[var(--primary-600)] hover:underline"
           >
             {item.title}
           </a>
-          <p className="mt-0.5 text-xs text-gray-400">{extractDomain(item.url)}</p>
-          <p className="mt-1 text-xs text-gray-600">{truncateSnippet(item.snippet)}</p>
+          <p className="mt-0.5 text-xs text-[var(--surface-400)]">{extractDomain(item.url)}</p>
+          <p className="mt-1 text-xs text-[var(--surface-600)]">{truncateSnippet(item.snippet)}</p>
           {item.listingId != null && (
             <Link
               href={`/${campusSlug}/listings/${item.listingId}`}
-              className="mt-1.5 inline-block text-xs text-emerald-600 hover:underline"
+              className="mt-1.5 inline-block text-xs text-[var(--primary-600)] hover:underline"
             >
               View in CribAI
             </Link>

@@ -1,7 +1,7 @@
 {
   "mode": "yolo",
   "granularity": "standard",
-  "model_profile": "balanced",
+  "model_profile": "quality",
   "commit_docs": true,
   "search_gitignored": false,
   "branching_strategy": "none",

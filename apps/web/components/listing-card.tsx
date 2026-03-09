@@ -30,6 +30,19 @@ function fairnessColor(score: number): string {
   return `${v.bg} ${v.text}`;
 }
 
+const SOURCE_NAMES: Record<string, string> = {
+  'apartments.com': 'Apartments.com',
+  craigslist: 'Craigslist',
+  zillow: 'Zillow',
+  web_search: 'Web Search',
+  facebook_marketplace: 'Facebook Marketplace',
+  hotpads: 'HotPads',
+};
+
+function formatSourceName(source: string): string {
+  return SOURCE_NAMES[source] ?? source.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
 function RentDisplay({ rentMonthly }: { readonly rentMonthly: number | null }) {
   if (rentMonthly != null) {
     return (
@@ -54,8 +67,8 @@ export function ListingCard({ listing, campusSlug, isSaved }: ListingCardProps) 
       href={`/${campusSlug}/listings/${listing.id}`}
       className="block rounded-xl bg-white overflow-hidden shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-0.5 transition-all duration-200"
     >
-      {heroPhoto && (
-        <div className="relative aspect-video">
+      <div className="relative aspect-video">
+        {heroPhoto ? (
           <Image
             src={heroPhoto}
             alt={`Photo of ${listing.address}`}
@@ -63,14 +76,23 @@ export function ListingCard({ listing, campusSlug, isSaved }: ListingCardProps) 
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             className="object-cover"
           />
-          <HeartButton
-            listingId={listing.id}
-            initialSaved={isSaved ?? false}
-            campusSlug={campusSlug}
-            size="sm"
-          />
-        </div>
-      )}
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-[var(--surface-100)]">
+            <div className="text-center">
+              <svg className="mx-auto h-8 w-8 text-[var(--surface-300)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21z" />
+              </svg>
+              <p className="mt-1 text-xs text-[var(--surface-300)]">No photo</p>
+            </div>
+          </div>
+        )}
+        <HeartButton
+          listingId={listing.id}
+          initialSaved={isSaved ?? false}
+          campusSlug={campusSlug}
+          size="sm"
+        />
+      </div>
 
       <div className="p-5">
         <div className="flex items-start justify-between">
@@ -104,21 +126,20 @@ export function ListingCard({ listing, campusSlug, isSaved }: ListingCardProps) 
         )}
 
         {listing.true_cost_total != null && (
-          <p className="mt-2 text-sm text-[var(--surface-400)]">
-            True Cost:{' '}
+          <p className="mt-2 text-sm text-[var(--surface-400)] group/truecost relative">
+            <span className="cursor-help border-b border-dashed border-[var(--surface-300)]">True Cost</span>:{' '}
             <span className="font-medium text-[var(--primary-700)]">
               ${listing.true_cost_total.toLocaleString()}/mo
+            </span>
+            <span className="pointer-events-none absolute bottom-full left-0 z-10 mb-2 w-52 rounded-lg bg-[var(--surface-800)] px-3 py-2 text-xs text-white opacity-0 shadow-lg transition-opacity group-hover/truecost:opacity-100">
+              Includes estimated utilities, parking, internet, and other fees beyond base rent.
             </span>
           </p>
         )}
 
         {listing.source && (
           <span className="mt-2 block text-xs text-[var(--surface-400)]">
-            via {listing.source === 'apartments.com' ? 'Apartments.com'
-              : listing.source === 'craigslist' ? 'Craigslist'
-              : listing.source === 'zillow' ? 'Zillow'
-              : listing.source === 'web_search' ? 'web search'
-              : listing.source}
+            via {formatSourceName(listing.source)}
           </span>
         )}
       </div>

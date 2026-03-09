@@ -15,7 +15,7 @@ export default async function SubmitListingPage({
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect(`/(auth)/login?redirect=/${campusSlug}/submit-listing`);
+    redirect(`/login?returnTo=/${campusSlug}/submit-listing`);
   }
 
   return (
@@ -26,7 +26,7 @@ export default async function SubmitListingPage({
       <p className="mt-2 mb-6 text-sm text-[var(--surface-500)]">
         Know about a rental? Help fellow students by adding it to CampusNest.
       </p>
-      <SubmitListingForm />
+      <SubmitListingForm campusSlug={campusSlug} />
     </div>
   );
 }
