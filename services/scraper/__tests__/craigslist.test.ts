@@ -1,12 +1,28 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { resolve, dirname } from 'path';
+import { normalizeListing } from '../normalizer';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Load real HTML fixtures
+const apaHtml = readFileSync(
+  resolve(__dirname, '../fixtures/craigslist-madison-apa.html'),
+  'utf-8',
+);
+const subHtml = readFileSync(
+  resolve(__dirname, '../fixtures/craigslist-madison-sub.html'),
+  'utf-8',
+);
 
 // Mock global fetch
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
-// Capture console output
-const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+// Suppress console during tests
+vi.spyOn(console, 'log').mockImplementation(() => {});
+vi.spyOn(console, 'warn').mockImplementation(() => {});
 
 const MOCK_CONFIG = {
   campusId: 'campus-1',
@@ -16,101 +32,165 @@ const MOCK_CONFIG = {
   radiusKm: 5,
 } as const;
 
-const MOCK_RSS_XML = `<?xml version="1.0" encoding="UTF-8"?>
-<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-         xmlns:dc="http://purl.org/dc/elements/1.1/"
-         xmlns:enc="http://purl.oclc.org/net/rss_2.0/enc#"
-         xmlns:geo="http://www.w3.org/2003/01/geo/wgs84_pos#">
-  <item>
-    <title><![CDATA[$1200 / 2br - 800ft2 - Nice apartment near campus]]></title>
-    <link>https://madison.craigslist.org/apa/d/madison-nice-apartment/7839123456.html</link>
-    <description>Great place</description>
-    <dc:date>2026-03-01T10:00:00-06:00</dc:date>
-    <geo:lat>43.074</geo:lat>
-    <geo:long>-89.395</geo:long>
-  </item>
-  <item>
-    <title><![CDATA[$950 / 1br - Studio near lake]]></title>
-    <link>https://madison.craigslist.org/apa/d/madison-studio/7839123457.html</link>
-    <description>Cozy studio</description>
-    <dc:date>2026-03-02T10:00:00-06:00</dc:date>
-    <geo:lat>43.071</geo:lat>
-    <geo:long>-89.410</geo:long>
-  </item>
-  <item>
-    <title><![CDATA[$1500 / 3br - Large 3 bedroom]]></title>
-    <link>https://madison.craigslist.org/apa/d/madison-large/7839123458.html</link>
-    <description>Spacious</description>
-    <dc:date>2026-03-03T10:00:00-06:00</dc:date>
-    <geo:lat>43.070</geo:lat>
-    <geo:long>-89.400</geo:long>
-  </item>
-</rdf:RDF>`;
+function makeOkResponse(html: string) {
+  return {
+    ok: true,
+    status: 200,
+    text: async () => html,
+  };
+}
 
-describe('CraigslistScraper', () => {
+function makeErrorResponse(status: number) {
+  return {
+    ok: false,
+    status,
+    text: async () => 'Error',
+  };
+}
+
+describe('CraigslistScraper (cheerio HTML)', () => {
   beforeEach(() => {
     mockFetch.mockReset();
-    warnSpy.mockClear();
-    logSpy.mockClear();
   });
 
-  it('logs detailed failure reason on 403', async () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('parses apartments from real HTML', async () => {
+    // Return apa fixture for /apa, empty for /sub
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/apa')) return makeOkResponse(apaHtml);
+      return makeOkResponse('<html><body><ol class="cl-static-search-results"></ol></body></html>');
+    });
+
     const { CraigslistScraper } = await import('../scrapers/craigslist');
     const scraper = new CraigslistScraper(MOCK_CONFIG);
 
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 403,
-      headers: new Map([['content-type', 'text/html']]),
-      text: async () => '<html>Blocked</html>',
+    const results = await scraper.scrape();
+    // Should parse the listings from apa fixture (352 based on grep count)
+    expect(results.length).toBeGreaterThan(100);
+    // All should be RawListing shape
+    for (const r of results.slice(0, 5)) {
+      expect(r.source).toBe('craigslist');
+      expect(r.externalId).toMatch(/^cl_\d+$/);
+    }
+  });
+
+  it('extracts price from .price div', async () => {
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/apa')) return makeOkResponse(apaHtml);
+      return makeOkResponse('<html><body><ol class="cl-static-search-results"></ol></body></html>');
     });
+
+    const { CraigslistScraper } = await import('../scrapers/craigslist');
+    const scraper = new CraigslistScraper(MOCK_CONFIG);
+
+    const results = await scraper.scrape();
+    const first = results[0]!;
+    expect(first.rentMonthly).toBe(1499);
+  });
+
+  it('extracts address from .location div', async () => {
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/apa')) return makeOkResponse(apaHtml);
+      return makeOkResponse('<html><body><ol class="cl-static-search-results"></ol></body></html>');
+    });
+
+    const { CraigslistScraper } = await import('../scrapers/craigslist');
+    const scraper = new CraigslistScraper(MOCK_CONFIG);
+
+    const results = await scraper.scrape();
+    const first = results[0]!;
+    expect(first.address).toContain('4717 Eastpark Blvd');
+    expect(first.address).toContain('Madison');
+  });
+
+  it('extracts posting ID from URL', async () => {
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/apa')) return makeOkResponse(apaHtml);
+      return makeOkResponse('<html><body><ol class="cl-static-search-results"></ol></body></html>');
+    });
+
+    const { CraigslistScraper } = await import('../scrapers/craigslist');
+    const scraper = new CraigslistScraper(MOCK_CONFIG);
+
+    const results = await scraper.scrape();
+    const first = results[0]!;
+    expect(first.externalId).toBe('cl_7917794434');
+    expect(first.sourceUrl).toContain('7917794434.html');
+  });
+
+  it('scrapes both /apa and /sub categories', async () => {
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/apa')) return makeOkResponse(apaHtml);
+      if (typeof url === 'string' && url.includes('/sub')) return makeOkResponse(subHtml);
+      return makeOkResponse('<html><body></body></html>');
+    });
+
+    const { CraigslistScraper } = await import('../scrapers/craigslist');
+    const scraper = new CraigslistScraper(MOCK_CONFIG);
 
     const results = await scraper.scrape();
 
-    expect(results).toEqual([]);
-    // Should log with status code and URL details
-    const warnCalls = warnSpy.mock.calls.map((c) => c.join(' '));
-    const hasDetailedLog = warnCalls.some(
-      (msg) => msg.includes('403') && msg.includes('craigslist'),
+    // Should have results from both categories
+    const apaResults = results.filter((r) => (r.rawData as Record<string, unknown>).category === 'apa');
+    const subResults = results.filter((r) => (r.rawData as Record<string, unknown>).category === 'sub');
+
+    expect(apaResults.length).toBeGreaterThan(0);
+    expect(subResults.length).toBeGreaterThan(0);
+    expect(results.length).toBe(apaResults.length + subResults.length);
+  });
+
+  it('handles fetch failure with retry', async () => {
+    let callCount = 0;
+    mockFetch.mockImplementation(async () => {
+      callCount++;
+      // Fail first two calls, succeed on third
+      if (callCount <= 2) return makeErrorResponse(500);
+      return makeOkResponse(apaHtml);
+    });
+
+    const { CraigslistScraper } = await import('../scrapers/craigslist');
+    const scraper = new CraigslistScraper(MOCK_CONFIG);
+
+    const results = await scraper.scrape();
+    // First category (/apa) should eventually succeed after retries
+    // Second category (/sub) may also have retries
+    expect(callCount).toBeGreaterThanOrEqual(3);
+  }, 30000);
+
+  it('output passes normalizer', async () => {
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/apa')) return makeOkResponse(apaHtml);
+      return makeOkResponse('<html><body><ol class="cl-static-search-results"></ol></body></html>');
+    });
+
+    const { CraigslistScraper } = await import('../scrapers/craigslist');
+    const scraper = new CraigslistScraper(MOCK_CONFIG);
+
+    const results = await scraper.scrape();
+
+    for (const listing of results) {
+      expect(() => normalizeListing(listing)).not.toThrow();
+    }
+  });
+
+  it('handles empty results page', async () => {
+    mockFetch.mockResolvedValue(
+      makeOkResponse('<html><body><ol class="cl-static-search-results"></ol></body></html>'),
     );
-    expect(hasDetailedLog).toBe(true);
-  });
 
-  it('parses all RSS items without cap', async () => {
     const { CraigslistScraper } = await import('../scrapers/craigslist');
     const scraper = new CraigslistScraper(MOCK_CONFIG);
 
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      text: async () => MOCK_RSS_XML,
-    });
-
     const results = await scraper.scrape();
-
-    // All 3 items parsed, no cap
-    expect(results.length).toBe(3);
-  });
-
-  it('logs when RSS returns OK but 0 items', async () => {
-    const { CraigslistScraper } = await import('../scrapers/craigslist');
-    const scraper = new CraigslistScraper(MOCK_CONFIG);
-
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      text: async () => '<?xml version="1.0"?><rdf:RDF></rdf:RDF>',
-    });
-
-    const results = await scraper.scrape();
-
     expect(results).toEqual([]);
-    const allLogs = logSpy.mock.calls.map((c) => c.join(' '));
-    const warnLogs = warnSpy.mock.calls.map((c) => c.join(' '));
-    const allOutput = [...allLogs, ...warnLogs];
-    const hasEmptyWarning = allOutput.some(
-      (msg) => msg.includes('0 items') || msg.includes('empty'),
-    );
-    expect(hasEmptyWarning).toBe(true);
+  });
+
+  it('has source set to craigslist', async () => {
+    const { CraigslistScraper } = await import('../scrapers/craigslist');
+    const scraper = new CraigslistScraper(MOCK_CONFIG);
+    expect(scraper.source).toBe('craigslist');
   });
 });
