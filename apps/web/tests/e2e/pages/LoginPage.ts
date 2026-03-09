@@ -11,7 +11,7 @@ import { type Page, type Locator, expect } from '@playwright/test';
  *   - <p> description text about magic link / .edu email
  *   - <input type="email" placeholder="you@university.edu">
  *   - <button type="submit"> text "Send magic link" (or "Sending link..." while loading)
- *   - Error div (conditional): bg-red-50 with error text
+ *   - Error div (conditional): data-testid="error-message" with error text
  *
  * Success state (after form submit):
  *   - "✉️" emoji
@@ -40,7 +40,7 @@ export class LoginPage {
     this.emailInput = page.getByPlaceholder('you@university.edu');
     this.submitButton = page.getByRole('button', { name: /Send magic link|Sending link/i });
     this.backLink = page.getByRole('link', { name: /Back/i });
-    this.errorMessage = page.locator('.bg-red-50');
+    this.errorMessage = page.locator('[data-testid="error-message"]');
     this.successHeading = page.getByRole('heading', { name: 'Check your email', level: 1 });
     this.useDifferentEmailButton = page.getByRole('button', { name: 'Use a different email' });
   }

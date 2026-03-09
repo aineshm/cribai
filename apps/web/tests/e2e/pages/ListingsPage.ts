@@ -119,6 +119,8 @@ export class ListingsPage {
   }
 
   async assertListingCardsExist(minCount = 1) {
-    await expect(this.listingCards()).toHaveCountGreaterThan(minCount - 1);
+    await expect.poll(async () => {
+      return await this.listingCards().count();
+    }).toBeGreaterThanOrEqual(minCount);
   }
 }

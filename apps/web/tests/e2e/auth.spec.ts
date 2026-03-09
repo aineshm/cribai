@@ -93,7 +93,7 @@ test.describe('Login page', () => {
 
 test.describe('CribAI auth guard (middleware)', () => {
   /**
-   * The middleware redirects /*/cribai to /login when there is no auth session.
+   * The middleware redirects /[campusSlug]/cribai to /login when there is no auth session.
    * We test this without a logged-in user — Playwright starts with an empty
    * cookie jar so no Supabase session is present.
    */

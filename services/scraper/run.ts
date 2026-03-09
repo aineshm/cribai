@@ -279,7 +279,7 @@ async function main() {
     }
 
     // Mark stale listings as inactive (not seen in 7 days)
-    if (!dryRun && supabase) {
+    if (!dryRun && supabase && source === 'all') {
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       const { data: staleData } = await supabase
         .from('listings')

@@ -29,6 +29,7 @@ export async function persistWebListing(
       .from('listings')
       .upsert(
         {
+          external_id: params.sourceUrl,
           address: params.address,
           source: 'web_search',
           source_url: params.sourceUrl,
@@ -38,7 +39,7 @@ export async function persistWebListing(
           is_active: true,
           raw_data: { web_content: params.content },
         },
-        { onConflict: 'source,source_url' },
+        { onConflict: 'external_id,source' },
       )
       .select('id')
       .single();
