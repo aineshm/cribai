@@ -108,7 +108,7 @@ async function semanticSearch(
     : `Found ${filtered.length} listing(s) matching "${parsed.semantic_query}":\n${filtered
         .map(
           (l, i) =>
-            `${i + 1}. ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10`,
+            `${i + 1}. [id:${l.id}] ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10`,
         )
         .join('\n')}` + uniqueHint;
 
@@ -258,7 +258,7 @@ async function sqlSearch(
     : `Found ${filtered.length} listing(s):\n${filtered
         .map(
           (l, i) =>
-            `${i + 1}. ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10`,
+            `${i + 1}. [id:${l.id}] ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10`,
         )
         .join('\n')}` + sqlUniqueHint;
 
