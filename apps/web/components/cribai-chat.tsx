@@ -308,7 +308,7 @@ export function CribAIChat({
               { type: 'text', content: `⚠ ${errorMsg}` },
             ];
             updateAssistantMessage(assistantBlocks);
-            setIsLoading(false);
+            setIsStreaming(false);
             return;
           }
 
