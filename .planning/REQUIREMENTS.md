@@ -28,7 +28,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **LIST-02**: User receives alerts when a saved listing's price changes
 - [x] **LIST-03**: Listing detail pages display photos scraped from source
 - [x] **LIST-04**: Listings show freshness indicators (when last verified/updated, days since posted)
-- [ ] **LIST-05**: Listings display scraped reviews from Reddit and other sources (recent, relevant)
+- [x] **LIST-05**: Listings display scraped reviews from Reddit and other sources (recent, relevant)
 
 ### Data Pipeline
 
@@ -38,12 +38,12 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **DATA-04**: Multi-source scraping covers Madison-specific PM sites (Steve Brown, Madison Property Mgmt, JD McCormick, etc.)
 - [x] **DATA-05**: Nightly scrape automation runs via GitHub Actions with monitoring/alerting on failures
 - [x] **DATA-06**: Stale listings are detected and marked inactive with freshness tracking
-- [ ] **DATA-07**: Reddit/review scraping pipeline collects recent reviews for Madison-area properties
+- [x] **DATA-07**: Reddit/review scraping pipeline collects recent reviews for Madison-area properties
 
 ### AI Chat
 
 - [ ] **CHAT-01**: Conversation history persists across sessions (user can resume previous chats)
-- [ ] **CHAT-02**: Tour scheduling works end-to-end via chat (mocked backend for v1 -- no real PM integration)
+- [x] **CHAT-02**: Tour scheduling works end-to-end via chat (mocked backend for v1 -- no real PM integration)
 - [ ] **CHAT-03**: CribAI has a map tool that renders an interactive map block in the chat UI
 
 ### Platform
@@ -109,16 +109,16 @@ Which phases cover which requirements. Updated during roadmap creation.
 | LIST-02 | Phase 4 | Complete |
 | LIST-03 | Phase 4 | Complete |
 | LIST-04 | Phase 4 | Complete |
-| LIST-05 | Phase 6 | Pending |
+| LIST-05 | Phase 6 | Complete |
 | DATA-01 | Phase 2 | Complete |
 | DATA-02 | Phase 2 | Complete |
 | DATA-03 | Phase 6 | Pending |
 | DATA-04 | Phase 5 | Complete |
 | DATA-05 | Phase 2 | Complete |
 | DATA-06 | Phase 2 | Complete |
-| DATA-07 | Phase 6 | Pending |
+| DATA-07 | Phase 6 | Complete |
 | CHAT-01 | Phase 6 | Pending |
-| CHAT-02 | Phase 6 | Pending |
+| CHAT-02 | Phase 6 | Complete |
 | CHAT-03 | Phase 6 | Pending |
 | PLAT-01 | Phase 1 | Complete |
 | PLAT-02 | Phase 1 | Complete |
