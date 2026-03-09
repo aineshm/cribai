@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Semantic Search** - Vector embeddings and hybrid search so CribAI ranks listings by qualitative relevance (completed 2026-03-06)
 - [ ] **Phase 4: Saved Listings and Alerts** - Users can save favorites, track price changes, and view listing details with photos
 - [ ] **Phase 5: Agentic Data Pipeline + Web Search** - Fix scraper for real listings, add web_search tool so CribAI researches on-demand (UAT gap closure in progress)
-- [ ] **Phase 6: Agent Tool Expansion + Polish** - Placeholder and real tools for reviews, tour booking, PM contact, neighborhood info; chat persistence; ship
+- [x] **Phase 6: Agent Tool Expansion + Polish** - Placeholder and real tools for reviews, tour booking, PM contact, neighborhood info; chat persistence; ship (completed 2026-03-09)
 
 ## Phase Details
 
@@ -150,4 +150,4 @@ Phase 4 can proceed in parallel with Phase 5 planning/discussion.
 | 3. Semantic Search | 3/3 | Complete | 2026-03-06 |
 | 4. Saved Listings and Alerts | 4/4 | Complete | 2026-03-06 |
 | 5. Agentic Data Pipeline + Web Search | 3/5 | Gap closure | - |
-| 6. Agent Tool Expansion + Polish | 0/3 | Not started | - |
+| 6. Agent Tool Expansion + Polish | 3/3 | Complete   | 2026-03-09 |

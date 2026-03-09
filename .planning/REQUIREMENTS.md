@@ -34,7 +34,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **DATA-01**: Apartments.com scraper runs reliably against UW Madison area listings
 - [x] **DATA-02**: Scraper collects listing photos and stores/references them
-- [ ] **DATA-03**: Manual listing submission form allows landlords or students to add listings directly
+- [x] **DATA-03**: Manual listing submission form allows landlords or students to add listings directly
 - [x] **DATA-04**: Multi-source scraping covers Madison-specific PM sites (Steve Brown, Madison Property Mgmt, JD McCormick, etc.)
 - [x] **DATA-05**: Nightly scrape automation runs via GitHub Actions with monitoring/alerting on failures
 - [x] **DATA-06**: Stale listings are detected and marked inactive with freshness tracking
@@ -112,7 +112,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | LIST-05 | Phase 6 | Complete |
 | DATA-01 | Phase 2 | Complete |
 | DATA-02 | Phase 2 | Complete |
-| DATA-03 | Phase 6 | Pending |
+| DATA-03 | Phase 6 | Complete |
 | DATA-04 | Phase 5 | Complete |
 | DATA-05 | Phase 2 | Complete |
 | DATA-06 | Phase 2 | Complete |
