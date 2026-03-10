@@ -31,7 +31,7 @@
 **Git range:** 2a6ed8e..f345552
 
 **Key accomplishments:**
-1. Design system migration: Cabinet Grotesk + Satoshi fonts, shadcn/ui primitives, Lucide icons, Framer Motion
+1. Design system migration: Space Grotesk + DM Sans fonts, shadcn/ui primitives, Lucide icons, Framer Motion
 2. Marketing landing page with hero, social proof, features, how-it-works, CTA
 3. Auth page redesign: split layout with branded panel + animated multi-step OTP flow
 4. Explore page: unified split view (listings 60% + map 40%) with filter chips + floating AI chat panel

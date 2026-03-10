@@ -28,7 +28,7 @@ Students can find off-campus housing through conversational AI search that under
 - ✓ Responsive mobile design with hamburger nav — v1.0
 - ✓ Stale listing detection and archival lifecycle — v1.0
 - ✓ Nightly GitHub Actions pipeline (scrape → embed → PageIndex rebuild) — v1.0
-- ✓ Design system: Cabinet Grotesk + Satoshi fonts, shadcn/ui, Lucide icons, Framer Motion — v1.1
+- ✓ Design system: Space Grotesk + DM Sans fonts, shadcn/ui, Lucide icons, Framer Motion — v1.1
 - ✓ Marketing landing page with hero, social proof, features, CTA — v1.1
 - ✓ Auth redesign: split layout with branded panel + animated multi-step OTP — v1.1
 - ✓ Explore page: split view (listings + map) with filter chips + floating AI panel — v1.1
@@ -108,7 +108,7 @@ Students can find off-campus housing through conversational AI search that under
 | Free for students in v1 | Remove friction, validate usage, monetize via PM side later | — Pending |
 | shadcn/ui for v1.1 | Full component library, Tailwind-native, accessible, widely adopted | — Pending |
 | Framer Motion for animations | Spring physics, layout animations, presence/exit — industry standard | — Pending |
-| Cabinet Grotesk + Satoshi fonts | Modern geometric sans-serif pair from Figma design — youthful, clean | — Pending |
+| Space Grotesk + DM Sans fonts | Modern geometric sans-serif pair from Figma design — youthful, clean | — Pending |
 | Lucide icons over Heroicons | Tree-shakeable, better DX, matches shadcn/ui ecosystem | — Pending |
 | Simple mission table over state machines | v1.1 MVP — mission status column + polling, defer LangGraph to v2 | — Pending |
 

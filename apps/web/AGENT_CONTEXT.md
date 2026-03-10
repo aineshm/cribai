@@ -97,7 +97,7 @@ shadcn tokens (added by init, keep these):
 ## Existing Fonts
 - **Display**: DM Serif Display (loaded via next/font/google, variable `--font-dm-serif`)
 - **Body**: Inter (loaded via next/font/google, variable `--font-inter`)
-- v1.1 will ADD: Cabinet Grotesk (display) + Satoshi (body) — these REPLACE DM Serif + Inter
+- v1.1 ADDED: Space Grotesk (display) + DM Sans (body) — these REPLACE DM Serif Display + Inter
 
 ## Auth Flow
 - Supabase OTP-based auth: email → signInWithOtp → verifyOtp

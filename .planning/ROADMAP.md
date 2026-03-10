@@ -2,117 +2,117 @@
 
 ## Milestones
 
-- ✅ **v1.0 CampusNest MVP** — Phases 1-9 (shipped 2026-03-10)
-- 🚧 **v1.1 UI/UX Upgrade** — Phases 10-15 (in progress)
+- ✅ **v1.0 CampusNest MVP** -- Phases 1-9 (shipped 2026-03-10)
+- ✅ **v1.1 UI/UX Upgrade** -- Phases 10-15 (shipped 2026-03-10)
+- 🚧 **v1.2 Native Agent Backend** -- Phases 16-20 (in progress)
 
 ## Phases
 
 <details>
-<summary>✅ v1.0 CampusNest MVP (Phases 1-9) — SHIPPED 2026-03-10</summary>
+<summary>v1.0 CampusNest MVP (Phases 1-9) -- SHIPPED 2026-03-10</summary>
 
-- [x] Phase 1: Auth and Platform Foundation (3/3 plans) — completed 2026-03-05
-- [x] Phase 2: Data Pipeline (3/3 plans) — completed 2026-03-06
-- [x] Phase 3: Semantic Search (3/3 plans) — completed 2026-03-06
-- [x] Phase 4: Saved Listings and Alerts (4/4 plans) — completed 2026-03-06
-- [x] Phase 5: Agentic Data Pipeline + Web Search (5/5 plans) — completed 2026-03-08
-- [x] Phase 6: Agent Tool Expansion + Polish (3/3 plans) — completed 2026-03-09
-- [x] Phase 7: Fix E2E Test Issues + Complete V1 (4/4 plans) — completed 2026-03-10
-- [x] Phase 8: Close Audit Gaps + Verify Phase 4 (2/2 plans) — completed 2026-03-10
-- [x] Phase 9: V1 Integration Polish + Doc Cleanup (2/2 plans) — completed 2026-03-10
+- [x] Phase 1: Auth and Platform Foundation (3/3 plans) -- completed 2026-03-05
+- [x] Phase 2: Data Pipeline (3/3 plans) -- completed 2026-03-06
+- [x] Phase 3: Semantic Search (3/3 plans) -- completed 2026-03-06
+- [x] Phase 4: Saved Listings and Alerts (4/4 plans) -- completed 2026-03-06
+- [x] Phase 5: Agentic Data Pipeline + Web Search (5/5 plans) -- completed 2026-03-08
+- [x] Phase 6: Agent Tool Expansion + Polish (3/3 plans) -- completed 2026-03-09
+- [x] Phase 7: Fix E2E Test Issues + Complete V1 (4/4 plans) -- completed 2026-03-10
+- [x] Phase 8: Close Audit Gaps + Verify Phase 4 (2/2 plans) -- completed 2026-03-10
+- [x] Phase 9: V1 Integration Polish + Doc Cleanup (2/2 plans) -- completed 2026-03-10
 
 Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 </details>
 
-### 🚧 v1.1 UI/UX Upgrade (In Progress)
+<details>
+<summary>v1.1 UI/UX Upgrade (Phases 10-15) -- SHIPPED 2026-03-10</summary>
 
-**Milestone Goal:** Migrate the entire frontend to the new Figma design system (Cabinet Grotesk + Satoshi, shadcn/ui, Lucide, Framer Motion) and introduce the AI Concierge missions page — shifting from chat-first to agent-first UX.
+- [x] Phase 10: Design System Foundation (DESIGN-01 through DESIGN-05, COMPAT-01)
+- [x] Phase 11: Landing Page + Auth Redesign (LAND-01 through LAND-04, AUTH-05, AUTH-06)
+- [x] Phase 12: Explore Page (EXPL-01 through EXPL-05)
+- [x] Phase 13: Listing Detail Redesign (DETAIL-01 through DETAIL-05)
+- [x] Phase 14: Post Sublease + Profile/Saved Redesign (POST-01 through POST-03, PROF-01 through PROF-03)
+- [x] Phase 15: AI Concierge UI (AGENT-01 through AGENT-06)
 
-- [ ] **Phase 10: Design System Foundation** - Install and wire shadcn/ui, Cabinet Grotesk + Satoshi fonts, Lucide icons, Framer Motion base, and token bridge — gates all UI phases
-- [ ] **Phase 11: Landing Page + Auth Redesign** - Marketing landing page with hero/social proof/CTA + branded split-panel auth flow with slide animations
-- [ ] **Phase 12: Explore Page** - Unified split view (listings 60% + map 40%) with filter chips, floating CribAI panel in root layout, and extracted hook
-- [ ] **Phase 13: Listing Detail Redesign** - Photo gallery grid, two-column sticky CTA layout, AI lease summary, commute section, and mobile sticky bar
-- [ ] **Phase 14: Post Sublease + Profile/Saved Redesign** - Multi-step sublease wizard with progress tracker + combined profile/saved tabbed page
-- [ ] **Phase 15: AI Concierge UI** - Task-based mission board with status pipeline, HITL draft approval, steering bar, agent summaries, and proactive empty state
+</details>
+
+### 🚧 v1.2 Native Agent Backend (In Progress)
+
+**Milestone Goal:** Build the real backend for the AI Concierge -- mission executor, DB schema with HITL draft approval, Realtime status updates, steering bar intent parsing, real tool integrations, and agent memory -- wiring the v1.1 mock UI to a live agentic pipeline.
+
+- [ ] **Phase 16: Missions DB Schema** - Migration 013 with 4 tables, RLS, Realtime publications, pg_cron cleanup, and aligned TypeScript types
+- [ ] **Phase 17: Real Tool Integrations** - Replace 3 placeholder tools with Google Places reviews, Walk Score neighborhood info, and PM contact draft generation
+- [ ] **Phase 18: Mission Executor + HITL Approval** - Async fire-and-forget executor with agentic loop, Realtime log push, and draft approval gate for irreversible actions
+- [ ] **Phase 19: Steering + Agent Memory** - Steering bar intent parsing via Gemini function calling and cross-session preference memory for personalized results
+- [ ] **Phase 20: UI Wiring + Production Readiness** - Wire Concierge UI to real backend, delete mock data, handle error states, deploy with fresh data
 
 ## Phase Details
 
-### Phase 10: Design System Foundation
-**Goal**: The design system infrastructure is installed and verified — Cabinet Grotesk + Satoshi fonts load on every page, shadcn/ui primitives are available with a clean token bridge, Lucide icons are tree-shakeable, and Framer Motion wrappers are established — unblocking all subsequent UI phases without breaking any existing v1.0 features.
-**Depends on**: Nothing (v1.1 starting phase — v1.0 is complete)
-**Requirements**: DESIGN-01, DESIGN-02, DESIGN-03, DESIGN-04, DESIGN-05, COMPAT-01
+### Phase 16: Missions DB Schema
+**Goal**: The database foundation for all mission-related features is live -- four tables with RLS, Realtime publications, HITL draft versioning columns, pg_cron cleanup jobs, and TypeScript types aligned to DB column names -- unblocking executor, Realtime, and UI wiring.
+**Depends on**: Nothing (v1.2 starting phase -- v1.1 is complete)
+**Requirements**: EXEC-03
 **Success Criteria** (what must be TRUE):
-  1. Every page renders Cabinet Grotesk for headings and Satoshi for body text (verified by font inspector)
-  2. A shadcn/ui Button and Card render correctly in a smoke-test page with no CSS regression on existing pages
-  3. An icon rendered via lucide-react appears correctly and the bundle does not include unused icons (verified by build output)
-  4. A `MotionSection` client wrapper animates on mount without triggering Server Component boundary errors
-  5. The app builds and all existing tests pass after the token bridge lands in `globals.css`
+  1. `missions`, `mission_logs`, `mission_drafts`, and `mission_steerings` tables exist in Supabase with RLS policies that scope all reads/writes to the authenticated user
+  2. `mission_drafts` table has `draft_version` and `is_current` columns for safe HITL versioning (no stale approval bugs possible)
+  3. Realtime publications are enabled on `missions`, `mission_logs`, and `mission_drafts` tables (verified via Supabase dashboard or SQL query)
+  4. pg_cron cleanup job runs on schedule to expire stale missions and purge `job_run_details` bloat
+  5. TypeScript types in `concierge-types.ts` match DB column names exactly (no mock-only fields remain)
 **Plans**: TBD
 
-### Phase 11: Landing Page + Auth Redesign
-**Goal**: First-time visitors land on a polished marketing page that communicates CampusNest's AI value prop and converts to sign-up; the auth page uses a branded split-panel layout with slide-animated multi-step OTP flow — all built on Phase 10's design system.
-**Depends on**: Phase 10
-**Requirements**: LAND-01, LAND-02, LAND-03, LAND-04, AUTH-05, AUTH-06
+### Phase 17: Real Tool Integrations
+**Goal**: The three placeholder tool stubs are replaced with real implementations that return live data -- Google Places reviews, Walk Score + neighborhood amenities, and PM contact info with draft inquiry messages -- cached appropriately and testable independently of the mission executor.
+**Depends on**: Nothing (independent of Phase 16 -- can build in parallel)
+**Requirements**: TOOLS-01, TOOLS-02, TOOLS-03
 **Success Criteria** (what must be TRUE):
-  1. Unauthenticated visitor to `/` sees the marketing landing page (hero, value prop, "Get Started" CTA) — not the auth wall
-  2. Landing page social proof bar, feature cards, "How It Works" section, and footer CTA are visible on desktop
-  3. Mobile visitor sees a sticky "Get Started" button pinned to the bottom of the screen throughout scroll
-  4. Auth page renders a branded left panel alongside the form on desktop (split layout)
-  5. OTP flow transitions from email entry to code entry to profile step with visible slide animations between steps
+  1. Reviews tool returns real Google Places ratings and at least 3 recent reviews for a known UW-Madison property (not "coming soon" stub text)
+  2. Neighborhood info tool returns Walk Score (walk/transit/bike) and nearby amenities from Google Places for a given listing address
+  3. PM contact tool returns contact data from the `landlords` table and a Gemini-generated draft inquiry message (no outbound email sent)
+  4. All three tools cache results (reviews at 24h TTL, neighborhood at 7-day TTL) to avoid redundant API calls
+  5. Each tool handler has unit tests that mock external APIs and verify the response shape matches the existing `ToolResult` interface
 **Plans**: TBD
 
-### Phase 12: Explore Page
-**Goal**: Users can search and browse listings in a unified split view — listing grid on the left, interactive map on the right — with filter chips above and CribAI accessible as a floating slide-over panel that persists across route navigation; the `/listings` and `/cribai` routes redirect here.
-**Depends on**: Phase 10
-**Requirements**: EXPL-01, EXPL-02, EXPL-03, EXPL-04, EXPL-05
+### Phase 18: Mission Executor + HITL Approval
+**Goal**: Users can create missions that execute asynchronously -- the executor runs a multi-step agentic loop using existing CribAI tools, writes append-only logs pushed via Realtime, and pauses at irreversible actions (tour scheduling) for user approval before proceeding.
+**Depends on**: Phase 16 (schema), Phase 17 (real tools)
+**Requirements**: EXEC-01, EXEC-02, EXEC-04, HITL-01, HITL-02
 **Success Criteria** (what must be TRUE):
-  1. Desktop user sees listings grid (60%) and Mapbox map (40%) side by side on the explore page
-  2. Mobile user can switch between List and Map views using a segmented toggle control
-  3. Filter chips (Price, Beds, Distance, Move-in Date, Pet Friendly, Furnished) appear above results and update the listing grid when changed
-  4. Clicking the floating AI button opens CribAI as a slide-over panel; navigating to another route and returning keeps the panel open and conversation intact
-  5. Each listing card shows photo, price, beds/baths, distance badge, save button, and AI Verified badge
+  1. User creates a mission from the Concierge page and receives an immediate response (202 Accepted) while the executor runs in the background via `after()`
+  2. Mission executor runs a multi-step agentic loop (search, filter, shortlist) reusing existing CribAI tools with a max-turns cap to prevent infinite loops
+  3. Mission status updates and execution logs appear in the UI in real-time via Supabase Realtime (no polling, no page refresh needed)
+  4. Executor pauses at irreversible actions and writes a draft; user can approve, edit, or reject the draft from the mission detail view
+  5. Approving a stale draft (superseded by a newer version) returns an error instead of executing the wrong action
 **Plans**: TBD
 
-### Phase 13: Listing Detail Redesign
-**Goal**: The listing detail page presents a visually rich, conversion-oriented layout — photo gallery grid with lightbox, sticky CTA sidebar, AI-generated lease summary, commute chips to campus — matching the Figma spec across desktop and mobile.
-**Depends on**: Phase 10
-**Requirements**: DETAIL-01, DETAIL-02, DETAIL-03, DETAIL-04, DETAIL-05
+### Phase 19: Steering + Agent Memory
+**Goal**: Users can course-correct running missions via natural language steering and CribAI remembers user preferences across sessions -- so the agent gets smarter with use and responds to mid-mission corrections without requiring mission restart.
+**Depends on**: Phase 18 (executor must exist to consume steering intents)
+**Requirements**: STEER-01, STEER-02, MEM-01, MEM-02
 **Success Criteria** (what must be TRUE):
-  1. Listing detail shows a 2/3 hero + 1/3 side grid photo layout; clicking any photo opens a full-screen lightbox
-  2. Desktop shows a sticky CTA card on the right column with "Book Tour" and "Ask AI" buttons that remain visible while scrolling the left content column
-  3. Landlord info card, amenities grid, and an AI-generated lease summary section are visible below the main content
-  4. Commute section shows a map with distance and estimated transit/walk time to at least one campus building
-  5. Mobile user sees a sticky bottom bar with price, "Book Tour", and "Chat with AI" buttons
+  1. User types a correction in the steering bar (e.g., "actually under $900") and the running mission adjusts its behavior accordingly
+  2. Gemini parses steering input into a structured intent (modify constraint, change goal, pause, cancel) via function calling -- not free-text passthrough
+  3. Agent recalls user preferences from previous sessions (e.g., "prefers quiet neighborhoods") without the user repeating them
+  4. Search results and recommendations reflect stored preferences when the user has an established history
 **Plans**: TBD
 
-### Phase 14: Post Sublease + Profile/Saved Redesign
-**Goal**: Students posting a sublease complete a guided multi-step wizard with visible progress; the profile and saved listings pages are merged into a single tabbed page with a profile header — reducing navigation friction and completing the redesign of all non-explore, non-concierge pages.
-**Depends on**: Phase 10
-**Requirements**: POST-01, POST-02, POST-03, PROF-01, PROF-02, PROF-03
+### Phase 20: UI Wiring + Production Readiness
+**Goal**: The Concierge UI is fully wired to the real backend with mock data deleted, all v1.1 pages work end-to-end with real data, error states are handled gracefully, and the app is deployed to Vercel with fresh listings and all API keys configured.
+**Depends on**: Phase 18, Phase 19
+**Requirements**: WIRE-01, WIRE-02, WIRE-03, PROD-01, PROD-02, PROD-03, PROD-04
 **Success Criteria** (what must be TRUE):
-  1. Post sublease form guides the user through distinct steps: Basics, Details, Amenities, Photos, Description, Review — with forward/back navigation
-  2. Desktop post sublease shows a sidebar listing all steps with the current step highlighted
-  3. Mobile post sublease shows a progress bar with step count and completion percentage
-  4. Profile/Saved page shows a header card with avatar, name, university, and verification badge
-  5. Tabs switch between Saved Listings and Account Settings views; Settings section has Personal Info, Notifications, and Log Out navigation items
-**Plans**: TBD
-
-### Phase 15: AI Concierge UI
-**Goal**: The AI Concierge page gives users a mission-based view of CribAI's async task work — a sidebar lists active and past missions with status indicators, a mission detail view shows action cards, agent summaries, and raw logs, a steering bar allows mid-mission correction, and an empty state suggests proactive missions — built with mock data (no backend executor in v1.1).
-**Depends on**: Phase 10, Phase 12
-**Requirements**: AGENT-01, AGENT-02, AGENT-03, AGENT-04, AGENT-05, AGENT-06
-**Success Criteria** (what must be TRUE):
-  1. Concierge sidebar lists mock mission cards with status indicators (pending, running, awaiting approval, complete, failed)
-  2. Active/Past tab filter switches the mission list between in-progress and completed missions
-  3. Mission detail view shows status-specific action cards (e.g., draft approval card for a scheduled tour mission)
-  4. Steering bar is visible at the bottom of the mission detail and accepts text input for course correction
-  5. Empty state (no missions) shows at least three proactive mission suggestion cards based on context
+  1. Concierge UI reads mission data from Supabase -- `mock-missions.ts` is deleted and no mock constants remain
+  2. Mission status badges, log timeline, and draft approval cards update in real-time from backend data (not hardcoded state)
+  3. Steering bar form submission calls the real steering API endpoint and the UI reflects the steering intent
+  4. Scraper produces fresh UW-Madison listings and all pages (explore, listing detail, saved) render with current data and working images
+  5. Failed missions, API timeouts, and empty results show user-friendly error states -- no raw errors, stack traces, or blank screens
 **Plans**: TBD
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15
+Phases execute in numeric order: 16 -> 17 -> 18 -> 19 -> 20
+Note: Phase 16 and 17 have no dependency on each other and can execute in parallel.
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -125,9 +125,14 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15
 | 7. Fix E2E + Complete V1 | v1.0 | 4/4 | Complete | 2026-03-10 |
 | 8. Close Audit Gaps | v1.0 | 2/2 | Complete | 2026-03-10 |
 | 9. Integration Polish | v1.0 | 2/2 | Complete | 2026-03-10 |
-| 10. Design System Foundation | v1.1 | 0/TBD | Not started | - |
-| 11. Landing Page + Auth Redesign | v1.1 | 0/TBD | Not started | - |
-| 12. Explore Page | v1.1 | 0/TBD | Not started | - |
-| 13. Listing Detail Redesign | v1.1 | 0/TBD | Not started | - |
-| 14. Post Sublease + Profile/Saved Redesign | v1.1 | 0/TBD | Not started | - |
-| 15. AI Concierge UI | v1.1 | 0/TBD | Not started | - |
+| 10. Design System Foundation | v1.1 | -/- | Complete | 2026-03-10 |
+| 11. Landing Page + Auth Redesign | v1.1 | -/- | Complete | 2026-03-10 |
+| 12. Explore Page | v1.1 | -/- | Complete | 2026-03-10 |
+| 13. Listing Detail Redesign | v1.1 | -/- | Complete | 2026-03-10 |
+| 14. Post Sublease + Profile/Saved | v1.1 | -/- | Complete | 2026-03-10 |
+| 15. AI Concierge UI | v1.1 | -/- | Complete | 2026-03-10 |
+| 16. Missions DB Schema | v1.2 | 0/TBD | Not started | - |
+| 17. Real Tool Integrations | v1.2 | 0/TBD | Not started | - |
+| 18. Mission Executor + HITL Approval | v1.2 | 0/TBD | Not started | - |
+| 19. Steering + Agent Memory | v1.2 | 0/TBD | Not started | - |
+| 20. UI Wiring + Production Readiness | v1.2 | 0/TBD | Not started | - |
