@@ -14,6 +14,7 @@ function LoginForm() {
   const [step, setStep] = useState<'email' | 'otp'>('email');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = useState(false);
 
   const sendOtpEmail = useCallback(async () => {
     setLoading(true);
@@ -109,6 +110,7 @@ function LoginForm() {
 
         <form onSubmit={handleVerifyOtp} className="mt-6 space-y-4">
           <input
+            aria-label="8-digit verification code"
             type="text"
             inputMode="numeric"
             pattern="[0-9]*"
@@ -130,10 +132,16 @@ function LoginForm() {
         </form>
 
         <button
-          onClick={() => { setError(null); sendOtpEmail(); }}
-          className="mt-4 w-full text-sm text-[var(--primary-600)] hover:underline"
+          onClick={() => {
+            setError(null);
+            sendOtpEmail();
+            setResendCooldown(true);
+            setTimeout(() => setResendCooldown(false), 30_000);
+          }}
+          disabled={loading || resendCooldown}
+          className="mt-4 w-full text-sm text-[var(--primary-600)] hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Resend code
+          {resendCooldown ? 'Code sent — wait 30s' : 'Resend code'}
         </button>
       </div>
     );
@@ -157,6 +165,7 @@ function LoginForm() {
 
       <form onSubmit={handleSendOtp} className="mt-6 space-y-4">
         <input
+          aria-label="Email address"
           type="email"
           placeholder="you@university.edu"
           value={email}

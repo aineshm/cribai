@@ -12,7 +12,8 @@ export function ShareButton({ title, url }: ShareButtonProps) {
   const [copied, setCopied] = useState(false);
 
   const handleShare = useCallback(async () => {
-    const shareData = { title, url };
+    const absoluteUrl = new URL(url, window.location.origin).toString();
+    const shareData = { title, url: absoluteUrl };
 
     // Use native share sheet on supported devices (mobile)
     if (typeof navigator !== 'undefined' && navigator.share) {
@@ -27,7 +28,7 @@ export function ShareButton({ title, url }: ShareButtonProps) {
 
     // Fallback: copy URL to clipboard
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(absoluteUrl);
       setCopied(true);
       toast.success('Link copied to clipboard');
       setTimeout(() => setCopied(false), 2000);

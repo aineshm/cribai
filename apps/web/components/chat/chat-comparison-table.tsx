@@ -5,7 +5,7 @@ import Link from 'next/link';
 interface ListingSummary {
   readonly id: string;
   readonly address: string;
-  readonly rentMonthly: number;
+  readonly rentMonthly: number | null;
   readonly bedrooms: number | null;
   readonly bathrooms: number | null;
   readonly sqft: number | null;
@@ -53,7 +53,7 @@ export function ChatComparisonTable({ listings, campusSlug }: ChatComparisonTabl
                   {l.address}
                 </Link>
               </td>
-              <td className="px-3 py-2 font-medium">${l.rentMonthly.toLocaleString()}</td>
+              <td className="px-3 py-2 font-medium">{l.rentMonthly != null ? `$${l.rentMonthly.toLocaleString()}` : '-'}</td>
               <td className="px-3 py-2">{l.bedrooms ?? '-'}</td>
               <td className="px-3 py-2">{l.sqft?.toLocaleString() ?? '-'}</td>
               <td className="px-3 py-2">

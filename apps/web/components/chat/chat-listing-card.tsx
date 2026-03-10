@@ -5,7 +5,7 @@ import Link from 'next/link';
 interface ListingSummary {
   readonly id: string;
   readonly address: string;
-  readonly rentMonthly: number;
+  readonly rentMonthly: number | null;
   readonly bedrooms: number | null;
   readonly bathrooms: number | null;
   readonly sqft: number | null;
@@ -41,8 +41,8 @@ export function ChatListingCard({ listing, campusSlug }: ChatListingCardProps) {
             {listing.address}
           </p>
           <p className="mt-0.5 text-lg font-bold text-[var(--surface-900)]">
-            ${listing.rentMonthly.toLocaleString()}
-            <span className="text-xs font-normal text-[var(--surface-500)]">/mo</span>
+            {listing.rentMonthly != null ? `$${listing.rentMonthly.toLocaleString()}` : 'Price N/A'}
+            {listing.rentMonthly != null && <span className="text-xs font-normal text-[var(--surface-500)]">/mo</span>}
           </p>
         </div>
         {listing.fairnessScore != null && (

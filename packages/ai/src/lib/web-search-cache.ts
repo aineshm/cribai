@@ -45,7 +45,9 @@ export function getCachedResults(query: string): readonly WebSearchResult[] | nu
 
 export function setCachedResults(query: string, results: readonly WebSearchResult[]): void {
   const key = normalizeKey(query);
-  evictOldest();
+  if (!cache.has(key)) {
+    evictOldest();
+  }
   cache.set(key, { results, timestamp: Date.now() });
 }
 

@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { createSecretClient, createServerComponentClient } from '@campusnest/supabase/server';
 import { ListingGrid } from '../../../../components/listing-grid';
@@ -92,6 +93,18 @@ export default async function ListingsPage({
 
   const total = totalCount ?? 0;
   const totalPages = Math.ceil(total / PAGE_SIZE);
+
+  // Redirect to last valid page if requested page exceeds total
+  if (totalPages > 0 && page > totalPages) {
+    const params = new URLSearchParams();
+    if (filters.beds) params.set('beds', filters.beds);
+    if (filters.minPrice) params.set('minPrice', filters.minPrice);
+    if (filters.maxPrice) params.set('maxPrice', filters.maxPrice);
+    if (filters.sort) params.set('sort', filters.sort);
+    if (totalPages > 1) params.set('page', String(totalPages));
+    const qs = params.toString();
+    redirect(`/${campusSlug}/listings${qs ? `?${qs}` : ''}`);
+  }
 
   // Fetch saved listing IDs for authenticated user (optional)
   let savedListingIds = new Set<string>();

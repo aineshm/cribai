@@ -70,7 +70,7 @@ export function ChatMapBlock({ block, campusSlug }: ChatMapBlockProps) {
                     : 'border-[var(--surface-200)] bg-white text-[var(--surface-900)]'
                 }`}
               >
-                ${listing.rentMonthly.toLocaleString()}
+                {listing.rentMonthly != null ? `$${listing.rentMonthly.toLocaleString()}` : 'N/A'}
               </div>
             </Marker>
           );

@@ -70,7 +70,7 @@ export async function getSavedListings(
   const unsorted: readonly ListingSummary[] = rows.map(row => ({
     id: row.listings.id,
     address: row.listings.address,
-    rentMonthly: Number(row.listings.rent_monthly),
+    rentMonthly: row.listings.rent_monthly != null ? Number(row.listings.rent_monthly) : null,
     bedrooms: row.listings.bedrooms,
     bathrooms: row.listings.bathrooms,
     sqft: row.listings.sqft,

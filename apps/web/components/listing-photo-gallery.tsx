@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Image from 'next/image';
 
 interface ListingPhotoGalleryProps {
@@ -37,18 +37,43 @@ function Lightbox({
   readonly onNext: () => void;
   readonly onPrev: () => void;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
       if (e.key === 'ArrowRight') onNext();
       if (e.key === 'ArrowLeft') onPrev();
+
+      // Trap focus within dialog
+      if (e.key === 'Tab' && dialogRef.current) {
+        const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], [tabindex]:not([tabindex="-1"])'
+        );
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last?.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first?.focus();
+        }
+      }
     }
 
     document.addEventListener('keydown', handleKeyDown);
     document.body.style.overflow = 'hidden';
+
+    // Move focus into dialog
+    dialogRef.current?.focus();
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
+      previouslyFocused?.focus();
     };
   }, [onClose, onNext, onPrev]);
 
@@ -56,7 +81,9 @@ function Lightbox({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+      ref={dialogRef}
+      tabIndex={-1}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 outline-none"
       role="dialog"
       aria-modal="true"
       aria-label={`Photo ${activeIndex + 1} of ${photoUrls.length}`}
@@ -125,6 +152,12 @@ export function ListingPhotoGallery({
 }: ListingPhotoGalleryProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  useEffect(() => {
+    if (activeIndex >= photoUrls.length && photoUrls.length > 0) {
+      setActiveIndex(photoUrls.length - 1);
+    }
+  }, [photoUrls.length, activeIndex]);
 
   const closeLightbox = useCallback(() => setLightboxOpen(false), []);
   const nextPhoto = useCallback(() => {

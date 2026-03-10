@@ -7,8 +7,10 @@ import { SavedSortSelect } from '../../../../components/saved-sort-select';
 
 interface SavedListingsPageProps {
   params: Promise<{ campusSlug: string }>;
-  searchParams: Promise<Record<string, string | undefined>>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
+
+const VALID_SORTS = ['date_saved', 'price_asc', 'price_desc', 'fairness'] as const;
 
 export default async function SavedListingsPage({
   params,
@@ -16,7 +18,8 @@ export default async function SavedListingsPage({
 }: SavedListingsPageProps) {
   const { campusSlug } = await params;
   const filters = await searchParams;
-  const sortBy = filters.sort ?? 'date_saved';
+  const rawSort = Array.isArray(filters.sort) ? filters.sort[0] : filters.sort;
+  const sortBy = (VALID_SORTS as readonly string[]).includes(rawSort ?? '') ? rawSort! : 'date_saved';
   const { user, supabase } = await getCurrentUser();
 
   if (!user) {

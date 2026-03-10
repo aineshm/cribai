@@ -10,6 +10,7 @@ export default async function HomePage() {
     .order('name');
 
   const campusList = campuses ?? [];
+  const defaultCampusSlug = campusList[0]?.slug ?? 'uw-madison';
 
   return (
     <div className="min-h-[100dvh] flex flex-col">
@@ -72,7 +73,7 @@ export default async function HomePage() {
 
             {campusList.length === 0 && (
               <Link
-                href="/uw-madison/listings"
+                href={`/${defaultCampusSlug}/listings`}
                 className="group flex items-center gap-4 rounded-xl border border-[var(--surface-200)] bg-white p-5 shadow-sm hover:border-[var(--primary-300)] hover:shadow-[var(--shadow-card)] transition-all sm:col-span-2"
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--primary-50)] text-[var(--primary-600)]">
@@ -92,7 +93,7 @@ export default async function HomePage() {
           </div>
 
           <p className="mt-4 text-center text-xs text-[var(--surface-400)]">
-            Or <Link href="/uw-madison/cribai" className="text-[var(--primary-600)] hover:underline">ask CribAI</Link> to find your next place.
+            Or <Link href={`/${defaultCampusSlug}/cribai`} className="text-[var(--primary-600)] hover:underline">ask CribAI</Link> to find your next place.
           </p>
         </section>
 

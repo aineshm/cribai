@@ -77,7 +77,7 @@ export const DEFAULT_DEV_USER = DEV_USERS[0]!;
 export const DEV_USER_COOKIE = 'dev_user_id';
 
 export function isDevAuthEnabled(): boolean {
-  return process.env.BYPASS_AUTH === 'true';
+  return process.env.NODE_ENV !== 'production' && process.env.BYPASS_AUTH === 'true';
 }
 
 export function getDevUserById(id: string): DevUser | undefined {
