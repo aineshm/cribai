@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
     available_date,
     description,
     source_url,
+    contact_email,
   } = parsed.data;
 
   // Use service-role client for the insert (bypasses RLS)
@@ -81,6 +82,7 @@ export async function POST(request: NextRequest) {
       description: description ?? null,
       source: 'manual',
       source_url: source_url || null,
+      contact_email: contact_email ?? null,
       is_active: true,
       last_embedded_at: null,
       external_id: `manual-${user.id}-${Date.now()}`,
