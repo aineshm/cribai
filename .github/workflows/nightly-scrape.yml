@@ -158,7 +158,7 @@ jobs:
           fi
 
       - name: Write PageIndex rebuild summary
-        if: always() && steps.pageindex.outcome != 'skipped'
+        if: always()
         env:
           PAGEINDEX_OUTCOME: ${{ steps.pageindex.outcome }}
         run: |

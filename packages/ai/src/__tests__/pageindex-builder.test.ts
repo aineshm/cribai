@@ -137,10 +137,13 @@ describe('PageIndexBuilder', () => {
 
       const result = await builder.build('campus-1', listings);
       expect(result.children).toHaveLength(1);
-      expect(result.children[0]!.children.length).toBeGreaterThan(0);
-      const leaf = result.children[0]!.children[0]!;
-      const content = JSON.parse(leaf.contentRef!);
-      expect(content.sampleAddresses.length).toBeLessThanOrEqual(5);
+      const leaves = result.children[0]!.children;
+      expect(leaves.length).toBeGreaterThan(0);
+
+      for (const leaf of leaves) {
+        const content = JSON.parse(leaf.contentRef!);
+        expect(content.sampleAddresses.length).toBeLessThanOrEqual(5);
+      }
     });
   });
 });
