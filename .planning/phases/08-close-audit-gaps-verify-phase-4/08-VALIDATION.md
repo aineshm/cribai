@@ -17,8 +17,8 @@ created: 2026-03-10
 
 | Property | Value |
 |----------|-------|
-| **Framework** | Vitest (packages/types, packages/ai, apps/web, services/scraper) |
-| **Config file** | `packages/types/vitest.config.ts`, `apps/web/vitest.config.ts`, `packages/ai/vitest.config.ts` |
+| **Framework** | Vitest (packages/types, packages/ai, apps/web) |
+| **Config file** | `packages/types/vitest.config.ts`, `packages/ai/vitest.config.ts`, `apps/web/vitest.config.ts` |
 | **Quick run command** | `pnpm --filter @campusnest/types test --run && pnpm --filter @campusnest/ai test --run && pnpm --filter web test --run` |
 | **Full suite command** | `pnpm run test --recursive && pnpm run build` |
 | **Estimated runtime** | ~45 seconds |
@@ -27,7 +27,7 @@ created: 2026-03-10
 
 ## Sampling Rate
 
-- **After every task commit:** Run `pnpm --filter @campusnest/ai test --run && pnpm --filter web test --run`
+- **After every task commit:** Run `pnpm --filter @campusnest/types test --run && pnpm --filter @campusnest/ai test --run && pnpm --filter web test --run`
 - **After every plan wave:** Run `pnpm run build`
 - **Before `/gsd:verify-work`:** Full suite must be green
 - **Max feedback latency:** 45 seconds

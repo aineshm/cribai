@@ -55,8 +55,17 @@ describe('isDevAuthEnabled', () => {
 
   it('returns false when BYPASS_AUTH is not set', () => {
     vi.stubEnv('NODE_ENV', 'development');
+    const originalBypassAuth = process.env.BYPASS_AUTH;
     delete process.env.BYPASS_AUTH;
-    expect(isDevAuthEnabled()).toBe(false);
+    try {
+      expect(isDevAuthEnabled()).toBe(false);
+    } finally {
+      if (originalBypassAuth === undefined) {
+        delete process.env.BYPASS_AUTH;
+      } else {
+        process.env.BYPASS_AUTH = originalBypassAuth;
+      }
+    }
   });
 
   it('returns false when BYPASS_AUTH is a different string', () => {
