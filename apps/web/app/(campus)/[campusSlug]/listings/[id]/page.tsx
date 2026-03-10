@@ -6,15 +6,7 @@ import { TrueCostCalculator } from '../../../../../components/true-cost-calculat
 import { FairnessBadge } from '../../../../../components/fairness-badge';
 import { FreshnessBadge } from '../../../../../components/freshness-badge';
 import { ListingPhotoGallery } from '../../../../../components/listing-photo-gallery';
-import dynamic from 'next/dynamic';
-
-const ListingLocationMap = dynamic(
-  () => import('../../../../../components/listing-location-map').then((mod) => ({ default: mod.ListingLocationMap })),
-  {
-    ssr: false,
-    loading: () => <div className="h-[250px] animate-pulse rounded-lg bg-[var(--surface-100)]" />,
-  }
-);
+import { ListingLocationMap } from '../../../../../components/listing-location-map';
 import { HeartButton } from '../../../../../components/heart-button';
 import { ShareButton } from '../../../../../components/share-button';
 import { ListingCard } from '../../../../../components/listing-card';
