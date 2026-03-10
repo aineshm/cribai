@@ -152,7 +152,7 @@ Phase 4 can proceed in parallel with Phase 5 planning/discussion.
 | 5. Agentic Data Pipeline + Web Search | 3/5 | Gap closure | - |
 | 6. Agent Tool Expansion + Polish | 3/3 | Complete   | 2026-03-09 |
 | 7. Fix e2e test issues and complete v1 | 4/4 | Complete   | 2026-03-10 |
-| 8. Close Audit Gaps + Verify Phase 4 | 0/0 | Pending | - |
+| 8. Close Audit Gaps + Verify Phase 4 | 0/2 | Planned | - |
 
 ### Phase 7: Fix e2e test issues and complete v1
 
@@ -177,7 +177,8 @@ Plans:
   2. Nightly scrape pipeline calls rebuild-pageindex after embedding generation
   3. POST /api/conversations/[id]/messages works in dev auth mode (BYPASS_AUTH=true)
   4. Dead /api/save-web-listing route is removed
-**Plans**: 0 plans (pending)
+**Plans**: 2 plans
 
 Plans:
-(none yet — run `/gsd:plan-phase 8`)
+- [ ] 08-01-PLAN.md — Write Phase 4 VERIFICATION.md documenting LIST-01 through LIST-04 as satisfied
+- [ ] 08-02-PLAN.md — Three code fixes: PageIndex pipeline step, messages API dev auth, dead route removal
