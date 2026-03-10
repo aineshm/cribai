@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerComponentClient } from '@campusnest/supabase/server';
+import { createServerComponentClient, createSecretClient } from '@campusnest/supabase/server';
+import { isDevAuthEnabled, getDevUserById, DEFAULT_DEV_USER, DEV_USER_COOKIE } from '../../../../lib/dev-auth';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
 
@@ -27,11 +28,22 @@ export async function POST(
   const { id: conversationId } = await params;
   const cookieStore = await cookies();
   const supabase = createServerComponentClient(cookieStore);
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  let userId: string | null = null;
+  if (isDevAuthEnabled()) {
+    const selectedId = cookieStore.get(DEV_USER_COOKIE)?.value;
+    const devUser = selectedId ? getDevUserById(selectedId) : DEFAULT_DEV_USER;
+    userId = devUser?.id ?? DEFAULT_DEV_USER.id;
+  } else {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+    userId = user.id;
   }
+
+  // Use service-role client for DB writes in dev mode (bypasses RLS for fake dev user)
+  const writeClient = isDevAuthEnabled() ? createSecretClient() : supabase;
 
   const rawBody: unknown = await request.json();
   const parsed = messageBodySchema.safeParse(rawBody);
@@ -46,7 +58,7 @@ export async function POST(
   const { role, blocks } = parsed.data;
 
   // Insert message (RLS on messages checks conversation ownership)
-  const { data: message, error: insertError } = await supabase
+  const { data: message, error: insertError } = await writeClient
     .from('messages')
     .insert({
       conversation_id: conversationId,
@@ -68,10 +80,13 @@ export async function POST(
     updatePayload.last_message_preview = preview;
   }
 
-  await supabase
+  await writeClient
     .from('conversations')
     .update(updatePayload)
     .eq('id', conversationId);
+
+  // userId resolved above; no further use needed beyond auth check
+  void userId;
 
   return NextResponse.json({ id: message.id }, { status: 201 });
 }
