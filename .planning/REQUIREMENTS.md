@@ -103,46 +103,46 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DESIGN-01 | — | Pending |
-| DESIGN-02 | — | Pending |
-| DESIGN-03 | — | Pending |
-| DESIGN-04 | — | Pending |
-| DESIGN-05 | — | Pending |
-| LAND-01 | — | Pending |
-| LAND-02 | — | Pending |
-| LAND-03 | — | Pending |
-| LAND-04 | — | Pending |
-| AUTH-05 | — | Pending |
-| AUTH-06 | — | Pending |
-| EXPL-01 | — | Pending |
-| EXPL-02 | — | Pending |
-| EXPL-03 | — | Pending |
-| EXPL-04 | — | Pending |
-| EXPL-05 | — | Pending |
-| DETAIL-01 | — | Pending |
-| DETAIL-02 | — | Pending |
-| DETAIL-03 | — | Pending |
-| DETAIL-04 | — | Pending |
-| DETAIL-05 | — | Pending |
-| POST-01 | — | Pending |
-| POST-02 | — | Pending |
-| POST-03 | — | Pending |
-| PROF-01 | — | Pending |
-| PROF-02 | — | Pending |
-| PROF-03 | — | Pending |
-| AGENT-01 | — | Pending |
-| AGENT-02 | — | Pending |
-| AGENT-03 | — | Pending |
-| AGENT-04 | — | Pending |
-| AGENT-05 | — | Pending |
-| AGENT-06 | — | Pending |
-| COMPAT-01 | — | Pending |
+| DESIGN-01 | Phase 10 | Pending |
+| DESIGN-02 | Phase 10 | Pending |
+| DESIGN-03 | Phase 10 | Pending |
+| DESIGN-04 | Phase 10 | Pending |
+| DESIGN-05 | Phase 10 | Pending |
+| COMPAT-01 | Phase 10 | Pending |
+| LAND-01 | Phase 11 | Pending |
+| LAND-02 | Phase 11 | Pending |
+| LAND-03 | Phase 11 | Pending |
+| LAND-04 | Phase 11 | Pending |
+| AUTH-05 | Phase 11 | Pending |
+| AUTH-06 | Phase 11 | Pending |
+| EXPL-01 | Phase 12 | Pending |
+| EXPL-02 | Phase 12 | Pending |
+| EXPL-03 | Phase 12 | Pending |
+| EXPL-04 | Phase 12 | Pending |
+| EXPL-05 | Phase 12 | Pending |
+| DETAIL-01 | Phase 13 | Pending |
+| DETAIL-02 | Phase 13 | Pending |
+| DETAIL-03 | Phase 13 | Pending |
+| DETAIL-04 | Phase 13 | Pending |
+| DETAIL-05 | Phase 13 | Pending |
+| POST-01 | Phase 14 | Pending |
+| POST-02 | Phase 14 | Pending |
+| POST-03 | Phase 14 | Pending |
+| PROF-01 | Phase 14 | Pending |
+| PROF-02 | Phase 14 | Pending |
+| PROF-03 | Phase 14 | Pending |
+| AGENT-01 | Phase 15 | Pending |
+| AGENT-02 | Phase 15 | Pending |
+| AGENT-03 | Phase 15 | Pending |
+| AGENT-04 | Phase 15 | Pending |
+| AGENT-05 | Phase 15 | Pending |
+| AGENT-06 | Phase 15 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 34 total
-- Mapped to phases: 0
-- Unmapped: 34
+- Mapped to phases: 34
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-10*
-*Last updated: 2026-03-10 after initial definition*
+*Last updated: 2026-03-10 — traceability mapped to Phases 10-15*

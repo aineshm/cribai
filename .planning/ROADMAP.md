@@ -3,6 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0 CampusNest MVP** — Phases 1-9 (shipped 2026-03-10)
+- 🚧 **v1.1 UI/UX Upgrade** — Phases 10-15 (in progress)
 
 ## Phases
 
@@ -23,7 +24,95 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 </details>
 
+### 🚧 v1.1 UI/UX Upgrade (In Progress)
+
+**Milestone Goal:** Migrate the entire frontend to the new Figma design system (Cabinet Grotesk + Satoshi, shadcn/ui, Lucide, Framer Motion) and introduce the AI Concierge missions page — shifting from chat-first to agent-first UX.
+
+- [ ] **Phase 10: Design System Foundation** - Install and wire shadcn/ui, Cabinet Grotesk + Satoshi fonts, Lucide icons, Framer Motion base, and token bridge — gates all UI phases
+- [ ] **Phase 11: Landing Page + Auth Redesign** - Marketing landing page with hero/social proof/CTA + branded split-panel auth flow with slide animations
+- [ ] **Phase 12: Explore Page** - Unified split view (listings 60% + map 40%) with filter chips, floating CribAI panel in root layout, and extracted hook
+- [ ] **Phase 13: Listing Detail Redesign** - Photo gallery grid, two-column sticky CTA layout, AI lease summary, commute section, and mobile sticky bar
+- [ ] **Phase 14: Post Sublease + Profile/Saved Redesign** - Multi-step sublease wizard with progress tracker + combined profile/saved tabbed page
+- [ ] **Phase 15: AI Concierge UI** - Task-based mission board with status pipeline, HITL draft approval, steering bar, agent summaries, and proactive empty state
+
+## Phase Details
+
+### Phase 10: Design System Foundation
+**Goal**: The design system infrastructure is installed and verified — Cabinet Grotesk + Satoshi fonts load on every page, shadcn/ui primitives are available with a clean token bridge, Lucide icons are tree-shakeable, and Framer Motion wrappers are established — unblocking all subsequent UI phases without breaking any existing v1.0 features.
+**Depends on**: Nothing (v1.1 starting phase — v1.0 is complete)
+**Requirements**: DESIGN-01, DESIGN-02, DESIGN-03, DESIGN-04, DESIGN-05, COMPAT-01
+**Success Criteria** (what must be TRUE):
+  1. Every page renders Cabinet Grotesk for headings and Satoshi for body text (verified by font inspector)
+  2. A shadcn/ui Button and Card render correctly in a smoke-test page with no CSS regression on existing pages
+  3. An icon rendered via lucide-react appears correctly and the bundle does not include unused icons (verified by build output)
+  4. A `MotionSection` client wrapper animates on mount without triggering Server Component boundary errors
+  5. The app builds and all existing tests pass after the token bridge lands in `globals.css`
+**Plans**: TBD
+
+### Phase 11: Landing Page + Auth Redesign
+**Goal**: First-time visitors land on a polished marketing page that communicates CampusNest's AI value prop and converts to sign-up; the auth page uses a branded split-panel layout with slide-animated multi-step OTP flow — all built on Phase 10's design system.
+**Depends on**: Phase 10
+**Requirements**: LAND-01, LAND-02, LAND-03, LAND-04, AUTH-05, AUTH-06
+**Success Criteria** (what must be TRUE):
+  1. Unauthenticated visitor to `/` sees the marketing landing page (hero, value prop, "Get Started" CTA) — not the auth wall
+  2. Landing page social proof bar, feature cards, "How It Works" section, and footer CTA are visible on desktop
+  3. Mobile visitor sees a sticky "Get Started" button pinned to the bottom of the screen throughout scroll
+  4. Auth page renders a branded left panel alongside the form on desktop (split layout)
+  5. OTP flow transitions from email entry to code entry to profile step with visible slide animations between steps
+**Plans**: TBD
+
+### Phase 12: Explore Page
+**Goal**: Users can search and browse listings in a unified split view — listing grid on the left, interactive map on the right — with filter chips above and CribAI accessible as a floating slide-over panel that persists across route navigation; the `/listings` and `/cribai` routes redirect here.
+**Depends on**: Phase 10
+**Requirements**: EXPL-01, EXPL-02, EXPL-03, EXPL-04, EXPL-05
+**Success Criteria** (what must be TRUE):
+  1. Desktop user sees listings grid (60%) and Mapbox map (40%) side by side on the explore page
+  2. Mobile user can switch between List and Map views using a segmented toggle control
+  3. Filter chips (Price, Beds, Distance, Move-in Date, Pet Friendly, Furnished) appear above results and update the listing grid when changed
+  4. Clicking the floating AI button opens CribAI as a slide-over panel; navigating to another route and returning keeps the panel open and conversation intact
+  5. Each listing card shows photo, price, beds/baths, distance badge, save button, and AI Verified badge
+**Plans**: TBD
+
+### Phase 13: Listing Detail Redesign
+**Goal**: The listing detail page presents a visually rich, conversion-oriented layout — photo gallery grid with lightbox, sticky CTA sidebar, AI-generated lease summary, commute chips to campus — matching the Figma spec across desktop and mobile.
+**Depends on**: Phase 10
+**Requirements**: DETAIL-01, DETAIL-02, DETAIL-03, DETAIL-04, DETAIL-05
+**Success Criteria** (what must be TRUE):
+  1. Listing detail shows a 2/3 hero + 1/3 side grid photo layout; clicking any photo opens a full-screen lightbox
+  2. Desktop shows a sticky CTA card on the right column with "Book Tour" and "Ask AI" buttons that remain visible while scrolling the left content column
+  3. Landlord info card, amenities grid, and an AI-generated lease summary section are visible below the main content
+  4. Commute section shows a map with distance and estimated transit/walk time to at least one campus building
+  5. Mobile user sees a sticky bottom bar with price, "Book Tour", and "Chat with AI" buttons
+**Plans**: TBD
+
+### Phase 14: Post Sublease + Profile/Saved Redesign
+**Goal**: Students posting a sublease complete a guided multi-step wizard with visible progress; the profile and saved listings pages are merged into a single tabbed page with a profile header — reducing navigation friction and completing the redesign of all non-explore, non-concierge pages.
+**Depends on**: Phase 10
+**Requirements**: POST-01, POST-02, POST-03, PROF-01, PROF-02, PROF-03
+**Success Criteria** (what must be TRUE):
+  1. Post sublease form guides the user through distinct steps: Basics, Details, Amenities, Photos, Description, Review — with forward/back navigation
+  2. Desktop post sublease shows a sidebar listing all steps with the current step highlighted
+  3. Mobile post sublease shows a progress bar with step count and completion percentage
+  4. Profile/Saved page shows a header card with avatar, name, university, and verification badge
+  5. Tabs switch between Saved Listings and Account Settings views; Settings section has Personal Info, Notifications, and Log Out navigation items
+**Plans**: TBD
+
+### Phase 15: AI Concierge UI
+**Goal**: The AI Concierge page gives users a mission-based view of CribAI's async task work — a sidebar lists active and past missions with status indicators, a mission detail view shows action cards, agent summaries, and raw logs, a steering bar allows mid-mission correction, and an empty state suggests proactive missions — built with mock data (no backend executor in v1.1).
+**Depends on**: Phase 10, Phase 12
+**Requirements**: AGENT-01, AGENT-02, AGENT-03, AGENT-04, AGENT-05, AGENT-06
+**Success Criteria** (what must be TRUE):
+  1. Concierge sidebar lists mock mission cards with status indicators (pending, running, awaiting approval, complete, failed)
+  2. Active/Past tab filter switches the mission list between in-progress and completed missions
+  3. Mission detail view shows status-specific action cards (e.g., draft approval card for a scheduled tour mission)
+  4. Steering bar is visible at the bottom of the mission detail and accepts text input for course correction
+  5. Empty state (no missions) shows at least three proactive mission suggestion cards based on context
+**Plans**: TBD
+
 ## Progress
+
+**Execution Order:**
+Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -36,3 +125,9 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 | 7. Fix E2E + Complete V1 | v1.0 | 4/4 | Complete | 2026-03-10 |
 | 8. Close Audit Gaps | v1.0 | 2/2 | Complete | 2026-03-10 |
 | 9. Integration Polish | v1.0 | 2/2 | Complete | 2026-03-10 |
+| 10. Design System Foundation | v1.1 | 0/TBD | Not started | - |
+| 11. Landing Page + Auth Redesign | v1.1 | 0/TBD | Not started | - |
+| 12. Explore Page | v1.1 | 0/TBD | Not started | - |
+| 13. Listing Detail Redesign | v1.1 | 0/TBD | Not started | - |
+| 14. Post Sublease + Profile/Saved Redesign | v1.1 | 0/TBD | Not started | - |
+| 15. AI Concierge UI | v1.1 | 0/TBD | Not started | - |
