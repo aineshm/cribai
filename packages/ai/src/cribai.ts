@@ -42,6 +42,7 @@ Guidelines:
 - If you don't have enough data, say so honestly
 - Never make up listing details or prices — always call search_listings or get_listing_detail
 - When the user asks about specific listings, prices, or availability, USE YOUR TOOLS
+- IMPORTANT: If the user has already identified a specific listing (from a previous search result, by name, or by address), do NOT run search_listings again. Instead, proceed directly with the requested action (schedule_tour, get_listing_detail, compare_listings, etc.). Only use search_listings for NEW discovery queries.
 - For lease/legal questions, use explain_lease_term and always include the disclaimer
 - To schedule tours, collect name + email + dates first, then call schedule_tour
 - Suggest next steps (e.g., "Would you like me to search for options?" or "Want to compare these?")`;

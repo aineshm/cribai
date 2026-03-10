@@ -1,7 +1,7 @@
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { createServerComponentClient } from '@campusnest/supabase/server';
+import { createSecretClient } from '@campusnest/supabase/server';
+import { getCurrentUser } from '../../../../lib/get-current-user';
 
 interface DashboardPageProps {
   params: Promise<{ campusSlug: string }>;
@@ -9,19 +9,17 @@ interface DashboardPageProps {
 
 export default async function DashboardPage({ params }: DashboardPageProps) {
   const { campusSlug } = await params;
-  const cookieStore = await cookies();
-  const supabase = createServerComponentClient(cookieStore);
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user, supabase, devUser } = await getCurrentUser();
 
   if (!user) {
     redirect('/login');
   }
 
+  // In dev mode, use service-role client to bypass RLS
+  const queryClient = devUser ? createSecretClient() : supabase;
+
   // Fetch saved listings (most recent 3)
-  const { data: savedEntries } = await supabase
+  const { data: savedEntries } = await queryClient
     .from('saved_listings')
     .select(`
       listing_id,
@@ -34,23 +32,32 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
     .order('created_at', { ascending: false })
     .limit(3);
 
-  // Fetch upcoming tour requests (next 3)
-  const { data: tourRequests } = await supabase
+  // Fetch tour requests — sort by earliest preferred date to show upcoming first
+  const { data: rawTourRequests } = await queryClient
     .from('tour_requests')
-    .select('id, listing_address, preferred_date, status')
+    .select('id, listing_id, preferred_dates, status, listings!inner(address)')
     .eq('user_id', user.id)
-    .order('preferred_date', { ascending: true })
-    .limit(3);
+    .order('created_at', { ascending: false })
+    .limit(10);
+
+  // Sort by earliest preferred_date ascending, then take top 3
+  const tourRequests = (rawTourRequests ?? [])
+    .sort((a, b) => {
+      const dateA = (a.preferred_dates as string[] | null)?.[0] ?? '';
+      const dateB = (b.preferred_dates as string[] | null)?.[0] ?? '';
+      return dateA.localeCompare(dateB);
+    })
+    .slice(0, 3);
 
   const savedCount = savedEntries?.length ?? 0;
-  const tourCount = tourRequests?.length ?? 0;
+  const tourCount = tourRequests.length;
 
   return (
     <div>
       <h1 className="text-2xl font-bold text-[var(--surface-900)] mb-6">
         Dashboard
       </h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Saved Items */}
         <div className="rounded-xl border border-[var(--surface-200)] bg-[var(--surface-50)] p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
@@ -108,18 +115,23 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
           </h2>
           {tourCount > 0 ? (
             <div className="space-y-3">
-              {tourRequests!.map((tour) => (
+              {tourRequests.map((tour) => {
+                const listing = tour.listings as unknown as { readonly address: string };
+                const firstDate = (tour.preferred_dates as string[])?.[0];
+                return (
                 <div key={tour.id} className="flex flex-col gap-0.5">
                   <p className="text-sm text-[var(--surface-600)] truncate">
-                    {tour.listing_address}
+                    {listing.address}
                   </p>
                   <div className="flex items-center gap-2">
                     <p className="text-xs text-[var(--surface-400)]">
-                      {new Date(tour.preferred_date).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
+                      {firstDate
+                        ? new Date(firstDate).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })
+                        : 'Date TBD'}
                     </p>
                     <span
                       className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
@@ -134,7 +146,8 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
                     </span>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <p className="text-sm text-[var(--surface-400)]">
@@ -143,15 +156,6 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
           )}
         </div>
 
-        {/* Recently Viewed */}
-        <div className="rounded-xl border border-[var(--surface-200)] bg-[var(--surface-50)] p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-[var(--surface-800)] mb-4">
-            Recently Viewed
-          </h2>
-          <p className="text-sm text-[var(--surface-400)]">
-            No recently viewed listings
-          </p>
-        </div>
       </div>
     </div>
   );

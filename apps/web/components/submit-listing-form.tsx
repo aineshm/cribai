@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { listingSubmissionSchema } from '@campusnest/types';
 
@@ -19,10 +20,15 @@ const INITIAL_FORM = {
   source_url: '',
 };
 
-export function SubmitListingForm() {
+interface SubmitListingFormProps {
+  readonly campusSlug?: string;
+}
+
+export function SubmitListingForm({ campusSlug }: SubmitListingFormProps) {
   const [form, setForm] = useState(INITIAL_FORM);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
 
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -83,7 +89,7 @@ export function SubmitListingForm() {
       }
 
       toast.success('Listing submitted successfully!');
-      setForm(INITIAL_FORM);
+      setIsSubmitted(true);
     } catch {
       toast.error('Network error. Please try again.');
     } finally {
@@ -91,9 +97,46 @@ export function SubmitListingForm() {
     }
   }
 
+  if (isSubmitted) {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-xl border border-[var(--surface-200)] bg-white p-10 text-center shadow-sm animate-fade-in">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--primary-50)]">
+          <svg className="h-8 w-8 text-[var(--primary-600)]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <h2 className="mt-4 font-[family-name:var(--font-display)] text-xl text-[var(--surface-900)]">
+          Listing submitted!
+        </h2>
+        <p className="mt-2 max-w-sm text-sm text-[var(--surface-500)]">
+          Your listing will be reviewed and added to CampusNest. Fellow students will be able to discover it soon.
+        </p>
+        <div className="mt-6 flex gap-3">
+          <button
+            onClick={() => { setIsSubmitted(false); setForm(INITIAL_FORM); }}
+            className="rounded-lg border border-[var(--surface-200)] px-5 py-2.5 text-sm font-medium text-[var(--surface-700)] hover:bg-[var(--surface-50)] transition-colors"
+          >
+            Submit another
+          </button>
+          {campusSlug && (
+            <Link
+              href={`/${campusSlug}/listings`}
+              className="rounded-lg bg-[var(--primary-600)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--primary-700)] transition-colors"
+            >
+              Browse listings
+            </Link>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Section 1: Location & Basics */}
       <div className="rounded-xl border border-[var(--surface-200)] bg-white p-6 shadow-sm space-y-5">
+        <h3 className="text-base font-semibold text-[var(--surface-800)] mb-4">Location & Basics</h3>
+
         {/* Address */}
         <div>
           <label htmlFor="address" className="block text-sm font-medium text-[var(--surface-700)] mb-1">
@@ -117,19 +160,22 @@ export function SubmitListingForm() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label htmlFor="rent_monthly" className="block text-sm font-medium text-[var(--surface-700)] mb-1">
-              Monthly Rent ($) <span className="text-red-500">*</span>
+              Monthly Rent <span className="text-red-500">*</span>
             </label>
-            <input
-              id="rent_monthly"
-              name="rent_monthly"
-              type="number"
-              min="1"
-              max="10000"
-              value={form.rent_monthly}
-              onChange={handleChange}
-              placeholder="1200"
-              className="w-full rounded-lg border border-[var(--surface-200)] px-3 py-2 text-sm focus:border-[var(--primary-500)] focus:outline-none focus:ring-1 focus:ring-[var(--primary-500)]"
-            />
+            <div className="relative">
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-[var(--surface-500)]">$</span>
+              <input
+                id="rent_monthly"
+                name="rent_monthly"
+                type="number"
+                min="1"
+                max="10000"
+                value={form.rent_monthly}
+                onChange={handleChange}
+                placeholder="1200"
+                className="w-full rounded-lg border border-[var(--surface-200)] pl-7 pr-3 py-2 text-sm focus:border-[var(--primary-500)] focus:outline-none focus:ring-1 focus:ring-[var(--primary-500)]"
+              />
+            </div>
             {fieldErrors.rent_monthly && (
               <p className="mt-1 text-xs text-red-600">{fieldErrors.rent_monthly[0]}</p>
             )}
@@ -194,6 +240,11 @@ export function SubmitListingForm() {
             />
           </div>
         </div>
+      </div>
+
+      {/* Section 2: Listing Details */}
+      <div className="rounded-xl border border-[var(--surface-200)] bg-white p-6 shadow-sm space-y-5">
+        <h3 className="text-base font-semibold text-[var(--surface-800)] mb-4">Listing Details</h3>
 
         {/* Available Date */}
         <div>
@@ -248,6 +299,11 @@ export function SubmitListingForm() {
             <p className="mt-1 text-xs text-red-600">{fieldErrors.description[0]}</p>
           )}
         </div>
+      </div>
+
+      {/* Section 3: Contact Information */}
+      <div className="rounded-xl border border-[var(--surface-200)] bg-white p-6 shadow-sm space-y-5">
+        <h3 className="text-base font-semibold text-[var(--surface-800)] mb-4">Contact Information</h3>
 
         {/* Contact Email */}
         <div>
@@ -271,7 +327,7 @@ export function SubmitListingForm() {
         {/* Source URL */}
         <div>
           <label htmlFor="source_url" className="block text-sm font-medium text-[var(--surface-700)] mb-1">
-            Listing URL
+            Listing URL <span className="text-xs font-normal text-[var(--surface-400)]">(optional)</span>
           </label>
           <input
             id="source_url"
@@ -293,7 +349,7 @@ export function SubmitListingForm() {
         disabled={isSubmitting}
         className="w-full rounded-lg bg-[var(--primary-600)] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[var(--primary-700)] disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {isSubmitting ? 'Submitting...' : 'Submit Listing'}
+        {isSubmitting ? 'Sharing...' : 'Share Listing'}
       </button>
     </form>
   );

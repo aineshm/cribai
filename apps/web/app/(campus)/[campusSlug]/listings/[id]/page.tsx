@@ -8,6 +8,7 @@ import { FreshnessBadge } from '../../../../../components/freshness-badge';
 import { ListingPhotoGallery } from '../../../../../components/listing-photo-gallery';
 import { ListingLocationMap } from '../../../../../components/listing-location-map';
 import { HeartButton } from '../../../../../components/heart-button';
+import { ShareButton } from '../../../../../components/share-button';
 import { ListingCard } from '../../../../../components/listing-card';
 import { parseWkbPoint } from '@campusnest/utils';
 
@@ -297,6 +298,11 @@ export default async function ListingDetailPage({
             </svg>
             Ask CribAI about this place
           </Link>
+
+          <ShareButton
+            title={`${listing.address} — CampusNest`}
+            url={`/${campusSlug}/listings/${listing.id}`}
+          />
 
           {listing.source_url && (
             <a

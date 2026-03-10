@@ -5,7 +5,7 @@ import Link from 'next/link';
 interface ListingSummary {
   readonly id: string;
   readonly address: string;
-  readonly rentMonthly: number;
+  readonly rentMonthly: number | null;
   readonly bedrooms: number | null;
   readonly bathrooms: number | null;
   readonly sqft: number | null;
@@ -29,10 +29,10 @@ interface ChatComparisonTableProps {
 
 export function ChatComparisonTable({ listings, campusSlug }: ChatComparisonTableProps) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white" role="table" aria-label="Listing comparison">
-      <table className="w-full text-sm">
+    <div className="overflow-x-auto rounded-lg border border-[var(--surface-200)] bg-white">
+      <table className="w-full text-sm" aria-label="Listing comparison">
         <thead>
-          <tr className="border-b bg-gray-50 text-left text-xs text-gray-500">
+          <tr className="border-b bg-[var(--surface-50)] text-left text-xs text-[var(--surface-500)]">
             <th className="px-3 py-2 font-medium">Address</th>
             <th className="px-3 py-2 font-medium">Rent</th>
             <th className="px-3 py-2 font-medium">Beds</th>
@@ -43,17 +43,17 @@ export function ChatComparisonTable({ listings, campusSlug }: ChatComparisonTabl
         </thead>
         <tbody>
           {listings.map((l) => (
-            <tr key={l.id} className="border-b last:border-b-0 hover:bg-gray-50">
+            <tr key={l.id} className="border-b last:border-b-0 hover:bg-[var(--surface-50)]">
               <td className="px-3 py-2">
                 <Link
                   href={`/${l.campusSlug ?? campusSlug}/listings/${l.id}`}
-                  className="text-blue-600 hover:underline"
+                  className="text-[var(--primary-600)] hover:underline"
                   aria-label={`View ${l.address}`}
                 >
                   {l.address}
                 </Link>
               </td>
-              <td className="px-3 py-2 font-medium">${l.rentMonthly.toLocaleString()}</td>
+              <td className="px-3 py-2 font-medium">{l.rentMonthly != null ? `$${l.rentMonthly.toLocaleString()}` : '-'}</td>
               <td className="px-3 py-2">{l.bedrooms ?? '-'}</td>
               <td className="px-3 py-2">{l.sqft?.toLocaleString() ?? '-'}</td>
               <td className="px-3 py-2">

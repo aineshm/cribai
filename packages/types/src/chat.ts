@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const listingSummarySchema = z.object({
   id: z.string().uuid(),
   address: z.string(),
-  rentMonthly: z.number(),
+  rentMonthly: z.number().nullable(),
   bedrooms: z.number().nullable(),
   bathrooms: z.number().nullable(),
   sqft: z.number().nullable(),

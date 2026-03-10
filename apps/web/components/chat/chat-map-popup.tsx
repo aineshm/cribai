@@ -25,7 +25,7 @@ export function ChatMapPopup({ listing, campusSlug }: ChatMapPopupProps) {
           {listing.address}
         </p>
         <p className="text-sm text-gray-600">
-          ${listing.rentMonthly.toLocaleString()}/mo
+          {listing.rentMonthly != null ? `$${listing.rentMonthly.toLocaleString()}/mo` : 'Price N/A'}
         </p>
         <p className="text-xs text-gray-500">
           {listing.bedrooms != null && <span>{listing.bedrooms}bd</span>}

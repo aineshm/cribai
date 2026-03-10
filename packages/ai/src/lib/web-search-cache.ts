@@ -20,7 +20,7 @@ function normalizeKey(query: string): string {
 }
 
 function evictOldest(): void {
-  if (cache.size <= MAX_CACHE_SIZE) return;
+  if (cache.size < MAX_CACHE_SIZE) return;
   // Map iteration order is insertion order — first key is oldest
   const oldestKey = cache.keys().next().value;
   if (oldestKey !== undefined) cache.delete(oldestKey);
@@ -45,8 +45,10 @@ export function getCachedResults(query: string): readonly WebSearchResult[] | nu
 
 export function setCachedResults(query: string, results: readonly WebSearchResult[]): void {
   const key = normalizeKey(query);
+  if (!cache.has(key)) {
+    evictOldest();
+  }
   cache.set(key, { results, timestamp: Date.now() });
-  evictOldest();
 }
 
 export function clearCache(): void {

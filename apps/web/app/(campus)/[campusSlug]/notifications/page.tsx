@@ -1,7 +1,8 @@
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { createServerComponentClient } from '@campusnest/supabase/server';
+import { createSecretClient } from '@campusnest/supabase/server';
+import { getCurrentUser } from '../../../../lib/get-current-user';
+import { MarkAllReadButton } from './mark-all-read-button';
 
 interface NotificationRow {
   readonly id: string;
@@ -78,34 +79,26 @@ export default async function NotificationsPage({
   params: Promise<{ campusSlug: string }>;
 }) {
   const { campusSlug } = await params;
-  const cookieStore = await cookies();
-  const supabase = createServerComponentClient(cookieStore);
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user, supabase } = await getCurrentUser();
 
   if (!user) {
     redirect(`/login?returnTo=/${campusSlug}/notifications`);
   }
 
-  // Fetch notifications
-  const { data: notifications } = await supabase
+  // Use service-role client for dev mode (bypasses RLS), regular client otherwise
+  const queryClient = user.isDevMode ? createSecretClient() : supabase;
+
+  // Fetch notifications (read-only on load -- no auto-mark-as-read)
+  const { data: notifications } = await queryClient
     .from('notifications')
     .select('id, type, listing_id, payload, is_read, created_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(50);
 
-  // Mark all unread as read
-  await supabase
-    .from('notifications')
-    .update({ is_read: true })
-    .eq('user_id', user.id)
-    .eq('is_read', false);
-
   const items = (notifications ?? []) as NotificationRow[];
   const groups = groupByDate(items);
+  const hasUnread = items.some((n) => !n.is_read);
 
   if (items.length === 0) {
     return (
@@ -142,9 +135,12 @@ export default async function NotificationsPage({
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-[var(--surface-900)] mb-6">
-        Notifications
-      </h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-[var(--surface-900)]">
+          Notifications
+        </h1>
+        {hasUnread && <MarkAllReadButton />}
+      </div>
 
       <div className="space-y-8">
         {groups.map((group) => (

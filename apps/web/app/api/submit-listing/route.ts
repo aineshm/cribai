@@ -61,7 +61,6 @@ export async function POST(request: NextRequest) {
     amenities,
     available_date,
     description,
-    contact_email,
     source_url,
   } = parsed.data;
 
@@ -85,7 +84,7 @@ export async function POST(request: NextRequest) {
       is_active: true,
       last_embedded_at: null,
       external_id: `manual-${user.id}-${Date.now()}`,
-      raw_data: { submitted_by: user.id, contact_email },
+      raw_data: { submitted_by: user.id },
     })
     .select('id, address')
     .single();

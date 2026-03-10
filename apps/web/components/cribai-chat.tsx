@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, type CSSProperties } from 'react';
 import { createClient } from '@campusnest/supabase/client';
 import { ChatBlockRenderer } from './chat/chat-block-renderer';
 import type { ChatBlock } from './chat/chat-block-renderer';
 
 interface Message {
+  readonly id: string;
   readonly role: 'user' | 'assistant';
   readonly blocks: readonly ChatBlock[];
 }
@@ -27,9 +28,10 @@ function loadSessionMessages(): readonly Message[] {
   try {
     const stored = sessionStorage.getItem(CHAT_STORAGE_KEY);
     if (!stored) return [];
-    const parsed = JSON.parse(stored) as Message[];
+    const parsed = JSON.parse(stored) as Array<Omit<Message, 'id'> & { id?: string }>;
     return parsed.map(m => ({
-      ...m,
+      id: m.id ?? crypto.randomUUID(),
+      role: m.role,
       blocks: m.blocks.filter(b => b.type !== 'tool_loading'),
     }));
   } catch {
@@ -60,16 +62,21 @@ async function persistMessage(
   conversationId: string,
   role: 'user' | 'assistant',
   blocks: readonly ChatBlock[],
-): Promise<void> {
+): Promise<boolean> {
   try {
-    await fetch(`/api/conversations/${conversationId}/messages`, {
+    const res = await fetch(`/api/conversations/${conversationId}/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role, blocks }),
     });
+    if (!res.ok) {
+      console.warn(`[CribAI] Failed to persist message: ${res.status}`);
+      return false;
+    }
+    return true;
   } catch {
-    // Non-critical — message displays in UI regardless
-    console.error('[CribAI] Failed to persist message');
+    console.error('[CribAI] Failed to persist message (network error)');
+    return false;
   }
 }
 
@@ -103,6 +110,7 @@ async function loadConversationMessages(
       messages: Array<{ role: 'user' | 'assistant'; blocks: ChatBlock[] }>;
     };
     return data.messages.map(m => ({
+      id: crypto.randomUUID(),
       role: m.role,
       blocks: m.blocks.filter(b => b.type !== 'tool_loading'),
     }));
@@ -196,6 +204,7 @@ export function CribAIChat({
 
     if (!overrideQuery) setInput('');
     const userMessage: Message = {
+      id: crypto.randomUUID(),
       role: 'user',
       blocks: [{ type: 'text', content: query }],
     };
@@ -255,12 +264,13 @@ export function CribAIChat({
       let currentTextContent = '';
       let sseBuffer = '';
 
-      setMessages(prev => [...prev, { role: 'assistant', blocks: [] }]);
+      const assistantId = crypto.randomUUID();
+      setMessages(prev => [...prev, { id: assistantId, role: 'assistant', blocks: [] }]);
 
       const updateAssistantMessage = (blocks: readonly ChatBlock[]) => {
         setMessages(prev => {
           const updated = [...prev];
-          updated[updated.length - 1] = { role: 'assistant', blocks };
+          updated[updated.length - 1] = { id: assistantId, role: 'assistant', blocks };
           return updated;
         });
         scrollToBottom();
@@ -370,6 +380,7 @@ export function CribAIChat({
       setMessages(prev => [
         ...prev.filter(m => m.blocks.length > 0),
         {
+          id: crypto.randomUUID(),
           role: 'assistant',
           blocks: [{ type: 'text', content: 'Sorry, something went wrong. Please try again.' }],
         },
@@ -403,30 +414,50 @@ export function CribAIChat({
   }, [sendMessage]);
 
   return (
-    <div className="flex h-[600px] flex-col rounded-xl border border-[var(--surface-200)] bg-white shadow-[var(--shadow-card)]">
+    <div className="flex h-[calc(100dvh-220px)] md:h-[600px] flex-col rounded-2xl border border-[var(--surface-200)]/60 bg-white/90 backdrop-blur-sm shadow-[var(--shadow-card-hover)]">
       {/* Messages */}
-      <div className="flex-1 space-y-4 overflow-y-auto p-4">
+      <div className="flex-1 space-y-4 overflow-y-auto p-5 scroll-smooth">
         {messages.length === 0 && (
           <div className="flex h-full items-center justify-center text-[var(--surface-400)]">
             <div className="text-center animate-fade-in">
-              <p className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-600)]">Ask CribAI anything</p>
-              <p className="mt-2 text-sm">Try: &quot;Find me a 2-bedroom under $1200&quot;</p>
-              <p className="mt-0.5 text-xs text-[var(--surface-300)]">
-                I can search listings, compare apartments, explain lease terms, and schedule tours.
-              </p>
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--primary-50)] to-[var(--primary-100)]">
+                <svg className="h-7 w-7 text-[var(--primary-600)]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
+                </svg>
+              </div>
+              <p className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-700)]">Ask CribAI anything</p>
+              <p className="mt-2 text-sm text-[var(--surface-400)]">I can search listings, compare apartments, explain lease terms, and schedule tours.</p>
+              <div className="mt-5 flex flex-wrap justify-center gap-2">
+                {[
+                  'Find me a 2-bedroom under $1200',
+                  'Compare my saved listings',
+                  'Explain security deposits',
+                  "What's fair rent for a 2BR?",
+                ].map((suggestion, i) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() => sendMessage(suggestion)}
+                    className="stagger-bounce rounded-full border border-[var(--surface-200)] bg-white px-4 py-2 text-xs text-[var(--surface-600)] shadow-sm hover:border-[var(--primary-400)] hover:text-[var(--primary-700)] hover:bg-[var(--primary-50)] hover:shadow-md transition-all duration-300"
+                    style={{ '--stagger-index': i } as CSSProperties}
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
-        {messages.map((msg, i) => (
+        {messages.map((msg) => (
           <div
-            key={i}
-            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            key={msg.id}
+            className={`flex animate-slide-up ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[80%] space-y-2 px-4 py-2.5 ${
+              className={`max-w-[80%] space-y-2 px-4 py-3 ${
                 msg.role === 'user'
-                  ? 'rounded-2xl rounded-br-sm bg-[var(--primary-600)] text-white'
-                  : 'rounded-2xl rounded-bl-sm bg-[var(--surface-100)] text-[var(--surface-800)]'
+                  ? 'rounded-2xl rounded-br-md bg-gradient-to-br from-[var(--primary-600)] to-[var(--primary-700)] text-white shadow-md shadow-[var(--primary-600)]/10'
+                  : 'rounded-2xl rounded-bl-md bg-[var(--surface-100)]/80 text-[var(--surface-800)]'
               }`}
             >
               {msg.blocks.map((block, j) => (
@@ -450,7 +481,7 @@ export function CribAIChat({
       </div>
 
       {/* Input */}
-      <div className="border-t border-[var(--surface-200)] p-4 bg-[var(--surface-50)] rounded-b-xl">
+      <div className="border-t border-[var(--surface-200)]/60 p-4 glass rounded-b-2xl">
         <div className="flex gap-2">
           <input
             type="text"
@@ -458,17 +489,29 @@ export function CribAIChat({
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask about housing, compare apartments, schedule tours..."
-            className="flex-1 rounded-xl border border-[var(--surface-200)] bg-white px-4 py-2.5 text-sm focus:border-[var(--primary-500)] focus:outline-none focus:ring-1 focus:ring-[var(--primary-500)] transition-colors"
+            className="flex-1 rounded-xl border border-[var(--surface-200)] bg-white px-4 py-2.5 text-sm placeholder:text-[var(--surface-400)] focus:border-[var(--primary-500)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]/20 transition-all duration-200"
             disabled={isStreaming}
             aria-label="Chat message input"
           />
           <button
             onClick={() => sendMessage()}
             disabled={isStreaming || !input.trim()}
-            className="rounded-xl bg-[var(--primary-600)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--primary-700)] disabled:opacity-50 transition-colors"
+            className="rounded-xl bg-[var(--primary-600)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--primary-700)] hover:shadow-lg hover:shadow-[var(--primary-600)]/20 disabled:opacity-50 disabled:shadow-none transition-all duration-300"
             aria-label={isStreaming ? 'Thinking' : 'Send message'}
           >
-            {isStreaming ? 'Thinking...' : 'Send'}
+            {isStreaming ? (
+              <span className="inline-flex items-center gap-1.5">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-white/80 animate-pulse" />
+                Thinking
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5">
+                Send
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                </svg>
+              </span>
+            )}
           </button>
         </div>
       </div>

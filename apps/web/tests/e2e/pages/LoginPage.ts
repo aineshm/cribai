@@ -5,44 +5,58 @@ import { type Page, type Locator, expect } from '@playwright/test';
  *
  * DOM notes (from apps/web/app/(auth)/login/page.tsx):
  *
- * Initial state (magic link form):
+ * Email step:
  *   - "← Back" link: href="/"
  *   - <h1> "Sign in to CampusNest"
- *   - <p> description text about magic link / .edu email
- *   - <input type="email" placeholder="you@university.edu">
- *   - <button type="submit"> text "Send magic link" (or "Sending link..." while loading)
- *   - Error div (conditional): data-testid="error-message" with error text
+ *   - <p> description text about .edu email + verification code
+ *   - <input type="email" aria-label="Email address" placeholder="you@university.edu">
+ *   - <button type="submit"> text "Send verification code" (or "Sending code..." while loading)
+ *   - Error div (conditional): data-testid="error-message"
  *
- * Success state (after form submit):
- *   - "✉️" emoji
- *   - <h1> "Check your email"
+ * OTP step (after email submit):
+ *   - "← Back" button (returns to email step)
+ *   - "🔑" emoji
+ *   - <h1> "Enter your code"
  *   - <p> containing the submitted email address
- *   - "Use a different email" button (resets to form)
- *
- * The form submits via Supabase auth.signInWithOtp — no real network call in E2E.
+ *   - <input aria-label="8-digit verification code" inputMode="numeric">
+ *   - <button type="submit"> "Verify code" (or "Verifying..." while loading)
+ *   - "Resend code" button (30s cooldown)
  */
 export class LoginPage {
   readonly page: Page;
 
+  // Email step
   readonly heading: Locator;
   readonly description: Locator;
   readonly emailInput: Locator;
   readonly submitButton: Locator;
   readonly backLink: Locator;
   readonly errorMessage: Locator;
-  readonly successHeading: Locator;
-  readonly useDifferentEmailButton: Locator;
+
+  // OTP step
+  readonly otpHeading: Locator;
+  readonly otpInput: Locator;
+  readonly verifyButton: Locator;
+  readonly resendButton: Locator;
+  readonly otpBackButton: Locator;
 
   constructor(page: Page) {
     this.page = page;
+
+    // Email step locators
     this.heading = page.getByRole('heading', { name: 'Sign in to CampusNest', level: 1 });
-    this.description = page.getByText("we'll send you a magic link");
-    this.emailInput = page.getByPlaceholder('you@university.edu');
-    this.submitButton = page.getByRole('button', { name: /Send magic link|Sending link/i });
+    this.description = page.getByText("we'll send you a verification code");
+    this.emailInput = page.getByLabel('Email address');
+    this.submitButton = page.getByRole('button', { name: /Send verification code|Sending code/i });
     this.backLink = page.getByRole('link', { name: /Back/i });
     this.errorMessage = page.locator('[data-testid="error-message"]');
-    this.successHeading = page.getByRole('heading', { name: 'Check your email', level: 1 });
-    this.useDifferentEmailButton = page.getByRole('button', { name: 'Use a different email' });
+
+    // OTP step locators
+    this.otpHeading = page.getByRole('heading', { name: 'Enter your code', level: 1 });
+    this.otpInput = page.getByLabel('8-digit verification code');
+    this.verifyButton = page.getByRole('button', { name: /Verify code|Verifying/i });
+    this.resendButton = page.getByRole('button', { name: /Resend code|Code sent/i });
+    this.otpBackButton = page.getByRole('button', { name: /Back/i });
   }
 
   async goto(searchParams?: Record<string, string>) {
@@ -60,10 +74,11 @@ export class LoginPage {
     await expect(this.submitButton).toBeVisible();
   }
 
-  async assertSuccessStateVisible(email: string) {
-    await expect(this.successHeading).toBeVisible();
+  async assertOtpStepVisible(email: string) {
+    await expect(this.otpHeading).toBeVisible();
+    await expect(this.otpInput).toBeVisible();
     await expect(this.page.getByText(email)).toBeVisible();
-    await expect(this.useDifferentEmailButton).toBeVisible();
+    await expect(this.verifyButton).toBeVisible();
   }
 
   async assertErrorVisible() {
@@ -83,11 +98,23 @@ export class LoginPage {
     await this.clickSubmit();
   }
 
+  async fillOtp(code: string) {
+    await this.otpInput.fill(code);
+  }
+
+  async clickVerify() {
+    await this.verifyButton.click();
+  }
+
   async clickBack() {
     await this.backLink.click();
   }
 
-  async clickUseDifferentEmail() {
-    await this.useDifferentEmailButton.click();
+  async clickOtpBack() {
+    await this.otpBackButton.click();
+  }
+
+  async clickResend() {
+    await this.resendButton.click();
   }
 }

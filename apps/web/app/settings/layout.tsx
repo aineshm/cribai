@@ -24,7 +24,7 @@ export default async function SettingsLayout({
       <nav className="sticky top-0 z-50 border-b border-[var(--surface-200)] bg-white/80 backdrop-blur-sm px-6 py-4">
         <div className="mx-auto flex max-w-6xl items-center gap-4">
           <Link
-            href="/uw-madison/cribai"
+            href="/"
             className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-900)]"
           >
             CampusNest

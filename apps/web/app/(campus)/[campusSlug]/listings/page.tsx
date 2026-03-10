@@ -1,8 +1,14 @@
 import { Suspense } from 'react';
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { createSecretClient, createServerComponentClient } from '@campusnest/supabase/server';
 import { ListingGrid } from '../../../../components/listing-grid';
 import { ListingFilters } from '../../../../components/listing-filters';
+
+export const dynamic = 'force-dynamic';
+
+const PAGE_SIZE = 18;
 
 interface ListingsPageProps {
   params: Promise<{ campusSlug: string }>;
@@ -17,6 +23,10 @@ export default async function ListingsPage({
   const filters = await searchParams;
   const supabase = createSecretClient();
 
+  const page = Math.max(1, parseInt(filters.page ?? '1', 10) || 1);
+  const from = (page - 1) * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
+
   // Get campus ID
   const { data: campus } = await supabase
     .from('campus_configs')
@@ -28,11 +38,12 @@ export default async function ListingsPage({
     return <p className="text-[var(--surface-400)]">Campus not found.</p>;
   }
 
-  // Build query — fetch both active and stale listings
+  // Build query with count for pagination
   let query = supabase
     .from('listings')
     .select(
-      'id, address, rent_monthly, bedrooms, bathrooms, sqft, fairness_score, true_cost_total, amenities, photo_urls, source_url, last_seen_at, is_active'
+      'id, address, rent_monthly, bedrooms, bathrooms, sqft, fairness_score, true_cost_total, amenities, photo_urls, source_url, last_seen_at, is_active',
+      { count: 'exact' }
     )
     .eq('campus_id', campus.id);
 
@@ -43,6 +54,10 @@ export default async function ListingsPage({
     } else {
       query = query.eq('bedrooms', beds);
     }
+  }
+
+  if (filters.minPrice || filters.maxPrice) {
+    query = query.not('rent_monthly', 'is', null).gt('rent_monthly', 0);
   }
 
   if (filters.minPrice) {
@@ -71,7 +86,25 @@ export default async function ListingsPage({
       query = query.order('rent_monthly', { ascending: true });
   }
 
-  const { data: listings } = await query;
+  // Apply pagination range
+  query = query.range(from, to);
+
+  const { data: listings, count: totalCount } = await query;
+
+  const total = totalCount ?? 0;
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+
+  // Redirect to last valid page if requested page exceeds total
+  if (totalPages > 0 && page > totalPages) {
+    const params = new URLSearchParams();
+    if (filters.beds) params.set('beds', filters.beds);
+    if (filters.minPrice) params.set('minPrice', filters.minPrice);
+    if (filters.maxPrice) params.set('maxPrice', filters.maxPrice);
+    if (filters.sort) params.set('sort', filters.sort);
+    if (totalPages > 1) params.set('page', String(totalPages));
+    const qs = params.toString();
+    redirect(`/${campusSlug}/listings${qs ? `?${qs}` : ''}`);
+  }
 
   // Fetch saved listing IDs for authenticated user (optional)
   let savedListingIds = new Set<string>();
@@ -92,11 +125,30 @@ export default async function ListingsPage({
     // Unauthenticated users — no saved listings
   }
 
+  // Build pagination URL preserving existing filters
+  function paginationHref(targetPage: number): string {
+    const params = new URLSearchParams();
+    if (filters.beds) params.set('beds', filters.beds);
+    if (filters.minPrice) params.set('minPrice', filters.minPrice);
+    if (filters.maxPrice) params.set('maxPrice', filters.maxPrice);
+    if (filters.sort) params.set('sort', filters.sort);
+    if (targetPage > 1) params.set('page', String(targetPage));
+    const qs = params.toString();
+    return `/${campusSlug}/listings${qs ? `?${qs}` : ''}`;
+  }
+
   return (
     <div className="animate-fade-in">
-      <h1 className="font-[family-name:var(--font-display)] text-3xl text-[var(--surface-900)]">
-        Listings — {campus.name}
-      </h1>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h1 className="font-[family-name:var(--font-display)] text-3xl text-[var(--surface-900)]">
+          Listings — {campus.name}
+        </h1>
+        {total > 0 && (
+          <span className="text-sm text-[var(--surface-400)]">
+            {total} {total === 1 ? 'listing' : 'listings'} found
+          </span>
+        )}
+      </div>
       <p className="mt-2 text-[var(--surface-500)]">
         Search and compare student housing with True Cost and Fairness Scores.
       </p>
@@ -108,6 +160,60 @@ export default async function ListingsPage({
       <div className="mt-6">
         <ListingGrid listings={listings ?? []} campusSlug={campusSlug} savedListingIds={savedListingIds} />
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <nav className="mt-8 flex items-center justify-center gap-2" aria-label="Pagination">
+          {page > 1 && (
+            <Link
+              href={paginationHref(page - 1)}
+              className="rounded-lg border border-[var(--surface-200)] px-3 py-2 text-sm text-[var(--surface-600)] hover:bg-[var(--surface-50)] transition-colors"
+            >
+              Previous
+            </Link>
+          )}
+
+          {Array.from({ length: totalPages }, (_, i) => i + 1)
+            .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+            .reduce<(number | 'ellipsis')[]>((acc, p, idx, arr) => {
+              if (idx > 0) {
+                const prev = arr[idx - 1]!;
+                if (p - prev > 1) acc.push('ellipsis');
+              }
+              acc.push(p);
+              return acc;
+            }, [])
+            .map((item, idx) =>
+              item === 'ellipsis' ? (
+                <span key={`ellipsis-${idx}`} className="px-2 text-sm text-[var(--surface-400)]">
+                  ...
+                </span>
+              ) : (
+                <Link
+                  key={item}
+                  href={paginationHref(item)}
+                  className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    item === page
+                      ? 'bg-[var(--primary-600)] text-white'
+                      : 'border border-[var(--surface-200)] text-[var(--surface-600)] hover:bg-[var(--surface-50)]'
+                  }`}
+                  aria-current={item === page ? 'page' : undefined}
+                >
+                  {item}
+                </Link>
+              )
+            )}
+
+          {page < totalPages && (
+            <Link
+              href={paginationHref(page + 1)}
+              className="rounded-lg border border-[var(--surface-200)] px-3 py-2 text-sm text-[var(--surface-600)] hover:bg-[var(--surface-50)] transition-colors"
+            >
+              Next
+            </Link>
+          )}
+        </nav>
+      )}
     </div>
   );
 }

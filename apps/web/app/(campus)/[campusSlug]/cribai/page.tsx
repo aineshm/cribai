@@ -1,6 +1,5 @@
-import { cookies } from 'next/headers';
-import { createServerComponentClient } from '@campusnest/supabase/server';
 import { CribAIChatPage } from './cribai-page-client';
+import { getCurrentUser } from '../../../../lib/get-current-user';
 
 export default async function CribAIPage({
   params,
@@ -12,11 +11,7 @@ export default async function CribAIPage({
   const { campusSlug } = await params;
   const { about, address } = await searchParams;
 
-  const cookieStore = await cookies();
-  const supabase = createServerComponentClient(cookieStore);
-
-  // Check auth status
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user, supabase } = await getCurrentUser();
   const isAuthenticated = !!user;
 
   // Get campus ID for conversation creation

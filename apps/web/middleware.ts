@@ -1,11 +1,68 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import {
+  isDevAuthEnabled,
+  getDevUserById,
+  DEFAULT_DEV_USER,
+  DEV_USER_COOKIE,
+  toSupabaseUser,
+} from './lib/dev-auth';
+
+// ---------------------------------------------------------------------------
+// Dev auth helper — resolves mock user from cookie
+// ---------------------------------------------------------------------------
+function resolveDevUser(request: NextRequest) {
+  const selectedId = request.cookies.get(DEV_USER_COOKIE)?.value;
+  const devUser = selectedId ? getDevUserById(selectedId) : undefined;
+  return devUser ?? DEFAULT_DEV_USER;
+}
 
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next({
     request: { headers: request.headers },
   });
 
+  const { pathname } = request.nextUrl;
+
+  // ------------------------------------------------------------------
+  // Dev auth bypass — skip all Supabase auth when BYPASS_AUTH=true
+  // ------------------------------------------------------------------
+  if (isDevAuthEnabled()) {
+    const devUser = resolveDevUser(request);
+
+    // Remember last visited campus (same logic as production)
+    const campusMatch = pathname.match(/^\/([^/]+)\/cribai/);
+    if (campusMatch?.[1]) {
+      response.cookies.set('last_campus', campusMatch[1], {
+        path: '/',
+        maxAge: 60 * 60 * 24 * 365,
+        sameSite: 'lax',
+      });
+    }
+
+    // Redirect /login to CribAI in dev mode — auth is bypassed
+    if (pathname === '/login') {
+      const lastCampus = request.cookies.get('last_campus')?.value ?? 'uw-madison';
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = `/${lastCampus}/cribai`;
+      return NextResponse.redirect(redirectUrl);
+    }
+
+    // Inject dev user info as headers for downstream server components
+    response.headers.set('x-dev-user-id', devUser.id);
+    response.headers.set('x-dev-user-email', devUser.email);
+    response.headers.set(
+      'x-dev-user-json',
+      JSON.stringify(toSupabaseUser(devUser)),
+    );
+
+    // No redirects, no rate limiting — dev mode is fully open
+    return response;
+  }
+
+  // ------------------------------------------------------------------
+  // Production auth flow (unchanged)
+  // ------------------------------------------------------------------
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -35,8 +92,6 @@ export async function middleware(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const { pathname } = request.nextUrl;
 
   // Remember last visited campus when user hits /{campusSlug}/cribai
   const campusMatch = pathname.match(/^\/([^/]+)\/cribai/);

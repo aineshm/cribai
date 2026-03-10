@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 06-03-PLAN.md
-last_updated: "2026-03-09T14:53:37.684Z"
-last_activity: 2026-03-09 - Completed 06-03-PLAN.md
+status: completed
+stopped_at: Completed 07-04-PLAN.md
+last_updated: "2026-03-10T04:42:51.788Z"
+last_activity: 2026-03-10 - Completed 07-02-PLAN.md
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 21
-  completed_plans: 21
+  total_phases: 8
+  completed_phases: 7
+  total_plans: 25
+  completed_plans: 25
   percent: 100
 ---
 
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 
 ## Current Position
 
-Phase: 6 of 6 (Agent Tool Expansion & Polish) -- COMPLETE
-Plan: 3 of 3 in current phase (all complete)
-Status: Phase 6 complete (manual listing submission + end-to-end verification approved)
-Last activity: 2026-03-09 - Completed 06-03-PLAN.md
+Phase: 7 of 7 (Fix E2E Test Issues and Complete V1) -- COMPLETE
+Plan: 2 of 2 in current phase (all complete)
+Status: Phase 7 complete -- all UX polish items addressed
+Last activity: 2026-03-10 - Completed 07-02-PLAN.md
 
-Progress: [██████████] 100% (21 of 21 plans)
+Progress: [██████████] 100% (23 of 23 plans)
 
 ## Performance Metrics
 
@@ -72,6 +72,10 @@ Progress: [██████████] 100% (21 of 21 plans)
 | Phase 06 P01 | 4min | 2 tasks | 10 files |
 | Phase 06 P02 | 4min | 2 tasks | 10 files |
 | Phase 06 P03 | 2min | 2 tasks | 7 files |
+| Phase 07 P01 | 4min | 2 tasks | 4 files |
+| Phase 07 P02 | 3min | 2 tasks | 9 files |
+| Phase 07 P03 | 3min | 2 tasks | 5 files |
+| Phase 07 P04 | 3min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -147,6 +151,17 @@ Recent decisions affecting current work:
 - [Phase 06]: Schedule tour conflict detection warns via modelContext only, never blocks tour creation
 - [Phase 06]: Service-role client for manual listing insert (same pattern as save-web-listing)
 - [Phase 06]: Auth required for submit-listing page with server-side redirect
+- [Phase 07]: Frontend conversation persistence already wired from Phase 6 -- no changes needed in cribai-chat.tsx
+- [Phase 07]: MarkAllReadButton is a client component using router.refresh() after API call for data revalidation
+- [Phase 07]: University defaults to UW-Madison for v1 with dynamic lookup via campus_id when available
+- [Phase 07]: Removed priceChangedSavesCount entirely from layout/mobile-nav after badge removal — TypeScript strict mode raises error for declared-but-unread variables
+- [Phase 07]: Mark-read API route uses DEV_USER_COOKIE + DEFAULT_DEV_USER.id pattern for dev user resolution (same as other dev-auth routes)
+- [Phase 07-04]: Tool description narrowing is primary CribAI behavioral fix — DO NOT use guards in Gemini function descriptions steer model without code changes
+- [Phase 07-04]: Dollar sign prefix uses pointer-events-none absolute span + pl-7 padding for currency affordance (no new library)
+
+### Roadmap Evolution
+
+- Phase 7 added: Fix e2e test issues and complete v1
 
 ### Pending Todos
 
@@ -168,7 +183,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T14:48:18.180Z
-Stopped at: Completed 06-03-PLAN.md
+Last session: 2026-03-10T04:39:00.438Z
+Stopped at: Completed 07-04-PLAN.md
 Resume file: None
 Next: 06-03-PLAN.md (polish and ship)
