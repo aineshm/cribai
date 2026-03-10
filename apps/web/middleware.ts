@@ -103,8 +103,11 @@ export async function middleware(request: NextRequest) {
     });
   }
 
-  // Protect /*/cribai routes — require auth
-  if (campusMatch && !user) {
+  // Protected campus routes — redirect to login if not authenticated
+  const protectedRouteMatch = pathname.match(
+    /^\/([^/]+)\/(cribai|dashboard|saved|notifications|submit-listing)/
+  );
+  if (protectedRouteMatch && !user) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = '/login';
     loginUrl.searchParams.set('next', pathname);

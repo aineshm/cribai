@@ -15,8 +15,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Auth and Platform Foundation** - Fix broken auth flow, establish UW Madison as primary campus, responsive design
 - [x] **Phase 2: Data Pipeline** - Reliable scraping of real listings for UW Madison with automation and freshness tracking (completed 2026-03-06)
 - [x] **Phase 3: Semantic Search** - Vector embeddings and hybrid search so CribAI ranks listings by qualitative relevance (completed 2026-03-06)
-- [ ] **Phase 4: Saved Listings and Alerts** - Users can save favorites, track price changes, and view listing details with photos
-- [ ] **Phase 5: Agentic Data Pipeline + Web Search** - Fix scraper for real listings, add web_search tool so CribAI researches on-demand (UAT gap closure in progress)
+- [x] **Phase 4: Saved Listings and Alerts** - Users can save favorites, track price changes, and view listing details with photos (completed 2026-03-06)
+- [x] **Phase 5: Agentic Data Pipeline + Web Search** - Fix scraper for real listings, add web_search tool so CribAI researches on-demand (completed 2026-03-08)
 - [x] **Phase 6: Agent Tool Expansion + Polish** - Placeholder and real tools for reviews, tour booking, PM contact, neighborhood info; chat persistence; ship (completed 2026-03-09)
 
 ## Phase Details
@@ -50,9 +50,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Scraper enhancement: photo extraction, optional rent, stealth, metrics, archive lifecycle
-- [ ] 02-02-PLAN.md — GitHub Actions: Playwright install, job summary reporting, failure alerting
-- [ ] 02-03-PLAN.md — Freshness UX: hero photos, freshness badges, stale section, photo gallery
+- [x] 02-01-PLAN.md — Scraper enhancement: photo extraction, optional rent, stealth, metrics, archive lifecycle
+- [x] 02-02-PLAN.md — GitHub Actions: Playwright install, job summary reporting, failure alerting
+- [x] 02-03-PLAN.md — Freshness UX: hero photos, freshness badges, stale section, photo gallery
 
 ### Phase 3: Semantic Search
 **Goal**: CribAI understands qualitative preferences and ranks listings by semantic relevance, not just SQL filters
@@ -66,9 +66,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — pgvector migration, embedding pipeline (synthesize, embed, orchestrate), type updates
-- [ ] 03-02-PLAN.md — Hybrid search: upgrade search_listings with semantic_query + RPC, GH Actions embedding step
-- [ ] 03-03-PLAN.md — Map block: Mapbox GL JS map component with price pins, popups, block renderer integration
+- [x] 03-01-PLAN.md — pgvector migration, embedding pipeline (synthesize, embed, orchestrate), type updates
+- [x] 03-02-PLAN.md — Hybrid search: upgrade search_listings with semantic_query + RPC, GH Actions embedding step
+- [x] 03-03-PLAN.md — Map block: Mapbox GL JS map component with price pins, popups, block renderer integration
 
 ### Phase 4: Saved Listings and Alerts
 **Goal**: Students can save listings they like, see detailed listing pages with photos, and get notified of price changes
@@ -82,15 +82,15 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Database schema (saved_listings + notifications tables), Zod types, HeartButton component, ListingCard integration
-- [ ] 04-02-PLAN.md — Enhanced listing detail page (gallery, map, freshness, CribAI CTA, similar), saved listings page, nav links
-- [ ] 04-03-PLAN.md — Price change detection pipeline, notifications bell + page UI
-- [ ] 04-04-PLAN.md — CribAI get_saved_listings tool, nav badge for price-changed saves
+- [x] 04-01-PLAN.md — Database schema (saved_listings + notifications tables), Zod types, HeartButton component, ListingCard integration
+- [x] 04-02-PLAN.md — Enhanced listing detail page (gallery, map, freshness, CribAI CTA, similar), saved listings page, nav links
+- [x] 04-03-PLAN.md — Price change detection pipeline, notifications bell + page UI
+- [x] 04-04-PLAN.md — CribAI get_saved_listings tool, nav badge for price-changed saves
 
 ### Phase 5: Agentic Data Pipeline + Web Search
 **Goal**: CribAI has enough real listings to be useful AND can research on-demand when the corpus is thin — this is the core differentiator over Apartments.com
 **Depends on**: Phase 3
-**Requirements**: DATA-04, AGENT-01, AGENT-02
+**Requirements**: DATA-04
 **Success Criteria** (what must be TRUE):
   1. Scraper produces 100+ real listings with rent/beds/photos from aggregator sources (Craigslist, Zillow/RentCafe, or local PM sites)
   2. Google Places no longer used as a listing source (remove or repurpose for lat/lng enrichment only)
@@ -103,13 +103,13 @@ Plans:
 - [x] 05-01-PLAN.md — Scraper pipeline overhaul: remove Google Places, add Zillow scraper, fix Craigslist diagnostics, per-source reporting
 - [x] 05-02-PLAN.md — web_search tool: Tavily API integration, session cache, schema/executor registration, search trigger hint
 - [x] 05-03-PLAN.md — UI integration: source citations on ListingCard, web_search indicator, Google Places cleanup, save-web-result-to-DB flow
-- [ ] 05-04-PLAN.md — Gap closure: web search auto-persist + structured web_result block type + clickable URLs in chat
-- [ ] 05-05-PLAN.md — Gap closure: chat sessionStorage persistence + dashboard real data queries
+- [x] 05-04-PLAN.md — Gap closure: web search auto-persist + structured web_result block type + clickable URLs in chat
+- [x] 05-05-PLAN.md — Gap closure: chat sessionStorage persistence + dashboard real data queries
 
 ### Phase 6: Agent Tool Expansion + Polish
 **Goal**: CribAI demonstrates breadth of agentic capabilities — reviews, tour booking, PM contact, neighborhood info — and the app is shippable
 **Depends on**: Phase 5
-**Requirements**: CHAT-01, CHAT-02, CHAT-03, AGENT-03, AGENT-04, DATA-03, DATA-07, LIST-05
+**Requirements**: CHAT-01, CHAT-02, CHAT-03, DATA-03, DATA-07, LIST-05
 **Success Criteria** (what must be TRUE):
   1. User can close the app, return later, and resume a previous conversation with full history intact
   2. CribAI can discuss Reddit/Yelp/Google Maps reviews for a property (real or placeholder with clear "coming soon" UX)
@@ -133,14 +133,14 @@ Plans:
 | `get_neighborhood_info` | Placeholder | Walkability, safety, commute, vibe |
 
 Plans:
-- [ ] 06-01-PLAN.md — Chat persistence: DB-backed conversations + sidebar, replacing sessionStorage
-- [ ] 06-02-PLAN.md — Agent tools: get_reviews, contact_pm, get_neighborhood_info (placeholders), enhanced schedule_tour with conflict detection
-- [ ] 06-03-PLAN.md — Manual listing submission form (DATA-03) + Phase 6 end-to-end verification
+- [x] 06-01-PLAN.md — Chat persistence: DB-backed conversations + sidebar, replacing sessionStorage
+- [x] 06-02-PLAN.md — Agent tools: get_reviews, contact_pm, get_neighborhood_info (placeholders), enhanced schedule_tour with conflict detection
+- [x] 06-03-PLAN.md — Manual listing submission form (DATA-03) + Phase 6 end-to-end verification
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 Phase 4 can proceed in parallel with Phase 5 planning/discussion.
 
 | Phase | Plans Complete | Status | Completed |
@@ -149,10 +149,11 @@ Phase 4 can proceed in parallel with Phase 5 planning/discussion.
 | 2. Data Pipeline | 3/3 | Complete | 2026-03-06 |
 | 3. Semantic Search | 3/3 | Complete | 2026-03-06 |
 | 4. Saved Listings and Alerts | 4/4 | Complete | 2026-03-06 |
-| 5. Agentic Data Pipeline + Web Search | 3/5 | Gap closure | - |
+| 5. Agentic Data Pipeline + Web Search | 5/5 | Complete | 2026-03-08 |
 | 6. Agent Tool Expansion + Polish | 3/3 | Complete   | 2026-03-09 |
 | 7. Fix e2e test issues and complete v1 | 4/4 | Complete   | 2026-03-10 |
 | 8. Close Audit Gaps + Verify Phase 4 | 2/2 | Complete   | 2026-03-10 |
+| 9. V1 Integration Polish + Doc Cleanup | 2/2 | Complete   | 2026-03-10 |
 
 ### Phase 7: Fix e2e test issues and complete v1
 
@@ -164,8 +165,8 @@ Phase 4 can proceed in parallel with Phase 5 planning/discussion.
 Plans:
 - [x] 07-01-PLAN.md — Fix 4 critical E2E bugs: price filter, dev auth in CribAI route, Google Places photo cleanup
 - [x] 07-02-PLAN.md — UX polish: favicon, submit listing copy, notification read behavior, dashboard cleanup, profile university
-- [ ] 07-03-PLAN.md — Gap closure: favicon CN text, dashboard grid, mark-read dev user fix, notification badge placement
-- [ ] 07-04-PLAN.md — Gap closure: CribAI tool description fixes for tour scheduling, submit listing form redesign
+- [x] 07-03-PLAN.md — Gap closure: favicon CN text, dashboard grid, mark-read dev user fix, notification badge placement
+- [x] 07-04-PLAN.md — Gap closure: CribAI tool description fixes for tour scheduling, submit listing form redesign
 
 ### Phase 8: Close Audit Gaps + Verify Phase 4
 **Goal:** Close all gaps identified in v1.0 milestone audit — verify Phase 4 requirements, fix nightly pipeline PageIndex rebuild, wire dev auth in messages API, remove dead code
@@ -180,5 +181,21 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 08-01-PLAN.md — Write Phase 4 VERIFICATION.md documenting LIST-01 through LIST-04 as satisfied
-- [ ] 08-02-PLAN.md — Three code fixes: PageIndex pipeline step, messages API dev auth, dead route removal
+- [x] 08-01-PLAN.md — Write Phase 4 VERIFICATION.md documenting LIST-01 through LIST-04 as satisfied
+- [x] 08-02-PLAN.md — Three code fixes: PageIndex pipeline step, messages API dev auth, dead route removal
+
+### Phase 9: V1 Integration Polish + Documentation Cleanup
+**Goal:** Close minor integration gaps from v1.0 milestone audit — fix contact_email handling, add dev auth to conversations GET, expand middleware protection, clean up stale documentation
+**Depends on:** Phase 8
+**Requirements**: None (integration polish — affected requirements DATA-03, CHAT-01, AUTH-02 already satisfied)
+**Gap Closure:** Closes integration gaps INT-01, INT-02, INT-03 from v1.0-MILESTONE-AUDIT.md
+**Success Criteria** (what must be TRUE):
+  1. Submit listing form either persists contact_email to DB or removes the field from the form (no silent data loss)
+  2. GET /api/conversations/[id] works in dev auth mode (BYPASS_AUTH=true) — conversation reload from sidebar works
+  3. Middleware protects /*/dashboard, /*/saved, /*/notifications, /*/submit-listing routes (not just /*/cribai)
+  4. ROADMAP.md has no stale unchecked plan checkmarks for completed plans
+**Plans**: 2 plans
+
+Plans:
+- [x] 09-01-PLAN.md — Fix contact_email silent data loss + dev auth on GET conversations/[id]
+- [x] 09-02-PLAN.md — Middleware protected route expansion + ROADMAP checkmark cleanup

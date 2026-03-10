@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Completed 08-02-PLAN.md
-last_updated: "2026-03-10T16:15:43.410Z"
-last_activity: 2026-03-10 - Completed 07-02-PLAN.md
+status: verifying
+stopped_at: Completed 09-02-PLAN.md
+last_updated: "2026-03-10T18:14:06.024Z"
+last_activity: 2026-03-10 - Completed 09-02-PLAN.md
 progress:
-  total_phases: 9
-  completed_phases: 8
-  total_plans: 27
-  completed_plans: 27
+  total_phases: 10
+  completed_phases: 9
+  total_plans: 29
+  completed_plans: 29
   percent: 100
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Students can find off-campus housing through an agentic AI assistant that researches, compares, and discusses options — not just a listing aggregator
-**Current focus:** All phases complete -- v1 milestone reached
+**Current focus:** Phase 9 complete -- all integration gaps closed, v1 milestone reached
 
 ## Current Position
 
-Phase: 7 of 7 (Fix E2E Test Issues and Complete V1) -- COMPLETE
+Phase: 9 of 10 (V1 Integration Polish + Doc Cleanup) -- COMPLETE
 Plan: 2 of 2 in current phase (all complete)
-Status: Phase 7 complete -- all UX polish items addressed
-Last activity: 2026-03-10 - Completed 07-02-PLAN.md
+Status: Phase 9 complete -- all INT gaps closed, ROADMAP cleaned up
+Last activity: 2026-03-10 - Completed 09-02-PLAN.md
 
-Progress: [██████████] 100% (23 of 23 plans)
+Progress: [██████████] 100% (29 of 29 plans)
 
 ## Performance Metrics
 
@@ -78,6 +78,8 @@ Progress: [██████████] 100% (23 of 23 plans)
 | Phase 07 P04 | 3min | 2 tasks | 3 files |
 | Phase 08 P01 | 3min | 1 tasks | 1 files |
 | Phase 08 P02 | 6min | 3 tasks | 3 files |
+| Phase 09 P01 | 5min | 2 tasks | 3 files |
+| Phase 09 P02 | 2min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -162,6 +164,10 @@ Recent decisions affecting current work:
 - [Phase 07-04]: Dollar sign prefix uses pointer-events-none absolute span + pl-7 padding for currency affordance (no new library)
 - [Phase 08]: VERIFICATION.md written as verified (code shipped), not aspirational — all 4 LIST requirements confirmed by UAT and SUMMARY files
 - [Phase 08]: Import path for dev-auth from messages/route.ts is 5 levels (../../../../../lib/dev-auth), not 4 as in plan
+- [Phase 09]: Kept campusMatch for last_campus cookie-setting; added separate protectedRouteMatch for broader auth gating across 5 campus route types
+- [Phase 09]: ROADMAP checkmarks corrected: 09-01 was already executed but unmarked; Phase 9 row updated to 2/2 Complete
+- [Phase 09]: Import path for dev-auth from conversations/[id]/route.ts is 4 levels (../../../../lib/dev-auth), not 5 — one level shallower than messages/route.ts
+- [Phase 09]: contact_email persisted in listings table via migration 011 and submit-listing route fix (INT-01 closed)
 
 ### Roadmap Evolution
 
@@ -187,7 +193,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-10T16:12:16.166Z
-Stopped at: Completed 08-02-PLAN.md
+Last session: 2026-03-10T18:10:48.880Z
+Stopped at: Completed 09-02-PLAN.md
 Resume file: None
-Next: 06-03-PLAN.md (polish and ship)
+Next: v1.0 milestone complete — no remaining plans
