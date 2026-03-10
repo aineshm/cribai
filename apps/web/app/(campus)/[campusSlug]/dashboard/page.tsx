@@ -141,15 +141,6 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
           )}
         </div>
 
-        {/* Recently Viewed */}
-        <div className="rounded-xl border border-[var(--surface-200)] bg-[var(--surface-50)] p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-[var(--surface-800)] mb-4">
-            Recently Viewed
-          </h2>
-          <p className="text-sm text-[var(--surface-400)]">
-            No recently viewed listings
-          </p>
-        </div>
       </div>
     </div>
   );
