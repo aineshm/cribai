@@ -31,13 +31,25 @@ Students can find off-campus housing through conversational AI search that under
 
 ### Active
 
+- [ ] Design system migration: Cabinet Grotesk + Satoshi fonts, shadcn/ui primitives, Lucide icons, Framer Motion
+- [ ] Marketing landing page with hero, social proof, features, how-it-works, CTA
+- [ ] Auth page redesign: split layout with branded panel + animated multi-step flow
+- [ ] Explore page: unified split view (listings 60% + map 40%) with filter chips + floating AI chat panel
+- [ ] Listing detail redesign: photo gallery grid, 2-column layout, sticky CTA, AI lease summary, commute section
+- [ ] Post sublease redesign: multi-step wizard with sidebar progress tracker
+- [ ] Profile/saved redesign: combined page with profile header + tabbed saved/settings
+- [ ] AI Concierge (Messages page): task-based agent missions with status pipeline, draft approval (HITL), steering bar, agent summaries
+
+### Future
+
 - [ ] Real review integration (Reddit, Google Maps, Yelp) — replacing placeholder tools
 - [ ] Real PM contact integration — replacing placeholder tool
 - [ ] Real neighborhood info (Walk Score API, crime data) — replacing placeholder tool
 - [ ] On-demand embedding trigger for manual listing submissions
-- [ ] Traditional filter UI alongside AI chat
 - [ ] Basic roommate matching (profile + preferences)
 - [ ] Expand to 2-3 additional campuses
+- [ ] Full agent-first backend: state machines (LangGraph/Inngest), intent parsing, generative UI
+- [ ] Agentic search: NL query → LLM extraction → auto-populate filter chips → mission creation on no results
 
 ### Out of Scope
 
@@ -49,6 +61,9 @@ Students can find off-campus housing through conversational AI search that under
 - OAuth login — OTP sufficient, .edu verification more valuable
 - Mobile native app — web-first, responsive covers mobile
 - Nationwide coverage — nail tight markets first
+- Full state machine backend (LangGraph/Step Functions) — v1.1 uses simpler mission table + polling pattern
+- Generative UI (AI returns component JSON) — v1.1 uses hardcoded mission cards, generative UI in v2+
+- Traditional filter UI as standalone page — v1.1 integrates filters into explore page with AI chat
 
 ## Context
 
@@ -62,7 +77,17 @@ Students can find off-campus housing through conversational AI search that under
 - submit-listing API lacks dev auth bypass (production unaffected)
 - Orphaned 07-scraper-fix/ planning directory
 
-**What's next:** Real tool integrations (reviews, neighborhood data), additional campuses, roommate matching.
+## Current Milestone: v1.1 UI/UX Upgrade
+
+**Goal:** Migrate the entire frontend to the new Figma design system (Cabinet Grotesk + Satoshi, shadcn/ui, Lucide, Framer Motion) and introduce the AI Concierge missions page — shifting from chat-first to agent-first UX.
+
+**Target features:**
+- Design system overhaul (fonts, colors, components, icons, animations)
+- New marketing landing page
+- Redesigned auth, explore (split list+map), listing detail, post sublease, profile/saved pages
+- AI Concierge page with task-based missions, HITL draft approval, and steering bar
+
+**What's next (future):** Real tool integrations (reviews, neighborhood data), additional campuses, roommate matching, full agentic backend with state machines.
 
 ## Key Decisions
 
@@ -77,6 +102,11 @@ Students can find off-campus housing through conversational AI search that under
 | Placeholder tools for v1 breadth | Demonstrates agent capabilities, real integrations in v2 | ✓ Good — UX communicates "coming soon" |
 | DB conversations + sessionStorage fallback | Auth users get persistence, guests get tab-scoped chat | ✓ Good |
 | Free for students in v1 | Remove friction, validate usage, monetize via PM side later | — Pending |
+| shadcn/ui for v1.1 | Full component library, Tailwind-native, accessible, widely adopted | — Pending |
+| Framer Motion for animations | Spring physics, layout animations, presence/exit — industry standard | — Pending |
+| Cabinet Grotesk + Satoshi fonts | Modern geometric sans-serif pair from Figma design — youthful, clean | — Pending |
+| Lucide icons over Heroicons | Tree-shakeable, better DX, matches shadcn/ui ecosystem | — Pending |
+| Simple mission table over state machines | v1.1 MVP — mission status column + polling, defer LangGraph to v2 | — Pending |
 
 ## Constraints
 
@@ -88,4 +118,4 @@ Students can find off-campus housing through conversational AI search that under
 - **Data**: Listings must be real and current — stale data kills trust
 
 ---
-*Last updated: 2026-03-10 after v1.0 milestone*
+*Last updated: 2026-03-10 after v1.1 milestone start*
