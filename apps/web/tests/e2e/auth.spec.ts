@@ -6,7 +6,7 @@ import { HomePage } from './pages/HomePage';
  * E2E tests — Auth journeys
  *
  * Journeys covered:
- *   1. Login page renders magic link form
+ *   1. Login page renders OTP email form
  *   2. Email input accepts .edu addresses
  *   3. Submit button is present and interactive
  *   4. "Back" link returns to homepage
@@ -21,7 +21,7 @@ import { HomePage } from './pages/HomePage';
  */
 
 test.describe('Login page', () => {
-  test('renders the magic link form', async ({ page }) => {
+  test('renders the OTP email form', async ({ page }) => {
     const login = new LoginPage(page);
     await login.goto();
 

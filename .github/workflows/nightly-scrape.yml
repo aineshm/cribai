@@ -137,3 +137,38 @@ jobs:
           else
             echo "*No metrics available.*" >> "$GITHUB_STEP_SUMMARY"
           fi
+
+      - name: Rebuild PageIndex for CribAI context
+        if: success() && steps.embed.outcome == 'success'
+        id: pageindex
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "${SUPABASE_URL}/functions/v1/rebuild-pageindex" \
+            -H "Authorization: Bearer ${SUPABASE_KEY}" \
+            -H "Content-Type: application/json")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          echo "HTTP $HTTP_CODE: $BODY"
+          if [ "$HTTP_CODE" -ge 400 ]; then
+            echo "::error::PageIndex rebuild failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+      - name: Write PageIndex rebuild summary
+        if: always() && steps.pageindex.outcome != 'skipped'
+        env:
+          PAGEINDEX_OUTCOME: ${{ steps.pageindex.outcome }}
+        run: |
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "## PageIndex Rebuild" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$PAGEINDEX_OUTCOME" = "failure" ]; then
+            echo "> **FAILED** -- Check logs for details" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$PAGEINDEX_OUTCOME" = "success" ]; then
+            echo "> **SUCCESS**" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "> **SKIPPED** (embedding step did not succeed)" >> "$GITHUB_STEP_SUMMARY"
+          fi

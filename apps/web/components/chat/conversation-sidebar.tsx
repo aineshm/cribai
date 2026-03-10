@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Conversation } from '@campusnest/types';
 
 interface ConversationSidebarProps {
@@ -20,18 +20,24 @@ export function ConversationSidebar({
   const [isLoading, setIsLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const [fetchError, setFetchError] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   const fetchConversations = useCallback(async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setFetchError(false);
     try {
-      const res = await fetch('/api/conversations');
+      const res = await fetch('/api/conversations', { signal: controller.signal });
       if (!res.ok) {
         setFetchError(true);
         return;
       }
       const data = (await res.json()) as { conversations: Conversation[] };
       setConversations(data.conversations);
-    } catch {
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
       setFetchError(true);
     } finally {
       setIsLoading(false);
@@ -40,6 +46,7 @@ export function ConversationSidebar({
 
   useEffect(() => {
     fetchConversations();
+    return () => { abortRef.current?.abort(); };
   }, [fetchConversations, refreshTrigger]);
 
   // Escape key to close mobile sidebar

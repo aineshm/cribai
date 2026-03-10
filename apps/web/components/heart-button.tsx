@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { createClient } from '@campusnest/supabase/client';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -23,6 +23,14 @@ export function HeartButton({
   const [saved, setSaved] = useState(initialSaved);
   const [animating, setAnimating] = useState(false);
   const router = useRouter();
+  const animationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up animation timer on unmount
+  useEffect(() => {
+    return () => {
+      if (animationTimerRef.current) clearTimeout(animationTimerRef.current);
+    };
+  }, []);
 
   const iconSize = size === 'sm' ? 'h-5 w-5' : 'h-6 w-6';
   const padding = size === 'sm' ? 'p-1.5' : 'p-2';
@@ -47,7 +55,8 @@ export function HeartButton({
 
       if (newState) {
         setAnimating(true);
-        setTimeout(() => setAnimating(false), 300);
+        if (animationTimerRef.current) clearTimeout(animationTimerRef.current);
+        animationTimerRef.current = setTimeout(() => setAnimating(false), 300);
       }
 
       if (newState) {

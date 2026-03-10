@@ -105,10 +105,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SRCH-02 | Phase 3 | Complete |
 | SRCH-03 | Phase 3 | Complete |
 | SRCH-04 | Phase 3 | Complete |
-| LIST-01 | Phase 4 | Complete |
-| LIST-02 | Phase 4 | Complete |
-| LIST-03 | Phase 4 | Complete |
-| LIST-04 | Phase 4 | Complete |
+| LIST-01 | Phase 8 | Complete |
+| LIST-02 | Phase 8 | Complete |
+| LIST-03 | Phase 8 | Complete |
+| LIST-04 | Phase 8 | Complete |
 | LIST-05 | Phase 6 | Complete |
 | DATA-01 | Phase 2 | Complete |
 | DATA-02 | Phase 2 | Complete |

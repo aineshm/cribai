@@ -31,7 +31,7 @@ export default async function ListingDetailPage({
 
   const { data: listing } = await supabase
     .from('listings')
-    .select('*')
+    .select('id, campus_id, address, rent_monthly, bedrooms, bathrooms, sqft, amenities, photo_urls, source_url, source, location, fairness_score, fairness_data, true_cost_total, available_date, first_seen_at, last_seen_at, is_active')
     .eq('id', id)
     .single();
 
@@ -103,16 +103,30 @@ export default async function ListingDetailPage({
   const postedDaysAgo =
     listing.first_seen_at != null ? getDaysSince(listing.first_seen_at) : null;
 
+  const SOURCE_NAMES: Record<string, string> = {
+    'apartments.com': 'Apartments.com',
+    craigslist: 'Craigslist',
+    zillow: 'Zillow',
+    web_search: 'Web Search',
+    facebook_marketplace: 'Facebook Marketplace',
+    hotpads: 'HotPads',
+    manual: 'Community Submission',
+  };
+  const sourceName = SOURCE_NAMES[listing.source ?? ''] ?? (listing.source ?? 'Unknown').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+
   return (
     <div className="animate-fade-in">
       <Link
         href={`/${campusSlug}/listings`}
-        className="text-sm text-[var(--surface-400)] hover:text-[var(--surface-600)] transition-colors"
+        className="inline-flex items-center gap-1.5 text-sm text-[var(--surface-400)] hover:text-[var(--surface-600)] transition-colors"
       >
-        &larr; Back to listings
+        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+        </svg>
+        Back to listings
       </Link>
 
-      {/* Photo Gallery */}
+      {/* Photo Gallery — always shows, with placeholder for no-photo listings */}
       <div className="mt-4">
         <ListingPhotoGallery
           photoUrls={photoUrls}
@@ -121,15 +135,15 @@ export default async function ListingDetailPage({
         />
       </div>
 
-      {/* Title + Price + Heart + Fairness */}
+      {/* Title + Price + Heart + Badges */}
       <div className="mt-6 flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-start gap-3">
           <div>
-            <h1 className="font-[family-name:var(--font-display)] text-3xl text-[var(--surface-900)]">
+            <h1 className="font-[family-name:var(--font-display)] text-2xl sm:text-3xl text-[var(--surface-900)]">
               {listing.address}
             </h1>
             {listing.rent_monthly != null ? (
-              <p className="mt-1 text-3xl font-bold text-[var(--surface-900)]">
+              <p className="mt-1 text-2xl sm:text-3xl font-bold text-[var(--surface-900)]">
                 ${listing.rent_monthly.toLocaleString()}
                 <span className="text-base font-normal text-[var(--surface-400)]">
                   /mo
@@ -163,137 +177,155 @@ export default async function ListingDetailPage({
         </div>
       </div>
 
-      {/* Posted date */}
-      {postedDaysAgo != null && (
-        <p className="mt-2 text-sm text-[var(--surface-400)]">
-          {postedDaysAgo === 0
-            ? 'Posted today'
-            : postedDaysAgo === 1
-              ? 'Posted yesterday'
-              : `Posted ${postedDaysAgo} days ago`}
-        </p>
-      )}
+      {/* Meta row: posted date + source */}
+      <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-[var(--surface-400)]">
+        {postedDaysAgo != null && (
+          <span>
+            {postedDaysAgo === 0
+              ? 'Posted today'
+              : postedDaysAgo === 1
+                ? 'Posted yesterday'
+                : `Posted ${postedDaysAgo} days ago`}
+          </span>
+        )}
+        {postedDaysAgo != null && <span className="text-[var(--surface-300)]">·</span>}
+        <span>via {sourceName}</span>
+      </div>
 
       {/* Two-column layout */}
       <div className="mt-8 grid gap-8 lg:grid-cols-3">
         {/* Left column: Details + Amenities + Map */}
         <div className="space-y-6 lg:col-span-2">
-          <section className="rounded-xl bg-white p-5 shadow-[var(--shadow-card)]">
+          {/* Details — always shown */}
+          <section className="rounded-2xl bg-white p-6 shadow-[var(--shadow-card)]">
             <h2 className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-900)]">
               Details
             </h2>
-            <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-              {listing.bedrooms != null && (
-                <div>
-                  <dt className="text-xs uppercase tracking-wider text-[var(--surface-400)]">
-                    Bedrooms
-                  </dt>
-                  <dd className="mt-1 font-medium text-[var(--surface-700)]">
-                    {listing.bedrooms === 0 ? 'Studio' : listing.bedrooms}
-                  </dd>
-                </div>
-              )}
-              {listing.bathrooms != null && (
-                <div>
-                  <dt className="text-xs uppercase tracking-wider text-[var(--surface-400)]">
-                    Bathrooms
-                  </dt>
-                  <dd className="mt-1 font-medium text-[var(--surface-700)]">
-                    {listing.bathrooms}
-                  </dd>
-                </div>
-              )}
-              {listing.sqft != null && (
-                <div>
-                  <dt className="text-xs uppercase tracking-wider text-[var(--surface-400)]">
-                    Square Feet
-                  </dt>
-                  <dd className="mt-1 font-medium text-[var(--surface-700)]">
-                    {listing.sqft.toLocaleString()}
-                  </dd>
-                </div>
-              )}
-              {listing.available_date && (
-                <div>
-                  <dt className="text-xs uppercase tracking-wider text-[var(--surface-400)]">
-                    Available
-                  </dt>
-                  <dd className="mt-1 font-medium text-[var(--surface-700)]">
-                    {listing.available_date}
-                  </dd>
-                </div>
-              )}
+            <dl className="mt-4 grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
               <div>
                 <dt className="text-xs uppercase tracking-wider text-[var(--surface-400)]">
-                  Source
+                  Bedrooms
                 </dt>
                 <dd className="mt-1 font-medium text-[var(--surface-700)]">
-                  {listing.source}
+                  {listing.bedrooms != null
+                    ? listing.bedrooms === 0
+                      ? 'Studio'
+                      : listing.bedrooms
+                    : '—'}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-wider text-[var(--surface-400)]">
+                  Bathrooms
+                </dt>
+                <dd className="mt-1 font-medium text-[var(--surface-700)]">
+                  {listing.bathrooms != null ? listing.bathrooms : '—'}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-wider text-[var(--surface-400)]">
+                  Square Feet
+                </dt>
+                <dd className="mt-1 font-medium text-[var(--surface-700)]">
+                  {listing.sqft != null ? listing.sqft.toLocaleString() : '—'}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-wider text-[var(--surface-400)]">
+                  Available
+                </dt>
+                <dd className="mt-1 font-medium text-[var(--surface-700)]">
+                  {listing.available_date ?? '—'}
                 </dd>
               </div>
             </dl>
           </section>
 
-          {amenities.length > 0 && (
-            <section className="rounded-xl bg-white p-5 shadow-[var(--shadow-card)]">
-              <h2 className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-900)]">
-                Amenities
-              </h2>
-              <div className="mt-3 flex flex-wrap gap-2">
+          {/* Amenities — always shown */}
+          <section className="rounded-2xl bg-white p-6 shadow-[var(--shadow-card)]">
+            <h2 className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-900)]">
+              Amenities
+            </h2>
+            {amenities.length > 0 ? (
+              <div className="mt-4 flex flex-wrap gap-2">
                 {amenities.map((a) => (
                   <span
                     key={a}
-                    className="rounded-full bg-[var(--primary-50)] px-3 py-1 text-sm text-[var(--primary-700)]"
+                    className="rounded-full bg-[var(--primary-50)] px-3 py-1.5 text-sm text-[var(--primary-700)]"
                   >
                     {a.replace(/_/g, ' ')}
                   </span>
                 ))}
               </div>
-            </section>
-          )}
+            ) : (
+              <p className="mt-4 text-sm text-[var(--surface-400)]">
+                No amenities listed. Ask CribAI for details about this property.
+              </p>
+            )}
+          </section>
 
-          {/* Map */}
-          {coordinates && (
-            <section className="rounded-xl bg-white p-5 shadow-[var(--shadow-card)]">
-              <h2 className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-900)]">
-                Location
-              </h2>
-              <div className="mt-3">
+          {/* Location — always shown */}
+          <section className="rounded-2xl bg-white p-6 shadow-[var(--shadow-card)]">
+            <h2 className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-900)]">
+              Location
+            </h2>
+            {coordinates ? (
+              <div className="mt-4">
                 <ListingLocationMap
                   latitude={coordinates.latitude}
                   longitude={coordinates.longitude}
                   address={listing.address}
                 />
               </div>
-            </section>
-          )}
+            ) : (
+              <div className="mt-4 flex items-center justify-center rounded-xl bg-[var(--surface-100)] py-12">
+                <div className="text-center">
+                  <svg className="mx-auto h-8 w-8 text-[var(--surface-300)]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+                  </svg>
+                  <p className="mt-2 text-sm text-[var(--surface-400)]">Map unavailable for this listing</p>
+                </div>
+              </div>
+            )}
+          </section>
         </div>
 
-        {/* Right column: True Cost + CribAI CTA + Similar */}
+        {/* Right column: True Cost + CribAI CTA + Actions */}
         <div className="space-y-6">
-          {listing.rent_monthly != null && (
+          {/* True Cost — always shown with CTA if no rent */}
+          {listing.rent_monthly != null ? (
             <TrueCostCalculator
               rentMonthly={listing.rent_monthly}
               amenities={amenities}
             />
+          ) : (
+            <div className="rounded-2xl bg-white p-6 shadow-[var(--shadow-card)]">
+              <h2 className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-900)]">
+                True Cost
+              </h2>
+              <p className="mt-3 text-sm text-[var(--surface-400)]">
+                Pricing not available. Contact the property or ask CribAI for estimated costs.
+              </p>
+            </div>
           )}
 
           {/* Ask CribAI CTA */}
           <Link
             href={`/${campusSlug}/cribai?about=${listing.id}&address=${encodeURIComponent(listing.address)}`}
-            className="flex items-center justify-center gap-2 rounded-xl border border-[var(--primary-200)] bg-[var(--primary-50)] px-5 py-3 text-sm font-medium text-[var(--primary-700)] shadow-sm hover:bg-[var(--primary-100)] transition-colors"
+            className="flex items-center justify-center gap-2 rounded-2xl border border-[var(--primary-200)] bg-[var(--primary-50)] px-5 py-3.5 text-sm font-medium text-[var(--primary-700)] shadow-sm hover:bg-[var(--primary-100)] hover:shadow-md transition-all duration-200"
           >
             <svg
               className="h-5 w-5"
               fill="none"
               stroke="currentColor"
-              strokeWidth={2}
+              strokeWidth={1.5}
               viewBox="0 0 24 24"
             >
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25z"
+                d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
               />
             </svg>
             Ask CribAI about this place
@@ -309,7 +341,7 @@ export default async function ListingDetailPage({
               href={listing.source_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 rounded-xl border border-[var(--surface-200)] bg-white px-5 py-3 text-sm font-medium text-[var(--surface-600)] shadow-sm hover:bg-[var(--surface-50)] transition-colors"
+              className="flex items-center justify-center gap-2 rounded-2xl border border-[var(--surface-200)] bg-white px-5 py-3.5 text-sm font-medium text-[var(--surface-600)] shadow-sm hover:bg-[var(--surface-50)] hover:shadow-md transition-all duration-200"
             >
               <svg
                 className="h-4 w-4"

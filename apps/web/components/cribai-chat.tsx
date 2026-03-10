@@ -144,16 +144,20 @@ export function CribAIChat({
     if (hasInitialized.current) return;
     hasInitialized.current = true;
 
+    let cancelled = false;
+
     if (isAuthenticated && externalConversationId) {
       // Load from DB
       loadConversationMessages(externalConversationId).then(msgs => {
-        setMessages(msgs);
+        if (!cancelled) setMessages(msgs);
       });
     } else if (!isAuthenticated) {
       // Fallback to sessionStorage for unauthenticated users
       setMessages(loadSessionMessages());
     }
     // New authenticated chat with no conversationId starts empty
+
+    return () => { cancelled = true; };
   }, [isAuthenticated, externalConversationId]);
 
   // When external conversationId changes (user selects different conversation)
@@ -165,16 +169,20 @@ export function CribAIChat({
 
   // Re-trigger load when conversationId changes via external prop
   useEffect(() => {
+    let cancelled = false;
+
     if (!hasInitialized.current && externalConversationId !== undefined) {
       hasInitialized.current = true;
       if (isAuthenticated && externalConversationId) {
         loadConversationMessages(externalConversationId).then(msgs => {
-          setMessages(msgs);
+          if (!cancelled) setMessages(msgs);
         });
       } else if (isAuthenticated && !externalConversationId) {
         setMessages([]);
       }
     }
+
+    return () => { cancelled = true; };
   }, [externalConversationId, isAuthenticated]);
 
   useEffect(() => {

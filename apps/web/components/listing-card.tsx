@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { getScoreColorVariants } from '../lib/score-colors';
@@ -23,6 +24,7 @@ interface ListingCardProps {
   };
   readonly campusSlug: string;
   readonly isSaved?: boolean;
+  readonly priority?: boolean;
 }
 
 function fairnessColor(score: number): string {
@@ -59,7 +61,7 @@ function RentDisplay({ rentMonthly }: { readonly rentMonthly: number | null }) {
   );
 }
 
-export function ListingCard({ listing, campusSlug, isSaved }: ListingCardProps) {
+export const ListingCard = memo(function ListingCard({ listing, campusSlug, isSaved, priority = false }: ListingCardProps) {
   const heroPhoto = listing.photo_urls[0] ?? null;
 
   return (
@@ -76,6 +78,7 @@ export function ListingCard({ listing, campusSlug, isSaved }: ListingCardProps) 
             fill
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             className="object-cover"
+            priority={priority}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-[var(--surface-100)]">
@@ -158,4 +161,4 @@ export function ListingCard({ listing, campusSlug, isSaved }: ListingCardProps) 
       />
     </div>
   );
-}
+});

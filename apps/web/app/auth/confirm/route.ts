@@ -6,8 +6,11 @@ export async function GET(request: NextRequest) {
   const tokenHash = searchParams.get('token_hash');
   const type = searchParams.get('type') as 'magiclink' | 'email' | null;
   const lastCampus = request.cookies.get('last_campus')?.value;
-  const next = searchParams.get('next')
+  const rawNext = searchParams.get('next')
     ?? (lastCampus ? `/${lastCampus}/cribai` : '/');
+
+  // Prevent open redirect: only allow relative paths starting with /
+  const next = (rawNext.startsWith('/') && !rawNext.startsWith('//')) ? rawNext : '/';
 
   if (!tokenHash) {
     return NextResponse.redirect(`${origin}/login?error=missing_token`);
