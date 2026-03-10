@@ -63,10 +63,11 @@ export function ListingCard({ listing, campusSlug, isSaved }: ListingCardProps) 
   const heroPhoto = listing.photo_urls[0] ?? null;
 
   return (
-    <Link
-      href={`/${campusSlug}/listings/${listing.id}`}
-      className="block rounded-2xl bg-white overflow-hidden shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-1 transition-all duration-300"
-    >
+    <div className="relative rounded-2xl bg-white overflow-hidden shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-1 transition-all duration-300">
+      <Link
+        href={`/${campusSlug}/listings/${listing.id}`}
+        className="block"
+      >
       <div className="relative aspect-video card-image-zoom">
         {heroPhoto ? (
           <Image
@@ -86,12 +87,6 @@ export function ListingCard({ listing, campusSlug, isSaved }: ListingCardProps) 
             </div>
           </div>
         )}
-        <HeartButton
-          listingId={listing.id}
-          initialSaved={isSaved ?? false}
-          campusSlug={campusSlug}
-          size="sm"
-        />
       </div>
 
       <div className="p-5">
@@ -127,11 +122,23 @@ export function ListingCard({ listing, campusSlug, isSaved }: ListingCardProps) 
 
         {listing.true_cost_total != null && (
           <p className="mt-2 text-sm text-[var(--surface-400)] group/truecost relative">
-            <span className="cursor-help border-b border-dashed border-[var(--surface-300)]">True Cost</span>:{' '}
+            <span
+              tabIndex={0}
+              role="term"
+              aria-describedby={`truecost-tip-${listing.id}`}
+              className="cursor-help border-b border-dashed border-[var(--surface-300)] focus:outline-none focus:ring-1 focus:ring-[var(--primary-400)] rounded-sm"
+            >
+              True Cost
+            </span>
+            :{' '}
             <span className="font-medium text-[var(--primary-700)]">
               ${listing.true_cost_total.toLocaleString()}/mo
             </span>
-            <span className="pointer-events-none absolute bottom-full left-0 z-10 mb-2 w-52 rounded-lg bg-[var(--surface-800)] px-3 py-2 text-xs text-white opacity-0 shadow-lg transition-opacity group-hover/truecost:opacity-100">
+            <span
+              id={`truecost-tip-${listing.id}`}
+              role="tooltip"
+              className="pointer-events-none absolute bottom-full left-0 z-10 mb-2 w-52 rounded-lg bg-[var(--surface-800)] px-3 py-2 text-xs text-white opacity-0 shadow-lg transition-opacity group-hover/truecost:opacity-100 group-focus-within/truecost:opacity-100"
+            >
               Includes estimated utilities, parking, internet, and other fees beyond base rent.
             </span>
           </p>
@@ -143,6 +150,13 @@ export function ListingCard({ listing, campusSlug, isSaved }: ListingCardProps) 
           </span>
         )}
       </div>
-    </Link>
+      </Link>
+      <HeartButton
+        listingId={listing.id}
+        initialSaved={isSaved ?? false}
+        campusSlug={campusSlug}
+        size="sm"
+      />
+    </div>
   );
 }

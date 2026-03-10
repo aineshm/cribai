@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, type CSSProperties } from 'react';
 import { createClient } from '@campusnest/supabase/client';
 import { ChatBlockRenderer } from './chat/chat-block-renderer';
 import type { ChatBlock } from './chat/chat-block-renderer';
@@ -430,7 +430,7 @@ export function CribAIChat({
                     type="button"
                     onClick={() => sendMessage(suggestion)}
                     className="stagger-bounce rounded-full border border-[var(--surface-200)] bg-white px-4 py-2 text-xs text-[var(--surface-600)] shadow-sm hover:border-[var(--primary-400)] hover:text-[var(--primary-700)] hover:bg-[var(--primary-50)] hover:shadow-md transition-all duration-300"
-                    style={{ '--stagger-index': i } as React.CSSProperties}
+                    style={{ '--stagger-index': i } as CSSProperties}
                   >
                     {suggestion}
                   </button>
