@@ -48,7 +48,7 @@ export function ListingGrid({ listings, campusSlug, savedListingIds }: ListingGr
               className="stagger-item"
               style={{ '--stagger-index': index } as React.CSSProperties}
             >
-              <ListingCard listing={listing} campusSlug={campusSlug} isSaved={savedListingIds?.has(listing.id)} />
+              <ListingCard listing={listing} campusSlug={campusSlug} isSaved={savedListingIds?.has(listing.id)} priority={index < 3} />
             </div>
           ))}
         </div>

@@ -37,41 +37,37 @@ describe('DEV_USER_COOKIE', () => {
 });
 
 describe('isDevAuthEnabled', () => {
-  const originalNodeEnv = process.env.NODE_ENV;
-  const originalBypassAuth = process.env.BYPASS_AUTH;
-
   afterEach(() => {
-    process.env.NODE_ENV = originalNodeEnv;
-    process.env.BYPASS_AUTH = originalBypassAuth;
+    vi.unstubAllEnvs();
   });
 
   it('returns true when NODE_ENV is not production and BYPASS_AUTH is true', () => {
-    process.env.NODE_ENV = 'development';
-    process.env.BYPASS_AUTH = 'true';
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('BYPASS_AUTH', 'true');
     expect(isDevAuthEnabled()).toBe(true);
   });
 
   it('returns false when NODE_ENV is production', () => {
-    process.env.NODE_ENV = 'production';
-    process.env.BYPASS_AUTH = 'true';
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('BYPASS_AUTH', 'true');
     expect(isDevAuthEnabled()).toBe(false);
   });
 
   it('returns false when BYPASS_AUTH is not set', () => {
-    process.env.NODE_ENV = 'development';
-    delete process.env.BYPASS_AUTH;
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('BYPASS_AUTH', undefined as unknown as string);
     expect(isDevAuthEnabled()).toBe(false);
   });
 
   it('returns false when BYPASS_AUTH is a different string', () => {
-    process.env.NODE_ENV = 'development';
-    process.env.BYPASS_AUTH = 'false';
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('BYPASS_AUTH', 'false');
     expect(isDevAuthEnabled()).toBe(false);
   });
 
   it('returns true in test environment with BYPASS_AUTH', () => {
-    process.env.NODE_ENV = 'test';
-    process.env.BYPASS_AUTH = 'true';
+    vi.stubEnv('NODE_ENV', 'test');
+    vi.stubEnv('BYPASS_AUTH', 'true');
     expect(isDevAuthEnabled()).toBe(true);
   });
 });

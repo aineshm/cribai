@@ -21,7 +21,7 @@ export default async function CampusLayout({
 
   const { data: campus } = await supabase
     .from('campus_configs')
-    .select('*')
+    .select('id, slug, name, university_name, edu_domains, latitude, longitude, timezone, scrape_cron, scrape_radius_km, config, is_public, created_at')
     .eq('slug', campusSlug)
     .single();
 

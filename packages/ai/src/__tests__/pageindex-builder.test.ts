@@ -66,6 +66,7 @@ describe('PageIndexBuilder', () => {
     it('labels studio apartments as "Studios"', async () => {
       const listings = [makeListing({ id: '1', bedrooms: 0 })];
       const result = await builder.build('campus-1', listings);
+      expect(result.children).toHaveLength(1);
       expect(result.children[0]!.label).toBe('Studios');
     });
 
@@ -80,6 +81,7 @@ describe('PageIndexBuilder', () => {
       ];
 
       const result = await builder.build('campus-1', listings);
+      expect(result.children).toHaveLength(1);
       const bedroomNode = result.children[0]!;
       const leafLabels = bedroomNode.children.map(c => c.label);
       expect(leafLabels).toContain('Budget');
@@ -95,6 +97,8 @@ describe('PageIndexBuilder', () => {
       ];
 
       const result = await builder.build('campus-1', listings);
+      expect(result.children).toHaveLength(1);
+      expect(result.children[0]!.children.length).toBeGreaterThan(0);
       const leaf = result.children[0]!.children[0]!;
       expect(leaf.contentRef).not.toBeNull();
       const content = JSON.parse(leaf.contentRef!);
@@ -110,6 +114,8 @@ describe('PageIndexBuilder', () => {
       ];
 
       const result = await builder.build('campus-1', listings);
+      expect(result.children).toHaveLength(1);
+      expect(result.children[0]!.children).toHaveLength(1);
       const leaf = result.children[0]!.children[0]!;
       expect(leaf.summary).toContain('1 listings');
       expect(leaf.summary).toContain('$900');
@@ -130,6 +136,8 @@ describe('PageIndexBuilder', () => {
       );
 
       const result = await builder.build('campus-1', listings);
+      expect(result.children).toHaveLength(1);
+      expect(result.children[0]!.children.length).toBeGreaterThan(0);
       const leaf = result.children[0]!.children[0]!;
       const content = JSON.parse(leaf.contentRef!);
       expect(content.sampleAddresses.length).toBeLessThanOrEqual(5);

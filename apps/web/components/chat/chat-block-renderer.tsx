@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import dynamic from 'next/dynamic';
 import type { ChatBlock } from '@campusnest/types';
 import { ChatListingCard } from './chat-listing-card';
@@ -28,7 +29,7 @@ interface ChatBlockRendererProps {
   readonly campusSlug: string;
 }
 
-export function ChatBlockRenderer({ block, campusSlug }: ChatBlockRendererProps) {
+export const ChatBlockRenderer = memo(function ChatBlockRenderer({ block, campusSlug }: ChatBlockRendererProps) {
   switch (block.type) {
     case 'text':
       return (
@@ -87,6 +88,6 @@ export function ChatBlockRenderer({ block, campusSlug }: ChatBlockRendererProps)
     default:
       return assertUnreachable(block);
   }
-}
+});
 
 export type { ChatBlock };

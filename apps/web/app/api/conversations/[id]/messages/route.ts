@@ -45,6 +45,21 @@ export async function POST(
   // Use service-role client for DB writes in dev mode (bypasses RLS for fake dev user)
   const writeClient = isDevAuthEnabled() ? createSecretClient() : supabase;
 
+  // --- Ownership check: verify this conversation belongs to the requesting user ---
+  const { data: conversation, error: convError } = await writeClient
+    .from('conversations')
+    .select('id, user_id')
+    .eq('id', conversationId)
+    .single();
+
+  if (convError || !conversation) {
+    return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+  }
+
+  if (conversation.user_id !== userId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   const rawBody: unknown = await request.json();
   const parsed = messageBodySchema.safeParse(rawBody);
 
@@ -57,7 +72,7 @@ export async function POST(
 
   const { role, blocks } = parsed.data;
 
-  // Insert message (RLS on messages checks conversation ownership)
+  // Insert message (ownership verified above)
   const { data: message, error: insertError } = await writeClient
     .from('messages')
     .insert({
