@@ -22,7 +22,7 @@ re_verification: false
 | 1 | Submit listing form persists contact_email to the database | VERIFIED | Migration 011 adds `contact_email text` column with `IF NOT EXISTS`; route destructures `contact_email` from Zod payload (line 65) and inserts `contact_email: contact_email ?? null` (line 85) |
 | 2 | GET /api/conversations/[id] returns 200 in dev auth mode (BYPASS_AUTH=true) | VERIFIED | Route imports `isDevAuthEnabled`, `getDevUserById`, `DEFAULT_DEV_USER`, `DEV_USER_COOKIE` from `../../../../lib/dev-auth`; resolves `userId` via dev cookie when `isDevAuthEnabled()` is true; uses `createSecretClient()` for all DB queries in dev mode |
 | 3 | Middleware redirects unauthenticated users on /*/dashboard, /*/saved, /*/notifications, /*/submit-listing routes | VERIFIED | `protectedRouteMatch` regex `/^\/([^/]+)\/(cribai|dashboard|saved|notifications|submit-listing)/` at lines 107-109; redirects to `/login` with `next` param when `!user` |
-| 4 | ROADMAP.md has no stale unchecked plan checkmarks for completed plans | VERIFIED | `grep -c '\- \[ \].*PLAN\.md' ROADMAP.md` returns 0; all 22 plan entries across phases 1-9 show `[x]`; Phase 9 progress row shows `2/2 Complete` |
+| 4 | ROADMAP.md has no stale unchecked plan checkmarks for completed plans | VERIFIED | `grep -c '\- \[ \].*PLAN\.md' ROADMAP.md` returns 0; all plan entries across phases 1-9 are marked `[x]`; Phase 9 progress row shows `2/2 Complete` |
 
 **Score:** 4/4 truths verified
 
@@ -34,7 +34,7 @@ re_verification: false
 | `apps/web/app/api/submit-listing/route.ts` | contact_email included in INSERT | VERIFIED | Substantive file (107 lines); destructures `contact_email` at line 65; inserts at line 85; no stubs |
 | `apps/web/app/api/conversations/[id]/route.ts` | Dev auth bypass for GET handler | VERIFIED | Substantive file (72 lines); imports all four dev-auth helpers; branches on `isDevAuthEnabled()` at line 15; uses `createSecretClient()` for `queryClient` at line 29 |
 | `apps/web/middleware.ts` | Broadened protected route regex | VERIFIED | Substantive file (154 lines); `protectedRouteMatch` regex at lines 107-109 covers all five campus route types; no stubs |
-| `.planning/ROADMAP.md` | Accurate plan completion checkmarks | VERIFIED | All 22 plan-level checkmarks are `[x]`; Phase 9 progress row accurate |
+| `.planning/ROADMAP.md` | Accurate plan completion checkmarks | VERIFIED | All plan-level checkmarks are `[x]`; Phase 9 progress row accurate |
 
 ### Key Link Verification
 
