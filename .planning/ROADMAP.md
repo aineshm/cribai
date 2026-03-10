@@ -140,7 +140,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 Phase 4 can proceed in parallel with Phase 5 planning/discussion.
 
 | Phase | Plans Complete | Status | Completed |
@@ -152,6 +152,7 @@ Phase 4 can proceed in parallel with Phase 5 planning/discussion.
 | 5. Agentic Data Pipeline + Web Search | 3/5 | Gap closure | - |
 | 6. Agent Tool Expansion + Polish | 3/3 | Complete   | 2026-03-09 |
 | 7. Fix e2e test issues and complete v1 | 4/4 | Complete   | 2026-03-10 |
+| 8. Close Audit Gaps + Verify Phase 4 | 0/0 | Pending | - |
 
 ### Phase 7: Fix e2e test issues and complete v1
 
@@ -165,3 +166,18 @@ Plans:
 - [x] 07-02-PLAN.md — UX polish: favicon, submit listing copy, notification read behavior, dashboard cleanup, profile university
 - [ ] 07-03-PLAN.md — Gap closure: favicon CN text, dashboard grid, mark-read dev user fix, notification badge placement
 - [ ] 07-04-PLAN.md — Gap closure: CribAI tool description fixes for tour scheduling, submit listing form redesign
+
+### Phase 8: Close Audit Gaps + Verify Phase 4
+**Goal:** Close all gaps identified in v1.0 milestone audit — verify Phase 4 requirements, fix nightly pipeline PageIndex rebuild, wire dev auth in messages API, remove dead code
+**Depends on:** Phase 7
+**Requirements**: LIST-01, LIST-02, LIST-03, LIST-04 (verification)
+**Gap Closure:** Closes gaps from v1.0-MILESTONE-AUDIT.md
+**Success Criteria** (what must be TRUE):
+  1. Phase 4 has a VERIFICATION.md confirming LIST-01 through LIST-04 are satisfied
+  2. Nightly scrape pipeline calls rebuild-pageindex after embedding generation
+  3. POST /api/conversations/[id]/messages works in dev auth mode (BYPASS_AUTH=true)
+  4. Dead /api/save-web-listing route is removed
+**Plans**: 0 plans (pending)
+
+Plans:
+(none yet — run `/gsd:plan-phase 8`)
