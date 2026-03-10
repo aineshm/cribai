@@ -1,8 +1,10 @@
 import { NextRequest } from 'next/server';
+import { cookies } from 'next/headers';
 import { createSecretClient } from '@campusnest/supabase/server';
 import { CribAI } from '@campusnest/ai';
 import type { ChatEvent } from '@campusnest/ai';
 import type { PageIndexNode } from '@campusnest/types';
+import { isDevAuthEnabled, getDevUserById, DEFAULT_DEV_USER, DEV_USER_COOKIE } from '../../../../lib/dev-auth';
 
 // ErrorEvent is route-local — the AI engine never emits errors, only the route does.
 interface ErrorEvent {
@@ -159,6 +161,14 @@ export async function POST(request: NextRequest) {
 
         subscriptionTier = (profile?.subscription_tier as string) ?? 'free';
       }
+    }
+
+    // Dev auth fallback — resolve userId from dev cookie when no bearer token
+    if (!userId && isDevAuthEnabled()) {
+      const cookieStore = await cookies();
+      const selectedId = cookieStore.get(DEV_USER_COOKIE)?.value;
+      const devUser = selectedId ? getDevUserById(selectedId) : DEFAULT_DEV_USER;
+      userId = devUser?.id ?? DEFAULT_DEV_USER.id;
     }
 
     // --- Rate limiting (only for authenticated users) -----------------------

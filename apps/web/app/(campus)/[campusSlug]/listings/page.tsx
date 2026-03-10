@@ -5,6 +5,8 @@ import { createSecretClient, createServerComponentClient } from '@campusnest/sup
 import { ListingGrid } from '../../../../components/listing-grid';
 import { ListingFilters } from '../../../../components/listing-filters';
 
+export const dynamic = 'force-dynamic';
+
 const PAGE_SIZE = 18;
 
 interface ListingsPageProps {
@@ -54,11 +56,16 @@ export default async function ListingsPage({
   }
 
   if (filters.minPrice) {
-    query = query.gte('rent_monthly', parseInt(filters.minPrice, 10));
+    query = query
+      .not('rent_monthly', 'is', null)
+      .gt('rent_monthly', 0)
+      .gte('rent_monthly', parseInt(filters.minPrice, 10));
   }
 
   if (filters.maxPrice) {
-    query = query.lte('rent_monthly', parseInt(filters.maxPrice, 10));
+    query = query
+      .not('rent_monthly', 'is', null)
+      .lte('rent_monthly', parseInt(filters.maxPrice, 10));
   }
 
   // Sort
