@@ -1,216 +1,183 @@
 # Project Research Summary
 
-**Project:** CampusNest v1.1 — UI/UX Design System Migration + AI Concierge Missions
-**Domain:** AI-native student housing platform — design system upgrade + agentic task features
+**Project:** CampusNest v1.2 — Native Agent Backend
+**Domain:** AI-native async mission executor with HITL approval, Realtime status, steering bar intent parsing, and real tool integrations
 **Researched:** 2026-03-10
 **Confidence:** HIGH
 
 ## Executive Summary
 
-CampusNest v1.1 is a significant product upgrade built on top of a fully working v1.0. The v1.0 codebase (Next.js 15, Supabase, Gemini, Mapbox, CribAI with 11 tools) is complete and must not be rebuilt — only reskinned and extended. The work divides cleanly into two parallel tracks: (1) a design system migration that touches every page (Cabinet Grotesk + Satoshi fonts, shadcn/ui primitives, Lucide icons, Framer Motion), and (2) a new AI Concierge missions page that introduces agentic async tasks with human-in-the-loop approval gates. Both tracks require the design system foundation to land first — it is a hard prerequisite for all UI work.
+CampusNest v1.2 converts a fully-mocked AI Concierge UI (built in v1.1) into a live agentic backend. The core pattern is a fire-and-forget mission executor: a POST to `/api/missions` inserts a DB row, returns `202 Accepted`, and fires the async executor via Next.js `after()` — which runs the existing 11-tool Gemini function-calling loop against real external APIs (Google Places, Walk Score, Tavily Extract). Supabase Realtime `postgres_changes` then pushes live status and log updates to the Concierge UI, replacing all mock state. This approach is the correct choice for the current scale: it requires zero new infrastructure (no queues, no additional services) and maps directly onto the existing Supabase + Gemini stack.
 
-The recommended approach is incremental and bottom-up: establish the CSS/token foundation and shadcn/ui primitives before touching a single page, then build pages from simplest (auth, landing) to most complex (explore split-view, concierge board). The AI Concierge feature requires a new `missions` + `mission_steps` DB schema, a mission executor in `packages/ai/`, Supabase Realtime subscriptions for live status updates, and a HITL approval flow with versioned drafts. Mission execution must run asynchronously (fire-and-forget from the API route) due to Vercel serverless timeout constraints. The floating CribAI panel on the explore page must live in the root layout, not the page, to survive route navigation.
+The recommended implementation order is schema-first: the `missions`, `mission_logs`, `mission_drafts`, and `mission_steerings` tables (migration `013`) must be applied before any executor or UI work begins, since every other v1.2 feature depends on them. Real tool integrations (reviews, PM contact, neighborhood info) are fully independent of the mission schema and can be built in parallel. The executor backend is built third, HITL approval and steering bar fourth, and Concierge UI wiring is the final step since it requires all prior phases to be live.
 
-The critical risks cluster around two areas. First, the CSS migration: shadcn/ui uses the same CSS variable names (`--primary`, `--background`, `--foreground`) as the existing `globals.css`, and a collision will cause silent visual regressions across all pages. The resolution is a controlled, one-time token merge in `globals.css` before any shadcn component is installed. Second, the HITL draft approval flow has three known failure modes (stale draft approval, double-submit, expired unreviewed drafts) that require DB-level guardrails (`draft_version` integer, idempotency keys, `expires_at` with cron cleanup) designed into the schema before any UI is built.
+The highest-risk areas are: (1) Gemini 2.5 Flash's confirmed incompatibility between function calling and `responseSchema` in the same request — these must be separated into distinct calls throughout the executor and steering bar; (2) HITL draft versioning — `draft_version` and `is_current` columns must be in the initial schema, because missing them causes irreversible stale-approval bugs that trigger wrong real-world actions; and (3) Supabase Realtime subscriptions must use a single per-user channel (not per-mission) with explicit `filter: user_id=eq.X` to prevent cross-user data leakage and to stay within the 200-connection free tier limit.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The v1.1 stack adds four new packages to the existing foundation. `shadcn/ui` (latest CLI) provides accessible, copy-owned UI primitives that are Tailwind v4-native and already decided in PROJECT.md — components are owned source code, not a library dependency, so zero versioning churn. `motion` (formerly `framer-motion`, v12, imported from `motion/react`) provides spring physics and presence animations. `lucide-react` (bundled with shadcn CLI) replaces inline Heroicon SVGs with a tree-shakeable icon system. `tw-animate-css` replaces the v3-only `tailwindcss-animate` that shadcn previously used. For mission state, the stack uses already-provisioned Supabase Realtime (`postgres_changes` subscription on `missions` table) — no new SSE or WebSocket infrastructure needed. Gemini 2.5 Flash via the existing `@google/genai` handles both steering bar intent parsing and mission execution.
+The v1.2 stack adds only two net-new packages to the existing Next.js 15 + Supabase + Gemini 2.5 Flash foundation: `@googlemaps/places` v2.3.0 (Places API New — required for `neighborhoodSummary` and AI area summaries not available in the legacy client) and conditionally `resend` v4.x for HITL email notifications. Everything else is already installed: `after()` is built into Next.js 15.1+, Supabase Realtime is in the existing `@supabase/supabase-js`, Tavily Extract is available via the existing `@tavily/core`, and Zod is already present for payload validation.
 
-Cabinet Grotesk and Satoshi are not on Google Fonts. Both must be self-hosted via `next/font/local` with downloaded WOFF2 files in `apps/web/public/fonts/`. This is a hard requirement — `next/font/google` will fail at build time for these fonts. TanStack Query is recommended (not yet confirmed) for the AI Concierge mission polling use case to prevent state race conditions; this is the one open dependency decision.
+`after()` from `next/server` is the correct mechanism for the fire-and-forget executor — Vercel explicitly recommends it over the deprecated `waitUntil()` from `@vercel/functions` for any project on Next.js >= 15.1. Inngest, QStash, BullMQ, and LangGraph are all explicitly out of scope for v1.2 per PROJECT.md; the `missions` table itself is the queue.
 
-**Core technologies:**
-- `shadcn/ui` (latest CLI): accessible UI primitives, copy-owned — Tailwind v4 support confirmed, zero versioning churn
-- `motion` ^12.x (`motion/react` import): spring animations and presence transitions — React 19 compatible, API identical to framer-motion
-- `lucide-react` ^0.468+: SVG icons — tree-shakeable, matches shadcn ecosystem, included by shadcn CLI
-- `tw-animate-css` ^1.x: Tailwind v4 animation utilities — drop-in replacement for deprecated `tailwindcss-animate`
-- `next/font/local`: Cabinet Grotesk + Satoshi delivery — mandatory (fonts not on Google Fonts)
-- Supabase Realtime (existing): mission status push — zero new dependencies, already provisioned
+**Core new technologies:**
+- `after()` from `next/server`: fire-and-forget mission executor — built-in, no install, stable since Next.js 15.1.0
+- `@googlemaps/places` v2.3.0: neighborhood info and AI area summaries — required for `neighborhoodSummary` field absent from legacy Google Maps client
+- Supabase Realtime `postgres_changes`: live mission status push — zero new dependency, already proven via notifications table
+- Tavily Extract (existing `@tavily/core`): review aggregation and PM contact fallback — zero new dependency, existing `TAVILY_API_KEY` reused
+- `resend` v4.x (conditional): HITL draft ready email notifications — only install if email notifications are in scope
+
+**New environment variables required:**
+- `GOOGLE_PLACES_API_KEY` — Google Maps Platform Console
+- `WALKSCORE_API_KEY` — Walk Score
+- `RESEND_API_KEY` — Resend Dashboard (conditional on email HITL scope)
 
 ### Expected Features
 
-The v1.1 feature set splits into table stakes (things a polished platform must have) and differentiators (things no competitor offers). All redesigned pages depend on the design system landing first. The floating CribAI panel and AI Concierge page are the two highest-complexity deliverables and both depend on earlier infrastructure phases.
+All 9 features below are P1 required for the v1.2 milestone. The Concierge UI is 100% mock today — without the backend, the milestone cannot ship.
 
 **Must have (table stakes):**
-- Design system consistency (shadcn/ui + Cabinet Grotesk + Satoshi + Lucide) — prerequisite for every page
-- Marketing landing page — without one, sharing the URL shows a blank auth wall
-- Auth page with branded split-panel layout — OTP logic stays, only layout changes
-- Explore page with split list+map view and floating CribAI panel — industry standard, highest-traffic page
-- Listing detail with photo grid and sticky CTA — AI lease summary + commute section as embedded differentiators
-- Profile/saved combined tabbed page — reduces navigation friction
-- Page transition and entrance animations — baseline quality signal for modern apps
+- **Missions DB schema** (migration 013: 4 tables, RLS, Realtime publications, pg_cron cleanup) — prerequisite for every other feature; must be applied first
+- **Mission executor backend** — POST `/api/missions` returns 202, async `after()` runs the agentic loop reusing all 11 existing CribAI tools, max 8 Gemini turns, service role DB writes
+- **Supabase Realtime subscriptions** — 3 channels per user (mission status, active mission logs, draft notifications); polling fallback on reconnect
+- **HITL draft approval gate** — mission parks at `waiting_approval`, UI shows draft review card with Approve/Edit/Reject; executor resumes on approval; versioned drafts with 409 on stale approval
+- **Steering bar intent parsing** — POST `/api/steering`, single Gemini function-calling turn classifies free-text into structured `SteeringIntent` enum, executor consumes from `mission_steerings` table
+- **Wire Concierge UI to real backend** — delete `mock-missions.ts`, replace all mock constants with Supabase queries and Realtime subscriptions
 
-**Should have (competitive differentiators):**
-- AI Concierge missions page (async task pipeline, 5-state status, HITL approval) — flagship v1.1 differentiator, no competitor offers this
-- HITL draft approval flow — trust-building for irreversible agent actions (tour scheduling)
-- Steering bar for mid-mission correction — emerging agentic UX pattern
-- Agent summary + raw logs toggle — satisfies both beginners and power users
-- Post sublease wizard (multi-step with progress sidebar) — supply-side growth, no real competitor
-- Proactive mission templates for empty state — converts first-time concierge users
+**Should have (differentiators):**
+- **Real reviews tool** — replace `get_landlord_info` stub with Google Places API (New) + Tavily fallback; cache in `landlords.review_cache` at 24h TTL (Yelp ToS max)
+- **Real PM contact tool** — return contact from `landlords` table / `listings.raw_data`; generate draft message via Gemini; no outbound email send in v1.2 (draft + deep link only)
+- **Real neighborhood info tool** — Walk Score API (walk/transit/bike scores) + Google Places `nearbySearch` + Tavily supplement; cache in `listings` at 7-day TTL
 
 **Defer (v2+):**
-- Generative UI (agent returns component JSON) — needs stable mission type inventory first
-- Full LangGraph/Inngest state machine backend — over-engineered for v1.1 scale
-- Dark mode — doubles CSS variable surface area; defer until token layer is stable
-- Additional AI Concierge mission types — add based on usage data post-launch
-- Landlord-facing mission types — requires separate PM platform work
+- Full LangGraph state machine — when mission volume exceeds 1K/day with observable retry failures
+- Live streaming execution logs (SSE) — high complexity, low comprehension value at current scale
+- Outbound email on user behalf — requires verified landlord partnerships and explicit consent mechanism
+- Generative mission card types — when rendering safety patterns emerge
 
 ### Architecture Approach
 
-The recommended architecture is a strict server/client page split (server component handles auth + data fetch, `'use client'` inner component owns UI state), following the existing `cribai-page-client.tsx` pattern. All new pages follow this structure. The floating CribAI panel must render in the root layout (never per-page) to persist across route navigations, with Zustand or React Context at the layout level for `isOpen` + `conversationId` state. The mission executor lives in `packages/ai/src/missions/executor.ts` (not the web app), keeping the web app thin. API routes create mission rows and return 202 immediately; executor runs fire-and-forget. Supabase Realtime subscriptions drive all mission status updates.
+The architecture is a thin Next.js API layer over a Supabase persistence layer, with all AI logic in `packages/ai`. The executor (`mission-executor.ts`) lives in `packages/ai` alongside the existing CribAI engine, reusing `executeTool()`, `ToolContext`, and `createGeminiClient()` with zero duplication. Route handlers are thin: auth check -> idempotency guard -> DB insert -> `void runMission()` -> 202. Three Supabase Realtime channels per connected user drive all UI updates (missions status, mission logs, draft notifications) with reconnect + re-fetch dedup handling on disconnect. Four components require modification (`ConciergeProvider`, `SteeringBar`, `MissionActionCard`, `concierge-types.ts`); six child components require zero structural changes when fed real data.
 
 **Major components:**
-1. `apps/web/components/ui/` — shadcn/ui primitives (Button, Card, Sheet, Badge, Tabs, Dialog, etc.) installed by CLI, owned source code
-2. `apps/web/components/concierge/` — MissionCard, HitlDraftApproval, SteeringBar, FloatingChatPanel — new, parallel to existing `components/chat/`
-3. `packages/ai/src/missions/` — MissionExecutor + step type definitions — wraps existing 6 tools, adds async orchestration
-4. `supabase/migrations/013_missions.sql` — `missions` + `mission_steps` tables with RLS, Realtime publication, versioned drafts schema
-5. `apps/web/app/(campus)/[campusSlug]/explore/` — new unified route replacing `/listings` + `/cribai`, split 60/40 list/map view
-6. `apps/web/app/(campus)/[campusSlug]/concierge/` — new missions board with Realtime subscriptions
+1. **`POST /api/missions` + `MissionExecutor` in `packages/ai`** — HTTP layer creates the row and fires `after()`; executor runs the agentic loop (max 8 Gemini turns), writes to `mission_logs` at each step, parks at `waiting_approval` for HITL checkpoints
+2. **Supabase 4-table schema** (`missions`, `mission_logs`, `mission_drafts`, `mission_steerings`) — append-only `mission_logs` is Realtime-published; `mission_drafts` uses `draft_version` + `is_current` for safe HITL versioning; `mission_steerings` is the parsed intent queue consumed by the executor
+3. **`ConciergeProvider` + 3 Realtime channels** — single per-user channel for mission status, one active-mission channel for logs, one for draft notifications; polling fallback on `CLOSED`/`CHANNEL_ERROR`; replaces all mock state
+4. **`POST /api/steering` + Gemini classifier** — one function-calling turn per steering input, structured `SteeringIntent` written to DB, executor polls for unapplied steerings at loop top
+5. **3 real tool handlers** (`getReviews`, `contactPm`, `getNeighborhoodInfo`) — replace stubs with Google Places API (New), `listings.contact_email` + Resend, Walk Score + Tavily; same `ToolResult` return shape, zero executor changes needed
 
 ### Critical Pitfalls
 
-1. **CSS variable name collision when installing shadcn/ui** — shadcn uses identical names (`--primary`, `--background`, `--foreground`, `--border`) as the existing `globals.css`. Run `npx shadcn@latest init` on a branch, audit the diff, and manually merge tokens. Final result: single `:root` block using shadcn's structure populated with CampusNest brand values in OKLCH. Must happen before any shadcn component is added.
+1. **Gemini 2.5 Flash rejects combined function calling + `responseSchema` in one request** — confirmed bug as of late 2025 (Google AI forum + googleapis GitHub issues). Function-calling turns and structured-output turns must be separated throughout the executor and steering bar. Never set both `tools` and `generationConfig.responseSchema` on the same Gemini call. This constraint must be established as an architectural rule in the first Gemini call written.
 
-2. **Big-bang design system migration breaks working features** — migrating all components simultaneously leaves the app in a broken inconsistent state mid-PR. Fix: Phase 1 is exclusively CSS/font/token foundation. Pages migrate one at a time in subsequent phases. Existing pages remain working throughout because the CSS change is additive.
+2. **HITL stale draft approval triggers wrong real-world action** — without `draft_version` and `is_current` columns, a user approving a superseded draft sends the wrong PM email. These columns must be in migration 013. Approval API must validate `WHERE draft_id = $1 AND is_current = true` and return 409 on mismatch. This cannot be retrofitted after the schema is applied.
 
-3. **HITL draft approval has three silent failure modes** — stale draft approved after revision, double-submit creates duplicate tour requests, unreviewed drafts block missions forever. Requires DB-level design: `draft_version` integer (reject mismatched approvals), idempotency key on approval API, `expires_at` with pg_cron cleanup, submit button disabled on first click.
+3. **Realtime Postgres Changes does not automatically enforce row-level RLS** — Supabase documentation explicitly states: "Realtime Postgres Changes are separate from Channel authorization." All subscriptions must include `filter: user_id=eq.${userId}`, channels must use `{ config: { private: true } }`, and cross-user isolation must be verified with an integration test before shipping.
 
-4. **Framer Motion forces client component boundary proliferation** — adding `motion.*` to a page component without `'use client'` causes a hard error; adding `'use client'` to the page itself kills RSC data-fetching benefits. Fix: thin `'use client'` wrapper components (`MotionListItem`, `MotionSection`) in `components/ui/`; pages remain Server Components.
+4. **Fire-and-forget executor silently dropped on Vercel cold start** — `after()` is recommended over `waitUntil()` but missions can still be silently lost. Mitigation: add a pg_cron recovery job that re-queues `pending` missions with `created_at > 5 minutes`. Set `status = running` inside the executor, not in the HTTP route.
 
-5. **Floating CribAI panel loses conversation context on route navigation** — React state local to the explore page is destroyed on navigation. Fix: render the panel in `app/layout.tsx` at the root layout level, with global state (`isOpen`, `conversationId`) that survives route changes. Verified by E2E: open panel, navigate, confirm state persists.
+5. **PM contact tool scraping from Apartments.com/Zillow violates ToS and will be blocked** — the only safe source for PM contact in v1.2 is `listings.contact_email` and the existing `landlords` table. For listings without contact info, generate a template + deep link; never scrape third-party listing sites.
 
-6. **Mission executor timeout on Vercel serverless** — multi-tool Gemini calls take 15–30s; Vercel Hobby timeout is 10s. Fix: API route creates mission row and returns 202 immediately; executor runs fire-and-forget or as a Supabase Edge Function. Client subscribes to Realtime for completion — never waits on the HTTP response.
+6. **Supabase Realtime 200-connection free tier limit hit with per-mission channels** — one channel per mission card exhausts the limit with ~20 concurrent users with multiple tabs. Use a single per-user channel for mission status and one active-mission channel for logs.
 
-7. **Lucide barrel imports inflate bundle 30–50x** — named imports look tree-shakeable but barrel exports defeat bundler tree-shaking in dev mode. Fix: add `experimental.optimizePackageImports: ["lucide-react"]` to `next.config.ts` on day one, before any icons are used.
+7. **pg_cron `job_run_details` table bloat silently kills all cron jobs on free tier** — include a daily cleanup cron job in migration 013. Run expiry/recovery cron jobs at >= 15-minute intervals, not 1-5 minutes.
 
 ## Implications for Roadmap
 
-Based on combined research, the phase structure follows strict bottom-up dependency order. Design system first, infrastructure second, pages third, AI features last.
+Based on research, the dependency graph is clear and maps directly to a 5-phase build order. The architecture research provides an explicit suggested build order; the features research confirms all 9 P1 items; and the pitfalls research identifies which phase each risk must be addressed in.
 
-### Phase 1: Design System Foundation
-**Rationale:** Every page, component, and feature in v1.1 depends on the design system being stable. The CSS token collision risk is highest here and must be isolated. This phase has no UI dependencies — it cannot cause visual regressions in other phases because it comes first.
-**Delivers:** Cabinet Grotesk + Satoshi via `next/font/local`, shadcn/ui initialized with token bridge in `globals.css`, `tw-animate-css` replacing `tailwindcss-animate`, `optimizePackageImports` for Lucide, verified build and test pipeline.
-**Addresses:** Design system consistency (table stakes), font loading (prerequisite)
-**Avoids:** Pitfall 1 (CSS collision), Pitfall 2 (big-bang migration), Pitfall 3 (font self-hosting mandatory), Pitfall 7 (Tailwind v4 build breakage), Pitfall 5 (Lucide bundle bloat)
-**Research flag:** Standard — shadcn/ui Tailwind v4 docs are authoritative and complete. No additional research needed.
+### Phase 1: DB Foundation + HITL Schema
+**Rationale:** The `missions` table is the prerequisite for every other v1.2 feature. HITL versioning columns (`draft_version`, `is_current`) must be in this migration — they cannot be retrofitted safely. The pg_cron cleanup job must also be here. Nothing else can start until this migration is applied and verified.
+**Delivers:** Migration 013 (4 tables + RLS + Realtime publications + pg_cron cleanup job + indexes); updated `concierge-types.ts` aligned to DB column names; removal of mock-specific type fields
+**Addresses:** Missions DB schema (P1 table stakes), HITL draft versioning (safety prerequisite)
+**Avoids:** Pitfall 2 (stale draft approval — `draft_version` and `is_current` must be schema-level decisions), Pitfall 7 (pg_cron bloat — cleanup job included in initial migration), Pitfall 4 (recovery cron job for stuck pending missions included here)
 
-### Phase 2: Marketing Landing Page + Auth Redesign
-**Rationale:** Highest-visibility, lowest-complexity pages. No shared state, no AI, no new DB requirements. Serve as the first real test of shadcn/ui primitives in production. Also establishes the Framer Motion wrapper pattern that all subsequent animated pages inherit.
-**Delivers:** Marketing landing page with scroll-triggered entrance animations, branded auth split-panel layout with existing OTP logic preserved.
-**Addresses:** Marketing landing page (must-have), auth page redesign (must-have)
-**Avoids:** Pitfall 4 (Framer Motion client boundary — establish `MotionWrapper` pattern here for all future phases)
-**Research flag:** Standard — SaaS landing page and auth split-panel patterns are well-established.
+### Phase 2: Real Tool Integrations
+**Rationale:** The 3 real tool handlers are fully independent of the missions schema. They can be built, tested, and merged before the executor exists. When the executor is built in Phase 3, it immediately calls tools that return real data. This phase also forces the caching strategy and PM contact source decisions to be locked in before any agentic code is written.
+**Delivers:** `getReviews` with Google Places API (New) + Tavily fallback + 24h cache in `landlords.review_cache`; `getNeighborhoodInfo` with Walk Score + Google Places `nearbySearch` + Tavily + 7-day cache; `contactPm` with `listings.contact_email` + Gemini-drafted message (no outbound send); unit tests for each handler mocking external APIs
+**Uses:** `@googlemaps/places` v2.3.0, Walk Score REST API, existing Tavily `@tavily/core`, existing `landlords` table
+**Avoids:** Pitfall 5 (PM scraping ToS — contacts from `listings.contact_email` only), Pitfall 6 (review API cost + caching ToS — 24h cache layer must be in place before real API keys are activated)
 
-### Phase 3: Explore Page (Split View + Floating CribAI Panel)
-**Rationale:** Highest-traffic page and architecturally the most complex UI. Requires CSS foundation (Phase 1) and shadcn Sheet primitive. Introduces the floating panel persistence architecture that the concierge page also reuses. Building explore first validates the `useCribAIChat` hook extraction and the layout-level panel pattern before the more complex concierge page depends on them.
-**Delivers:** Split 60/40 list/map view, filter chips row with URL-param shared state, floating CribAI panel in root layout with global open/conversation state, `useCribAIChat` hook extracted from `cribai-chat.tsx`, redirects from `/listings` and `/cribai` to `/explore`.
-**Addresses:** Explore page (table stakes), floating CribAI panel (differentiator)
-**Avoids:** Pitfall 9 (floating panel losing context on navigation — layout-level panel with global state)
-**Research flag:** Standard for split-view pattern. URL-param shared state between filter chips and AI panel is a design decision to confirm early in the phase.
+### Phase 3: Mission Executor Backend
+**Rationale:** Requires Phase 1 schema and Phase 2 real tools. This is the architectural linchpin — the 202 pattern, service role client usage, `after()` fire-and-forget, agentic loop with max_turns counter, and HITL checkpoint ("park at `waiting_approval`") must all be correct before UI wiring begins. The executor design constraint is that it must be able to park mid-execution and resume from `draft_payload` state; this is not a UI concern.
+**Delivers:** `packages/ai/src/mission-executor.ts` (agentic loop, `appendLog()`, `waitForApproval()`, steering checks, 8-turn cap); `packages/ai/src/mission-types.ts` (MissionContext, SteeringIntent types); `POST /api/missions` (auth + idempotency + DB insert + `void runMission()` + 202); `GET /api/missions/[id]`; `POST /api/missions/[id]/approve`; integration test: create mission -> verify log rows appear in DB -> verify status transitions
+**Implements:** Fire-and-forget async with 202 Accepted, append-only execution log with Realtime push, HITL draft approval with Realtime unblock, service role executor pattern
+**Avoids:** Pitfall 1 (Gemini 2.5 Flash function/schema conflict — separation pattern established here for all executor calls), Pitfall 3 (Gemini infinite loop — max_turns counter and terminal tool response format enforced from day one), Pitfall 4 (cold start recovery — `status = running` set inside executor, not in route)
 
-### Phase 4: Listing Detail + Profile/Saved Page Redesigns
-**Rationale:** Independent page rewrites with no new AI infrastructure or DB dependencies beyond a nullable `ai_lease_summary` column on listings. Can be parallelized internally. Listing detail adds AI lease summary (Gemini call, cached in DB column) and commute section (Mapbox Directions, already integrated).
-**Delivers:** Listing detail with masonry photo grid, sticky CTA sidebar, AI lease summary cached in `listings.ai_lease_summary`, commute chips row. Combined profile/saved tabbed page with existing saved listings and profile form.
-**Addresses:** Listing detail redesign (table stakes), commute section (differentiator), AI lease summary (differentiator), profile/saved page (table stakes)
-**Avoids:** No new pitfalls — reuses established patterns from Phases 1–3.
-**Research flag:** Standard. AI lease summary needs a small DB migration (nullable text column) — low risk.
+### Phase 4: Steering Bar Backend
+**Rationale:** Depends on Phase 3 (executor must exist to consume steering intents from `mission_steerings`). A single Gemini function-calling turn classifies free-text into a `SteeringIntent` enum; the executor polls for unapplied steerings at loop top. This phase also confirms the function-calling-only pattern for classification calls (no responseSchema), reinforcing the separation established in Phase 3.
+**Delivers:** `POST /api/steering` route (single Gemini classify turn -> `mission_steerings` DB write); executor modified to poll for unapplied steerings; `SteeringBar.tsx` wired to POST (replaces toast-only behavior); unit tests for 5 representative steering input samples (pause, redirect, adjust, abort, accelerate)
+**Avoids:** Pitfall 1 (Gemini 2.5 Flash function+schema conflict — steering uses function calling only, never responseSchema)
 
-### Phase 5: Post Sublease Wizard
-**Rationale:** Multi-step form with Supabase Storage photo uploads. Fully independent of the AI Concierge track. Can run in parallel with Phases 6–7. Requires activating the existing `sublets` schema and creating a photo upload bucket in Supabase Storage (new infrastructure, low complexity).
-**Delivers:** Multi-step sublease submission wizard (lease details → pricing → photos → location → review → submit) with React Hook Form + Zod validation per step, Supabase Storage photo upload.
-**Addresses:** Post sublease wizard (differentiator — supply-side growth)
-**Avoids:** Standard form validation patterns — no novel pitfalls.
-**Research flag:** Standard — React Hook Form multi-step pattern is well-documented. Supabase Storage bucket creation is routine.
-
-### Phase 6: Missions DB Schema + Types
-**Rationale:** The `missions` and `mission_steps` tables must exist and be verified before any executor or UI work begins. Schema design here is where the HITL safety guardrails must be locked in — `draft_version`, `expires_at`, and idempotency structures must be in the migration, not retrofitted later. Writing Zod schemas in `packages/types/src/mission.ts` first enables type-safe executor development.
-**Delivers:** `supabase/migrations/013_missions.sql` with missions + mission_steps tables, RLS policies, Realtime publication enabled. `packages/types/src/mission.ts` Zod schemas. Unit tests verifying schema constraints.
-**Addresses:** AI Concierge backend prerequisites
-**Avoids:** Pitfall 7 (HITL failure modes — `draft_version`, `expires_at`, and idempotency key must be in the schema from the start, never retrofitted)
-**Research flag:** Needs review during planning — HITL schema design has three known failure modes with non-obvious prevention fields. Verify pg_cron availability on current Supabase plan before relying on it for `expires_at` enforcement.
-
-### Phase 7: Mission Executor + API Routes
-**Rationale:** Business logic before UI. The mission executor in `packages/ai/src/missions/executor.ts` wraps the existing 6 tools and adds async orchestration. API routes handle create, list, get, and HITL approve. The fire-and-forget execution pattern (202 Accepted, executor runs independently) must be implemented here to avoid Vercel timeout failures at scale.
-**Delivers:** `packages/ai/src/missions/executor.ts` (Gemini orchestrator over existing tools), `/api/missions/route.ts`, `/api/missions/[id]/route.ts`, `/api/missions/[id]/approve/route.ts` with version check and idempotency enforcement.
-**Addresses:** AI Concierge executor infrastructure
-**Avoids:** Pitfall 6 (Vercel timeout — API returns 202 immediately, executor is fire-and-forget)
-**Research flag:** Needs review — the fire-and-forget execution pattern on Vercel serverless needs timeout ceiling validation. If complex multi-tool missions exceed 60s (Vercel Pro limit), the executor must move to a Supabase Edge Function. This architectural decision should be made before writing the executor, not after.
-
-### Phase 8: AI Concierge Page (Mission Board UI)
-**Rationale:** Final phase — depends on all preceding phases. Requires CSS foundation (1), shadcn primitives (1), explore page layout patterns (3), missions DB (6), and executor (7). The flagship differentiator for v1.1, built last with all dependencies verified.
-**Delivers:** `concierge-client.tsx` mission board with Supabase Realtime subscriptions, `MissionCard` with 5-state status pipeline, `HitlDraftApproval` with version check and double-submit prevention, `SteeringBar` with intent taxonomy and `unknown_intent` fallback, agent step timeline accordion, mission template cards for empty state.
-**Addresses:** AI Concierge missions page (flagship differentiator), HITL approval (differentiator), steering bar (differentiator), raw logs toggle (differentiator), proactive empty state templates
-**Avoids:** Pitfall 6 (TanStack Query for mission state polling — no raw `setInterval`), Pitfall 7 (HITL draft safety guardrails enforced), Pitfall 8 (steering bar `unknown_intent` handler with visible clarification UI)
-**Research flag:** Needs review — TanStack Query + Supabase Realtime coexistence pattern should be specified before implementation. Steering bar intent taxonomy (`refine_criteria`, `change_budget`, `restart_mission`, `cancel_mission`, `clarify_question`, `unknown_intent`) needs to be defined and agreed on before the executor and UI are built.
+### Phase 5: Realtime UI Wiring
+**Rationale:** Last phase because it requires Phases 1-4 all working. `ConciergeProvider` is the sole component requiring substantive change — dropping `useState(mockMissions)`, adding initial Supabase fetch, adding 3 Realtime channels, and adding reconnect handling. All 6 child components (`MissionCard`, `MissionDetail`, `ExecutionLogs`, `AgentSummary`, `MissionSuggestions`, `ConciergeSidebar`) require zero structural changes once fed real data.
+**Delivers:** `ConciergeProvider.tsx` with initial Supabase fetch + 3 Realtime channels + polling fallback on reconnect + dedup merge by `id`; `MissionActionCard.tsx` approve/reject handlers wired to `POST /api/missions/[id]/approve`; `mock-missions.ts` deleted; E2E test: create mission in UI -> verify live log updates -> approve draft -> verify email drafted (Resend sandbox)
+**Avoids:** Pitfall 5 (200-connection limit — single per-user channel architecture for mission status), Pitfall 6 (Realtime RLS bypass — private channel + `filter: user_id=eq.X` + cross-user isolation integration test required before phase completion)
 
 ### Phase Ordering Rationale
 
-- **Design system first (Phase 1):** Hard prerequisite for every UI phase. The CSS token collision is a critical risk that must be resolved before anything else is built on top of it.
-- **Simple pages before complex (Phases 2–5):** Landing and auth validate the design system with minimal complexity. Explore and listing detail add complexity incrementally. The post sublease wizard runs in parallel with the AI track because it has no shared dependencies.
-- **DB schema before executor before UI (Phases 6→7→8):** The HITL failure modes must be addressed in the schema before the executor logic is written, and the executor must be verified before the UI is built. Building UI first encourages deferring the schema safety fields.
-- **Explore before Concierge (Phase 3 before 8):** The floating panel architecture, `useCribAIChat` hook extraction, and Supabase Realtime patterns established in Phase 3 are directly reused in Phase 8. Validating them in a simpler context first reduces Phase 8 risk.
+- **Schema precedes everything** because 8 of 9 P1 features depend on the `missions` table or its related tables. Retrofitting HITL versioning columns after the executor is written is the most dangerous and expensive mistake in this milestone.
+- **Real tool integrations are independent** — they replace stubs in the existing `executeTool()` registry with no executor changes needed. Building them in Phase 2 means Phase 3 integration tests use real data from day one.
+- **Executor precedes UI wiring** — all 6 concierge child components are already prop-based and need zero structural changes. Wiring them before the backend exists creates double mock-replacement debt.
+- **Gemini 2.5 Flash's function/schema incompatibility** is an architectural constraint that must be established in Phase 3 and consistently applied in Phase 4. Discovering it mid-Phase 5 during UI wiring would require executor rewrites at the worst possible moment.
+- **Realtime cross-user isolation** is a security concern that must be verified with an integration test before Phase 5 ships, not discovered post-deployment.
 
 ### Research Flags
 
-Phases needing deeper research during planning:
-- **Phase 6 (Missions Schema):** HITL failure mode prevention requires careful schema design. `draft_version`, `expires_at`, idempotency key, and pg_cron availability need specification before the migration is written.
-- **Phase 7 (Mission Executor):** The fire-and-forget execution approach on Vercel serverless needs timeout ceiling validation. If Vercel Pro 60s `maxDuration` is insufficient for complex multi-tool missions, the executor must move to a Supabase Edge Function. This architectural decision must precede implementation.
-- **Phase 8 (Concierge UI):** TanStack Query + Supabase Realtime coexistence pattern and the steering bar intent taxonomy need specification during phase planning.
+Phases likely needing deeper research during planning:
+- **Phase 3 (Mission Executor):** The `after()` + Vercel function duration interaction under realistic multi-step mission timing needs validation against actual Gemini + external API latency. If missions regularly exceed 60s, the pgmq queue alternative should be re-evaluated over pure fire-and-forget. The pg_cron recovery job timing (5-minute threshold for stuck `pending` missions) needs calibration.
+- **Phase 5 (Realtime UI):** Supabase Realtime `private` channel configuration and the exact JWT-passing pattern for `postgres_changes` authorization needs verification against the current `@supabase/supabase-js` 2.47.x API — docs have historically lagged SDK changes in this area.
 
-Phases with standard patterns (skip research-phase):
-- **Phase 1 (Design System):** shadcn/ui Tailwind v4 docs are authoritative. All pitfalls are documented with prevention strategies.
-- **Phase 2 (Landing + Auth):** SaaS landing page and auth split-panel patterns are well-established.
-- **Phase 3 (Explore):** Split-view layout and URL-param shared state are documented patterns. `useCribAIChat` hook extraction follows established React hook patterns.
-- **Phase 4 (Listing Detail + Profile):** Standard page redesign reusing existing data APIs.
-- **Phase 5 (Sublease Wizard):** React Hook Form multi-step pattern is well-documented.
+Phases with standard patterns (skip additional research):
+- **Phase 1 (DB Schema):** The 4-table schema, RLS policies, Realtime publications, and pg_cron cleanup job are fully specified in ARCHITECTURE.md with complete SQL. No ambiguity.
+- **Phase 2 (Real Tools):** Google Places API (New), Walk Score REST, and Tavily Extract are fully documented in STACK.md and FEATURES.md with concrete request/response shapes and env var requirements.
+- **Phase 4 (Steering Bar):** Single Gemini function-calling turn with a defined 5-action enum schema is a straightforward extension of the existing CribAI tool-calling pattern.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All core libraries verified against official docs. shadcn/ui Tailwind v4 support confirmed. motion v12 React 19 compatibility confirmed. Font delivery method is mandatory self-hosting — verified. |
-| Features | HIGH (table stakes) / MEDIUM-HIGH (concierge UX) | Design system and page patterns are well-researched against competitor landscape. AI Concierge UX patterns draw from 2025–2026 agentic design articles — patterns are emerging but multiple sources converge. |
-| Architecture | HIGH | Existing codebase inspected directly. Server/client split, Supabase Realtime, mission schema, HITL data flow, and file structure are grounded in official docs and observed codebase patterns. |
-| Pitfalls | HIGH | CSS token collision, Framer Motion boundary, font self-hosting, Lucide bundle, and all three HITL failure modes are verified from official docs, GitHub issues, and community post-mortems with HIGH confidence. |
+| Stack | HIGH | Core stack decisions verified against official Vercel, Next.js, and Supabase docs. `after()` stable since v15.1.0 confirmed in Next.js changelog. `@googlemaps/places` v2.3.0 verified on npm. Tavily and Supabase Realtime confirmed working in production codebase. |
+| Features | HIGH | All 9 P1 features derived from direct inspection of the v1.1 UI mock and codebase. Dependency graph is explicit and complete. Anti-features have clear rationale (Yelp ToS, LangGraph complexity, PM scraping legality). Walk Score API free tier verified against official docs. |
+| Architecture | HIGH | Based on direct codebase inspection of all 9 concierge components, the existing CribAI agentic loop, the `notification-bell.tsx` Realtime pattern, and all existing migrations. No speculation — every pattern is drawn from proven production code in the same project. |
+| Pitfalls | HIGH | Gemini 2.5 Flash function/schema incompatibility verified via Google AI forum and googleapis GitHub issues. Supabase Realtime RLS bypass documented in official Supabase docs. pg_cron bloat confirmed via community reports. HITL stale draft risk cross-referenced across multiple 2025-2026 HITL pattern sources. |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **TanStack Query adoption:** PITFALLS.md strongly recommends TanStack Query for mission polling to prevent state race conditions. STACK.md suggests simpler polling first. Resolve in Phase 8 planning — default to TanStack Query given the documented race condition risk with raw `setInterval`. Adds one dependency but prevents a class of subtle bugs.
-- **Mission executor timeout ceiling:** The 60s Vercel Pro `maxDuration` vs. Supabase Edge Function tradeoff needs validation in Phase 7 planning. If missions reliably complete in <30s (verified in testing), API route approach is fine. If not, Edge Function is the correct path.
-- **Steering bar intent taxonomy:** A fixed set of classified intents must be specified and agreed on during Phase 8 planning, before the executor intent-routing logic and UI fallback states are built.
-- **pg_cron availability on current Supabase plan:** `expires_at` enforcement for stuck HITL drafts requires a cron job. Verify pg_cron is available on the current plan before relying on it in the schema design (Phase 6).
-- **Dark mode deferred:** Token layer stability required first. Schedule as v1.2 enhancement once Phase 1 OKLCH token values are confirmed against Figma.
-- **Supabase Realtime connection limits:** Each user on the concierge page holds one Realtime channel. Supabase free plan has a concurrent connection ceiling. Plan upgrade should be assessed before launch if concurrent active user count is expected to exceed ~50.
+- **Walk Score API key provisioning**: Not yet confirmed as provisioned. Validate before Phase 2 begins. Free tier is 5,000 requests/day — confirm this covers expected mission volume.
+- **Resend sender domain verification**: `resend` requires a verified sender domain before production emails can be sent. If HITL email notifications are in v1.2 scope, domain verification must happen before Phase 3 executor testing, not after.
+- **`after()` duration under real conditions**: The actual wall clock duration of a full search -> shortlist -> PM contact draft mission under real Gemini and external API latency is unknown. The pg_cron recovery job (re-queue stuck `pending` missions after 5 minutes) is the durability backstop — validate that `after()` is sufficient in Phase 3 before deprioritizing the pgmq queue alternative.
+- **Supabase Realtime private channel JWT pattern**: The exact `{ config: { private: true } }` + JWT-passing syntax for `postgres_changes` subscriptions in `@supabase/supabase-js` 2.47.x should be verified against the current SDK version before Phase 5 implementation, as docs have lagged SDK changes in this area historically.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- [shadcn/ui Tailwind v4 docs](https://ui.shadcn.com/docs/tailwind-v4) — CSS variable migration, `@theme inline` pattern, `tw-animate-css` requirement
-- [shadcn/ui Next.js installation docs](https://ui.shadcn.com/docs/installation/next) — CLI command, monorepo setup
-- [shadcn/ui React 19 docs](https://ui.shadcn.com/docs/react-19) — React 19 peer dep status
-- [Supabase Realtime Postgres Changes](https://supabase.com/docs/guides/realtime/postgres-changes) — subscription pattern, publication setup
-- [Next.js font optimization docs](https://nextjs.org/docs/app/getting-started/fonts) — `localFont` API, `adjustFontFallback`
-- [Lucide React official docs](https://lucide.dev/guide/packages/lucide-react) — tree shaking pattern
-- [How Next.js optimizes package imports](https://vercel.com/blog/how-we-optimized-package-imports-in-next-js) — `optimizePackageImports` for barrel exports
-- [Tailwind CSS v4 upgrade guide](https://tailwindcss.com/docs/upgrade-guide) — migration codemod, directive changes
-- Codebase inspection: `apps/web/`, `packages/ai/`, `supabase/migrations/` — verified 2026-03-10
+- [Next.js `after()` docs](https://nextjs.org/docs/app/api-reference/functions/after) — stable in v15.1.0, Route Handler support, maxDuration interaction
+- [Vercel `@vercel/functions` reference](https://vercel.com/docs/functions/functions-api-reference/vercel-functions-package) — `after()` is the recommended replacement for deprecated `waitUntil()` in Next.js >= 15.1
+- [Vercel function duration limits](https://vercel.com/docs/functions/limitations) — 60s Hobby, 300s Fluid Compute
+- [Supabase Realtime Postgres Changes docs](https://supabase.com/docs/guides/realtime/postgres-changes) — `postgres_changes` filter syntax, RLS enforcement behavior
+- [Supabase Realtime Authorization docs](https://supabase.com/docs/guides/realtime/authorization) — private channel configuration, JWT requirements
+- [Supabase Realtime Limits docs](https://supabase.com/docs/guides/realtime/limits) — 200 concurrent connections, 100 messages/second free tier
+- [Supabase Edge Functions Limits docs](https://supabase.com/docs/guides/functions/limits) — wall clock limits (150s free, 400s paid)
+- [`@googlemaps/places` npm](https://www.npmjs.com/package/@googlemaps/places) — v2.3.0, Places API (New) client
+- [Google Places API AI summaries](https://developers.google.com/maps/documentation/places/web-service/area-summaries) — `neighborhoodSummary`, `generativeSummary` fields
+- [Walk Score API docs](https://www.walkscore.com/professional/api.php) — REST endpoint, free tier limits, caching ToS
+- Codebase direct inspection: `packages/ai/src/cribai.ts`, `tools/executor.ts`, all 9 concierge components, `notification-bell.tsx`, migration 007 — all patterns drawn from production code
 
 ### Secondary (MEDIUM confidence)
-- [motion.dev upgrade guide](https://motion.dev/docs/react-upgrade-guide) — framer-motion to motion/react migration
-- [Framer Motion with Next.js Server Components](https://www.hemantasundaray.com/blog/use-framer-motion-with-nextjs-server-components) — client wrapper pattern
-- [Vercel AI SDK HITL pattern](https://ai-sdk.dev/cookbook/next/human-in-the-loop) — approval gate architecture reference (different SDK, pattern is transferable)
-- [Designing for Agentic AI — Smashing Magazine, Feb 2026](https://www.smashingmagazine.com/2026/02/designing-agentic-ai-practical-ux-patterns/) — concierge UX patterns
-- [TanStack Query optimistic updates guide](https://tanstack.com/query/latest/docs/framework/react/guides/optimistic-updates) — polling + mutation coordination
-- [SSE vs WebSocket vs polling comparison — 2025](https://dev.to/haraf/server-sent-events-sse-vs-websockets-vs-long-polling-whats-best-in-2025-5ep8) — mission state transport rationale
+- [Gemini 2.5 Flash stuck in tool call loop — Google AI forum](https://discuss.ai.google.dev/t/gemini-2-5-flash-stuck-in-a-tool-call-loop-when-using-both-tools-and-structured-output/110777) — confirmed function+responseSchema incompatibility
+- [googleapis/python-genai #706](https://github.com/googleapis/python-genai/issues/706) — Gemini 2.5 inconsistent structured outputs
+- [Tavily Extract docs](https://docs.tavily.com/documentation/api-reference/endpoint/extract) — extract endpoint for structured web content from URLs
+- [Resend Node.js docs](https://resend.com/docs/send-with-nodejs) — npm package, free tier, React Email integration
+- [Human-in-the-loop best practices — permit.io](https://www.permit.io/blog/human-in-the-loop-for-ai-agents-best-practices-frameworks-use-cases-and-demo) — HITL draft versioning patterns
+- [Designing for agentic AI — Smashing Magazine 2026](https://www.smashingmagazine.com/2026/02/designing-agentic-ai-practical-ux-patterns/) — UX patterns for HITL, expiry countdown, steering bar feedback
 
-### Tertiary (MEDIUM-LOW confidence)
-- [tw-animate-css npm](https://www.npmjs.com/package/tw-animate-css) — Tailwind v4 animation replacement (WebSearch)
-- [Migrating Tailwind v3 to v4 with shadcn/ui — ZippyStarter](https://zippystarter.com/blog/guides/migrating-tailwind3-to-tailwind4-with-shadcn) — CSS token collision details
-- [Real estate UX trends 2025 — Medium](https://medium.com/@emilyanderson51691/top-12-ux-ui-design-trends-for-real-estate-apps-in-2025-37a5b70aef21) — explore page patterns
+### Tertiary (LOW confidence)
+- [Is scraping Zillow legal — SoftwarePair](https://softwarepair.com/is-scraping-zillow-legal/) — ToS analysis for PM contact scraping; legal interpretation, not official guidance
+- [Yelp API pricing plans](https://docs.developer.yelp.com/docs/plans) — cost projection for review API calls per mission; actual pricing tiers subject to change
 
 ---
 *Research completed: 2026-03-10*
