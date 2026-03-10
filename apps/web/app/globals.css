@@ -74,6 +74,16 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 @keyframes pulse-dot {
   0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
   40% { opacity: 1; transform: scale(1); }
@@ -83,6 +93,33 @@ body {
   0% { transform: scale(1); }
   50% { transform: scale(1.3); }
   100% { transform: scale(1); }
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes bounce-in {
+  0% { opacity: 0; transform: scale(0.9) translateY(4px); }
+  60% { opacity: 1; transform: scale(1.02) translateY(-2px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes score-ring {
+  from { stroke-dashoffset: var(--ring-circumference, 251); }
+  to { stroke-dashoffset: var(--ring-offset, 0); }
 }
 
 .animate-heart-pop {
@@ -97,10 +134,28 @@ body {
   animation: slide-up 400ms ease-out both;
 }
 
+.animate-slide-in-right {
+  animation: slide-in-right 400ms ease-out both;
+}
+
+.animate-scale-in {
+  animation: scale-in 300ms ease-out both;
+}
+
+.animate-bounce-in {
+  animation: bounce-in 500ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
 /* Stagger utility — set --stagger-index via style attribute */
 .stagger-item {
   animation: fade-in 300ms ease-out both;
-  animation-delay: calc(var(--stagger-index, 0) * 50ms);
+  animation-delay: calc(var(--stagger-index, 0) * 60ms);
+}
+
+/* Bounce-stagger for suggestion chips */
+.stagger-bounce {
+  animation: bounce-in 500ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation-delay: calc(var(--stagger-index, 0) * 80ms);
 }
 
 /* Pulse dots for streaming indicator */
@@ -114,6 +169,66 @@ body {
 }
 .pulse-dot:nth-child(2) { animation-delay: 0.2s; }
 .pulse-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* ─── Gradient Mesh Hero ─── */
+.hero-gradient {
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(20, 184, 166, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(45, 212, 191, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 60% 80%, rgba(15, 118, 110, 0.06) 0%, transparent 50%),
+    var(--surface-50);
+  background-size: 200% 200%;
+  animation: gradient-shift 12s ease-in-out infinite;
+}
+
+/* ─── Skeleton Loader ─── */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface-100) 0%,
+    var(--surface-200) 40%,
+    var(--surface-100) 80%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+/* ─── Glassmorphism ─── */
+.glass {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* ─── Image zoom on card hover ─── */
+.card-image-zoom {
+  overflow: hidden;
+}
+.card-image-zoom img {
+  transition: transform 500ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+.card-image-zoom:hover img {
+  transform: scale(1.06);
+}
+
+/* ─── Score ring animation ─── */
+.score-ring-circle {
+  animation: score-ring 1s ease-out both;
+  animation-delay: 0.3s;
+}
+
+/* ─── Smooth scroll reveal ─── */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+.scroll-reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
 
 /* ─── CSS Toggle Switch ─── */
 .toggle-switch {

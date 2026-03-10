@@ -32,16 +32,25 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
     .order('created_at', { ascending: false })
     .limit(3);
 
-  // Fetch upcoming tour requests (next 3) — join listings for address
-  const { data: tourRequests } = await queryClient
+  // Fetch tour requests — sort by earliest preferred date to show upcoming first
+  const { data: rawTourRequests } = await queryClient
     .from('tour_requests')
     .select('id, listing_id, preferred_dates, status, listings!inner(address)')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
-    .limit(3);
+    .limit(10);
+
+  // Sort by earliest preferred_date ascending, then take top 3
+  const tourRequests = (rawTourRequests ?? [])
+    .sort((a, b) => {
+      const dateA = (a.preferred_dates as string[] | null)?.[0] ?? '';
+      const dateB = (b.preferred_dates as string[] | null)?.[0] ?? '';
+      return dateA.localeCompare(dateB);
+    })
+    .slice(0, 3);
 
   const savedCount = savedEntries?.length ?? 0;
-  const tourCount = tourRequests?.length ?? 0;
+  const tourCount = tourRequests.length;
 
   return (
     <div>
@@ -106,7 +115,7 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
           </h2>
           {tourCount > 0 ? (
             <div className="space-y-3">
-              {tourRequests!.map((tour) => {
+              {tourRequests.map((tour) => {
                 const listing = tour.listings as unknown as { readonly address: string };
                 const firstDate = (tour.preferred_dates as string[])?.[0];
                 return (

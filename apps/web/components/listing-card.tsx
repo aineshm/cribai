@@ -65,9 +65,9 @@ export function ListingCard({ listing, campusSlug, isSaved }: ListingCardProps) 
   return (
     <Link
       href={`/${campusSlug}/listings/${listing.id}`}
-      className="block rounded-xl bg-white overflow-hidden shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-0.5 transition-all duration-200"
+      className="block rounded-2xl bg-white overflow-hidden shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-1 transition-all duration-300"
     >
-      <div className="relative aspect-video">
+      <div className="relative aspect-video card-image-zoom">
         {heroPhoto ? (
           <Image
             src={heroPhoto}
