@@ -1,191 +1,250 @@
-# Technology Stack -- Milestone 2 Additions
+# Stack Research
 
-**Project:** CampusNest
-**Researched:** 2026-03-05
-**Scope:** What to ADD for semantic search, saved listings/alerts, roommate matching, and multi-source scraping. Existing stack (Next.js 15, Supabase, Gemini, Crawlee, Tailwind v4, Vitest) is not re-evaluated.
+**Domain:** UI/UX Design System Migration + AI Concierge Missions (CampusNest v1.1)
+**Researched:** 2026-03-10
+**Confidence:** HIGH (all core libraries verified against official docs + shadcn/ui Tailwind v4 page)
+**Scope:** NEW additions only. Existing stack (Next.js 15, Supabase, Gemini, Mapbox, Vitest, Playwright, Sonner) is proven and not re-evaluated.
 
-## Recommended Stack Additions
+---
 
-### Semantic Search: Vector Embeddings via pgvector + Gemini
+## What This Research Covers
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| pgvector (Postgres extension) | 0.7+ | Store and query listing embeddings in Supabase | Already available on Supabase, no external vector DB needed. Keeps data co-located with listings table. HNSW index gives ~1.5ms queries vs 650ms sequential scan. | HIGH |
-| `gemini-embedding-001` (model) | current | Generate 768-dim embeddings for listings and queries | Already using `@google/genai` SDK -- `ai.models.embedContent()` is built in. No new dependency. Deprecates `text-embedding-004`. Use 768 dimensions (not 3072) to keep pgvector storage and HNSW index size manageable for student housing scale (<50K listings). | HIGH |
-| Supabase `match_listings` RPC | N/A | Cosine similarity search via Postgres function | Standard Supabase pattern: create a Postgres function that takes a query vector and returns listings ordered by `1 - (embedding <=> query_embedding)`. Avoids client-side vector math. | HIGH |
+The v1.1 milestone adds:
+1. Design system migration — Cabinet Grotesk + Satoshi fonts, shadcn/ui components, Lucide icons, Framer Motion animations
+2. AI Concierge missions page — task-based agent pipeline with status polling, draft approval (HITL), and an intent-parsing steering bar
 
-**How it works:**
-1. Scraper upserts listing --> Edge Function calls `ai.models.embedContent()` on a text representation (address + amenities + description)
-2. Embedding stored as `embedding vector(768)` column directly on the `listings` table
-3. User query --> embed query text --> call `match_listings(query_embedding, campus_id, match_count)` RPC
-4. Results ranked by cosine similarity, combined with SQL WHERE clauses for hybrid search
+---
 
-**Key decision: Column on listings table, not a separate table.**
-Add `embedding vector(768)` directly to the `listings` table. This enables single-table hybrid queries combining vector similarity with SQL filters (campus_id, bedrooms, price range) without JOINs. At 768 dims with <50K listings, the row size increase is manageable. Rebuilding embeddings can be done with UPDATE in place.
+## Recommended Stack
 
-**HNSW index config:**
-```sql
-CREATE INDEX idx_listings_embedding ON listings
-USING hnsw (embedding vector_cosine_ops)
-WITH (m = 16, ef_construction = 64);
+### Core New Technologies
+
+| Technology | Version | Purpose | Why Recommended |
+|------------|---------|---------|-----------------|
+| `shadcn/ui` | latest CLI (`shadcn@latest`) | Accessible, copy-owned UI primitives built on Radix UI | Tailwind-native, full Tailwind v4 support shipped Q1 2025. Components are owned source code (not a library dependency), so zero versioning churn. CSS variables integrate directly with existing `globals.css` token system. Already decided in PROJECT.md. |
+| `motion` (formerly `framer-motion`) | ^12.x (`motion/react` entrypoint) | Spring physics, layout animations, presence/exit transitions | Rebranded from framer-motion in late 2024. New import path is `import { motion, AnimatePresence } from 'motion/react'`. API identical to framer-motion. v12 is current stable. Industry standard for React spring animations. |
+| `lucide-react` | ^0.468+ | SVG icon set matching shadcn/ui ecosystem | Tree-shakeable ES modules — only imported icons ship. Named imports (`import { Home } from 'lucide-react'`) are fully typed. Bundled with shadcn/ui CLI so no separate decision needed. Replaces inline Heroicon SVGs. |
+| `tw-animate-css` | ^1.x | Tailwind v4 animation utilities (shadcn accordion, dialog, etc.) | shadcn/ui deprecated `tailwindcss-animate` in favor of `tw-animate-css` for Tailwind v4 compatibility. CSS-first approach, no JS plugin. Replace `@plugin 'tailwindcss-animate'` with `@import "tw-animate-css"` in `globals.css`. |
+
+### Supporting Libraries
+
+| Library | Version | Purpose | When to Use |
+|---------|---------|---------|-------------|
+| `class-variance-authority` | ^0.7.0 | Type-safe component variant definitions | Installed by shadcn/ui CLI. Use when building custom variant components (e.g., Button with `primary`/`secondary`/`ghost` variants). |
+| `clsx` | ^2.1.0 | Conditional className construction | Installed by shadcn/ui CLI. Use in `cn()` utility (`clsx` + `tailwind-merge` combined). |
+| `tailwind-merge` | ^2.x | Merge Tailwind classes without conflicts | Installed by shadcn/ui CLI. Use in `cn()` utility to prevent class collisions when combining dynamic styles. |
+
+### Font Loading
+
+| Font | Delivery Method | Why |
+|------|----------------|-----|
+| Cabinet Grotesk | `next/font/local` with downloaded WOFF2 files | Not on Google Fonts. Free to download from cdnfonts.com / fontsource. Place in `apps/web/public/fonts/cabinet-grotesk/`. Use variable font weights (400–800). |
+| Satoshi | `next/font/local` with downloaded WOFF2 files | Not on Google Fonts. Download from fontsource or cdnfonts.com. Place in `apps/web/public/fonts/satoshi/`. Use for body text (replaces Inter). |
+
+**Implementation pattern for `apps/web/app/layout.tsx`:**
+```typescript
+import localFont from 'next/font/local';
+
+const cabinetGrotesk = localFont({
+  src: [
+    { path: '../public/fonts/cabinet-grotesk/CabinetGrotesk-Regular.woff2', weight: '400' },
+    { path: '../public/fonts/cabinet-grotesk/CabinetGrotesk-Medium.woff2', weight: '500' },
+    { path: '../public/fonts/cabinet-grotesk/CabinetGrotesk-Bold.woff2', weight: '700' },
+    { path: '../public/fonts/cabinet-grotesk/CabinetGrotesk-Extrabold.woff2', weight: '800' },
+  ],
+  variable: '--font-cabinet',
+  display: 'swap',
+});
+
+const satoshi = localFont({
+  src: [
+    { path: '../public/fonts/satoshi/Satoshi-Regular.woff2', weight: '400' },
+    { path: '../public/fonts/satoshi/Satoshi-Medium.woff2', weight: '500' },
+    { path: '../public/fonts/satoshi/Satoshi-Bold.woff2', weight: '700' },
+  ],
+  variable: '--font-satoshi',
+  display: 'swap',
+});
 ```
-At <50K vectors with 768 dims, these defaults are fine. No need for IVFFlat (requires reindexing after bulk inserts). HNSW can be created on an empty table and auto-updates as rows are inserted.
 
-**Embedding task types (critical):**
-- Use `RETRIEVAL_DOCUMENT` when embedding listings (documents being searched)
-- Use `RETRIEVAL_QUERY` when embedding user search queries
-- Mismatching these degrades similarity scores significantly
+Then update `globals.css`:
+```css
+/* Replace existing font token */
+--font-display: var(--font-cabinet), system-ui, sans-serif;
+--font-body: var(--font-satoshi), system-ui, sans-serif;
+```
 
-### Saved Listings and Price Alerts
+### Mission State Management (AI Concierge)
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| Supabase Realtime (Postgres Changes) | built-in | Push notifications to connected clients for live UI updates | Already included in `@supabase/supabase-js`. Subscribe to `notifications` table INSERT events filtered by user_id. Zero new dependencies. | HIGH |
-| `pg_cron` + `pg_net` (Postgres extensions) | built-in on Supabase | Scheduled alert digest emails and batch notification generation | Runs entirely in Supabase -- no external cron service needed. Schedule a nightly job that queries price changes on saved listings and calls an Edge Function to generate notifications and send email digests. | HIGH |
-| Resend | latest | Transactional email for alert digests | Simple API, generous free tier (100 emails/day), excellent DX with React Email templates. Already TypeScript-native. Alternatives: SendGrid (heavier), Postmark (pricier). | MEDIUM |
-| `@react-email/components` | latest | Email templates | Build email templates with React components, render to HTML for Resend. Matches the existing React/Next.js stack. | MEDIUM |
+| Technology | Purpose | Why |
+|------------|---------|-----|
+| Supabase `missions` table (new) | Persist agent task state | Fits existing Supabase-first architecture. Single source of truth shared between Next.js route handlers (write) and client (read). |
+| React `useInterval` polling hook (custom, ~20 lines) | Poll `missions` table every 5s for status updates | Vercel serverless functions don't support persistent WebSocket connections. SSE works but adds streaming complexity for a status column (enum string). Simple 5s interval poll is sufficient — missions change state at most once per minute in practice. No new library needed. |
+| Supabase Realtime (existing) | Push mission status to connected clients | Already in `@supabase/supabase-js`. Use as upgrade path if polling proves too slow. Subscribe to `missions` table `UPDATE` filtered by `user_id`. Zero new dependencies. |
 
-**Architecture:**
-- `saved_listings` table: `(user_id, listing_id, saved_at, notes)`
-- `price_history` table: `(listing_id, old_price, new_price, changed_at)` -- populated by DB trigger on listings UPDATE
-- `notifications` table: durable inbox `(user_id, type, title, body, metadata, is_read)`
-- Realtime: client subscribes to `notifications` INSERT for their user_id (live UI updates)
-- pg_cron: nightly job generates notifications for price changes, then triggers Edge Function for email digest
+**Decision: Start with polling, not SSE or WebSocket.**
+- Vercel blocks persistent WebSocket connections in serverless mode.
+- SSE (`ReadableStream` route handler) is viable but adds ~50 lines of boilerplate for what amounts to a status string.
+- 5s polling is imperceptible lag for a task that takes 30–120 seconds.
+- Upgrade to Supabase Realtime if `pending → running → done` transition needs sub-second UI response.
 
-**Important:** Do NOT use Supabase Realtime Postgres Changes for batch alert processing. Realtime is for live UI delivery. Batch notification generation happens server-side via pg_cron + Edge Functions. This avoids the fan-out problem where every price change triggers RLS checks for every connected client.
+### Intent Parsing (Steering Bar)
 
-**What NOT to use:**
-- **Pusher/Ably/Socket.io**: Supabase Realtime already provides WebSocket channels. Adding a separate real-time service is redundant and adds cost.
-- **AWS SES**: Overkill for low-volume student alerts. Resend is simpler.
-- **Firebase Cloud Messaging**: Wrong ecosystem. Not needed for web-first alerts.
+| Technology | Purpose | Why |
+|------------|---------|-----|
+| Gemini 2.5 Flash (existing `@google/genai`) | Parse steering bar free-text into structured mission amendment | Zero new dependency. The existing CribAI agentic loop pattern applies: send "amend mission" prompt with current mission state + user input, receive structured `{ action, params }` via function calling. |
 
-### Roommate Matching
+**No new library needed.** The steering bar is a text input that fires a POST to a Next.js route handler, which calls Gemini with the current mission context and returns an amendment action. Same pattern as the existing 11-tool CribAI loop.
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| Weighted scoring function (custom) | N/A | Score compatibility across preference dimensions | Use weighted scoring for v1: cleanliness (0.25), noise (0.20), sleep schedule (0.20), budget overlap (0.15), guest frequency (0.10), smoking/pets (0.10). Simple, explainable, requires no training data. | MEDIUM |
-| SQL pre-filtering | N/A | Hard constraint filtering before scoring | Filter by campus_id, budget overlap, move_in_date proximity, dealbreakers (smoking, pets) as WHERE clauses. Score only the candidates that pass hard filters. | HIGH |
+---
 
-**Why weighted scoring over embeddings for v1:**
-Weighted scoring is simpler, fully explainable ("85% match: you both prefer quiet and clean"), and works with zero profiles. Embeddings add complexity without clear benefit when the preference space is structured (enums and numbers, not free text). If free-text bios become important later, add embedding similarity as a component of the score.
+## Installation
 
-**Why NOT a recommendation engine (collaborative filtering):**
-Collaborative filtering needs behavioral data (who actually became roommates and were satisfied). CampusNest has zero behavioral data at launch. Content-based matching via weighted scoring works with zero interaction history.
+```bash
+# 1. Initialize shadcn/ui (run from apps/web — reads existing tsconfig paths @/*)
+cd apps/web
+pnpm dlx shadcn@latest init -t next
 
-**Schema extension to `roommate_profiles`:**
-The existing table has only `preferences jsonb`. Extend with structured fields:
-- `sleep_schedule`, `cleanliness_level`, `noise_level`, `guest_frequency` (enum/numeric for scoring)
-- `bio` (free text, displayed to matches)
-- `budget_min`, `budget_max` (numeric for range filtering)
-- `move_in_date` (date for temporal matching)
-- `smoking_ok`, `pets_ok` (boolean dealbreakers)
+# 2. Core animation utilities (shadcn/ui requires tw-animate-css for Tailwind v4)
+pnpm add tw-animate-css --filter @campusnest/web
 
-### Multi-Source Scraping
+# 3. Motion (Framer Motion v2 — new package name)
+pnpm add motion --filter @campusnest/web
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| Crawlee `PlaywrightCrawler` (existing) | ^3.12 | Scrape JS-rendered rental sites | Already in use for Apartments.com. Same crawler class works for Zillow, Trulia, Rent.com. The `BaseScraper` abstract class in `services/scraper/scrapers/base-scraper.ts` is already designed for this -- just add new implementations. | HIGH |
-| Crawlee `CheerioCrawler` | ^3.12 (same package) | Scrape static HTML sites (Craigslist, university housing boards) | Faster and cheaper than Playwright for sites that don't need JS rendering. Already included in the `crawlee` dependency. | HIGH |
-| `scraper-registry.ts` (custom) | N/A | Source registry and orchestrator | New file that maps campus configs to available scrapers. Each campus defines which sources to scrape. Registry dispatches to correct `BaseScraper` implementation. | HIGH |
-| Proxy rotation (Crawlee built-in) | N/A | Avoid rate limiting across sources | Crawlee's `ProxyConfiguration` supports proxy lists and rotation. Essential for Zillow/Trulia which aggressively block scrapers. | MEDIUM |
+# shadcn/ui CLI installs these automatically:
+# class-variance-authority, clsx, tailwind-merge, lucide-react
 
-**New scraper implementations to build:**
-1. `zillow.ts extends BaseScraper` -- Zillow rental listings (JS-rendered, needs Playwright)
-2. `craigslist.ts extends BaseScraper` -- Craigslist housing (static HTML, use Cheerio)
-3. `manual-entry.ts extends BaseScraper` -- Admin/landlord manual submissions (reads from `manual_listings` table, no scraping)
+# 4. Font files (manual download — no npm package)
+# Download Cabinet Grotesk WOFF2 files from cdnfonts.com
+# Download Satoshi WOFF2 files from fontsource or cdnfonts.com
+# Place in apps/web/public/fonts/{cabinet-grotesk,satoshi}/
+```
 
-**What NOT to use:**
-- **Zillow API**: No public rental API exists. Must scrape.
-- **Apify Cloud**: Adds vendor dependency and cost. Crawlee (by Apify) runs locally/in GitHub Actions for free.
-- **Puppeteer**: Crawlee already wraps Playwright. No reason to add Puppeteer alongside it.
-- **Separate scraping services (ScraperAPI, ScrapFly)**: Cost per request. At nightly scraping frequency across 3-5 campuses, self-hosted Crawlee in GitHub Actions is effectively free.
+**No new database tables beyond `missions` for the AI Concierge feature.**
 
-**Deduplication across sources:**
-Listings from different sources for the same property need dedup. Strategy:
-- Normalize address (lowercase, expand abbreviations, strip unit suffixes)
-- Match on normalized address + geo proximity (<50m) + bedroom count
-- Keep the most complete listing, merge amenity data from multiple sources
-- Track all sources in a `listing_sources` table for attribution
+---
 
-### Supporting Infrastructure
+## Tailwind v4 + shadcn/ui Configuration
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| `pg_cron` extension | built-in | Schedule alert digests, stale listing cleanup, embedding cache invalidation | Already available on Supabase. Use for: daily alert digest, weekly cleanup of delisted properties, conditional embedding refresh. | HIGH |
-| `pg_net` extension | built-in | HTTP calls from Postgres to Edge Functions | Used by pg_cron to invoke Edge Functions. No external dependency. | HIGH |
-| Supabase Edge Functions (existing) | Deno runtime | Embedding generation, alert sending, manual listing intake | Already in use for PageIndex rebuild. Add new functions for embedding generation and alert dispatch. | HIGH |
+The project already uses Tailwind v4 (`@import "tailwindcss"` in `globals.css`). The shadcn/ui CLI will update `globals.css` to add `@theme inline` directives. Key changes after init:
+
+```css
+/* Replace this (tailwindcss-animate was never used in this project, skip) */
+/* Add after @import "tailwindcss": */
+@import "tw-animate-css";
+
+/* shadcn/ui adds @theme inline block — merge with existing :root tokens */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  /* ... shadcn color tokens ... */
+}
+```
+
+**Critical:** Existing `globals.css` CSS custom properties (e.g., `--primary-500`, `--surface-100`) use a different naming convention than shadcn/ui defaults (`--background`, `--foreground`, `--primary`). Reconcile during migration: either adopt shadcn naming fully or map existing tokens into the shadcn theme namespace.
+
+---
 
 ## Alternatives Considered
 
-| Category | Recommended | Alternative | Why Not Alternative |
-|----------|-------------|-------------|---------------------|
-| Vector DB | pgvector in Supabase | Pinecone, Weaviate, Qdrant | External vector DB adds latency, cost, and ops burden. pgvector is co-located with data, free on Supabase, and handles <50K vectors trivially. |
-| Embedding model | Gemini `gemini-embedding-001` | OpenAI `text-embedding-3-small`, Cohere `embed-v4` | Already using `@google/genai` SDK. Adding another AI provider means another API key, billing, and SDK. Gemini embeddings are competitive quality. |
-| Real-time | Supabase Realtime | Pusher, Ably, Socket.io | Already built into Supabase client. Zero additional cost or dependencies. |
-| Email | Resend | SendGrid, AWS SES, Postmark | Resend has best DX for TypeScript + React Email. Free tier covers early usage. SendGrid has poor DX; SES requires AWS setup; Postmark is expensive. |
-| Roommate matching | Weighted scoring | Embedding similarity, collaborative filtering | Weighted scoring is simpler, explainable, and works with structured preferences. CF needs behavioral data. Embeddings are overkill for structured enum/numeric preferences. |
-| Scraping infra | Self-hosted Crawlee in GitHub Actions | ScraperAPI, Apify Cloud, BrightData | Free at CampusNest scale. No per-request costs. Already proven with Apartments.com scraper. |
+| Recommended | Alternative | When to Use Alternative |
+|-------------|-------------|-------------------------|
+| `motion` (`motion/react` import) | `framer-motion` | Both packages are identical — `framer-motion` still receives updates. Use `framer-motion` if you have existing imports and want zero-change migration. |
+| `shadcn/ui` (copy-paste model) | `@radix-ui/react-*` directly | Use Radix directly if you need full control with no pre-styled layer. shadcn is Radix + styling — it's not an abstraction on top, it's Radix with owned CSS. |
+| Supabase Realtime | SSE route handler | Use SSE if mission updates need sub-2-second latency without upgrading to Realtime. Pattern: `ReadableStream` in Next.js route handler, `EventSource` on client. |
+| `next/font/local` (manual files) | Google Fonts CDN for Cabinet Grotesk/Satoshi | Neither font is on Google Fonts. CDNFonts/Fontsource are alternatives but `next/font/local` provides automatic subsetting, preload hints, and zero external DNS request at runtime. |
+| `tw-animate-css` | `tailwindcss-animate` (v3 only) | `tailwindcss-animate` does not support Tailwind v4. Do not use. |
 
-## New Dependencies to Install
+---
 
-```bash
-# No new npm packages needed for core functionality!
-# @google/genai already supports embedContent()
-# @supabase/supabase-js already supports Realtime
-# crawlee already includes CheerioCrawler
+## What NOT to Use
 
-# Only new dependency: email
-pnpm add resend @react-email/components --filter @campusnest/web
+| Avoid | Why | Use Instead |
+|-------|-----|-------------|
+| `tailwindcss-animate` | Tailwind v3 plugin only. Incompatible with `@import "tailwindcss"` v4 syntax. shadcn/ui explicitly deprecated it. | `tw-animate-css` |
+| `framer-motion` (new code) | Still works, but the package is being maintained under the `motion` name going forward. New code should use `motion/react` imports. | `motion` with `import { motion } from 'motion/react'` |
+| WebSocket server (e.g., `ws`, Pusher) | Vercel serverless functions terminate at 30s — persistent WS connections are not supported without upgrading to Vercel Pro Edge + custom WS infra. | Supabase Realtime (already provisioned) or polling |
+| LangGraph / Inngest for mission state | v1.1 uses simple status enum column. State machine frameworks are deferred to v2 per PROJECT.md. | `missions` table with `status` enum + polling |
+| Heroicons (inline SVGs) | Manual copy-paste, not tree-shakeable, inconsistent sizing props. | `lucide-react` named imports |
+| `@next/font` (deprecated package) | Merged into `next` since Next.js 13.2. Using the old package causes duplicate font loading. | `import localFont from 'next/font/local'` |
+| Google Fonts CDN at runtime | CSP header blocks external font sources except `fonts.gstatic.com`. Cabinet Grotesk and Satoshi are not on Google Fonts anyway. | `next/font/local` with local WOFF2 files |
+
+---
+
+## Stack Patterns by Variant
+
+**For motion components in Server Components (App Router):**
+- `motion.*` components require `'use client'` — they cannot be used directly in server components.
+- Pattern: Create thin client wrapper files (`apps/web/components/motion/`) that re-export typed motion elements. Server components import the wrapper. This is the established Next.js 15 pattern per the community.
+
+```typescript
+// apps/web/components/motion/index.tsx
+'use client';
+export { motion, AnimatePresence } from 'motion/react';
 ```
 
-**This is a key finding: the existing stack already contains nearly everything needed.** The major work is:
-1. Enabling pgvector extension in Supabase (SQL migration, not npm)
-2. Writing Postgres functions for vector search
-3. Implementing new scraper classes following the existing `BaseScraper` pattern
-4. Building the saved listings / alerts tables and Edge Functions
-5. Extending roommate profiles schema and building the matching logic
+**For shadcn/ui in a monorepo:**
+- Run `pnpm dlx shadcn@latest init` from `apps/web/`, not the root. The CLI reads `apps/web/tsconfig.json` for the `@/*` path alias.
+- Components install into `apps/web/components/ui/` by default. This is correct — do not move them to a shared package unless you have multiple apps consuming them (CampusNest is single-app for v1.1).
 
-## Database Extensions to Enable
+**For the `cn()` utility:**
+- shadcn/ui CLI creates `apps/web/lib/utils.ts` with the canonical `cn` function. Check if one already exists in `apps/web/lib/` and consolidate.
 
-```sql
--- In a new migration (003_semantic_search.sql)
-CREATE EXTENSION IF NOT EXISTS vector;  -- pgvector
+---
 
--- In a new migration (004_alerts_infrastructure.sql)
-CREATE EXTENSION IF NOT EXISTS pg_cron;  -- scheduled jobs
-CREATE EXTENSION IF NOT EXISTS pg_net;   -- HTTP from Postgres
-```
+## Version Compatibility
 
-## Environment Variables to Add
+| Package | Compatible With | Notes |
+|---------|-----------------|-------|
+| `shadcn@latest` CLI | Next.js 15, React 19, Tailwind v4 | Full support confirmed on shadcn/ui docs as of 2025. React 19 peer dep resolved. |
+| `motion` ^12.x | React 19, Next.js 15 | Tested with Next.js 16 + React 19 per community reports. v12.35.2 is current stable as of early 2026. |
+| `lucide-react` ^0.468+ | React 19 | Included by shadcn/ui CLI. Named imports provide tree shaking. |
+| `tw-animate-css` ^1.x | Tailwind v4 only | CSS-first, no JS plugin. Drop-in `@import` replacement for `tailwindcss-animate`. |
+| `next/font/local` | Next.js 15, App Router | Built into `next` package since 13.2. No separate install. Works with variable fonts. |
+| `class-variance-authority` ^0.7.0 | React 19 | Installed by shadcn/ui CLI. |
+| `clsx` ^2.1.0 | Any | Zero dependencies. |
+| `tailwind-merge` ^2.x | Tailwind v4 | v2+ required for Tailwind v4 class detection. |
 
-```bash
-# Email (Resend)
-RESEND_API_KEY=re_...
+---
 
-# Optional: proxy for scraping (if needed)
-SCRAPER_PROXY_URL=http://...
-```
+## CSP Header Impact
 
-## Version Verification
+The existing `next.config.ts` has a strict CSP. Two changes needed for v1.1:
 
-| Technology | Claimed Version | Verified Source | Verification Status |
-|------------|----------------|-----------------|---------------------|
-| pgvector | 0.7+ | Supabase docs (auto-updated) | HIGH -- Supabase manages the extension version |
-| gemini-embedding-001 | current GA | Google Developers Blog, Gemini API docs | HIGH -- GA model, replaces deprecated text-embedding-004 |
-| Crawlee | ^3.12 | Already in package.json | HIGH -- existing dependency |
-| Supabase Realtime | built-in | Supabase docs | HIGH -- core feature of @supabase/supabase-js |
-| pg_cron | built-in | Supabase docs | HIGH -- available on all Supabase projects |
-| Resend | latest | resend.com | MEDIUM -- recommended based on ecosystem reputation |
-| @react-email/components | latest | react.email | MEDIUM -- companion library to Resend |
+1. **Local fonts** — no CSP change needed. `next/font/local` serves fonts from `/_next/static/` (same origin).
+2. **motion (Framer Motion)** — pure client-side JS, no external requests. No CSP change.
+3. **shadcn/ui** — no external requests. No CSP change.
+
+The existing `font-src 'self' https://fonts.gstatic.com` can be simplified to `font-src 'self'` once the Google Fonts CDN import is removed from `layout.tsx`.
+
+---
+
+## Migration Checklist for layout.tsx
+
+Current state uses `DM_Serif_Display` and `Inter` from `next/font/google`. Replace with:
+
+1. Remove `import { DM_Serif_Display, Inter } from 'next/font/google'`
+2. Add `import localFont from 'next/font/local'`
+3. Define `cabinetGrotesk` and `satoshi` with local font configs (see pattern above)
+4. Update `className` on `<html>` to use new CSS variable names
+5. Update `globals.css` `--font-display` and `--font-body` tokens
+6. Simplify CSP `font-src` to `'self'` only
+
+---
 
 ## Sources
 
-- [Supabase pgvector docs](https://supabase.com/docs/guides/database/extensions/pgvector)
-- [Supabase HNSW indexes](https://supabase.com/docs/guides/ai/vector-indexes/hnsw-indexes)
-- [Supabase semantic search guide](https://supabase.com/docs/guides/ai/semantic-search)
-- [Supabase Realtime Postgres Changes](https://supabase.com/docs/guides/realtime/postgres-changes)
-- [Supabase Cron (pg_cron)](https://supabase.com/docs/guides/cron)
-- [Supabase scheduling Edge Functions](https://supabase.com/docs/guides/functions/schedule-functions)
-- [Gemini Embedding API docs](https://ai.google.dev/gemini-api/docs/embeddings)
-- [Gemini Embedding GA announcement](https://developers.googleblog.com/gemini-embedding-available-gemini-api/)
-- [Crawlee parallel scraping guide](https://crawlee.dev/js/docs/guides/parallel-scraping)
+- [shadcn/ui Tailwind v4 docs](https://ui.shadcn.com/docs/tailwind-v4) — confirmed Tailwind v4 + React 19 support, tw-animate-css requirement
+- [shadcn/ui Next.js installation docs](https://ui.shadcn.com/docs/installation/next) — CLI command, monorepo flag
+- [shadcn/ui manual installation docs](https://ui.shadcn.com/docs/installation/manual) — full dependency list
+- [shadcn/ui React 19 docs](https://ui.shadcn.com/docs/react-19) — React 19 peer dep status HIGH confidence
+- [motion.dev upgrade guide](https://motion.dev/docs/react-upgrade-guide) — framer-motion → motion/react migration MEDIUM confidence (WebSearch)
+- [tw-animate-css npm](https://www.npmjs.com/package/tw-animate-css) — Tailwind v4 animation replacement MEDIUM confidence (WebSearch)
+- [lucide-react official docs](https://lucide.dev/guide/packages/lucide-react) — tree shaking pattern HIGH confidence
+- [Next.js font optimization docs](https://nextjs.org/docs/app/getting-started/fonts) — localFont API HIGH confidence
+- [SSE vs WebSocket vs polling comparison](https://dev.to/haraf/server-sent-events-sse-vs-websockets-vs-long-polling-whats-best-in-2025-5ep8) — mission state pattern rationale MEDIUM confidence
+
+---
+
+*Stack research for: CampusNest v1.1 UI/UX upgrade + AI Concierge*
+*Researched: 2026-03-10*

@@ -1,592 +1,575 @@
-# Architecture Patterns
+# Architecture Research
 
-**Domain:** AI-native student housing platform (semantic search, real-time alerts, roommate matching, multi-source scraping)
-**Researched:** 2026-03-05
+**Domain:** AI-native student housing platform — v1.1 UI/UX upgrade + AI Concierge missions integration
+**Researched:** 2026-03-10
+**Confidence:** HIGH (existing codebase inspected in full, official docs verified)
 
-## Recommended Architecture
+## Standard Architecture
 
-The four new capabilities integrate as layers beneath the existing agentic chat architecture. No rewrites needed -- each plugs into existing extension points (tool handlers, BaseScraper, Supabase schema, SSE events).
-
-```
-+-----------------------------------------------------------+
-|                    Next.js 15 App Router                   |
-|  (pages, API routes, SSE streaming, Realtime subscriptions)|
-+-----------------------------------------------------------+
-        |              |              |              |
-   CribAI Engine  Saved Listings  Roommate UI   Alert Toast
-   (agentic loop)  (CRUD pages)   (match page)  (Realtime WS)
-        |              |              |              |
-+-----------------------------------------------------------+
-|                   packages/ai/                            |
-|  CribAI + PageIndex + Tools + NEW: SemanticSearchTool     |
-|  NEW: semantic_search tool handler                        |
-|  NEW: find_roommates tool handler                         |
-+-----------------------------------------------------------+
-        |                                          |
-+---------------------------+   +-------------------+
-| packages/matching/        |   | packages/supabase/|
-| NEW: compatibility engine |   | existing clients  |
-| weighted scoring          |   | + Realtime channel|
-+---------------------------+   +-------------------+
-        |                              |
-+-----------------------------------------------------------+
-|              Supabase PostgreSQL + pgvector                |
-|  listings (+ embedding column)                            |
-|  saved_listings + price_history (NEW tables)              |
-|  roommate_profiles (existing, expand preferences jsonb)   |
-|  match_listings() RPC (NEW vector similarity function)    |
-+-----------------------------------------------------------+
-        ^
-        |
-+-----------------------------------------------------------+
-|              Scraper Pipeline (multi-source)               |
-|  BaseScraper → ApartmentsComScraper (existing)            |
-|               → ZillowScraper (NEW)                       |
-|               → ManualEntryScraper (NEW, API-backed)      |
-|  Normalizer → Embedder → Upserter → Fairness + PageIndex |
-+-----------------------------------------------------------+
-```
-
-### Component Boundaries
-
-| Component | Responsibility | Communicates With | New/Existing |
-|-----------|---------------|-------------------|--------------|
-| **Embedding Pipeline** | Generate and store vector embeddings for listings | Gemini API (gemini-embedding-001), Supabase listings table | NEW |
-| **Semantic Search Tool** | Vector similarity search invoked by CribAI | pgvector RPC, CribAI tool registry | NEW |
-| **Saved Listings Service** | CRUD for user favorites, price tracking | Supabase saved_listings + price_history tables | NEW |
-| **Alert System** | Detect price/availability changes, notify users | Supabase Realtime (Postgres Changes), Next.js client | NEW |
-| **Roommate Matching Engine** | Compute compatibility scores between profiles | Supabase roommate_profiles table, weighted scoring logic | NEW |
-| **Multi-Source Scraper Registry** | Orchestrate multiple BaseScraper implementations | BaseScraper subclasses, normalizer, embedding pipeline | EXTEND |
-| **CribAI Tool Registry** | Dispatch function calls to handlers | All tool handlers (existing 6 + new semantic_search, find_roommates) | EXTEND |
-| **PageIndex RAG** | Hierarchical context retrieval (coarse-grained) | Gemini, pageindex_trees table | EXISTING (keep) |
-
-### Data Flow
-
-**1. Listing Ingestion with Embeddings (extends nightly pipeline)**
+### System Overview
 
 ```
-GitHub Actions trigger
-  → ScraperRegistry iterates all registered scrapers
-    → Each BaseScraper.scrape() returns RawListing[]
-      → Normalizer standardizes across sources
-        → Deduplicator resolves cross-source duplicates (address + geo proximity)
-          → Upserter writes to listings table
-            → EmbeddingPipeline batches listing text → Gemini gemini-embedding-001
-              → Stores 768-dim vector in listings.embedding column
-                → Triggers: recalculate-fairness, rebuild-pageindex edge functions
-                  → Triggers: price_history insert for changed prices
+┌─────────────────────────────────────────────────────────────────────┐
+│                        Next.js 15 App Router                         │
+├─────────────┬───────────────────────┬───────────────────────────────┤
+│  Marketing  │   (campus) route grp  │       (auth) route grp        │
+│  /          │   /[campusSlug]/...   │       /login /verify-edu      │
+│  page.tsx   │   layout.tsx (shell)  │       (REDESIGN)              │
+│  (REWRITE)  │   explore/ (NEW)      │                               │
+│             │   concierge/ (NEW)    │                               │
+│             │   listings/[id]/      │                               │
+│             │   saved/              │                               │
+│             │   submit-listing/     │                               │
+├─────────────┴───────────────────────┴───────────────────────────────┤
+│                    apps/web/components/                               │
+│  ┌────────────────┐  ┌─────────────────┐  ┌──────────────────────┐  │
+│  │ ui/ (shadcn)   │  │ chat/ (blocks)  │  │ concierge/ (NEW)     │  │
+│  │ Button,Card    │  │ ChatBlockRend.  │  │ MissionCard, HITL    │  │
+│  │ Sheet,Badge    │  │ MapBlock etc.   │  │ SteeringBar          │  │
+│  │ (NEW)          │  │ (KEEP/REUSE)    │  │ FloatingChatPanel    │  │
+│  └────────────────┘  └─────────────────┘  └──────────────────────┘  │
+├─────────────────────────────────────────────────────────────────────┤
+│                    packages/ (shared workspace)                       │
+│  ┌───────────────┐  ┌───────────────┐  ┌────────────────────────┐   │
+│  │ ai/           │  │ types/        │  │ supabase/              │   │
+│  │ CribAI engine │  │ Zod schemas   │  │ client.ts + server.ts  │   │
+│  │ tools (6)     │  │ + mission.ts  │  │ (UNCHANGED)            │   │
+│  │ + missions/   │  │ (NEW)         │  │                        │   │
+│  │   (NEW)       │  │               │  │                        │   │
+│  └───────────────┘  └───────────────┘  └────────────────────────┘   │
+├─────────────────────────────────────────────────────────────────────┤
+│              Supabase (PostgreSQL + PostGIS + Realtime + Auth)        │
+│  ┌─────────────┐  ┌────────────────────┐  ┌──────────────────────┐  │
+│  │ listings    │  │ missions (NEW)     │  │ chat_conversations   │  │
+│  │ saved_list. │  │ mission_steps (NEW)│  │ tour_requests        │  │
+│  │ profiles    │  │                    │  │ notifications        │  │
+│  └─────────────┘  └────────────────────┘  └──────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-Key design decision: embeddings are generated at ingestion time (not query time) and stored in the listings table alongside the listing data. This keeps the embedding co-located with the row for efficient hybrid queries.
+### Component Responsibilities
 
-**2. Semantic Search Query Flow (new tool in agentic loop)**
+| Component | Responsibility | Status |
+|-----------|----------------|--------|
+| `apps/web/app/page.tsx` | Marketing landing page | REWRITE — currently a stub |
+| `apps/web/app/(auth)/login/` | OTP auth flow | REDESIGN — split layout with branded panel |
+| `apps/web/app/(campus)/[campusSlug]/explore/` | Unified listings + map + floating AI chat | NEW — replaces `/listings` + `/cribai` |
+| `apps/web/app/(campus)/[campusSlug]/concierge/` | AI missions board with HITL approval | NEW |
+| `apps/web/components/ui/` | shadcn/ui primitives (Button, Card, Sheet, Badge, etc.) | NEW |
+| `apps/web/components/concierge/` | Mission cards, HITL, steering bar, floating panel | NEW |
+| `apps/web/components/chat/` | Existing block renderers (ChatBlockRenderer, MapBlock, etc.) | KEEP/REUSE inside floating panel |
+| `packages/ai/src/missions/` | Mission executor using Gemini | NEW |
+| `supabase/migrations/013_missions.sql` | missions + mission_steps tables + RLS | NEW |
 
-```
-User: "quiet place near campus with natural light"
-  → CribAI agentic loop receives query
-    → Gemini decides to call semantic_search tool
-      → Tool handler embeds the query text via gemini-embedding-001
-        → Calls match_listings() Supabase RPC function
-          → pgvector cosine similarity search with HNSW index
-            → Optional: filter by campus_id, bedrooms, price range (hybrid search)
-              → Returns top-K listings ranked by semantic similarity
-                → Tool returns ToolResult with modelContext + ListingCardBlock
-```
-
-The semantic_search tool complements (does not replace) the existing search_listings tool. CribAI can use either depending on the query -- structured queries ("2 bed under $1200") use the filter-based tool, qualitative queries ("quiet with natural light") use semantic search. The LLM decides which tool to invoke.
-
-**3. Saved Listings and Price Alerts Flow**
+## Recommended Project Structure
 
 ```
-Save Flow:
-  User clicks "Save" on listing card
-    → POST /api/saved-listings { listingId }
-      → Insert into saved_listings table (user_id, listing_id)
-        → Return confirmation
+apps/web/
+├── app/
+│   ├── page.tsx                          # Marketing landing (full rewrite)
+│   ├── layout.tsx                        # Root: Cabinet Grotesk + Satoshi fonts
+│   ├── globals.css                       # @theme inline bridge for shadcn tokens
+│   ├── (auth)/
+│   │   └── login/page.tsx                # Redesigned split layout
+│   ├── (campus)/[campusSlug]/
+│   │   ├── layout.tsx                    # Campus shell + nav (add Concierge link)
+│   │   ├── explore/
+│   │   │   ├── page.tsx                  # Server: listings fetch + auth
+│   │   │   └── explore-client.tsx        # Client: split view state + floating panel
+│   │   ├── concierge/
+│   │   │   ├── page.tsx                  # Server: missions fetch
+│   │   │   └── concierge-client.tsx      # Client: mission board + steering bar
+│   │   ├── listings/[id]/page.tsx        # Redesigned detail page
+│   │   ├── saved/page.tsx                # Combined profile + saved tabs
+│   │   └── submit-listing/page.tsx       # Multi-step wizard
+│   └── api/
+│       ├── ai/cribai/route.ts            # Existing SSE chat endpoint (UNCHANGED)
+│       ├── missions/
+│       │   ├── route.ts                  # POST: create mission, GET: list missions
+│       │   └── [id]/
+│       │       ├── route.ts              # GET: single mission with steps
+│       │       └── approve/route.ts      # POST: HITL approve/reject draft
+│       └── conversations/               # Existing (UNCHANGED)
+├── components/
+│   ├── ui/                              # shadcn/ui primitives (NEW)
+│   │   ├── button.tsx
+│   │   ├── card.tsx
+│   │   ├── sheet.tsx
+│   │   ├── badge.tsx
+│   │   └── ...
+│   ├── chat/                            # Existing chat blocks (KEEP as-is)
+│   │   ├── chat-block-renderer.tsx
+│   │   ├── chat-listing-card.tsx
+│   │   └── ...
+│   └── concierge/                       # NEW mission UI
+│       ├── mission-card.tsx
+│       ├── mission-step-timeline.tsx
+│       ├── hitl-draft-approval.tsx
+│       ├── steering-bar.tsx
+│       └── floating-chat-panel.tsx      # Reuses CribAIChat hook internals
+└── lib/
+    └── dev-auth.ts                      # Existing (UNCHANGED)
 
-Alert Detection (async, runs after scraper pipeline):
-  Scraper upserts listing with new rent_monthly
-    → Database trigger: INSERT INTO price_history (listing_id, old_price, new_price)
-      → Supabase Realtime broadcasts INSERT on price_history table
-        → Client-side: channel.on('postgres_changes', { table: 'price_history' })
-          → Filter: only show if listing_id IN user's saved_listings
-            → Render alert toast in UI
+packages/
+├── ai/src/
+│   ├── cribai.ts                        # Existing chat engine (UNCHANGED)
+│   ├── missions/                        # NEW
+│   │   ├── executor.ts                  # Mission orchestrator (Gemini)
+│   │   └── steps.ts                     # Step type definitions
+│   └── tools/                           # Existing 6 tools (UNCHANGED)
+└── types/src/
+    └── mission.ts                       # NEW Zod schema for mission/step
 
-Alternative (Edge Function push):
-  After scraper completes
-    → Edge function queries: saved_listings JOIN price_history WHERE changed today
-      → For each affected user: insert into notifications table
-        → Client subscribes to notifications table via Realtime
+supabase/migrations/
+└── 013_missions.sql                     # missions + mission_steps + RLS + publication
 ```
 
-Architecture decision: Use the Edge Function approach for alerts rather than pure client-side Realtime filtering. Reason: users may not have the app open when prices change. The notifications table acts as a durable inbox. Realtime provides instant delivery when the user IS online; the notifications table ensures they see it when they return.
+### Structure Rationale
 
-**4. Roommate Matching Flow**
+- **`components/ui/`:** shadcn/ui adds primitives here via `npx shadcn@latest add`. Keeps primitives separate from feature components. Matches shadcn's own convention.
+- **`components/concierge/`:** New feature folder mirrors the existing `components/chat/` pattern. Not mixed into the flat `components/` root.
+- **`explore/explore-client.tsx`:** Server/client split follows the existing `cribai-page-client.tsx` pattern exactly. Server page handles auth + data fetch; client component owns UI state (map viewport, chat panel open/closed, filter state).
+- **`packages/ai/src/missions/`:** Mission logic lives in the AI package (not the web app). Keeps the web app thin — it only handles HTTP and UI. The mission executor can be tested independently.
 
-```
-Profile Creation:
-  User fills roommate profile form
-    → POST /api/roommate-profile { preferences }
-      → Upsert roommate_profiles (preferences jsonb, campus_id)
+## Architectural Patterns
 
-Match Discovery:
-  User views "Find Roommates" page
-    → GET /api/roommate-matches
-      → Server: query all active roommate_profiles WHERE campus_id = user's campus
-        → CompatibilityEngine.score(userProfile, candidateProfiles)
-          → Weighted scoring across dimensions (sleep, cleanliness, budget, noise, guests)
-            → Return top matches sorted by compatibility score
-              → Render match cards with compatibility percentage
+### Pattern 1: Server/Client Page Split
 
-AI-Assisted (via CribAI):
-  User: "find me a roommate who's quiet and clean"
-    → CribAI calls find_roommates tool with extracted preferences
-      → Tool queries roommate_profiles, scores, returns top matches
-        → Returns ToolResult with modelContext + RoommateMatchBlock (NEW block type)
-```
+**What:** Every page with auth-gated data AND client-side state uses a server page component + a `'use client'` inner component. This is already the pattern in the codebase (`cribai-page-client.tsx`).
 
-**5. Multi-Source Scraper Architecture**
+**When to use:** All new pages — explore, concierge, listing detail, saved/profile.
 
-```
-ScraperRegistry (new orchestrator):
-  constructor(scraperConfigs: ScraperConfig[])
+**Trade-offs:** One extra file per page, but a clean boundary — server handles auth/DB, client handles UI state.
 
-  async scrapeAll(campusConfig):
-    results = []
-    for each registered scraper:
-      try:
-        rawListings = await scraper.scrape()
-        normalized = normalizer.normalize(rawListings)
-        results.push(...normalized)
-      catch:
-        log warning, continue to next scraper
-
-    deduplicated = deduplicator.resolve(results)
-    return deduplicated
-
-Deduplication Strategy:
-  1. Same source: external_id + source (existing UNIQUE constraint)
-  2. Cross-source: normalized address + geo proximity (<50m)
-     → Keep the listing with more complete data
-     → Store all source references in a sources jsonb array
-```
-
-## Patterns to Follow
-
-### Pattern 1: Hybrid Search (Semantic + Structured Filters)
-
-**What:** Combine pgvector similarity with traditional SQL WHERE clauses in a single query.
-**When:** User queries mix qualitative descriptions with hard constraints.
-**Why:** Pure vector search ignores price/bedroom filters. Pure SQL ignores "quiet with natural light." Hybrid gives best of both.
-
-```sql
--- Supabase RPC function: match_listings
-CREATE OR REPLACE FUNCTION match_listings(
-  query_embedding vector(768),
-  match_campus_id uuid,
-  match_threshold float DEFAULT 0.7,
-  match_count int DEFAULT 10,
-  filter_bedrooms int DEFAULT NULL,
-  filter_max_rent numeric DEFAULT NULL
-)
-RETURNS TABLE (
-  id uuid,
-  address text,
-  rent_monthly numeric,
-  bedrooms smallint,
-  bathrooms numeric,
-  sqft numeric,
-  amenities jsonb,
-  fairness_score numeric,
-  true_cost_total numeric,
-  similarity float
-)
-LANGUAGE plpgsql AS $$
-BEGIN
-  RETURN QUERY
-  SELECT
-    l.id, l.address, l.rent_monthly, l.bedrooms, l.bathrooms,
-    l.sqft, l.amenities, l.fairness_score, l.true_cost_total,
-    1 - (l.embedding <=> query_embedding) AS similarity
-  FROM listings l
-  WHERE l.campus_id = match_campus_id
-    AND l.is_active = true
-    AND 1 - (l.embedding <=> query_embedding) > match_threshold
-    AND (filter_bedrooms IS NULL OR l.bedrooms = filter_bedrooms)
-    AND (filter_max_rent IS NULL OR l.rent_monthly <= filter_max_rent)
-  ORDER BY l.embedding <=> query_embedding
-  LIMIT match_count;
-END;
-$$;
-```
-
-**Confidence:** HIGH -- this is the documented Supabase pattern for pgvector semantic search (see [Supabase Semantic Search docs](https://supabase.com/docs/guides/ai/semantic-search)).
-
-### Pattern 2: Embedding at Ingestion, Not Query-Time
-
-**What:** Generate embeddings when listings are scraped/updated, store in the listings table. Only embed the query at search time.
-**When:** Always. Listing data changes infrequently (daily scrape). Queries happen constantly.
-**Why:** Amortizes expensive embedding API calls. A listing is embedded once; it may be searched thousands of times.
-
+**Example:**
 ```typescript
-// In the scraper pipeline, after normalization
-async function embedListings(listings: NormalizedListing[]): Promise<void> {
-  const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-
-  // Batch embeddings (Gemini supports batch)
-  const texts = listings.map(l => buildEmbeddingText(l));
-  const response = await ai.models.embedContent({
-    model: 'gemini-embedding-001',
-    contents: texts,
-    config: { outputDimensionality: 768 }, // MRL: use 768 for cost/perf balance
-  });
-
-  // Store embeddings alongside listing data
-  for (let i = 0; i < listings.length; i++) {
-    await supabase.from('listings')
-      .update({ embedding: response.embeddings[i].values })
-      .eq('id', listings[i].id);
-  }
+// explore/page.tsx (Server Component)
+export default async function ExplorePage({ params }) {
+  const { campusSlug } = await params;
+  const listings = await fetchListings(campusSlug);
+  const { user } = await getUser();
+  return <ExploreClient listings={listings} isAuthenticated={!!user} campusSlug={campusSlug} />;
 }
 
-function buildEmbeddingText(listing: NormalizedListing): string {
-  return [
-    listing.address,
-    `${listing.bedrooms} bedroom ${listing.bathrooms} bathroom`,
-    `$${listing.rentMonthly}/month`,
-    `${listing.sqft} sqft`,
-    listing.amenities.join(', '),
-    listing.description ?? '',
-  ].join('. ');
+// explore/explore-client.tsx ('use client')
+export function ExploreClient({ listings, isAuthenticated, campusSlug }) {
+  const [chatOpen, setChatOpen] = useState(false);
+  // split view state, floating panel toggle, map viewport
 }
 ```
 
-**Confidence:** HIGH -- Gemini gemini-embedding-001 is GA, supports batch embeddings, and MRL allows 768-dim output (see [Gemini Embeddings docs](https://ai.google.dev/gemini-api/docs/embeddings)).
+### Pattern 2: shadcn/ui + Tailwind v4 Token Bridge
 
-### Pattern 3: Durable Notification Inbox
+**What:** The existing codebase uses CSS custom properties with its own naming (`--primary-600`, `--surface-50`, etc.) via `var()` throughout components. shadcn/ui expects `--background`, `--foreground`, `--primary`, etc., resolved via `@theme inline` in Tailwind v4.
 
-**What:** Write alerts to a `notifications` table, use Supabase Realtime for instant delivery, query on page load for missed alerts.
-**When:** Any async event the user should know about (price drop, new match, listing removed).
-**Why:** Realtime WebSockets only work when the client is connected. A durable inbox ensures nothing is lost.
+**The constraint:** Both systems must coexist during the migration. Existing components keep `var(--primary-600)`. New shadcn components use `bg-primary`. The bridge maps old tokens to shadcn names.
 
-```typescript
-// Client-side: subscribe to real-time notifications
-const channel = supabase
-  .channel('user-notifications')
-  .on(
-    'postgres_changes',
-    {
-      event: 'INSERT',
-      schema: 'public',
-      table: 'notifications',
-      filter: `user_id=eq.${userId}`,
-    },
-    (payload) => {
-      showToast(payload.new);
-    }
-  )
-  .subscribe();
+**When to use:** This must be done once before adding any shadcn component. It is a prerequisite, not optional.
 
-// On page load: fetch unread notifications
-const { data } = await supabase
-  .from('notifications')
-  .select('*')
-  .eq('user_id', userId)
-  .eq('is_read', false)
-  .order('created_at', { ascending: false });
-```
+**Example:**
+```css
+/* globals.css — add BEFORE npx shadcn@latest init */
 
-**Confidence:** HIGH -- Supabase Realtime Postgres Changes is well-documented and production-ready (see [Supabase Realtime docs](https://supabase.com/docs/guides/realtime/postgres-changes)).
-
-### Pattern 4: Weighted Compatibility Scoring
-
-**What:** Score roommate compatibility using weighted dimensions with normalized values.
-**When:** Comparing two roommate profiles across multiple preference axes.
-**Why:** Simple, interpretable, and tunable. No ML training data needed for v1.
-
-```typescript
-interface RoommatePreferences {
-  readonly sleepSchedule: 'early' | 'normal' | 'late' | 'varies';
-  readonly cleanlinessLevel: 1 | 2 | 3 | 4 | 5;
-  readonly noiseLevel: 1 | 2 | 3 | 4 | 5;
-  readonly guestFrequency: 'rarely' | 'sometimes' | 'often';
-  readonly budgetRange: { readonly min: number; readonly max: number };
-  readonly smokingOk: boolean;
-  readonly petsOk: boolean;
-  readonly studyHabits: 'home' | 'library' | 'both';
+/* shadcn semantic token layer — maps to existing tokens */
+:root {
+  --background: var(--surface-50);
+  --foreground: var(--surface-900);
+  --primary: 13 148 136;       /* --primary-600 as raw HSL for shadcn */
+  --primary-foreground: 255 255 255;
+  --muted: var(--surface-100);
+  --muted-foreground: var(--surface-500);
+  --border: var(--surface-200);
+  --ring: var(--primary-400);
+  --card: var(--surface-50);
+  --card-foreground: var(--surface-900);
 }
 
-const WEIGHTS: Record<string, number> = {
-  cleanlinessLevel: 0.25,  // highest friction point
-  noiseLevel: 0.20,
-  sleepSchedule: 0.20,
-  budgetRange: 0.15,
-  guestFrequency: 0.10,
-  smokingOk: 0.05,         // binary dealbreaker scored separately
-  petsOk: 0.05,
-};
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+}
 ```
 
-**Confidence:** MEDIUM -- weights are based on student housing research patterns; will need tuning with real user data.
+Source: [shadcn/ui Tailwind v4 docs](https://ui.shadcn.com/docs/tailwind-v4) — HIGH confidence.
 
-## Anti-Patterns to Avoid
+### Pattern 3: Framer Motion Client-Only Wrappers
 
-### Anti-Pattern 1: Replacing PageIndex with Vector Search Entirely
+**What:** Motion components require `'use client'`. Create thin wrapper components in `components/ui/` for animated layout primitives rather than annotating every page file.
 
-**What:** Ripping out the PageIndex hierarchical RAG and using only pgvector for context retrieval.
-**Why bad:** PageIndex provides structured, predictable context that works well for factual queries ("list all 2-bedrooms under $1000"). Vector search excels at qualitative queries but can miss structured data. They serve different purposes.
-**Instead:** Keep both. The CribAI agentic loop already supports multiple tools -- add semantic_search alongside the existing search_listings. Let the LLM decide which to use based on query type.
+**Import path:** Use `motion/react` (not the legacy `framer-motion`) for React 19 and App Router compatibility.
 
-### Anti-Pattern 2: Client-Side Realtime Filtering for Alerts
+**When to use:** Page entrances, list item staggering, floating panel open/close (Sheet already handles this via shadcn), mission card status transitions.
 
-**What:** Having every client subscribe to ALL price_history changes and filter locally.
-**Why bad:** Broadcasts every price change to every connected client. Wastes bandwidth. Breaks with more than a few hundred concurrent users. Leaks data across campus boundaries.
-**Instead:** Use server-side notifications table. Edge function writes targeted notifications per-user. Client subscribes only to their own notifications row (RLS-filtered).
+**Example:**
+```typescript
+// components/ui/motion-list-item.tsx
+'use client';
+import { motion } from 'motion/react';
 
-### Anti-Pattern 3: Real-Time Embedding Generation on Every Search
+export function MotionListItem({
+  children,
+  index,
+}: {
+  children: React.ReactNode;
+  index: number;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.04, duration: 0.25, ease: 'easeOut' }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+```
 
-**What:** Embedding the entire listing corpus on each search query.
-**Why bad:** Gemini embedding API calls are not free. Listing data changes once per day. Re-embedding 500+ listings per query is wasteful and slow.
-**Instead:** Embed at ingestion time. Only the user's query text needs embedding at search time (single API call, ~50ms).
+Source: [Framer Motion with Next.js Server Components](https://www.hemantasundaray.com/blog/use-framer-motion-with-nextjs-server-components) — MEDIUM confidence (author-blog); verified by Next.js RSC boundary rules — HIGH.
 
-### Anti-Pattern 4: Monolithic Scraper with Source-Specific Logic
+### Pattern 4: Mission Status via Supabase Realtime
 
-**What:** Adding if/else branches to ApartmentsComScraper for different sources.
-**Why bad:** Violates single responsibility. Each source has different DOM structure, rate limits, and anti-bot measures.
-**Instead:** One BaseScraper subclass per source. ScraperRegistry orchestrates. Normalizer is source-agnostic.
+**What:** `missions` rows have a `status` column with a fixed pipeline (`pending → running → awaiting_approval → complete | failed`). The concierge page client subscribes to `postgres_changes` on that row. No polling.
 
-### Anti-Pattern 5: Storing Embeddings in a Separate Table
+**When to use:** `MissionCard` component on the concierge page. Also used for mission step trace updates.
 
-**What:** Creating a `listing_embeddings` table separate from `listings`.
-**Why bad:** Requires JOINs for every vector search. Harder to keep in sync. Cannot do hybrid queries (vector + SQL filters) efficiently.
-**Instead:** Add an `embedding vector(768)` column directly to the `listings` table. Co-located data enables single-table hybrid queries.
+**Trade-offs:** Requires `missions` added to the `supabase_realtime` publication in the migration. Simpler than SSE for this use case since the Supabase client is already initialized in every page.
+
+**Example:**
+```typescript
+// components/concierge/mission-card.tsx
+'use client';
+useEffect(() => {
+  const channel = supabase
+    .channel(`mission-${missionId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'missions',
+        filter: `id=eq.${missionId}`,
+      },
+      (payload) => {
+        setStatus(payload.new.status as MissionStatus);
+      }
+    )
+    .subscribe();
+
+  return () => { supabase.removeChannel(channel); };
+}, [missionId, supabase]);
+```
+
+Source: [Supabase Realtime Postgres Changes](https://supabase.com/docs/guides/realtime/postgres-changes) — HIGH confidence.
+
+### Pattern 5: HITL Approval Gate
+
+**What:** The mission executor sets `status = 'awaiting_approval'` and writes a draft payload into `mission_steps`. The client receives the Realtime update and renders `HitlDraftApproval`. The user approves or rejects via `POST /api/missions/[id]/approve`.
+
+**When to use:** Tour scheduling drafts, any agent action with external side effects (sending an email, submitting a form).
+
+**Why not use Vercel AI SDK's built-in HITL:** The existing CribAI uses a custom SSE protocol, not Vercel AI SDK's `useChat`. Implementing HITL at the mission level (in the missions table) is cleaner than retrofitting the chat stream.
+
+**Data flow:**
+```
+Gemini produces draft content
+    ↓
+executor.ts writes: missions.status = 'awaiting_approval'
+                    mission_steps += { step_type: 'draft', payload: { ... } }
+    ↓
+Supabase Realtime pushes UPDATE → concierge-client.tsx re-renders
+    ↓
+HitlDraftApproval renders with draft content + Approve/Reject buttons
+    ↓
+User clicks Approve → POST /api/missions/[id]/approve
+    ↓
+Route handler resumes executor → status: 'running' → 'complete'
+```
+
+## Data Flow
+
+### Explore Page (Unified Split View)
+
+```
+User visits /[campus]/explore
+    ↓
+Server page (page.tsx): Supabase query for listings + auth check
+    ↓
+ExploreClient renders: ListingsPanel (60%) | MapboxPanel (40%)
+    ↓
+User types in SteeringBar
+    ↓
+SteeringBar calls /api/ai/cribai (existing SSE endpoint — UNCHANGED)
+    ↓
+FloatingChatPanel (shadcn Sheet) opens, CribAI response streams in
+    ↓
+Chat listing cards in panel link back into main listings view
+```
+
+### AI Concierge Mission Flow
+
+```
+User submits intent in SteeringBar (concierge page)
+    ↓
+POST /api/missions → creates missions row (status: 'running')
+    ↓
+Mission executor (packages/ai/src/missions/executor.ts) invoked
+    ↓ (writes steps to mission_steps table as it runs)
+Supabase Realtime pushes UPDATE events to browser
+    ↓
+concierge-client.tsx updates MissionCard status live
+    ↓ (if HITL required)
+executor writes status = 'awaiting_approval' + draft in mission_steps
+    ↓
+HitlDraftApproval renders with draft for user review
+    ↓
+User approves → POST /api/missions/[id]/approve
+    ↓
+executor resumes → status = 'running' → 'complete'
+```
+
+### Font Migration Data Flow
+
+```
+Root layout.tsx:
+  Remove: DM_Serif_Display + Inter (next/font/google)
+  Add:    localFont for Cabinet Grotesk (variable: --font-display)
+          localFont for Satoshi (variable: --font-body)
+  Result: All components using var(--font-display) and var(--font-body)
+          pick up new fonts automatically — zero component changes needed.
+```
+
+### CribAI Chat Refactor (Full-Page → Floating Panel)
+
+```
+EXISTING:
+  CribAIChatPage → CribAIChat (self-contained component with all state)
+
+v1.1:
+  useCribAIChat hook (extract SSE logic + message state from cribai-chat.tsx)
+      ↓
+  FloatingChatPanel (Sheet wrapper) — uses useCribAIChat
+  FullPageCribAI (if still needed for /cribai redirect fallback) — uses useCribAIChat
+```
+
+## Integration Points — New vs Modified vs Unchanged
+
+### New Files
+
+| File | Purpose |
+|------|---------|
+| `apps/web/components/ui/*.tsx` | shadcn/ui primitives |
+| `apps/web/components/concierge/mission-card.tsx` | Mission status card with Realtime |
+| `apps/web/components/concierge/mission-step-timeline.tsx` | Step-by-step trace view |
+| `apps/web/components/concierge/hitl-draft-approval.tsx` | Approve/reject draft UI |
+| `apps/web/components/concierge/steering-bar.tsx` | Intent input bar (reuses /api/ai/cribai) |
+| `apps/web/components/concierge/floating-chat-panel.tsx` | Floating Sheet with CribAI inside |
+| `apps/web/app/(campus)/[campusSlug]/explore/page.tsx` | Server page |
+| `apps/web/app/(campus)/[campusSlug]/explore/explore-client.tsx` | Client split view |
+| `apps/web/app/(campus)/[campusSlug]/concierge/page.tsx` | Server missions page |
+| `apps/web/app/(campus)/[campusSlug]/concierge/concierge-client.tsx` | Client mission board |
+| `apps/web/app/api/missions/route.ts` | POST create, GET list missions |
+| `apps/web/app/api/missions/[id]/route.ts` | GET single mission |
+| `apps/web/app/api/missions/[id]/approve/route.ts` | POST HITL approve/reject |
+| `packages/ai/src/missions/executor.ts` | Mission orchestrator |
+| `packages/ai/src/missions/steps.ts` | Step type definitions |
+| `packages/types/src/mission.ts` | Zod schemas for missions |
+| `supabase/migrations/013_missions.sql` | DB schema + RLS + Realtime pub |
+
+### Modified Files
+
+| File | Change | Risk |
+|------|--------|------|
+| `apps/web/app/layout.tsx` | Swap fonts (DM Serif → Cabinet Grotesk, Inter → Satoshi) | LOW — CSS var change only |
+| `apps/web/app/globals.css` | Add `@theme inline` bridge for shadcn tokens | LOW — additive only |
+| `apps/web/app/page.tsx` | Full rewrite — marketing landing | MEDIUM — replaces a stub |
+| `apps/web/components/cribai-chat.tsx` | Extract `useCribAIChat` hook; keep component working | MEDIUM — preserve SSE logic |
+| `apps/web/app/(campus)/[campusSlug]/*/page.tsx` (all pages) | Swap bespoke styles for shadcn primitives | MEDIUM — one page at a time |
+| Campus `layout.tsx` | Add Concierge nav link | LOW |
+| `next.config.ts` | Add redirects: `/listings` → `/explore`, `/cribai` → `/explore` | LOW |
+
+### Unchanged Files (reused as-is)
+
+| File | Reason |
+|------|--------|
+| `packages/ai/src/cribai.ts` | Core chat engine — no changes needed |
+| `packages/ai/src/tools/` (all 6 handlers) | All tool handlers work unchanged |
+| `apps/web/app/api/ai/cribai/route.ts` | Existing SSE endpoint consumed by steering bar |
+| `apps/web/components/chat/` (all block components) | Block rendering reused inside FloatingChatPanel |
+| `packages/supabase/` | No changes to clients |
+| All Supabase migrations 001–012 | New schema is additive only |
 
 ## New Database Schema
 
-### New Tables
+### 013_missions.sql
 
 ```sql
--- Enable pgvector
-CREATE EXTENSION IF NOT EXISTS vector;
-
--- Add embedding column to existing listings table
-ALTER TABLE listings ADD COLUMN embedding vector(768);
-ALTER TABLE listings ADD COLUMN description text;
-
--- HNSW index for fast similarity search
-CREATE INDEX idx_listings_embedding ON listings
-  USING hnsw (embedding vector_cosine_ops)
-  WITH (m = 16, ef_construction = 64);
-
--- Saved Listings
-CREATE TABLE saved_listings (
-  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  listing_id  uuid REFERENCES listings(id) ON DELETE CASCADE NOT NULL,
-  saved_at    timestamptz DEFAULT now(),
-  notes       text,
-  UNIQUE(user_id, listing_id)
+-- missions: one row per user intent/task
+create table missions (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  campus_id   uuid not null references campus_configs(id),
+  title       text not null,           -- "Find 1BR near engineering quad"
+  intent      text not null,           -- raw user input from steering bar
+  status      text not null default 'pending'
+                check (status in ('pending','running','awaiting_approval','complete','failed')),
+  created_at  timestamptz default now(),
+  updated_at  timestamptz default now()
 );
 
-ALTER TABLE saved_listings ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "own_saved" ON saved_listings
-  FOR ALL USING (auth.uid() = user_id);
-
--- Price History (populated by trigger on listings UPDATE)
-CREATE TABLE price_history (
-  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  listing_id  uuid REFERENCES listings(id) ON DELETE CASCADE NOT NULL,
-  old_price   numeric NOT NULL,
-  new_price   numeric NOT NULL,
-  changed_at  timestamptz DEFAULT now()
+-- mission_steps: step-by-step trace of agent execution
+create table mission_steps (
+  id          uuid primary key default gen_random_uuid(),
+  mission_id  uuid not null references missions(id) on delete cascade,
+  step_type   text not null,           -- 'tool_call' | 'draft' | 'result' | 'error'
+  tool_name   text,                    -- e.g. 'search_listings'
+  payload     jsonb,                   -- tool args or draft content
+  created_at  timestamptz default now()
 );
 
-CREATE INDEX idx_price_history_listing ON price_history (listing_id, changed_at DESC);
+-- RLS: users see only their own missions
+alter table missions enable row level security;
+create policy "users_own_missions" on missions
+  for all using (auth.uid() = user_id);
 
--- Trigger: auto-record price changes
-CREATE OR REPLACE FUNCTION record_price_change()
-RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN
-  IF OLD.rent_monthly IS DISTINCT FROM NEW.rent_monthly THEN
-    INSERT INTO price_history (listing_id, old_price, new_price)
-    VALUES (NEW.id, OLD.rent_monthly, NEW.rent_monthly);
-  END IF;
-  RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER on_listing_price_change
-  AFTER UPDATE OF rent_monthly ON listings
-  FOR EACH ROW EXECUTE FUNCTION record_price_change();
-
--- Notifications (durable inbox for alerts)
-CREATE TABLE notifications (
-  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  type        text NOT NULL CHECK (type IN ('price_drop', 'price_increase', 'listing_removed', 'new_match', 'roommate_match')),
-  title       text NOT NULL,
-  body        text NOT NULL,
-  metadata    jsonb DEFAULT '{}',
-  is_read     boolean NOT NULL DEFAULT false,
-  created_at  timestamptz DEFAULT now()
-);
-
-CREATE INDEX idx_notifications_user ON notifications (user_id, is_read, created_at DESC);
-
-ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "own_notifications" ON notifications
-  FOR ALL USING (auth.uid() = user_id);
-
--- Expand roommate_profiles with structured preferences
--- (existing table, ALTER to add structured columns)
-ALTER TABLE roommate_profiles ADD COLUMN IF NOT EXISTS
-  sleep_schedule text CHECK (sleep_schedule IN ('early', 'normal', 'late', 'varies'));
-ALTER TABLE roommate_profiles ADD COLUMN IF NOT EXISTS
-  cleanliness_level smallint CHECK (cleanliness_level BETWEEN 1 AND 5);
-ALTER TABLE roommate_profiles ADD COLUMN IF NOT EXISTS
-  noise_level smallint CHECK (noise_level BETWEEN 1 AND 5);
-ALTER TABLE roommate_profiles ADD COLUMN IF NOT EXISTS
-  guest_frequency text CHECK (guest_frequency IN ('rarely', 'sometimes', 'often'));
-ALTER TABLE roommate_profiles ADD COLUMN IF NOT EXISTS
-  budget_min numeric;
-ALTER TABLE roommate_profiles ADD COLUMN IF NOT EXISTS
-  budget_max numeric;
-ALTER TABLE roommate_profiles ADD COLUMN IF NOT EXISTS
-  smoking_ok boolean DEFAULT false;
-ALTER TABLE roommate_profiles ADD COLUMN IF NOT EXISTS
-  pets_ok boolean DEFAULT false;
-ALTER TABLE roommate_profiles ADD COLUMN IF NOT EXISTS
-  bio text;
-ALTER TABLE roommate_profiles ADD COLUMN IF NOT EXISTS
-  move_in_date date;
-
-ALTER TABLE roommate_profiles ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "campus_roommates_select" ON roommate_profiles
-  FOR SELECT USING (
-    campus_id = (SELECT campus_id FROM profiles WHERE id = auth.uid())
-    AND is_active = true
+alter table mission_steps enable row level security;
+create policy "users_own_mission_steps" on mission_steps
+  for all using (
+    mission_id in (select id from missions where user_id = auth.uid())
   );
-CREATE POLICY "own_roommate_profile" ON roommate_profiles
-  FOR ALL USING (auth.uid() = id);
 
--- Listing source tracking for multi-source dedup
-CREATE TABLE listing_sources (
-  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  listing_id  uuid REFERENCES listings(id) ON DELETE CASCADE NOT NULL,
-  source      text NOT NULL,
-  external_id text NOT NULL,
-  source_url  text,
-  last_seen   timestamptz DEFAULT now(),
-  UNIQUE(source, external_id)
-);
+-- Enable Realtime for status push
+alter publication supabase_realtime add table missions;
 ```
 
-## Component Integration Map
+## Scaling Considerations
 
-### How New Components Wire Into Existing Architecture
+| Scale | Architecture Adjustments |
+|-------|--------------------------|
+| 0–1k users | Current approach is fine. missions table + Realtime handles load. Next.js route handler can run executor inline (with Vercel Pro `maxDuration = 60`). |
+| 1k–10k users | Move mission executor to Supabase Edge Function to avoid Next.js cold start + timeout issues on long multi-tool Gemini calls. |
+| 10k+ users | Replace simple `status` column with durable state machine (LangGraph or Inngest). Add Gemini rate-limit queue. Upgrade Supabase plan for Realtime connection limits. |
 
-```
-EXISTING                          NEW INTEGRATION POINT
-─────────────────────────────────────────────────────────────
-CribAI tool registry              + semantic_search handler
-  (executor.ts)                   + find_roommates handler
+### Scaling Priority
 
-ChatBlock types                   + RoommateMatchBlock
-  (packages/types/chat.ts)        + PriceAlertBlock
-                                  + SavedListingBlock
+1. **First bottleneck:** Long-running mission executor. Multi-tool Gemini calls can take 15–30s. Vercel Hobby timeout is 10s. Vercel Pro allows 60s. Fix: upgrade tier or move executor to Edge Function before 1k users.
+2. **Second bottleneck:** Supabase Realtime connection limits on the free/starter plan. Each user on the concierge page holds one channel open. Fix: upgrade Supabase plan.
 
-BaseScraper abstract class        + ZillowScraper extends BaseScraper
-  (services/scraper/)             + ManualEntryScraper extends BaseScraper
-                                  + ScraperRegistry orchestrator
+## Anti-Patterns
 
-Nightly pipeline                  + EmbeddingPipeline step (after normalize)
-  (GitHub Actions)                + NotificationGenerator step (after upsert)
+### Anti-Pattern 1: Importing Motion in Server Components
 
-Supabase client factory           + Realtime channel subscriptions
-  (packages/supabase/)              (for notification delivery)
+**What people do:** Add `import { motion } from 'motion/react'` to a file without `'use client'`, or forget to add the directive when building a page that uses animations.
 
-Next.js App Router                + /api/saved-listings (CRUD)
-  (apps/web/app/api/)             + /api/roommate-profile (CRUD)
-                                  + /api/roommate-matches (GET)
-                                  + /api/notifications (GET, PATCH)
+**Why it's wrong:** Throws a build-time error. Next.js 15 is strict about RSC boundaries. Motion requires browser APIs.
 
-React components                  + SaveButton component
-  (apps/web/components/)          + NotificationBell component
-                                  + RoommateProfileForm component
-                                  + RoommateMatchCard component
-```
+**Do this instead:** Create thin `'use client'` wrapper components in `components/ui/` (e.g., `MotionListItem`, `MotionSection`). Import those from Server Components. Never add `motion` to a file that is or might be a Server Component.
+
+### Anti-Pattern 2: Adding shadcn Components Before the CSS Bridge
+
+**What people do:** Run `npx shadcn@latest add button` before mapping the existing token names to shadcn's expected names in `globals.css`.
+
+**Why it's wrong:** shadcn components use Tailwind utilities like `bg-primary`, `text-foreground`. In Tailwind v4, these map to `--color-primary`, `--color-foreground` via `@theme inline`. If those CSS variables are not defined, components render unstyled with no error.
+
+**Do this instead:** Add the `@theme inline` bridge in `globals.css` first. Verify one component (Button) renders correctly with the correct colors before adding the full library.
+
+### Anti-Pattern 3: Running Mission Executor Inline in the API Route Handler
+
+**What people do:** Put the full Gemini agentic loop (which may call 3–5 tools and take 20–30 seconds) directly inside a Next.js API route handler.
+
+**Why it's wrong:** Vercel serverless function timeout is 10s on Hobby, 60s on Pro. Multi-tool missions exceed both at scale. The function times out, the mission fails, the user sees an error.
+
+**Do this instead:** The API route creates the mission row and returns immediately with the mission ID (202 Accepted). The executor runs as a detached process (Edge Function, or a fire-and-forget fetch to a background endpoint). The client subscribes to mission status via Realtime — it never waits on the HTTP response for completion.
+
+### Anti-Pattern 4: Copying CribAIChat for the Floating Panel
+
+**What people do:** Duplicate `cribai-chat.tsx` into a new `floating-chat-panel.tsx` and adjust the UI wrapper.
+
+**Why it's wrong:** Two copies of the SSE parsing logic and message state. They diverge within one PR. Bug fixes must be applied twice.
+
+**Do this instead:** Extract a `useCribAIChat(campusSlug, options)` hook from `cribai-chat.tsx`. The hook owns all SSE and message state. Both the legacy full-page CribAI view and the new floating panel use the same hook. The floating panel is just a different UI shell around the same state.
+
+### Anti-Pattern 5: Routing the Explore Page Under /cribai
+
+**What people do:** Enhance the existing `/cribai` route to include the split listings + map view rather than creating a new `/explore` route.
+
+**Why it's wrong:** The explore page is a fundamentally different mental model (browse + search + chat unified) from the old full-page chat. Retrofitting into `/cribai` means the URL misleads users, the page carries accumulated technical debt, and it complicates the routing structure.
+
+**Do this instead:** Create `/explore` as the new canonical route. Add redirects in `next.config.ts` from `/listings` and `/cribai` to `/explore`. Clean URL from day one, no accumulated debt.
+
+### Anti-Pattern 6: Blocking the CSS/Font Swap on Component Work
+
+**What people do:** Delay the font and token migration until components are being redesigned, then do it page-by-page.
+
+**Why it's wrong:** Every page that goes out between now and the font migration looks inconsistent. The font swap is a 15-minute change to `layout.tsx` and `globals.css` that immediately improves every page at once.
+
+**Do this instead:** Do the font swap and CSS bridge in Phase 1, before any component or page work begins. It is a prerequisite with zero risk.
 
 ## Suggested Build Order
 
-Dependencies between components dictate this order:
+Build bottom-up, respecting dependencies:
 
-### Phase A: Semantic Search (foundation for everything)
+**Phase 1 — CSS Foundation (no UI risk, immediate improvement)**
+- Update `globals.css`: add `@theme inline` shadcn bridge
+- Update `layout.tsx`: swap fonts to Cabinet Grotesk + Satoshi
+- Verify existing pages still look correct (fonts change, tokens stay working)
 
-**Must come first because:** Embeddings are a prerequisite for semantic search, which is the core differentiator. The embedding pipeline also plugs into the scraper pipeline, which other features depend on.
+**Phase 2 — shadcn/ui Primitives**
+- `npx shadcn@latest add button card badge sheet input select`
+- Create `components/ui/` files
+- Verify Button renders with correct brand colors before proceeding
 
-1. Enable pgvector extension, add `embedding vector(768)` column to listings
-2. Create `match_listings()` RPC function with HNSW index
-3. Build embedding pipeline (Gemini gemini-embedding-001, batch processing)
-4. Integrate embedding step into scraper nightly pipeline
-5. Create `semantic_search` tool handler in `packages/ai/src/tools/handlers/`
-6. Register tool in CribAI tool schemas and executor
-7. Backfill embeddings for existing listings
+**Phase 3 — Marketing + Auth Pages**
+- Rewrite `apps/web/app/page.tsx` (marketing landing)
+- Redesign `(auth)/login/` split layout
+- These are standalone pages with no shared state dependencies — fastest visual wins
 
-### Phase B: Saved Listings + Price Alerts
+**Phase 4 — Explore Page**
+- Requires: CSS done (1), shadcn Sheet for floating panel (2), Mapbox already present
+- Extract `useCribAIChat` hook from `cribai-chat.tsx`
+- Build `ExploreClient` + `FloatingChatPanel`
+- Add `next.config.ts` redirects from `/listings` and `/cribai`
 
-**Must come after A because:** Depends on the listings table changes from Phase A. Price history tracking is needed before alerts make sense.
+**Phase 5 — Listing Detail + Profile/Saved Redesigns**
+- Independent page rewrites using new shadcn primitives
+- Can be parallelized; no AI or DB dependencies
 
-1. Create `saved_listings`, `price_history`, `notifications` tables with RLS
-2. Create price change trigger on listings table
-3. Build saved listings API routes (CRUD)
-4. Build SaveButton component and saved listings page
-5. Build notification generation edge function (runs after scraper pipeline)
-6. Build NotificationBell component with Supabase Realtime subscription
-7. Wire notification delivery into the scraper pipeline
+**Phase 6 — DB Schema + Mission Types**
+- Write and apply `013_missions.sql`
+- Enable Realtime publication for missions table
+- Write `packages/types/src/mission.ts` Zod schemas
+- Unit-testable: DB and types can be verified before UI work
 
-### Phase C: Roommate Matching
+**Phase 7 — Mission Executor + API Routes**
+- Build `packages/ai/src/missions/executor.ts`
+- Build `/api/missions/` route handlers
+- Integration-testable with simple status checks before UI
 
-**Can be built in parallel with B after A is done.** No dependency on saved listings or alerts.
+**Phase 8 — Concierge Page**
+- Requires phases 6 + 7 complete
+- Build `MissionCard`, `HitlDraftApproval`, `SteeringBar`, `concierge-client.tsx`
+- Add Realtime subscriptions
 
-1. Expand `roommate_profiles` table with structured preference columns
-2. Build compatibility scoring engine in `packages/matching/`
-3. Create roommate profile API routes
-4. Create `find_roommates` tool handler for CribAI
-5. Build RoommateProfileForm and RoommateMatchCard components
-6. Add RoommateMatchBlock to ChatBlock type system
-
-### Phase D: Multi-Source Scraping
-
-**Should come last because:** Requires the embedding pipeline (Phase A) and dedup infrastructure. The existing single-source scraper works for initial launch.
-
-1. Create `listing_sources` table for cross-source tracking
-2. Build ScraperRegistry orchestrator
-3. Implement cross-source deduplication (address normalization + geo proximity)
-4. Add new BaseScraper implementations (Zillow, manual entry API)
-5. Update nightly pipeline to use ScraperRegistry
-6. Add source attribution to listing cards
-
-## Scalability Considerations
-
-| Concern | At 5 campuses (launch) | At 50 campuses | At 500 campuses |
-|---------|----------------------|----------------|-----------------|
-| **Vector search** | HNSW on single table, <5K listings, <10ms | Partition by campus_id, ~50K listings | Separate vector indexes per campus partition |
-| **Embedding costs** | ~$0.01/day (500 listings * batch) | ~$0.10/day | Consider self-hosted embedding model |
-| **Realtime connections** | Supabase free tier handles it | Need Supabase Pro for connection limits | Supabase Enterprise or custom WebSocket layer |
-| **Scraper pipeline** | Sequential, single GitHub Action | Parallel scrapers per campus | Distributed queue (BullMQ or similar) |
-| **Roommate matching** | In-memory scoring, <100 profiles/campus | SQL-based pre-filtering | Consider embedding roommate profiles for vector matching |
+**Phase 9 — Post Sublease Wizard**
+- Multi-step form, no AI dependencies
+- Can run in parallel with phases 6–8
 
 ## Sources
 
-- [Supabase pgvector documentation](https://supabase.com/docs/guides/database/extensions/pgvector) -- HIGH confidence
-- [Supabase Semantic Search guide](https://supabase.com/docs/guides/ai/semantic-search) -- HIGH confidence
-- [Supabase HNSW indexes](https://supabase.com/docs/guides/ai/vector-indexes/hnsw-indexes) -- HIGH confidence
-- [Supabase Realtime Postgres Changes](https://supabase.com/docs/guides/realtime/postgres-changes) -- HIGH confidence
-- [Gemini Embedding API docs](https://ai.google.dev/gemini-api/docs/embeddings) -- HIGH confidence
-- [Gemini gemini-embedding-001 GA announcement](https://developers.googleblog.com/gemini-embedding-available-gemini-api/) -- HIGH confidence
-- [Roommate matching research (IJRASET)](https://www.ijraset.com/research-paper/enhancing-co-living-experience-through-intelligent-roommate-matching) -- MEDIUM confidence
-- [Multi-source scraper dedup patterns (ScrapingAnt)](https://scrapingant.com/blog/building-a-web-data-quality-layer-deduping-canonicalization) -- MEDIUM confidence
+- [shadcn/ui Tailwind v4 docs](https://ui.shadcn.com/docs/tailwind-v4) — CSS variable migration, `@theme inline` pattern — HIGH confidence
+- [shadcn/ui Next.js installation](https://ui.shadcn.com/docs/installation/next) — init command, component addition — HIGH confidence
+- [Framer Motion — motion/react import](https://www.hemantasundaray.com/blog/use-framer-motion-with-nextjs-server-components) — client component boundary — MEDIUM confidence (author-verified against RSC docs)
+- [Supabase Realtime Postgres Changes](https://supabase.com/docs/guides/realtime/postgres-changes) — subscription pattern, publication setup — HIGH confidence
+- [Vercel AI SDK HITL pattern](https://ai-sdk.dev/cookbook/next/human-in-the-loop) — approval gate architecture reference — MEDIUM confidence (uses different SDK, but pattern is transferable)
+- Codebase inspection: `apps/web/`, `packages/ai/`, `supabase/migrations/` — verified 2026-03-10
 
 ---
-
-*Architecture research: 2026-03-05*
+*Architecture research for: CampusNest v1.1 — UI/UX upgrade + AI Concierge integration*
+*Researched: 2026-03-10*
