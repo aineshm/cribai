@@ -153,7 +153,7 @@ Phase 4 can proceed in parallel with Phase 5 planning/discussion.
 | 6. Agent Tool Expansion + Polish | 3/3 | Complete   | 2026-03-09 |
 | 7. Fix e2e test issues and complete v1 | 4/4 | Complete   | 2026-03-10 |
 | 8. Close Audit Gaps + Verify Phase 4 | 2/2 | Complete   | 2026-03-10 |
-| 9. V1 Integration Polish + Doc Cleanup | 0/0 | Planned    | -          |
+| 9. V1 Integration Polish + Doc Cleanup | 0/2 | Planned    | -          |
 
 ### Phase 7: Fix e2e test issues and complete v1
 
@@ -194,4 +194,8 @@ Plans:
   2. GET /api/conversations/[id] works in dev auth mode (BYPASS_AUTH=true) — conversation reload from sidebar works
   3. Middleware protects /*/dashboard, /*/saved, /*/notifications, /*/submit-listing routes (not just /*/cribai)
   4. ROADMAP.md has no stale unchecked plan checkmarks for completed plans
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 09-01-PLAN.md — Fix contact_email silent data loss + dev auth on GET conversations/[id]
+- [ ] 09-02-PLAN.md — Middleware protected route expansion + ROADMAP checkmark cleanup
