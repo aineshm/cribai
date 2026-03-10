@@ -129,7 +129,7 @@ export function MobileNav({ campusSlug, userId, userEmail, isEduVerified, unread
                     : 'text-[var(--surface-600)] hover:bg-[var(--surface-50)]'
                 }`}
               >
-                Submit Listing
+                Share a Listing
               </Link>
             )}
             {userId && (

@@ -333,7 +333,7 @@ export function SubmitListingForm({ campusSlug }: SubmitListingFormProps) {
         disabled={isSubmitting}
         className="w-full rounded-lg bg-[var(--primary-600)] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[var(--primary-700)] disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {isSubmitting ? 'Submitting...' : 'Submit Listing'}
+        {isSubmitting ? 'Sharing...' : 'Share Listing'}
       </button>
     </form>
   );

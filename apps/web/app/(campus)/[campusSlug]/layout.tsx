@@ -162,7 +162,7 @@ export default async function CampusLayout({
                   href={`/${campusSlug}/submit-listing`}
                   className="text-sm font-medium text-[var(--surface-500)] hover:text-[var(--surface-800)] transition-colors"
                 >
-                  Submit Listing
+                  Share a Listing
                 </Link>
               )}
               {userId && (
