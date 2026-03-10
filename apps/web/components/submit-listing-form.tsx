@@ -100,8 +100,8 @@ export function SubmitListingForm({ campusSlug }: SubmitListingFormProps) {
   if (isSubmitted) {
     return (
       <div className="flex flex-col items-center justify-center rounded-xl border border-[var(--surface-200)] bg-white p-10 text-center shadow-sm animate-fade-in">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
-          <svg className="h-8 w-8 text-emerald-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--primary-50)]">
+          <svg className="h-8 w-8 text-[var(--primary-600)]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </div>
@@ -133,7 +133,10 @@ export function SubmitListingForm({ campusSlug }: SubmitListingFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Section 1: Location & Basics */}
       <div className="rounded-xl border border-[var(--surface-200)] bg-white p-6 shadow-sm space-y-5">
+        <h3 className="text-base font-semibold text-[var(--surface-800)] mb-4">Location & Basics</h3>
+
         {/* Address */}
         <div>
           <label htmlFor="address" className="block text-sm font-medium text-[var(--surface-700)] mb-1">
@@ -157,19 +160,22 @@ export function SubmitListingForm({ campusSlug }: SubmitListingFormProps) {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label htmlFor="rent_monthly" className="block text-sm font-medium text-[var(--surface-700)] mb-1">
-              Monthly Rent ($) <span className="text-red-500">*</span>
+              Monthly Rent <span className="text-red-500">*</span>
             </label>
-            <input
-              id="rent_monthly"
-              name="rent_monthly"
-              type="number"
-              min="1"
-              max="10000"
-              value={form.rent_monthly}
-              onChange={handleChange}
-              placeholder="1200"
-              className="w-full rounded-lg border border-[var(--surface-200)] px-3 py-2 text-sm focus:border-[var(--primary-500)] focus:outline-none focus:ring-1 focus:ring-[var(--primary-500)]"
-            />
+            <div className="relative">
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-[var(--surface-500)]">$</span>
+              <input
+                id="rent_monthly"
+                name="rent_monthly"
+                type="number"
+                min="1"
+                max="10000"
+                value={form.rent_monthly}
+                onChange={handleChange}
+                placeholder="1200"
+                className="w-full rounded-lg border border-[var(--surface-200)] pl-7 pr-3 py-2 text-sm focus:border-[var(--primary-500)] focus:outline-none focus:ring-1 focus:ring-[var(--primary-500)]"
+              />
+            </div>
             {fieldErrors.rent_monthly && (
               <p className="mt-1 text-xs text-red-600">{fieldErrors.rent_monthly[0]}</p>
             )}
@@ -234,6 +240,11 @@ export function SubmitListingForm({ campusSlug }: SubmitListingFormProps) {
             />
           </div>
         </div>
+      </div>
+
+      {/* Section 2: Listing Details */}
+      <div className="rounded-xl border border-[var(--surface-200)] bg-white p-6 shadow-sm space-y-5">
+        <h3 className="text-base font-semibold text-[var(--surface-800)] mb-4">Listing Details</h3>
 
         {/* Available Date */}
         <div>
@@ -288,6 +299,11 @@ export function SubmitListingForm({ campusSlug }: SubmitListingFormProps) {
             <p className="mt-1 text-xs text-red-600">{fieldErrors.description[0]}</p>
           )}
         </div>
+      </div>
+
+      {/* Section 3: Contact Information */}
+      <div className="rounded-xl border border-[var(--surface-200)] bg-white p-6 shadow-sm space-y-5">
+        <h3 className="text-base font-semibold text-[var(--surface-800)] mb-4">Contact Information</h3>
 
         {/* Contact Email */}
         <div>
@@ -311,7 +327,7 @@ export function SubmitListingForm({ campusSlug }: SubmitListingFormProps) {
         {/* Source URL */}
         <div>
           <label htmlFor="source_url" className="block text-sm font-medium text-[var(--surface-700)] mb-1">
-            Listing URL
+            Listing URL <span className="text-xs font-normal text-[var(--surface-400)]">(optional)</span>
           </label>
           <input
             id="source_url"
