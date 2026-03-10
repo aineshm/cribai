@@ -23,3 +23,25 @@
 
 ---
 
+## v1.1 UI/UX Upgrade (Shipped: 2026-03-10)
+
+**Phases completed:** 6 phases (10-15)
+
+**Timeline:** 2026-03-10 | 6 commits
+**Git range:** 2a6ed8e..f345552
+
+**Key accomplishments:**
+1. Design system migration: Cabinet Grotesk + Satoshi fonts, shadcn/ui primitives, Lucide icons, Framer Motion
+2. Marketing landing page with hero, social proof, features, how-it-works, CTA
+3. Auth page redesign: split layout with branded panel + animated multi-step OTP flow
+4. Explore page: unified split view (listings 60% + map 40%) with filter chips + floating AI chat panel
+5. Listing detail redesign: photo gallery grid, lightbox, 2-column layout, sticky CTA, AI lease summary
+6. Post sublease wizard with sidebar progress tracker + combined profile/saved/settings tabbed page
+7. AI Concierge UI: mission sidebar, action cards, execution logs, steering bar, proactive suggestions (mock data)
+
+**Tech debt accepted:**
+- AI Concierge is UI-only with mock data — real backend deferred to v1.2
+- STATE.md not updated during execution (phases committed outside GSD workflow)
+
+---
+

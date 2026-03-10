@@ -1,13 +1,13 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: UI/UX Upgrade
+milestone: v1.2
+milestone_name: Native Agent Backend
 status: active
 stopped_at: ""
-last_updated: "2026-03-10T22:30:00.000Z"
-last_activity: 2026-03-10 - Roadmap created for v1.1 (Phases 10-15)
+last_updated: "2026-03-10T23:00:00.000Z"
+last_activity: 2026-03-10 - Milestone v1.2 started
 progress:
-  total_phases: 6
+  total_phases: 0
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-10)
 
 **Core value:** Students can find off-campus housing through conversational AI search that understands what they actually want
-**Current focus:** v1.1 UI/UX Upgrade — Phase 10: Design System Foundation
+**Current focus:** v1.2 Native Agent Backend — Defining requirements
 
 ## Current Position
 
-Phase: 10 of 15 (Design System Foundation)
-Plan: — (not yet planned)
-Status: Ready to plan
-Last activity: 2026-03-10 — v1.1 roadmap created, Phases 10-15 defined
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-10 — Milestone v1.2 started
 
-Progress: [░░░░░░░░░░] 0%  (v1.1: 0/6 phases)
+Progress: [░░░░░░░░░░] 0%  (v1.2: 0/? phases)
 
 ## Performance Metrics
 
@@ -39,7 +39,7 @@ Progress: [░░░░░░░░░░] 0%  (v1.1: 0/6 phases)
 - Average duration: ~5 min/plan
 - Total execution time: ~2.4 hours
 
-**v1.1 By Phase:**
+**v1.2 By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
@@ -51,14 +51,12 @@ Progress: [░░░░░░░░░░] 0%  (v1.1: 0/6 phases)
 
 ### Decisions
 
-Recent decisions affecting v1.1 work:
+Recent decisions affecting v1.2 work:
 
-- [v1.1 Roadmap]: Phase 10 gates all UI phases — CSS token bridge must land before any page is touched
-- [v1.1 Roadmap]: Cabinet Grotesk + Satoshi must be self-hosted via next/font/local (not on Google Fonts)
-- [v1.1 Roadmap]: Floating CribAI panel lives in root layout (not explore page) to survive route navigation
-- [v1.1 Roadmap]: AI Concierge (Phase 15) is UI-only with mock data — real executor deferred to v1.2
-- [v1.1 Roadmap]: Phase 15 depends on Phase 12 (floating panel architecture reused by concierge)
-- [v1.1 Roadmap]: COMPAT-01 (git tag v1.0-mvp) acknowledged in Phase 10 scope — already created
+- [v1.1]: AI Concierge UI built with mock data — v1.2 wires it to real backend
+- [v1.1]: Floating CribAI panel lives in root layout — persists across route navigation
+- [v1.0]: pg_cron availability on Supabase free tier — relevant for mission scheduling/expiration
+- [v1.2]: Runtime architecture (Edge Functions vs Inngest vs LangGraph) — TBD during research
 
 ### Pending Todos
 
@@ -66,14 +64,14 @@ None yet.
 
 ### Blockers/Concerns
 
-- CSS variable name collision risk: shadcn/ui uses same names as existing globals.css — must audit diff during Phase 10 init before any component install
-- Framer Motion client boundary: `motion.*` cannot be used directly in Server Components — establish MotionWrapper pattern in Phase 10 for all subsequent phases
-- Lucide barrel import bundle bloat: add `optimizePackageImports: ["lucide-react"]` to next.config.ts in Phase 10 before any icons are used
-- pg_cron availability on Supabase free tier (carried from v1.0 — relevant again for AI Concierge backend in v1.2)
+- pg_cron availability on Supabase free tier (carried from v1.0/v1.1)
+- Mission executor long-running tasks may exceed Edge Function timeout (default 25s on free tier)
+- Real PM contact integration requires external API or scraping strategy
+- HITL draft approval needs careful UX — Concierge UI exists but backend contract undefined
 
 ## Session Continuity
 
-Last session: 2026-03-10T22:30:00.000Z
-Stopped at: v1.1 roadmap written — ROADMAP.md, STATE.md, REQUIREMENTS.md traceability updated
+Last session: 2026-03-10T23:00:00.000Z
+Stopped at: Milestone v1.2 started — defining requirements
 Resume file: None
-Next: /gsd:plan-phase 10
+Next: Research → Requirements → Roadmap
