@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { createClient } from '@campusnest/supabase/client';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { isEduEmail } from '@/lib/edu-validation';
 
-export default function LoginPage() {
+function LoginForm() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
@@ -86,71 +86,20 @@ export default function LoginPage() {
 
   if (step === 'otp') {
     return (
-      <main className="flex min-h-screen items-center justify-center p-8">
-        <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow-[var(--shadow-card)] animate-fade-in">
-          <button
-            onClick={() => { setStep('email'); setOtp(''); setError(null); }}
-            className="text-sm text-[var(--surface-400)] hover:text-[var(--surface-600)] transition-colors"
-          >
-            &larr; Back
-          </button>
-          <div className="mt-4 text-center">
-            <div className="text-4xl mb-4">🔑</div>
-            <h1 className="font-[family-name:var(--font-display)] text-2xl text-[var(--surface-900)]">Enter your code</h1>
-            <p className="mt-2 text-sm text-[var(--surface-500)]">
-              We sent an 8-digit code to <strong>{email}</strong>
-            </p>
-          </div>
-
-          {error && (
-            <div data-testid="error-message" className="mt-4 rounded-lg bg-[var(--fair-bad-bg)] p-3 text-sm text-[var(--fair-bad)]">
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleVerifyOtp} className="mt-6 space-y-4">
-            <input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={8}
-              placeholder="00000000"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-              required
-              autoFocus
-              className="w-full rounded-xl border border-[var(--surface-200)] px-4 py-3 text-center text-2xl font-mono tracking-[0.5em] focus:border-[var(--primary-500)] focus:outline-none focus:ring-1 focus:ring-[var(--primary-500)] transition-colors"
-            />
-            <button
-              type="submit"
-              disabled={loading || otp.length < 8}
-              className="w-full rounded-xl bg-[var(--primary-600)] px-4 py-3 text-sm font-medium text-white hover:bg-[var(--primary-700)] disabled:opacity-50 transition-colors"
-            >
-              {loading ? 'Verifying...' : 'Verify code'}
-            </button>
-          </form>
-
-          <button
-            onClick={() => { setError(null); sendOtpEmail(); }}
-            className="mt-4 w-full text-sm text-[var(--primary-600)] hover:underline"
-          >
-            Resend code
-          </button>
-        </div>
-      </main>
-    );
-  }
-
-  return (
-    <main className="flex min-h-screen items-center justify-center p-8">
       <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow-[var(--shadow-card)] animate-fade-in">
-        <Link href="/" className="text-sm text-[var(--surface-400)] hover:text-[var(--surface-600)] transition-colors">
+        <button
+          onClick={() => { setStep('email'); setOtp(''); setError(null); }}
+          className="text-sm text-[var(--surface-400)] hover:text-[var(--surface-600)] transition-colors"
+        >
           &larr; Back
-        </Link>
-        <h1 className="mt-4 font-[family-name:var(--font-display)] text-2xl text-[var(--surface-900)]">Sign in to CampusNest</h1>
-        <p className="mt-2 text-sm text-[var(--surface-500)]">
-          Enter your .edu email and we&apos;ll send you a verification code.
-        </p>
+        </button>
+        <div className="mt-4 text-center">
+          <div className="text-4xl mb-4">🔑</div>
+          <h1 className="font-[family-name:var(--font-display)] text-2xl text-[var(--surface-900)]">Enter your code</h1>
+          <p className="mt-2 text-sm text-[var(--surface-500)]">
+            We sent an 8-digit code to <strong>{email}</strong>
+          </p>
+        </div>
 
         {error && (
           <div data-testid="error-message" className="mt-4 rounded-lg bg-[var(--fair-bad-bg)] p-3 text-sm text-[var(--fair-bad)]">
@@ -158,24 +107,89 @@ export default function LoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleSendOtp} className="mt-6 space-y-4">
+        <form onSubmit={handleVerifyOtp} className="mt-6 space-y-4">
           <input
-            type="email"
-            placeholder="you@university.edu"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={8}
+            placeholder="00000000"
+            value={otp}
+            onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
             required
-            className="w-full rounded-xl border border-[var(--surface-200)] px-4 py-3 text-sm focus:border-[var(--primary-500)] focus:outline-none focus:ring-1 focus:ring-[var(--primary-500)] transition-colors"
+            autoFocus
+            className="w-full rounded-xl border border-[var(--surface-200)] px-4 py-3 text-center text-2xl font-mono tracking-[0.5em] focus:border-[var(--primary-500)] focus:outline-none focus:ring-1 focus:ring-[var(--primary-500)] transition-colors"
           />
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || otp.length < 8}
             className="w-full rounded-xl bg-[var(--primary-600)] px-4 py-3 text-sm font-medium text-white hover:bg-[var(--primary-700)] disabled:opacity-50 transition-colors"
           >
-            {loading ? 'Sending code...' : 'Send verification code'}
+            {loading ? 'Verifying...' : 'Verify code'}
           </button>
         </form>
+
+        <button
+          onClick={() => { setError(null); sendOtpEmail(); }}
+          className="mt-4 w-full text-sm text-[var(--primary-600)] hover:underline"
+        >
+          Resend code
+        </button>
       </div>
+    );
+  }
+
+  return (
+    <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow-[var(--shadow-card)] animate-fade-in">
+      <Link href="/" className="text-sm text-[var(--surface-400)] hover:text-[var(--surface-600)] transition-colors">
+        &larr; Back
+      </Link>
+      <h1 className="mt-4 font-[family-name:var(--font-display)] text-2xl text-[var(--surface-900)]">Sign in to CampusNest</h1>
+      <p className="mt-2 text-sm text-[var(--surface-500)]">
+        Enter your .edu email and we&apos;ll send you a verification code.
+      </p>
+
+      {error && (
+        <div data-testid="error-message" className="mt-4 rounded-lg bg-[var(--fair-bad-bg)] p-3 text-sm text-[var(--fair-bad)]">
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSendOtp} className="mt-6 space-y-4">
+        <input
+          type="email"
+          placeholder="you@university.edu"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          className="w-full rounded-xl border border-[var(--surface-200)] px-4 py-3 text-sm focus:border-[var(--primary-500)] focus:outline-none focus:ring-1 focus:ring-[var(--primary-500)] transition-colors"
+        />
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full rounded-xl bg-[var(--primary-600)] px-4 py-3 text-sm font-medium text-white hover:bg-[var(--primary-700)] disabled:opacity-50 transition-colors"
+        >
+          {loading ? 'Sending code...' : 'Send verification code'}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <main className="flex min-h-screen items-center justify-center p-8">
+      <Suspense fallback={
+        <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow-[var(--shadow-card)] animate-fade-in">
+          <div className="h-6 w-24 bg-[var(--surface-100)] rounded animate-pulse" />
+          <div className="mt-4 h-8 w-full bg-[var(--surface-100)] rounded animate-pulse" />
+          <div className="mt-2 h-4 w-3/4 bg-[var(--surface-100)] rounded animate-pulse" />
+          <div className="mt-6 h-12 w-full bg-[var(--surface-100)] rounded-xl animate-pulse" />
+          <div className="mt-4 h-12 w-full bg-[var(--surface-100)] rounded-xl animate-pulse" />
+        </div>
+      }>
+        <LoginForm />
+      </Suspense>
     </main>
   );
 }
