@@ -152,7 +152,7 @@ Phase 4 can proceed in parallel with Phase 5 planning/discussion.
 | 5. Agentic Data Pipeline + Web Search | 3/5 | Gap closure | - |
 | 6. Agent Tool Expansion + Polish | 3/3 | Complete   | 2026-03-09 |
 | 7. Fix e2e test issues and complete v1 | 4/4 | Complete   | 2026-03-10 |
-| 8. Close Audit Gaps + Verify Phase 4 | 0/2 | Planned | - |
+| 8. Close Audit Gaps + Verify Phase 4 | 1/2 | In Progress|  |
 
 ### Phase 7: Fix e2e test issues and complete v1
 

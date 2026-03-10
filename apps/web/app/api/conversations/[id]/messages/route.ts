@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerComponentClient, createSecretClient } from '@campusnest/supabase/server';
-import { isDevAuthEnabled, getDevUserById, DEFAULT_DEV_USER, DEV_USER_COOKIE } from '../../../../lib/dev-auth';
+import { isDevAuthEnabled, getDevUserById, DEFAULT_DEV_USER, DEV_USER_COOKIE } from '../../../../../lib/dev-auth';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
 
