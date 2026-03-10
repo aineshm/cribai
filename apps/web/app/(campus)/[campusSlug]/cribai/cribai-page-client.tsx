@@ -43,25 +43,12 @@ export function CribAIChatPage({
       </p>
       <div className="mt-4 flex gap-4">
         {isAuthenticated && (
-          <div className="hidden md:block flex-shrink-0">
-            <ConversationSidebar
-              onSelectConversation={handleSelectConversation}
-              onNewChat={handleNewChat}
-              activeConversationId={activeConversationId}
-              refreshTrigger={refreshTrigger}
-            />
-          </div>
-        )}
-        {/* Mobile sidebar (renders its own fixed positioning) */}
-        {isAuthenticated && (
-          <div className="md:hidden">
-            <ConversationSidebar
-              onSelectConversation={handleSelectConversation}
-              onNewChat={handleNewChat}
-              activeConversationId={activeConversationId}
-              refreshTrigger={refreshTrigger}
-            />
-          </div>
+          <ConversationSidebar
+            onSelectConversation={handleSelectConversation}
+            onNewChat={handleNewChat}
+            activeConversationId={activeConversationId}
+            refreshTrigger={refreshTrigger}
+          />
         )}
         <div className="flex-1 min-w-0">
           <CribAIChat

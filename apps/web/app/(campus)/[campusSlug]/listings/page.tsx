@@ -55,17 +55,16 @@ export default async function ListingsPage({
     }
   }
 
+  if (filters.minPrice || filters.maxPrice) {
+    query = query.not('rent_monthly', 'is', null).gt('rent_monthly', 0);
+  }
+
   if (filters.minPrice) {
-    query = query
-      .not('rent_monthly', 'is', null)
-      .gt('rent_monthly', 0)
-      .gte('rent_monthly', parseInt(filters.minPrice, 10));
+    query = query.gte('rent_monthly', parseInt(filters.minPrice, 10));
   }
 
   if (filters.maxPrice) {
-    query = query
-      .not('rent_monthly', 'is', null)
-      .lte('rent_monthly', parseInt(filters.maxPrice, 10));
+    query = query.lte('rent_monthly', parseInt(filters.maxPrice, 10));
   }
 
   // Sort

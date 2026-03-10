@@ -32,12 +32,12 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
     .order('created_at', { ascending: false })
     .limit(3);
 
-  // Fetch upcoming tour requests (next 3)
+  // Fetch upcoming tour requests (next 3) — join listings for address
   const { data: tourRequests } = await queryClient
     .from('tour_requests')
-    .select('id, listing_address, preferred_date, status')
+    .select('id, listing_id, preferred_dates, status, listings!inner(address)')
     .eq('user_id', user.id)
-    .order('preferred_date', { ascending: true })
+    .order('created_at', { ascending: false })
     .limit(3);
 
   const savedCount = savedEntries?.length ?? 0;
@@ -106,18 +106,23 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
           </h2>
           {tourCount > 0 ? (
             <div className="space-y-3">
-              {tourRequests!.map((tour) => (
+              {tourRequests!.map((tour) => {
+                const listing = tour.listings as unknown as { readonly address: string };
+                const firstDate = (tour.preferred_dates as string[])?.[0];
+                return (
                 <div key={tour.id} className="flex flex-col gap-0.5">
                   <p className="text-sm text-[var(--surface-600)] truncate">
-                    {tour.listing_address}
+                    {listing.address}
                   </p>
                   <div className="flex items-center gap-2">
                     <p className="text-xs text-[var(--surface-400)]">
-                      {new Date(tour.preferred_date).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
+                      {firstDate
+                        ? new Date(firstDate).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })
+                        : 'Date TBD'}
                     </p>
                     <span
                       className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
@@ -132,7 +137,8 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
                     </span>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <p className="text-sm text-[var(--surface-400)]">

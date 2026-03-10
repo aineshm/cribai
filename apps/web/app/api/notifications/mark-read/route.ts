@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerComponentClient, createSecretClient } from '@campusnest/supabase/server';
-import { DEV_USER_COOKIE, DEFAULT_DEV_USER } from '../../../../lib/dev-auth';
+import { isDevAuthEnabled, DEV_USER_COOKIE, DEFAULT_DEV_USER } from '../../../../lib/dev-auth';
 
 export async function POST() {
   const cookieStore = await cookies();
@@ -10,9 +10,7 @@ export async function POST() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Dev auth fallback: check BYPASS_AUTH environment variable
-  const isDevAuth =
-    process.env.BYPASS_AUTH === 'true' || process.env.NEXT_PUBLIC_BYPASS_AUTH === 'true';
+  const isDevAuth = isDevAuthEnabled();
 
   if (!user && !isDevAuth) {
     return NextResponse.json(

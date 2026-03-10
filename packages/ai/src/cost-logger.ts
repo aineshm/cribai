@@ -40,11 +40,6 @@ interface UsageMetadata {
   readonly cachedContentTokenCount?: number;
 }
 
-// Running session totals for monitoring
-let sessionInputTokens = 0;
-let sessionOutputTokens = 0;
-let sessionCost = 0;
-
 export function logTokenUsage(
   model: string,
   usageMetadata: UsageMetadata | undefined,
@@ -56,15 +51,15 @@ export function logTokenUsage(
   const cachedTokens = usageMetadata.cachedContentTokenCount ?? 0;
   const nonCachedInput = inputTokens - cachedTokens;
 
-  const pricing = PRICING[model as keyof typeof PRICING] ?? PRICING['gemini-2.5-flash'];
+  const knownModel = model as keyof typeof PRICING;
+  if (!(knownModel in PRICING)) {
+    console.warn(`[cost] Unknown model "${model}" — falling back to gemini-2.5-flash pricing`);
+  }
+  const pricing = PRICING[knownModel] ?? PRICING['gemini-2.5-flash'];
   const estimatedCost =
     nonCachedInput * pricing.input +
     cachedTokens * pricing.cached +
     outputTokens * pricing.output;
-
-  sessionInputTokens += inputTokens;
-  sessionOutputTokens += outputTokens;
-  sessionCost += estimatedCost;
 
   const usage: TokenUsage = {
     model,
@@ -77,27 +72,8 @@ export function logTokenUsage(
   console.log(
     `[cost] ${model} | in:${inputTokens} out:${outputTokens}` +
     (cachedTokens > 0 ? ` cached:${cachedTokens}` : '') +
-    ` | $${estimatedCost.toFixed(6)}` +
-    ` | session:$${sessionCost.toFixed(4)}`,
+    ` | $${estimatedCost.toFixed(6)}`,
   );
 
   return usage;
-}
-
-export function getSessionCost(): {
-  readonly inputTokens: number;
-  readonly outputTokens: number;
-  readonly estimatedCost: number;
-} {
-  return {
-    inputTokens: sessionInputTokens,
-    outputTokens: sessionOutputTokens,
-    estimatedCost: sessionCost,
-  };
-}
-
-export function resetSessionCost(): void {
-  sessionInputTokens = 0;
-  sessionOutputTokens = 0;
-  sessionCost = 0;
 }

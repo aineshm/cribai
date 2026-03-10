@@ -54,27 +54,16 @@ export async function persistWebListing(
       return null;
     }
 
-    // Only trigger embedding if content actually changed (new insert or updated content).
-    // The upsert returns the row whether inserted or updated — check raw_data to detect change.
-    const { data: existing } = await context.supabase
+    // Upsert sets last_embedded_at: null via the insert payload for new rows.
+    // For existing rows that were updated, reset embedding only if previously embedded.
+    const { error: updateError } = await context.supabase
       .from('listings')
-      .select('raw_data, last_embedded_at')
+      .update({ last_embedded_at: null })
       .eq('id', data.id)
-      .single();
+      .not('last_embedded_at', 'is', null);
 
-    const contentChanged =
-      !existing?.last_embedded_at ||
-      (existing?.raw_data as Record<string, unknown>)?.web_content !== params.content;
-
-    if (contentChanged) {
-      const { error: updateError } = await context.supabase
-        .from('listings')
-        .update({ last_embedded_at: null })
-        .eq('id', data.id);
-
-      if (updateError) {
-        console.error('persistWebListing embedding reset failed:', updateError.message);
-      }
+    if (updateError) {
+      console.error('persistWebListing embedding reset failed:', updateError.message);
     }
 
     return data.id;

@@ -62,14 +62,16 @@ async function persistMessage(
   blocks: readonly ChatBlock[],
 ): Promise<void> {
   try {
-    await fetch(`/api/conversations/${conversationId}/messages`, {
+    const res = await fetch(`/api/conversations/${conversationId}/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role, blocks }),
     });
+    if (!res.ok) {
+      console.warn(`[CribAI] Failed to persist message: ${res.status}`);
+    }
   } catch {
-    // Non-critical — message displays in UI regardless
-    console.error('[CribAI] Failed to persist message');
+    console.error('[CribAI] Failed to persist message (network error)');
   }
 }
 

@@ -1,7 +1,6 @@
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { createServerComponentClient } from '@campusnest/supabase/server';
 import { SubmitListingForm } from '../../../../components/submit-listing-form';
+import { getCurrentUser } from '../../../../lib/get-current-user';
 
 export default async function SubmitListingPage({
   params,
@@ -9,10 +8,7 @@ export default async function SubmitListingPage({
   params: Promise<{ campusSlug: string }>;
 }) {
   const { campusSlug } = await params;
-  const cookieStore = await cookies();
-  const supabase = createServerComponentClient(cookieStore);
-
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user } = await getCurrentUser();
 
   if (!user) {
     redirect(`/login?returnTo=/${campusSlug}/submit-listing`);
