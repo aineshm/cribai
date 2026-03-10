@@ -120,30 +120,6 @@ export function ListingCard({ listing, campusSlug, isSaved }: ListingCardProps) 
           </div>
         )}
 
-        {listing.true_cost_total != null && (
-          <p className="mt-2 text-sm text-[var(--surface-400)] group/truecost relative">
-            <span
-              tabIndex={0}
-              role="term"
-              aria-describedby={`truecost-tip-${listing.id}`}
-              className="cursor-help border-b border-dashed border-[var(--surface-300)] focus:outline-none focus:ring-1 focus:ring-[var(--primary-400)] rounded-sm"
-            >
-              True Cost
-            </span>
-            :{' '}
-            <span className="font-medium text-[var(--primary-700)]">
-              ${listing.true_cost_total.toLocaleString()}/mo
-            </span>
-            <span
-              id={`truecost-tip-${listing.id}`}
-              role="tooltip"
-              className="pointer-events-none absolute bottom-full left-0 z-10 mb-2 w-52 rounded-lg bg-[var(--surface-800)] px-3 py-2 text-xs text-white opacity-0 shadow-lg transition-opacity group-hover/truecost:opacity-100 group-focus-within/truecost:opacity-100"
-            >
-              Includes estimated utilities, parking, internet, and other fees beyond base rent.
-            </span>
-          </p>
-        )}
-
         {listing.source && (
           <span className="mt-2 block text-xs text-[var(--surface-400)]">
             via {formatSourceName(listing.source)}
@@ -151,6 +127,29 @@ export function ListingCard({ listing, campusSlug, isSaved }: ListingCardProps) 
         )}
       </div>
       </Link>
+      {listing.true_cost_total != null && (
+        <p className="mx-5 mb-4 text-sm text-[var(--surface-400)] group/truecost relative">
+          <span
+            tabIndex={0}
+            role="term"
+            aria-describedby={`truecost-tip-${listing.id}`}
+            className="cursor-help border-b border-dashed border-[var(--surface-300)] focus:outline-none focus:ring-1 focus:ring-[var(--primary-400)] rounded-sm"
+          >
+            True Cost
+          </span>
+          :{' '}
+          <span className="font-medium text-[var(--primary-700)]">
+            ${listing.true_cost_total.toLocaleString()}/mo
+          </span>
+          <span
+            id={`truecost-tip-${listing.id}`}
+            role="tooltip"
+            className="pointer-events-none absolute bottom-full left-0 z-10 mb-2 w-52 rounded-lg bg-[var(--surface-800)] px-3 py-2 text-xs text-white opacity-0 shadow-lg transition-opacity group-hover/truecost:opacity-100 group-focus-within/truecost:opacity-100"
+          >
+            Includes estimated utilities, parking, internet, and other fees beyond base rent.
+          </span>
+        </p>
+      )}
       <HeartButton
         listingId={listing.id}
         initialSaved={isSaved ?? false}

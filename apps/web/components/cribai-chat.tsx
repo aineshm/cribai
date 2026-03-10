@@ -6,6 +6,7 @@ import { ChatBlockRenderer } from './chat/chat-block-renderer';
 import type { ChatBlock } from './chat/chat-block-renderer';
 
 interface Message {
+  readonly id: string;
   readonly role: 'user' | 'assistant';
   readonly blocks: readonly ChatBlock[];
 }
@@ -27,9 +28,10 @@ function loadSessionMessages(): readonly Message[] {
   try {
     const stored = sessionStorage.getItem(CHAT_STORAGE_KEY);
     if (!stored) return [];
-    const parsed = JSON.parse(stored) as Message[];
+    const parsed = JSON.parse(stored) as Array<Omit<Message, 'id'> & { id?: string }>;
     return parsed.map(m => ({
-      ...m,
+      id: m.id ?? crypto.randomUUID(),
+      role: m.role,
       blocks: m.blocks.filter(b => b.type !== 'tool_loading'),
     }));
   } catch {
@@ -60,7 +62,7 @@ async function persistMessage(
   conversationId: string,
   role: 'user' | 'assistant',
   blocks: readonly ChatBlock[],
-): Promise<void> {
+): Promise<boolean> {
   try {
     const res = await fetch(`/api/conversations/${conversationId}/messages`, {
       method: 'POST',
@@ -69,9 +71,12 @@ async function persistMessage(
     });
     if (!res.ok) {
       console.warn(`[CribAI] Failed to persist message: ${res.status}`);
+      return false;
     }
+    return true;
   } catch {
     console.error('[CribAI] Failed to persist message (network error)');
+    return false;
   }
 }
 
@@ -105,6 +110,7 @@ async function loadConversationMessages(
       messages: Array<{ role: 'user' | 'assistant'; blocks: ChatBlock[] }>;
     };
     return data.messages.map(m => ({
+      id: crypto.randomUUID(),
       role: m.role,
       blocks: m.blocks.filter(b => b.type !== 'tool_loading'),
     }));
@@ -198,6 +204,7 @@ export function CribAIChat({
 
     if (!overrideQuery) setInput('');
     const userMessage: Message = {
+      id: crypto.randomUUID(),
       role: 'user',
       blocks: [{ type: 'text', content: query }],
     };
@@ -257,12 +264,13 @@ export function CribAIChat({
       let currentTextContent = '';
       let sseBuffer = '';
 
-      setMessages(prev => [...prev, { role: 'assistant', blocks: [] }]);
+      const assistantId = crypto.randomUUID();
+      setMessages(prev => [...prev, { id: assistantId, role: 'assistant', blocks: [] }]);
 
       const updateAssistantMessage = (blocks: readonly ChatBlock[]) => {
         setMessages(prev => {
           const updated = [...prev];
-          updated[updated.length - 1] = { role: 'assistant', blocks };
+          updated[updated.length - 1] = { id: assistantId, role: 'assistant', blocks };
           return updated;
         });
         scrollToBottom();
@@ -372,6 +380,7 @@ export function CribAIChat({
       setMessages(prev => [
         ...prev.filter(m => m.blocks.length > 0),
         {
+          id: crypto.randomUUID(),
           role: 'assistant',
           blocks: [{ type: 'text', content: 'Sorry, something went wrong. Please try again.' }],
         },
@@ -439,9 +448,9 @@ export function CribAIChat({
             </div>
           </div>
         )}
-        {messages.map((msg, i) => (
+        {messages.map((msg) => (
           <div
-            key={`${msg.role}-${i}-${msg.blocks.length}`}
+            key={msg.id}
             className={`flex animate-slide-up ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
