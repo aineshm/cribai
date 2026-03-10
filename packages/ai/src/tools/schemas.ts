@@ -3,7 +3,7 @@ import { Type, type FunctionDeclaration } from '@google/genai';
 const searchListings: FunctionDeclaration = {
   name: 'search_listings',
   description:
-    'Search for student housing listings near campus. Use this whenever the user asks about available apartments, pricing, or wants to find housing. Supports semantic search for qualitative preferences like "quiet place with natural light".',
+    'Search for student housing listings near campus. Use this when the user wants to DISCOVER new apartments — e.g., "find me a 2-bedroom" or "what\'s available under $1200". Supports semantic search for qualitative preferences like "quiet place with natural light". Do NOT use this tool when the user has already identified a specific listing and wants to take an action on it (like scheduling a tour, getting details, or comparing). In those cases, use the appropriate action tool directly.',
   parameters: {
     type: Type.OBJECT,
     properties: {
@@ -82,7 +82,7 @@ const compareListings: FunctionDeclaration = {
 const scheduleTour: FunctionDeclaration = {
   name: 'schedule_tour',
   description:
-    'Schedule a tour for a listing. Collect the student name, email, and preferred dates before calling this.',
+    'Schedule a tour for a specific listing. Use this when the user wants to visit or tour a listing that has already been identified in the conversation. First collect the student name, email, and preferred dates, then call this tool. Do NOT run search_listings first if the user already specified which listing they want to tour.',
   parameters: {
     type: Type.OBJECT,
     properties: {
