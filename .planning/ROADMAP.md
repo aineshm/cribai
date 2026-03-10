@@ -153,7 +153,7 @@ Phase 4 can proceed in parallel with Phase 5 planning/discussion.
 | 6. Agent Tool Expansion + Polish | 3/3 | Complete   | 2026-03-09 |
 | 7. Fix e2e test issues and complete v1 | 4/4 | Complete   | 2026-03-10 |
 | 8. Close Audit Gaps + Verify Phase 4 | 2/2 | Complete   | 2026-03-10 |
-| 9. V1 Integration Polish + Doc Cleanup | 0/2 | Planned    | -          |
+| 9. V1 Integration Polish + Doc Cleanup | 2/2 | Complete   | 2026-03-10 |
 
 ### Phase 7: Fix e2e test issues and complete v1
 
@@ -197,5 +197,5 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 09-01-PLAN.md — Fix contact_email silent data loss + dev auth on GET conversations/[id]
-- [ ] 09-02-PLAN.md — Middleware protected route expansion + ROADMAP checkmark cleanup
+- [x] 09-01-PLAN.md — Fix contact_email silent data loss + dev auth on GET conversations/[id]
+- [x] 09-02-PLAN.md — Middleware protected route expansion + ROADMAP checkmark cleanup
