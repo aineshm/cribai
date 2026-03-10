@@ -1,20 +1,11 @@
 import type { Metadata } from 'next';
-import { DM_Serif_Display, Inter } from 'next/font/google';
+import { Geist } from 'next/font/google';
 import { Toaster } from 'sonner';
 import './globals.css';
+import { cn } from '@/lib/utils';
+import { displayFont, bodyFont } from '@/lib/fonts';
 
-const dmSerif = DM_Serif_Display({
-  weight: '400',
-  subsets: ['latin'],
-  variable: '--font-dm-serif',
-  display: 'swap',
-});
-
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
-  display: 'swap',
-});
+const geist = Geist({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
   title: 'CampusNest — Student Housing Intelligence',
@@ -28,7 +19,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${dmSerif.variable} ${inter.variable}`}>
+    <html
+      lang="en"
+      className={cn(
+        displayFont.variable,
+        bodyFont.variable,
+        geist.variable,
+        'font-sans'
+      )}
+    >
       <body className="min-h-screen bg-[var(--surface-50)] text-[var(--surface-900)] antialiased">
         {children}
         <Toaster position="top-center" richColors duration={2000} />
