@@ -140,7 +140,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 Phase 4 can proceed in parallel with Phase 5 planning/discussion.
 
 | Phase | Plans Complete | Status | Completed |
@@ -151,3 +151,15 @@ Phase 4 can proceed in parallel with Phase 5 planning/discussion.
 | 4. Saved Listings and Alerts | 4/4 | Complete | 2026-03-06 |
 | 5. Agentic Data Pipeline + Web Search | 3/5 | Gap closure | - |
 | 6. Agent Tool Expansion + Polish | 3/3 | Complete   | 2026-03-09 |
+| 7. Fix e2e test issues and complete v1 | 0/2 | Planned | - |
+
+### Phase 7: Fix e2e test issues and complete v1
+
+**Goal:** Fix all E2E test bugs (price filter, dev auth, conversation persistence, Google Places photos) and polish remaining UX gaps (favicon, notification read behavior, submit copy, profile university) to ship a complete v1
+**Requirements**: None (bug-fix/polish phase addressing existing requirement implementations)
+**Depends on:** Phase 6
+**Plans:** 2 plans
+
+Plans:
+- [ ] 07-01-PLAN.md — Fix 4 critical E2E bugs: price filter, dev auth in CribAI route, Google Places photo cleanup
+- [ ] 07-02-PLAN.md — UX polish: favicon, submit listing copy, notification read behavior, dashboard cleanup, profile university
