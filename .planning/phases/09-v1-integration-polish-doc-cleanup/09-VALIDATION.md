@@ -41,7 +41,7 @@ created: 2026-03-10
 | 09-01-01 | 01 | 1 | INT-01 (contact_email) | manual smoke | n/a — manual | N/A | ⬜ pending |
 | 09-01-02 | 01 | 1 | INT-02 (dev auth conversations GET) | manual smoke | n/a — manual | N/A | ⬜ pending |
 | 09-01-03 | 01 | 1 | INT-03 (middleware expansion) | E2E | `npx playwright test --project=chromium auth.spec.ts` | ✅ | ⬜ pending |
-| 09-02-01 | 02 | 1 | ROADMAP.md cleanup | visual inspection | n/a — manual | N/A | ⬜ pending |
+| 09-02-01 | 02 | 1 | ROADMAP.md cleanup | visual inspection | n/a — manual | N/A | ✅ resolved (fixed in Phase 8 PR #10) |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -60,7 +60,7 @@ Existing infrastructure covers all phase requirements. No new test files require
 | contact_email persisted or removed from form | INT-01 | API route has no unit tests | Submit listing via form, verify DB row or confirm field absent |
 | GET /api/conversations/[id] in dev auth | INT-02 | API route has no unit tests | Set BYPASS_AUTH=true, GET conversation by ID, expect 200 |
 | Middleware redirects campus routes | INT-03 | Existing E2E covers auth redirects | Visit /campus/dashboard unauthenticated, expect redirect to login |
-| ROADMAP.md no stale checkmarks | Documentation | Visual inspection | Open ROADMAP.md, verify completed plans have [x] |
+| ROADMAP.md no stale checkmarks | Documentation | Resolved in Phase 8 | Fixed in PR #10 — all completed plans now have [x] |
 
 ---
 
