@@ -11,10 +11,9 @@ interface MobileNavProps {
   readonly userEmail: string | null;
   readonly isEduVerified: boolean;
   readonly unreadNotificationCount?: number;
-  readonly priceChangedSavesCount?: number;
 }
 
-export function MobileNav({ campusSlug, userId, userEmail, isEduVerified, unreadNotificationCount = 0, priceChangedSavesCount = 0 }: MobileNavProps) {
+export function MobileNav({ campusSlug, userId, userEmail, isEduVerified, unreadNotificationCount = 0 }: MobileNavProps) {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -148,18 +147,13 @@ export function MobileNav({ campusSlug, userId, userEmail, isEduVerified, unread
                 <Link
                   href={`/${campusSlug}/saved`}
                   onClick={handleLinkClick}
-                  className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
+                  className={`rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
                     isActive('saved')
                       ? 'bg-[var(--primary-50)] text-[var(--primary-700)]'
                       : 'text-[var(--surface-600)] hover:bg-[var(--surface-50)]'
                   }`}
                 >
                   Saved
-                  {priceChangedSavesCount > 0 && (
-                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">
-                      {priceChangedSavesCount > 9 ? '9+' : priceChangedSavesCount}
-                    </span>
-                  )}
                 </Link>
                 <Link
                   href={`/${campusSlug}/notifications`}

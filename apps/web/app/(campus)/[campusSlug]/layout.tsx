@@ -55,7 +55,6 @@ export default async function CampusLayout({
   let isProfileIncomplete = false;
   let profileData = { displayName: null as string | null, avatarUrl: null as string | null, graduationYear: null as number | null, major: null as string | null };
   let unreadNotificationCount = 0;
-  let priceChangedSavesCount = 0;
 
   if (userId) {
     if (isDevMode && devUser) {
@@ -81,13 +80,6 @@ export default async function CampusLayout({
           .eq('is_read', false);
         unreadNotificationCount = count ?? 0;
 
-        const { count: priceChangedCount } = await secretClient
-          .from('notifications')
-          .select('listing_id', { count: 'exact', head: true })
-          .eq('user_id', userId)
-          .eq('type', 'price_change')
-          .eq('is_read', false);
-        priceChangedSavesCount = priceChangedCount ?? 0;
       } catch {
         // If service-role client fails, continue with defaults
       }
@@ -115,14 +107,6 @@ export default async function CampusLayout({
         .eq('is_read', false);
       unreadNotificationCount = count ?? 0;
 
-      // Fetch count of saved listings with unread price-change notifications
-      const { count: priceChangedCount } = await supabase
-        .from('notifications')
-        .select('listing_id', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .eq('type', 'price_change')
-        .eq('is_read', false);
-      priceChangedSavesCount = priceChangedCount ?? 0;
     }
   }
 
@@ -175,14 +159,9 @@ export default async function CampusLayout({
                   </Link>
                   <Link
                     href={`/${campusSlug}/saved`}
-                    className="relative text-sm font-medium text-[var(--surface-500)] hover:text-[var(--surface-800)] transition-colors"
+                    className="text-sm font-medium text-[var(--surface-500)] hover:text-[var(--surface-800)] transition-colors"
                   >
                     Saved
-                    {priceChangedSavesCount > 0 && (
-                      <span className="absolute -top-2 -right-3 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
-                        {priceChangedSavesCount > 9 ? '9+' : priceChangedSavesCount}
-                      </span>
-                    )}
                   </Link>
                 </>
               )}
@@ -204,7 +183,6 @@ export default async function CampusLayout({
               userEmail={userEmail}
               isEduVerified={isEduVerified}
               unreadNotificationCount={unreadNotificationCount}
-              priceChangedSavesCount={priceChangedSavesCount}
             />
           </div>
         </nav>

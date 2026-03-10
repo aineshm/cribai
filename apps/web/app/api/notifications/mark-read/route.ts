@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerComponentClient, createSecretClient } from '@campusnest/supabase/server';
+import { DEV_USER_COOKIE, DEFAULT_DEV_USER } from '../../../../lib/dev-auth';
 
 export async function POST() {
   const cookieStore = await cookies();
@@ -20,8 +21,9 @@ export async function POST() {
     );
   }
 
-  // In dev mode without a real user, use a default dev user ID
-  const userId = user?.id ?? (isDevAuth ? 'dev-user-1' : null);
+  // In dev mode without a real user, resolve from the dev_user_id cookie (falls back to default dev user)
+  const devUserId = isDevAuth ? (cookieStore.get(DEV_USER_COOKIE)?.value ?? DEFAULT_DEV_USER.id) : null;
+  const userId = user?.id ?? devUserId;
 
   if (!userId) {
     return NextResponse.json(
