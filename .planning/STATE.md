@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 07-02-PLAN.md
-last_updated: "2026-03-10T02:45:09.920Z"
+stopped_at: Completed 07-04-PLAN.md
+last_updated: "2026-03-10T04:39:00.440Z"
 last_activity: 2026-03-10 - Completed 07-02-PLAN.md
 progress:
   total_phases: 8
   completed_phases: 7
-  total_plans: 23
-  completed_plans: 23
+  total_plans: 25
+  completed_plans: 25
   percent: 100
 ---
 
@@ -74,6 +74,8 @@ Progress: [██████████] 100% (23 of 23 plans)
 | Phase 06 P03 | 2min | 2 tasks | 7 files |
 | Phase 07 P01 | 4min | 2 tasks | 4 files |
 | Phase 07 P02 | 3min | 2 tasks | 9 files |
+| Phase 07 P03 | 3min | 2 tasks | 5 files |
+| Phase 07 P04 | 3min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -152,6 +154,10 @@ Recent decisions affecting current work:
 - [Phase 07]: Frontend conversation persistence already wired from Phase 6 -- no changes needed in cribai-chat.tsx
 - [Phase 07]: MarkAllReadButton is a client component using router.refresh() after API call for data revalidation
 - [Phase 07]: University defaults to UW-Madison for v1 with dynamic lookup via campus_id when available
+- [Phase 07]: Removed priceChangedSavesCount entirely from layout/mobile-nav after badge removal — TypeScript strict mode raises error for declared-but-unread variables
+- [Phase 07]: Mark-read API route uses DEV_USER_COOKIE + DEFAULT_DEV_USER.id pattern for dev user resolution (same as other dev-auth routes)
+- [Phase 07-04]: Tool description narrowing is primary CribAI behavioral fix — DO NOT use guards in Gemini function descriptions steer model without code changes
+- [Phase 07-04]: Dollar sign prefix uses pointer-events-none absolute span + pl-7 padding for currency affordance (no new library)
 
 ### Roadmap Evolution
 
@@ -177,7 +183,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-10T02:45:09.918Z
-Stopped at: Completed 07-02-PLAN.md
+Last session: 2026-03-10T04:39:00.438Z
+Stopped at: Completed 07-04-PLAN.md
 Resume file: None
 Next: 06-03-PLAN.md (polish and ship)
