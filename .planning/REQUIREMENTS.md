@@ -39,7 +39,7 @@
 - [ ] **DETAIL-02**: Two-column layout with content (left) and sticky CTA card with Book Tour and Ask AI (right)
 - [ ] **DETAIL-03**: Listing detail shows landlord info card, amenities grid, and AI lease summary section
 - [ ] **DETAIL-04**: Commute section shows map with distance/time to campus buildings
-- [ ] **DETAIL-05**: Mobile users see sticky bottom bar with price, Book Tour, and Chat with AI buttons
+- [x] **DETAIL-05**: Mobile users see sticky bottom bar with price, Book Tour, and Chat with AI buttons
 
 ### Post Sublease
 
@@ -49,8 +49,8 @@
 
 ### Profile and Saved
 
-- [ ] **PROF-01**: User sees profile header card with avatar, name, university, verification badge
-- [ ] **PROF-02**: Tabbed navigation between Saved Listings and Account Settings
+- [x] **PROF-01**: User sees profile header card with avatar, name, university, verification badge
+- [x] **PROF-02**: Tabbed navigation between Saved Listings and Account Settings
 - [ ] **PROF-03**: Settings section has navigation items for Personal Info, Notifications, and Log Out
 
 ### AI Concierge UI

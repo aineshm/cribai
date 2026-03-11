@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: UI/UX Upgrade
 status: completed
-stopped_at: Completed 19-01-PLAN.md
-last_updated: "2026-03-11T21:42:08.028Z"
-last_activity: 2026-03-11 -- Completed 17-02 tool handler implementations (3 handlers, 25 tests)
+stopped_at: Completed 19-02-PLAN.md
+last_updated: "2026-03-11T21:43:07.307Z"
+last_activity: 2026-03-11 -- Completed 20-01 (main)/layout.tsx with ConciergeShell + ConciergeNavButton
 progress:
   total_phases: 9
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 6
-  completed_plans: 2
-  percent: 40
+  completed_plans: 3
+  percent: 50
 ---
 
 # Project State
@@ -52,6 +52,7 @@ Progress: [█████░░░░░] 50%  (v1.2: 4/8 plans)
 |-------|-------|-------|----------|
 | 19-auth-flow-route-protection | 1/1 | 35min | 35min |
 | 20-concierge-mount-design-cleanup | 1/2 | 8min | 8min |
+| Phase 19 P02 | 95 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -79,6 +80,9 @@ Recent decisions affecting v1.2 work:
 - [Phase 20-01]: Nav inside ConciergeShell (not sibling) — ConciergeNavButton requires ConciergeProvider ancestor
 - [Phase 19]: Used protectedFlatRoutes array in middleware so future flat routes can be added in one place
 - [Phase 19]: Fixed 'next' -> 'returnTo' for campus routes — consistent param name throughout the app
+- [Phase 19]: Profile Server Component reads Supabase session with x-dev-user-json header fallback to avoid redirect loop in dev
+- [Phase 19]: Name resolution: full_name ?? display_name ?? email-prefix covers real Supabase and dev-auth shapes
+- [Phase 19]: SavedListings Link inside motion.div (not wrapping it) to preserve stagger animation
 
 ### Pending Todos
 
@@ -93,7 +97,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-11T21:42:08.026Z
-Stopped at: Completed 20-01-PLAN.md
-Resume file: .planning/phases/20-concierge-mount-design-cleanup/20-01-SUMMARY.md
+Last session: 2026-03-11T21:43:07.305Z
+Stopped at: Completed 19-02-PLAN.md
+Resume file: None
 Next: Plan 20-02 (design cleanup)

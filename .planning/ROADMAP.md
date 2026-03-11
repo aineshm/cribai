@@ -35,7 +35,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - [ ] **Phase 14: Post Sublease + Profile/Saved Redesign** - Multi-step sublease wizard with progress tracker + combined profile/saved tabbed page
 - [ ] **Phase 15: AI Concierge UI** - Task-based mission board with status pipeline, HITL draft approval, steering bar, agent summaries, and proactive empty state
 - [ ] **Phase 18: Explore Page Wiring + Verification** - Add Links to ListingCard, scope AIChatButton to Explore, wire AIChatPanel, add tests for ExploreLayout/ViewToggle/FilterChips (gap closure)
-- [ ] **Phase 19: Auth Flow + Route Protection** - Fix post-auth redirect, protect /post and /profile with middleware, wire ProfileHeader to auth session, wire SavedListings with Links, enable Detail Chat button (gap closure)
+- [x] **Phase 19: Auth Flow + Route Protection** - Fix post-auth redirect, protect /post and /profile with middleware, wire ProfileHeader to auth session, wire SavedListings with Links, enable Detail Chat button (gap closure) (completed 2026-03-11)
 - [ ] **Phase 20: Concierge Mount + Design Cleanup** - Mount ConciergeProvider in (main) layout, migrate remaining inline SVGs to Lucide (gap closure)
 
 ## Phase Details
@@ -139,7 +139,7 @@ Plans:
   3. ProfileHeader displays the authenticated user's name and university from Supabase session
   4. SavedListings cards link to `/listing/[id]` — clicking navigates to listing detail
   5. MobileBottomBar "Chat with AI" button on listing detail opens AIChatPanel (not disabled)
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 19-01-PLAN.md -- Fix post-auth redirect and add middleware route protection
 - [ ] 19-02-PLAN.md -- Wire ProfileHeader to session, add SavedListings links, enable MobileBottomBar chat
@@ -182,5 +182,5 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 18 �
 | 14. Post Sublease + Profile/Saved Redesign | v1.1 | 0/TBD | Not started | - |
 | 15. AI Concierge UI | v1.1 | 0/TBD | Not started | - |
 | 18. Explore Page Wiring + Verification | v1.1 | 0/2 | Not started | - |
-| 19. Auth Flow + Route Protection | 1/2 | In Progress|  | - |
+| 19. Auth Flow + Route Protection | 2/2 | Complete   | 2026-03-11 | - |
 | 20. Concierge Mount + Design Cleanup | 1/2 | In Progress|  | - |
