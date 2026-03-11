@@ -37,7 +37,7 @@ export function ProfileHeader({
   return (
     <Card>
       <CardContent className="flex flex-col items-center gap-4 py-6 sm:flex-row sm:items-start">
-        <Avatar size="lg" className="size-20">
+        <Avatar className="size-20">
           {avatarUrl ? (
             <AvatarImage src={avatarUrl} alt={name} />
           ) : null}
