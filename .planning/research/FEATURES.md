@@ -37,7 +37,7 @@ Features v1.1 users assume exist. Missing or broken = product feels unpolished o
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| **Design system consistency** | Apps without visual coherence feel unfinished. Students compare CampusNest to Zillow and Apartments.com which have polished design systems. First impression determines trust. | MEDIUM | shadcn/ui primitives must underlie all new components. Space Grotesk + DM Sans fonts via `@next/font`. Single `globals.css` token layer. Components live-in-repo (shadcn philosophy: you own the code). |
+| **Design system consistency** | Apps without visual coherence feel unfinished. Students compare CampusNest to Zillow and Apartments.com which have polished design systems. First impression determines trust. | MEDIUM | shadcn/ui primitives must underlie all new components. Space Grotesk + DM Sans fonts via `next/font/google`. Single `globals.css` token layer. Components live-in-repo (shadcn philosophy: you own the code). |
 | **Marketing landing page** | Any SaaS/platform product needs a public-facing homepage for unauthenticated users, new signups, and Google SEO. Without one, sharing the URL shows a blank auth page. | MEDIUM | Hero + social proof + how-it-works + features section + CTA. ~5 sections. framer-motion scroll-triggered entry animations. Must convert visitors to auth flow. |
 | **Auth page with branded layout** | Login/signup pages with no brand identity feel like they belong to a different product. Generic auth = low trust. | LOW-MEDIUM | Split-panel: left = brand illustration/animated gradient, right = OTP form. Existing OTP logic stays, only layout changes. Multi-step: email input → OTP verify → profile setup (if new user). |
 | **Explore page with split list+map view** | Zillow, Redfin, and Apartments.com all use split-view explore as the industry standard. Students expect to see listings AND their map position simultaneously. | HIGH | 60% list / 40% map split. Filter chips as horizontal scrollable row (not a modal). Floating CribAI panel replaces the separate /cribai route. This is the highest-traffic page. |
@@ -215,7 +215,7 @@ Profile/saved page
 
 shadcn/ui is installed directly into the repo (components are owned, not packaged). Use `npx shadcn@latest add [component]` selectively — do not bulk-install all components. Start with: Button, Card, Input, Badge, Tabs, Dialog, Drawer, Avatar, Accordion, Progress. Radix accessibility is inherited — do not override `aria-*` attributes.
 
-**Space Grotesk + DM Sans:** Install via `@next/font/google` with `variable` option. Define CSS variables `--font-heading` and `--font-body` in `globals.css`. Apply via `cn()` utility to `<body>` and heading elements.
+**Space Grotesk + DM Sans:** Load via `next/font/google` with `variable` option (`import { Space_Grotesk, DM_Sans } from 'next/font/google'`). Define CSS variables `--font-heading` and `--font-body` in `globals.css`. Apply via `cn()` utility to `<body>` and heading elements.
 
 **framer-motion rules for this project:**
 - Animate: page entrance (fade+translate Y), modal/drawer open/close, listing card hover lift, mission status badge transitions

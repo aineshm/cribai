@@ -54,7 +54,7 @@ Progress: [░░░░░░░░░░] 0%  (v1.1: 0/6 phases)
 Recent decisions affecting v1.1 work:
 
 - [v1.1 Roadmap]: Phase 10 gates all UI phases — CSS token bridge must land before any page is touched
-- [v1.1 Roadmap]: Space Grotesk + DM Sans must be self-hosted via next/font/google (not on Google Fonts)
+- [v1.1 Roadmap]: Space Grotesk + DM Sans loaded via next/font/google (both are on Google Fonts)
 - [v1.1 Roadmap]: Floating CribAI panel lives in root layout (not explore page) to survive route navigation
 - [v1.1 Roadmap]: AI Concierge (Phase 15) is UI-only with mock data — real executor deferred to v1.2
 - [v1.1 Roadmap]: Phase 15 depends on Phase 12 (floating panel architecture reused by concierge)

@@ -74,22 +74,22 @@ Phase 2 (Marketing Landing Page) — this is the first phase that introduces fra
 
 ---
 
-### Pitfall 4: Space Grotesk and DM Sans Are Not on Google Fonts — Self-Hosting Is Mandatory
+### Pitfall 4: Fonts Not on Google Fonts Require Self-Hosting — But Space Grotesk and DM Sans Are Available
 
 **What goes wrong:**
-A developer tries to load Space Grotesk or DM Sans via `next/font/google` (the convenient zero-config path). It fails silently or throws because these fonts are not in Google Fonts. The fallback is a browser default serif font (Times New Roman), which destroys the brand feel and shifts layout due to different metrics. CLS (Cumulative Layout Shift) spikes because the fallback font has completely different glyph dimensions than the intended typefaces.
+A developer assumes all design system fonts require self-hosting via `next/font/local` and downloads WOFF2 files manually, adding unnecessary build complexity. Alternatively, a developer tries to use `next/font/google` for a font that truly is not on Google Fonts (e.g., Cabinet Grotesk, Satoshi) and gets a build-time or runtime failure. The fallback is a browser default serif font (Times New Roman), which destroys the brand feel and shifts layout due to different metrics. CLS (Cumulative Layout Shift) spikes because the fallback font has completely different glyph dimensions than the intended typefaces.
 
 **Why it happens:**
-Space Grotesk is distributed by Fontshare (Indian Type Foundry); DM Sans is from Fontshare as well. Neither is on Google Fonts. Developers assume the `next/font/google` import covers all modern design system fonts. Next.js does not validate font names at import time — it fails at build time or runtime, which is a late-stage discovery.
+Developers conflate fonts from Fontshare (e.g., Cabinet Grotesk, Satoshi) with fonts that share similar names but are actually on Google Fonts. Space Grotesk and DM Sans are both available on Google Fonts and work with `next/font/google` out of the box. However, fonts like Cabinet Grotesk and Satoshi are NOT on Google Fonts and must be self-hosted via `next/font/local`. Confusion arises when design specs reference these font families interchangeably.
 
 **How to avoid:**
-Download WOFF2 files for both fonts from Fontshare (Space Grotesk: ExtraLight through ExtraBold + Italic variants; DM Sans: Light through Black + Italic variants). Place them in `apps/web/public/fonts/`. Use `next/font/google` with the full weight array. Set `display: "swap"` and `adjustFontFallback: true` — Next.js will auto-generate a `size-adjust`-calibrated fallback to prevent CLS. Apply the font as a CSS variable on `<html>` and consume it via `font-family: var(--font-space-grotesk)` in the Tailwind `@theme` block. Test with a throttled connection to verify no FOUT (Flash of Unstyled Text).
+For Space Grotesk and DM Sans: use `next/font/google` directly — both are available. Import with `import { Space_Grotesk, DM_Sans } from 'next/font/google'`, specify the full weight array, set `display: "swap"` and `variable` for CSS custom property mapping. For fonts that truly are not on Google Fonts (Cabinet Grotesk, Satoshi, etc.): download WOFF2 files and use `next/font/local`. In either case, set `adjustFontFallback: true` — Next.js will auto-generate a `size-adjust`-calibrated fallback to prevent CLS. Apply the font as a CSS variable on `<html>` and consume it via `font-family: var(--font-space-grotesk)` in the Tailwind `@theme` block. Test with a throttled connection to verify no FOUT (Flash of Unstyled Text).
 
 **Warning signs:**
-- `import { SpaceGrotesk } from "next/font/google"` in any file
+- Self-hosting fonts that are available on Google Fonts (unnecessary complexity)
+- Using `next/font/google` for fonts not actually on Google Fonts (e.g., Cabinet Grotesk, Satoshi)
 - Times New Roman or system-ui visible during page load in slow-network tests
 - CLS score above 0.05 in Lighthouse
-- Font files not present in `public/fonts/` directory
 
 **Phase to address:**
 Phase 1 (Design System Foundation) — font setup is prerequisite to all visual work.
@@ -336,7 +336,7 @@ Specific to the chat → floating panel transition and AI mission UX.
 
 Things that appear complete but are missing critical pieces.
 
-- [ ] **Font loading:** WOFF2 files in `public/fonts/`, `next/font/google` configured, font CSS variable mapped in Tailwind `@theme`, `adjustFontFallback: true` set, no FOUT visible on throttled-network test
+- [ ] **Font loading:** `next/font/google` configured for Space Grotesk + DM Sans (both on Google Fonts), font CSS variable mapped in Tailwind `@theme`, `display: 'swap'` set, no FOUT visible on throttled-network test
 - [ ] **Shadcn token merge:** Single `:root` block in `globals.css`, no conflicting custom property names, dark mode verified on every redesigned page, OKLCH values match Figma design
 - [ ] **framer-motion boundary:** Zero `"use client"` in `page.tsx` or `layout.tsx` files added due to animation needs, `initial={false}` on AnimatePresence components, no hydration warnings in console
 - [ ] **Lucide bundle:** `optimizePackageImports: ["lucide-react"]` present in `next.config.ts`, bundle analyser run confirming no icon library bloat
@@ -356,7 +356,7 @@ When pitfalls occur despite prevention, how to recover.
 | Big-bang migration breaks multiple pages | HIGH | Feature-flag broken pages off; revert to page-by-page migration; use git worktree to keep old pages live |
 | CSS token naming collision causes visual regressions | MEDIUM | Audit all custom property names with grep; rename conflicting variables systematically; run visual regression tests page-by-page |
 | framer-motion "use client" propagation breaks RSC data fetching | MEDIUM | Extract animated elements to separate client component files; restore `"use client"` boundaries; re-test data fetching on affected pages |
-| Font FOUT visible in production after deploy | LOW | Add `preload: true` to `next/font/google` config for above-the-fold font variants; verify `adjustFontFallback: true`; redeploy |
+| Font FOUT visible in production after deploy | LOW | Verify `display: 'swap'` on `next/font/google` config for above-the-fold font variants; confirm build preloads font files; redeploy |
 | Mission polling race condition causes state flicker | MEDIUM | Migrate polling to TanStack Query `refetchInterval`; add `staleTime` to prevent immediate overwrite after mutation |
 | Stale HITL draft approved by user | HIGH | Add `draft_version` to schema, migration adds column with default, approval API validates version, display "newer draft available" error in UI |
 | Double-submit creates duplicate tour requests | MEDIUM | Add `idempotency_key` unique constraint to tours table; run deduplication script to clean existing duplicates; disable submit button on click |
@@ -372,7 +372,7 @@ How roadmap phases should address these pitfalls.
 | Big-bang migration breaks working features (#1) | Phase 1: Design System Foundation | All existing pages still pass E2E tests after Phase 1 |
 | Shadcn CSS variable name collisions (#2) | Phase 1: Design System Foundation | Single `:root` block in globals.css; dark mode verified on old pages |
 | framer-motion client component boundary (#3) | Phase 2: Marketing Landing Page (first use) | No `"use client"` in page.tsx files; no hydration warnings |
-| Space Grotesk/DM Sans not on Google Fonts (#4) | Phase 1: Design System Foundation | `next/font/google` configured; no FOUT on throttled network |
+| Font loading misconfiguration (#4) | Phase 1: Design System Foundation | `next/font/google` configured for Space Grotesk + DM Sans; no FOUT on throttled network |
 | Lucide barrel import bundle bloat (#5) | Phase 1: Design System Foundation | `optimizePackageImports` in next.config.ts verified |
 | Mission state polling race condition (#6) | AI Concierge Mission Board phase | TanStack Query used for all mission state; no setInterval in components |
 | HITL draft stale/double-submit/timeout (#7) | AI Concierge HITL phase (schema first) | draft_version column present; submit button disables on click; expires_at enforced by cron |

@@ -8,7 +8,7 @@
 
 ### System Overview
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        Next.js 15 App Router                         │
 ├─────────────┬───────────────────────┬───────────────────────────────┤
@@ -63,7 +63,7 @@
 
 ## Recommended Project Structure
 
-```
+```text
 apps/web/
 ├── app/
 │   ├── page.tsx                          # Marketing landing (full rewrite)
@@ -203,7 +203,7 @@ Source: [shadcn/ui Tailwind v4 docs](https://ui.shadcn.com/docs/tailwind-v4) —
 
 **What:** Motion components require `'use client'`. Create thin wrapper components in `components/ui/` for animated layout primitives rather than annotating every page file.
 
-**Import path:** Use `framer-motion` (not the legacy `framer-motion`) for React 19 and App Router compatibility.
+**Import path:** Use the current `framer-motion` package (not legacy `motion/react` or deprecated import paths) for React 19 and App Router compatibility.
 
 **When to use:** Page entrances, list item staggering, floating panel open/close (Sheet already handles this via shadcn), mission card status transitions.
 
@@ -278,7 +278,7 @@ Source: [Supabase Realtime Postgres Changes](https://supabase.com/docs/guides/re
 **Why not use Vercel AI SDK's built-in HITL:** The existing CribAI uses a custom SSE protocol, not Vercel AI SDK's `useChat`. Implementing HITL at the mission level (in the missions table) is cleaner than retrofitting the chat stream.
 
 **Data flow:**
-```
+```text
 Gemini produces draft content
     ↓
 executor.ts writes: missions.status = 'awaiting_approval'
@@ -297,7 +297,7 @@ Route handler resumes executor → status: 'running' → 'complete'
 
 ### Explore Page (Unified Split View)
 
-```
+```text
 User visits /[campus]/explore
     ↓
 Server page (page.tsx): Supabase query for listings + auth check
@@ -315,7 +315,7 @@ Chat listing cards in panel link back into main listings view
 
 ### AI Concierge Mission Flow
 
-```
+```text
 User submits intent in SteeringBar (concierge page)
     ↓
 POST /api/missions → creates missions row (status: 'running')
@@ -337,7 +337,7 @@ executor resumes → status = 'running' → 'complete'
 
 ### Font Migration Data Flow
 
-```
+```text
 Root layout.tsx:
   Remove: DM_Serif_Display + Inter (next/font/google)
   Add:    googleFont for Space Grotesk (variable: --font-display)
@@ -348,7 +348,7 @@ Root layout.tsx:
 
 ### CribAI Chat Refactor (Full-Page → Floating Panel)
 
-```
+```text
 EXISTING:
   CribAIChatPage → CribAIChat (self-contained component with all state)
 

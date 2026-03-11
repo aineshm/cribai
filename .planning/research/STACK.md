@@ -38,40 +38,33 @@ The v1.1 milestone adds:
 
 | Font | Delivery Method | Why |
 |------|----------------|-----|
-| Space Grotesk | `next/font/google` with downloaded WOFF2 files | Not on Google Fonts. Free to download from cdnfonts.com / fontsource. Place in `apps/web/public/fonts/cabinet-grotesk/`. Use variable font weights (400–800). |
-| DM Sans | `next/font/google` with downloaded WOFF2 files | Not on Google Fonts. Download from fontsource or cdnfonts.com. Place in `apps/web/public/fonts/satoshi/`. Use for body text (replaces Inter). |
+| Space Grotesk | `next/font/google` | Available on Google Fonts. Use `import { Space_Grotesk } from 'next/font/google'`. Variable font weights (400–700). Zero manual download needed. |
+| DM Sans | `next/font/google` | Available on Google Fonts. Use `import { DM_Sans } from 'next/font/google'`. Variable font weights (400–700). Replaces Inter for body text. |
 
 **Implementation pattern for `apps/web/app/layout.tsx`:**
 ```typescript
-import localFont from 'next/font/google';
+import { Space_Grotesk, DM_Sans } from 'next/font/google';
 
-const cabinetGrotesk = localFont({
-  src: [
-    { path: '../public/fonts/cabinet-grotesk/CabinetGrotesk-Regular.woff2', weight: '400' },
-    { path: '../public/fonts/cabinet-grotesk/CabinetGrotesk-Medium.woff2', weight: '500' },
-    { path: '../public/fonts/cabinet-grotesk/CabinetGrotesk-Bold.woff2', weight: '700' },
-    { path: '../public/fonts/cabinet-grotesk/CabinetGrotesk-Extrabold.woff2', weight: '800' },
-  ],
-  variable: '--font-cabinet',
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  variable: '--font-space-grotesk',
   display: 'swap',
+  weight: ['400', '500', '600', '700'],
 });
 
-const satoshi = localFont({
-  src: [
-    { path: '../public/fonts/satoshi/DM Sans-Regular.woff2', weight: '400' },
-    { path: '../public/fonts/satoshi/DM Sans-Medium.woff2', weight: '500' },
-    { path: '../public/fonts/satoshi/DM Sans-Bold.woff2', weight: '700' },
-  ],
-  variable: '--font-satoshi',
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  variable: '--font-dm-sans',
   display: 'swap',
+  weight: ['400', '500', '700'],
 });
 ```
 
 Then update `globals.css`:
 ```css
 /* Replace existing font token */
---font-display: var(--font-cabinet), system-ui, sans-serif;
---font-body: var(--font-satoshi), system-ui, sans-serif;
+--font-display: var(--font-space-grotesk), system-ui, sans-serif;
+--font-body: var(--font-dm-sans), system-ui, sans-serif;
 ```
 
 ### Mission State Management (AI Concierge)
@@ -114,10 +107,9 @@ pnpm add motion --filter @campusnest/web
 # shadcn/ui CLI installs these automatically:
 # class-variance-authority, clsx, tailwind-merge, lucide-react
 
-# 4. Font files (manual download — no npm package)
-# Download Space Grotesk WOFF2 files from cdnfonts.com
-# Download DM Sans WOFF2 files from fontsource or cdnfonts.com
-# Place in apps/web/public/fonts/{cabinet-grotesk,satoshi}/
+# 4. Fonts — no manual download needed
+# Space Grotesk and DM Sans are both on Google Fonts
+# Import via next/font/google in layout.tsx (see Font Loading section above)
 ```
 
 **No new database tables beyond `missions` for the AI Concierge feature.**
@@ -152,7 +144,7 @@ The project already uses Tailwind v4 (`@import "tailwindcss"` in `globals.css`).
 | `motion` (`framer-motion` import) | `framer-motion` | Both packages are identical — `framer-motion` still receives updates. Use `framer-motion` if you have existing imports and want zero-change migration. |
 | `shadcn/ui` (copy-paste model) | `@radix-ui/react-*` directly | Use Radix directly if you need full control with no pre-styled layer. shadcn is Radix + styling — it's not an abstraction on top, it's Radix with owned CSS. |
 | Supabase Realtime | SSE route handler | Use SSE if mission updates need sub-2-second latency without upgrading to Realtime. Pattern: `ReadableStream` in Next.js route handler, `EventSource` on client. |
-| `next/font/google` (manual files) | Google Fonts CDN for Space Grotesk/DM Sans | Neither font is on Google Fonts. CDNFonts/Fontsource are alternatives but `next/font/google` provides automatic subsetting, preload hints, and zero external DNS request at runtime. |
+| `next/font/google` | Google Fonts CDN `<link>` tag | Both Space Grotesk and DM Sans are on Google Fonts. `next/font/google` provides automatic subsetting, preload hints, and zero external DNS request at runtime — superior to a CDN `<link>` tag. Use `next/font/local` only for fonts not on Google Fonts (e.g., Cabinet Grotesk, Satoshi). |
 | `tw-animate-css` | `tailwindcss-animate` (v3 only) | `tailwindcss-animate` does not support Tailwind v4. Do not use. |
 
 ---
@@ -166,8 +158,8 @@ The project already uses Tailwind v4 (`@import "tailwindcss"` in `globals.css`).
 | WebSocket server (e.g., `ws`, Pusher) | Vercel serverless functions terminate at 30s — persistent WS connections are not supported without upgrading to Vercel Pro Edge + custom WS infra. | Supabase Realtime (already provisioned) or polling |
 | LangGraph / Inngest for mission state | v1.1 uses simple status enum column. State machine frameworks are deferred to v2 per PROJECT.md. | `missions` table with `status` enum + polling |
 | Heroicons (inline SVGs) | Manual copy-paste, not tree-shakeable, inconsistent sizing props. | `lucide-react` named imports |
-| `@next/font` (deprecated package) | Merged into `next` since Next.js 13.2. Using the old package causes duplicate font loading. | `import localFont from 'next/font/google'` |
-| Google Fonts CDN at runtime | CSP header blocks external font sources except `fonts.gstatic.com`. Space Grotesk and DM Sans are not on Google Fonts anyway. | `next/font/google` with local WOFF2 files |
+| `@next/font` (deprecated package) | Merged into `next` since Next.js 13.2. Using the old package causes duplicate font loading. | `import { Space_Grotesk, DM_Sans } from 'next/font/google'` |
+| Google Fonts CDN `<link>` tag at runtime | CSP header blocks external font sources except `fonts.gstatic.com`. `next/font/google` is strictly better — automatic subsetting, preload, zero external DNS. | `next/font/google` (handles both Google Fonts and local files) |
 
 ---
 
@@ -211,7 +203,7 @@ export { motion, AnimatePresence } from 'framer-motion';
 
 The existing `next.config.ts` has a strict CSP. Two changes needed for v1.1:
 
-1. **Local fonts** — no CSP change needed. `next/font/google` serves fonts from `/_next/static/` (same origin).
+1. **Fonts via `next/font/google`** — no CSP change needed. `next/font/google` downloads fonts at build time and serves them from `/_next/static/` (same origin).
 2. **motion (framer-motion)** — pure client-side JS, no external requests. No CSP change.
 3. **shadcn/ui** — no external requests. No CSP change.
 
@@ -224,8 +216,8 @@ The existing `font-src 'self' https://fonts.gstatic.com` can be simplified to `f
 Current state uses `DM_Serif_Display` and `Inter` from `next/font/google`. Replace with:
 
 1. Remove `import { DM_Serif_Display, Inter } from 'next/font/google'`
-2. Add `import localFont from 'next/font/google'`
-3. Define `cabinetGrotesk` and `satoshi` with local font configs (see pattern above)
+2. Add `import { Space_Grotesk, DM_Sans } from 'next/font/google'`
+3. Define `spaceGrotesk` and `dmSans` with Google Font configs (see Font Loading pattern above)
 4. Update `className` on `<html>` to use new CSS variable names
 5. Update `globals.css` `--font-display` and `--font-body` tokens
 6. Simplify CSP `font-src` to `'self'` only
