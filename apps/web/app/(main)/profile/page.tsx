@@ -1,55 +1,65 @@
-'use client';
+import { cookies, headers } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { createServerComponentClient } from '@campusnest/supabase/server';
+import { ProfilePageClient } from '@/components/profile/ProfilePageClient';
 
-import { ProfileHeader } from '@/components/profile/ProfileHeader';
-import { SavedListings } from '@/components/profile/SavedListings';
-import { AccountSettings } from '@/components/profile/AccountSettings';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { motion } from 'framer-motion';
-import { pageTransition } from '@/lib/animations';
-import { Heart, Settings } from 'lucide-react';
+export default async function ProfilePage() {
+  const cookieStore = await cookies();
+  const supabase = createServerComponentClient(cookieStore);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-export default function ProfilePage() {
+  // Dev-auth fallback: read injected header when no Supabase session exists
+  let resolvedUser = user;
+  if (!resolvedUser) {
+    const headersList = await headers();
+    const devJson = headersList.get('x-dev-user-json');
+    resolvedUser = devJson ? (JSON.parse(devJson) as typeof user) : null;
+  }
+
+  if (!resolvedUser) {
+    redirect('/login?returnTo=/profile');
+  }
+
+  const meta = resolvedUser.user_metadata ?? {};
+
+  const name =
+    (meta.full_name as string | undefined) ??
+    (meta.display_name as string | undefined) ??
+    resolvedUser.email?.split('@')[0] ??
+    'Student';
+
+  const email = resolvedUser.email ?? '';
+
+  const university =
+    (meta.university as string | undefined) ?? 'University of Wisconsin-Madison';
+
+  const graduationYear = String(
+    (meta.graduation_year as string | number | undefined) ??
+      (meta.graduationYear as string | number | undefined) ??
+      ''
+  );
+
+  const memberSince = new Date(resolvedUser.created_at).toLocaleDateString(
+    'en-US',
+    { month: 'short', year: 'numeric' }
+  );
+
+  // Real Supabase users have email_confirmed_at; dev-auth users default to verified
+  const isVerified =
+    'email_confirmed_at' in resolvedUser
+      ? !!resolvedUser.email_confirmed_at
+      : true;
+
   return (
-    <motion.div
-      variants={pageTransition}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      className="mx-auto max-w-4xl px-4 py-8"
-    >
-      {/* Profile Header */}
-      <ProfileHeader
-        name="Alex Johnson"
-        email="alex.johnson@university.edu"
-        university="State University"
-        graduationYear="2027"
-        isVerified={true}
-        memberSince="Jan 2026"
-      />
-
-      {/* Tabbed Content */}
-      <div className="mt-8">
-        <Tabs defaultValue="saved">
-          <TabsList variant="line" className="mb-6">
-            <TabsTrigger value="saved" className="gap-1.5">
-              <Heart className="size-4" />
-              Saved Listings
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="gap-1.5">
-              <Settings className="size-4" />
-              Account Settings
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="saved">
-            <SavedListings />
-          </TabsContent>
-
-          <TabsContent value="settings">
-            <AccountSettings />
-          </TabsContent>
-        </Tabs>
-      </div>
-    </motion.div>
+    <ProfilePageClient
+      name={name}
+      email={email}
+      university={university}
+      graduationYear={graduationYear}
+      memberSince={memberSince}
+      isVerified={isVerified}
+    />
   );
 }

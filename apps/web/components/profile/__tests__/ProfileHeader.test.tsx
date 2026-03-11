@@ -59,4 +59,34 @@ describe('ProfileHeader card', () => {
     render(<ProfileHeader {...baseProps} name="Prince" />);
     expect(screen.getByText('P')).toBeInTheDocument();
   });
+
+  // PROF-01: Dynamic session data — name and university must come from props, not hardcoded values
+  it("renders name from props, not hardcoded 'Alex Johnson'", () => {
+    render(
+      <ProfileHeader
+        name="Jane Doe"
+        email="jane.doe@university.edu"
+        university="MIT"
+        graduationYear="2027"
+        isVerified={true}
+        memberSince="Jan 2026"
+      />
+    );
+    expect(screen.getByText('Jane Doe')).toBeInTheDocument();
+    expect(screen.queryByText('Alex Johnson')).not.toBeInTheDocument();
+  });
+
+  it('renders university from props', () => {
+    render(
+      <ProfileHeader
+        name="Jane Doe"
+        email="jane.doe@mit.edu"
+        university="MIT"
+        graduationYear="2027"
+        isVerified={true}
+        memberSince="Jan 2026"
+      />
+    );
+    expect(screen.getByText(/MIT/)).toBeInTheDocument();
+  });
 });
