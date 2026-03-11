@@ -52,7 +52,7 @@ export async function textSearchPlace(
     );
   }
 
-  const data = await response.json();
+  const data = await response.json() as { places?: Array<{ id: string }> };
   const places = data.places ?? [];
 
   return places.length > 0 ? places[0].id : null;
@@ -81,7 +81,7 @@ export async function getPlaceDetails(
     );
   }
 
-  return response.json();
+  return response.json() as Promise<PlaceDetailsResult>;
 }
 
 /**
@@ -120,6 +120,6 @@ export async function nearbySearch(
     );
   }
 
-  const data = await response.json();
+  const data = await response.json() as { places?: readonly NearbyPlace[] };
   return data.places ?? [];
 }

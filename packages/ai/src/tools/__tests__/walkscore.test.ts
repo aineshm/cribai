@@ -34,7 +34,7 @@ describe('walkscore', () => {
       bike: { score: 65, description: 'Bikeable' },
     });
 
-    const calledUrl = mockFetch.mock.calls[0][0] as string;
+    const calledUrl = mockFetch.mock.calls[0]![0] as string;
     expect(calledUrl).toContain('api.walkscore.com/score');
     expect(calledUrl).toContain('format=json');
     expect(calledUrl).toContain('transit=1');

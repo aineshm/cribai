@@ -52,7 +52,13 @@ export async function getWalkScore(
       return NULL_RESULT;
     }
 
-    const data = await response.json();
+    const data = await response.json() as {
+      status: number;
+      walkscore?: number;
+      description?: string;
+      transit?: { score: number; description: string };
+      bike?: { score: number; description: string };
+    };
 
     if (data.status !== 1) {
       return {
@@ -64,8 +70,8 @@ export async function getWalkScore(
     }
 
     return {
-      walkscore: data.walkscore,
-      description: data.description,
+      walkscore: data.walkscore ?? null,
+      description: data.description ?? 'Score available',
       transit: data.transit
         ? { score: data.transit.score, description: data.transit.description }
         : null,
