@@ -104,9 +104,9 @@ export function AuthForm() {
     goToStep('profile');
   }, [email, otp, goToStep]);
 
-  // Auto-verify when OTP is complete (6 digits)
+  // Auto-verify when OTP is complete (8 digits — Supabase project setting)
   useEffect(() => {
-    if (step === 'otp' && otp.length === 6 && !loading) {
+    if (step === 'otp' && otp.length === 8 && !loading) {
       handleVerifyOtp();
     }
   }, [otp, step, loading, handleVerifyOtp]);
@@ -209,7 +209,7 @@ export function AuthForm() {
                 Enter your code
               </h2>
               <p className="mt-2 text-sm text-[var(--surface-500)]">
-                We sent a 6-digit code to{' '}
+                We sent an 8-digit code to{' '}
                 <strong className="text-[var(--surface-700)]">{email}</strong>
               </p>
             </div>
@@ -218,12 +218,12 @@ export function AuthForm() {
               <OTPInput
                 value={otp}
                 onChange={setOtp}
-                length={6}
+                length={8}
                 disabled={loading}
               />
               <Button
                 type="submit"
-                disabled={loading || otp.length < 6}
+                disabled={loading || otp.length < 8}
                 className="w-full h-10 rounded-lg bg-[var(--primary-600)] text-white hover:bg-[var(--primary-700)]"
               >
                 {loading ? 'Verifying...' : 'Verify Code'}
