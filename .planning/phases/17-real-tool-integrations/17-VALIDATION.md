@@ -1,9 +1,9 @@
 ---
 phase: 17
 slug: real-tool-integrations
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: complete
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-03-10
 ---
 
@@ -38,12 +38,12 @@ created: 2026-03-10
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 17-01-01 | 01 | 1 | TOOLS-01 | unit | `pnpm --filter @campusnest/ai test -- --run src/tools/__tests__/google-places.test.ts` | ❌ W0 | ⬜ pending |
-| 17-01-02 | 01 | 1 | TOOLS-03 | unit | `pnpm --filter @campusnest/ai test -- --run src/tools/__tests__/walkscore.test.ts` | ❌ W0 | ⬜ pending |
-| 17-01-03 | 01 | 1 | ALL | unit | `pnpm --filter @campusnest/ai test -- --run src/tools/__tests__/api-cache.test.ts` | ❌ W0 | ⬜ pending |
-| 17-02-01 | 02 | 2 | TOOLS-01 | unit | `pnpm --filter @campusnest/ai test -- --run src/tools/__tests__/get-reviews.test.ts` | ✅ (rewrite) | ⬜ pending |
-| 17-02-02 | 02 | 2 | TOOLS-03 | unit | `pnpm --filter @campusnest/ai test -- --run src/tools/__tests__/get-neighborhood-info.test.ts` | ✅ (rewrite) | ⬜ pending |
-| 17-03-01 | 03 | 2 | TOOLS-02 | unit | `pnpm --filter @campusnest/ai test -- --run src/tools/__tests__/contact-pm.test.ts` | ✅ (rewrite) | ⬜ pending |
+| 17-01-01 | 01 | 1 | TOOLS-01 | unit | `pnpm --filter @campusnest/ai test -- --run src/tools/__tests__/google-places.test.ts` | ✅ | ✅ green (8) |
+| 17-01-02 | 01 | 1 | TOOLS-03 | unit | `pnpm --filter @campusnest/ai test -- --run src/tools/__tests__/walkscore.test.ts` | ✅ | ✅ green (3) |
+| 17-01-03 | 01 | 1 | ALL | unit | `pnpm --filter @campusnest/ai test -- --run src/tools/__tests__/api-cache.test.ts` | ✅ | ✅ green (4) |
+| 17-02-01 | 02 | 2 | TOOLS-01 | unit | `pnpm --filter @campusnest/ai test -- --run src/tools/__tests__/get-reviews.test.ts` | ✅ | ✅ green (10) |
+| 17-02-02 | 02 | 2 | TOOLS-03 | unit | `pnpm --filter @campusnest/ai test -- --run src/tools/__tests__/get-neighborhood-info.test.ts` | ✅ | ✅ green (7) |
+| 17-03-01 | 03 | 2 | TOOLS-02 | unit | `pnpm --filter @campusnest/ai test -- --run src/tools/__tests__/contact-pm.test.ts` | ✅ | ✅ green (8) |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -51,11 +51,13 @@ created: 2026-03-10
 
 ## Wave 0 Requirements
 
-- [ ] `packages/ai/src/tools/__tests__/google-places.test.ts` — API client tests with mocked fetch for Text Search, Place Details, Nearby Search
-- [ ] `packages/ai/src/tools/__tests__/walkscore.test.ts` — API client tests with mocked fetch for Walk Score
-- [ ] `packages/ai/src/tools/__tests__/api-cache.test.ts` — cache read/write/expiry/upsert tests with mocked Supabase
-- [ ] Mock setup for `global.fetch` using `vi.stubGlobal` or `vi.spyOn`
-- [ ] Mock setup for `createGeminiClient` using `vi.mock`
+- [x] `packages/ai/src/tools/__tests__/google-places.test.ts` — 8 API client tests (Text Search, Place Details, Nearby Search)
+- [x] `packages/ai/src/tools/__tests__/walkscore.test.ts` — 3 API client tests (success, failure, network error)
+- [x] `packages/ai/src/tools/__tests__/api-cache.test.ts` — 4 cache tests (hit, miss, expiry, upsert)
+- [x] Mock setup for `global.fetch` using `vi.stubGlobal`
+- [x] Mock setup for `createGeminiClient` using `vi.mock`
+
+*All Wave 0 tests green — 40/40 passing across 6 test files.*
 
 ---
 
@@ -68,13 +70,23 @@ created: 2026-03-10
 
 ---
 
+## Validation Audit 2026-03-11
+
+| Metric | Count |
+|--------|-------|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+
+*Note: 3 pre-existing test failures in get-saved-listings (1) and persist-web-listing (2) are unrelated to Phase 17 — logged in deferred-items.md.*
+
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 15s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 15s (5.9s actual)
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** complete
