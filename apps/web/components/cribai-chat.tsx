@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, type CSSProperties } from 'react';
 import { createClient } from '@campusnest/supabase/client';
+import { Sparkles, Send } from 'lucide-react';
 import { ChatBlockRenderer } from './chat/chat-block-renderer';
 import type { ChatBlock } from './chat/chat-block-renderer';
 
@@ -429,9 +430,7 @@ export function CribAIChat({
           <div className="flex h-full items-center justify-center text-[var(--surface-400)]">
             <div className="text-center animate-fade-in">
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--primary-50)] to-[var(--primary-100)]">
-                <svg className="h-7 w-7 text-[var(--primary-600)]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
-                </svg>
+                <Sparkles className="h-7 w-7 text-[var(--primary-600)]" strokeWidth={1.5} />
               </div>
               <p className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-700)]">Ask CribAI anything</p>
               <p className="mt-2 text-sm text-[var(--surface-400)]">I can search listings, compare apartments, explain lease terms, and schedule tours.</p>
@@ -515,9 +514,7 @@ export function CribAIChat({
             ) : (
               <span className="inline-flex items-center gap-1.5">
                 Send
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
-                </svg>
+                <Send className="h-4 w-4" strokeWidth={2} />
               </span>
             )}
           </button>
