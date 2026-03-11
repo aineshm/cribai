@@ -4,14 +4,14 @@ milestone: v1.2
 milestone_name: Native Agent Backend
 status: active
 stopped_at: ""
-last_updated: "2026-03-11T02:15:11.000Z"
-last_activity: 2026-03-11 - Completed 17-01 foundation libraries (migration 014, 3 lib modules, 15 tests)
+last_updated: "2026-03-11T02:23:00.000Z"
+last_activity: 2026-03-11 - Completed 17-02 tool handler implementations (3 handlers, 25 tests)
 progress:
   total_phases: 5
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
-  percent: 20
+  completed_phases: 2
+  total_plans: 3
+  completed_plans: 3
+  percent: 40
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-10)
 
 ## Current Position
 
-Phase: 17 of 20 (Real Tool Integrations)
-Plan: 1 of 1 in current phase (complete)
-Status: Phase 17 Plan 01 complete
-Last activity: 2026-03-11 -- Completed 17-01 foundation libraries (migration 014, 3 lib modules, 15 tests)
+Phase: 17 of 20 (Real Tool Integrations) -- COMPLETE
+Plan: 2 of 2 in current phase (complete)
+Status: Phase 17 complete, ready for Phase 18
+Last activity: 2026-03-11 -- Completed 17-02 tool handler implementations (3 handlers, 25 tests)
 
-Progress: [██░░░░░░░░] 20%  (v1.2: 1/5 phases)
+Progress: [████░░░░░░] 40%  (v1.2: 2/5 phases)
 
 ## Performance Metrics
 
@@ -44,7 +44,7 @@ Progress: [██░░░░░░░░] 20%  (v1.2: 1/5 phases)
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 16-missions-db-schema | 1/1 | 5min | 5min |
-| 17-real-tool-integrations | 1/1 | 3min | 3min |
+| 17-real-tool-integrations | 2/2 | 6min | 3min |
 
 *Updated after each plan completion*
 
@@ -67,6 +67,9 @@ Recent decisions affecting v1.2 work:
 - [17-01]: Walk Score returns null-score result on failure instead of throwing (graceful degradation)
 - [17-01]: Google Places throws on non-OK response for explicit error handling by callers
 - [17-01]: Cache uses upsert with onConflict: 'key' for idempotent writes
+- [17-02]: Reviews: Gemini summary only for 3+ reviews (avoids unnecessary API call)
+- [17-02]: Neighborhood: default Madison WI coords when only address provided (no geocoding needed)
+- [17-02]: All handlers return error ToolResult for missing API keys (graceful degradation)
 
 ### Pending Todos
 
@@ -81,7 +84,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-11T02:15:11.000Z
-Stopped at: Completed 17-01-PLAN.md
-Resume file: .planning/phases/17-real-tool-integrations/17-01-SUMMARY.md
-Next: Phase 17 Plan 02 or next phase
+Last session: 2026-03-11T02:23:00.000Z
+Stopped at: Completed 17-02-PLAN.md
+Resume file: .planning/phases/17-real-tool-integrations/17-02-SUMMARY.md
+Next: Phase 18 (mission executor) or next phase
