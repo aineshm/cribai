@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@campusnest/supabase/client';
 import { isEduEmail } from '@/lib/edu-validation';
@@ -33,6 +33,7 @@ const slideVariants = {
 
 export function AuthForm() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [step, setStep] = useState<AuthStep>('email');
   const [direction, setDirection] = useState(1);
   const [email, setEmail] = useState('');
@@ -127,7 +128,7 @@ export function AuthForm() {
       returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//')
         ? returnTo
         : '/uw-madison/cribai';
-    window.location.href = destination;
+    router.push(destination);
   }
 
   return (
