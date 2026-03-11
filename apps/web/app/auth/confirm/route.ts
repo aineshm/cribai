@@ -5,7 +5,6 @@ export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
   const tokenHash = searchParams.get('token_hash');
   const type = searchParams.get('type') as 'magiclink' | 'email' | null;
-  const lastCampus = request.cookies.get('last_campus')?.value;
   const rawNext = searchParams.get('next') ?? '/explore';
 
   // Prevent open redirect: only allow relative paths starting with /
