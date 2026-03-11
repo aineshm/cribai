@@ -23,7 +23,7 @@
 ### Auth Redesign
 
 - [ ] **AUTH-05**: Auth page uses split layout with branded left panel (desktop) and animated multi-step form
-- [ ] **AUTH-06**: Auth form transitions between email, OTP, and profile steps with slide animations
+- [x] **AUTH-06**: Auth form transitions between email, OTP, and profile steps with slide animations
 
 ### Explore Page
 
@@ -43,7 +43,7 @@
 
 ### Post Sublease
 
-- [ ] **POST-01**: User completes sublease posting via multi-step wizard (Basics, Details, Amenities, Photos, Description, Review)
+- [x] **POST-01**: User completes sublease posting via multi-step wizard (Basics, Details, Amenities, Photos, Description, Review)
 - [ ] **POST-02**: Desktop shows sidebar progress tracker with step indicators
 - [ ] **POST-03**: Mobile shows progress bar with step count and percentage
 

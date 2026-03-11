@@ -139,7 +139,7 @@ Plans:
   3. ProfileHeader displays the authenticated user's name and university from Supabase session
   4. SavedListings cards link to `/listing/[id]` — clicking navigates to listing detail
   5. MobileBottomBar "Chat with AI" button on listing detail opens AIChatPanel (not disabled)
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
 - [ ] 19-01-PLAN.md -- Fix post-auth redirect and add middleware route protection
 - [ ] 19-02-PLAN.md -- Wire ProfileHeader to session, add SavedListings links, enable MobileBottomBar chat
@@ -182,5 +182,5 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 18 �
 | 14. Post Sublease + Profile/Saved Redesign | v1.1 | 0/TBD | Not started | - |
 | 15. AI Concierge UI | v1.1 | 0/TBD | Not started | - |
 | 18. Explore Page Wiring + Verification | v1.1 | 0/2 | Not started | - |
-| 19. Auth Flow + Route Protection | v1.1 | 0/2 | Not started | - |
+| 19. Auth Flow + Route Protection | 1/2 | In Progress|  | - |
 | 20. Concierge Mount + Design Cleanup | v1.1 | 0/2 | Not started | - |

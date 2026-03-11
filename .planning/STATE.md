@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: UI/UX Upgrade
 status: completed
-stopped_at: Completed 17-02-PLAN.md
-last_updated: "2026-03-11T02:28:19.606Z"
+stopped_at: Completed 19-01-PLAN.md
+last_updated: "2026-03-11T21:42:08.028Z"
 last_activity: 2026-03-11 -- Completed 17-02 tool handler implementations (3 handlers, 25 tests)
 progress:
-  total_phases: 6
+  total_phases: 9
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 6
+  completed_plans: 2
   percent: 40
 ---
 
@@ -47,6 +47,8 @@ Progress: [████░░░░░░] 40%  (v1.2: 2/5 phases)
 | 17-real-tool-integrations | 2/2 | 6min | 3min |
 
 *Updated after each plan completion*
+| Phase 20-concierge-mount-design-cleanup P01 | 525943min | 1 tasks | 2 files |
+| Phase 19-auth-flow-route-protection P01 | 35min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -70,6 +72,10 @@ Recent decisions affecting v1.2 work:
 - [17-02]: Reviews: Gemini summary only for 3+ reviews (avoids unnecessary API call)
 - [17-02]: Neighborhood: default Madison WI coords when only address provided (no geocoding needed)
 - [17-02]: All handlers return error ToolResult for missing API keys (graceful degradation)
+- [Phase 20-01]: (main) layout server component — ConciergeShell handles client boundary internally
+- [Phase 20-01]: Nav inside ConciergeShell (not sibling) — ConciergeNavButton requires ConciergeProvider ancestor
+- [Phase 19]: Used protectedFlatRoutes array in middleware so future flat routes can be added in one place
+- [Phase 19]: Fixed 'next' -> 'returnTo' for campus routes — consistent param name throughout the app
 
 ### Pending Todos
 
@@ -84,7 +90,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-11T02:23:00.000Z
-Stopped at: Completed 17-02-PLAN.md
-Resume file: .planning/phases/17-real-tool-integrations/17-02-SUMMARY.md
+Last session: 2026-03-11T21:42:08.026Z
+Stopped at: Completed 19-01-PLAN.md
+Resume file: None
 Next: Phase 18 (mission executor) or next phase
