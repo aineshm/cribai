@@ -31,12 +31,14 @@ export function ListingCard({ listing }: ListingCardProps) {
       <Card className="relative overflow-hidden p-0 gap-0">
         {/* Photo placeholder — listing.photos[] contains Tailwind gradient classes (e.g. "from-teal-400 to-emerald-500") as placeholders, not real image URLs */}
         <div
-          className={`relative aspect-[4/3] bg-gradient-to-br ${listing.photos[0]} flex items-end`}
+          className={`relative aspect-[4/3] bg-gradient-to-br ${listing.placeholderGradient} flex items-end`}
         >
           {/* Save button */}
           <Button
             variant="ghost"
             size="icon-sm"
+            aria-label={saved ? 'Unsave listing' : 'Save listing'}
+            aria-pressed={saved}
             className="absolute top-2 right-2 bg-white/80 backdrop-blur-sm hover:bg-white/90 rounded-full"
             onClick={(e) => {
               e.stopPropagation();
