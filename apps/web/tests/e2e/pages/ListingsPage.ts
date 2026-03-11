@@ -35,6 +35,7 @@ export class ListingsPage {
   readonly noListingsHeading: Locator;
   readonly noListingsHint: Locator;
   readonly campusNotFound: Locator;
+  readonly globalNotFound: Locator;
 
   constructor(page: Page, campusSlug: string) {
     this.page = page;
@@ -51,6 +52,7 @@ export class ListingsPage {
     this.noListingsHeading = page.getByText('No listings found');
     this.noListingsHint = page.getByText('Try adjusting your filters or check back later.');
     this.campusNotFound = page.getByText('Campus not found.');
+    this.globalNotFound = page.getByText('Page not found');
   }
 
   async goto(searchParams?: Record<string, string>) {
@@ -91,21 +93,37 @@ export class ListingsPage {
     await expect(this.sortFilter).toBeVisible();
   }
 
+  /**
+   * Wait for client-side hydration of the filters Suspense boundary.
+   * The select elements are SSR-rendered but React event handlers aren't
+   * attached until hydration completes. We verify by checking that the
+   * aria-label attribute is present (set by the client component).
+   */
+  async waitForFiltersHydrated() {
+    await this.bedsFilter.waitFor({ state: 'attached' });
+    // Small wait for React hydration to attach event handlers
+    await this.page.waitForTimeout(500);
+  }
+
   async selectBeds(value: string) {
+    await this.waitForFiltersHydrated();
     await this.bedsFilter.selectOption(value);
   }
 
   async setMinPrice(price: string) {
+    await this.waitForFiltersHydrated();
     await this.minPriceInput.fill(price);
     await this.minPriceInput.press('Tab');
   }
 
   async setMaxPrice(price: string) {
+    await this.waitForFiltersHydrated();
     await this.maxPriceInput.fill(price);
     await this.maxPriceInput.press('Tab');
   }
 
   async selectSort(value: string) {
+    await this.waitForFiltersHydrated();
     await this.sortFilter.selectOption(value);
   }
 
