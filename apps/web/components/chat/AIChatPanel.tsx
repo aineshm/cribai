@@ -12,11 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { staggerContainer, staggerItem, springConfig } from '@/lib/animations';
-
-interface AIChatPanelProps {
-  readonly open: boolean;
-  readonly onOpenChange: (open: boolean) => void;
-}
+import { useChatContext } from './ChatProvider';
 
 const suggestedPrompts = [
   'Find me a 2BR under $1,500',
@@ -25,40 +21,18 @@ const suggestedPrompts = [
   'What should I look for in a lease?',
 ] as const;
 
-interface ChatMessage {
-  readonly id: string;
-  readonly role: 'user' | 'assistant';
-  readonly content: string;
-}
-
-const DEFAULT_RESPONSE =
-  "I'd be happy to help you find the perfect apartment near campus! Try asking me about specific requirements like budget, number of bedrooms, or preferred amenities.";
-
-export function AIChatPanel({ open, onOpenChange }: AIChatPanelProps) {
-  const [messages, setMessages] = useState<readonly ChatMessage[]>([]);
+export function AIChatPanel() {
+  const { open, messages, loading, setOpen, sendMessage } = useChatContext();
   const [inputValue, setInputValue] = useState('');
 
   const handleSend = useCallback(
     (text?: string) => {
       const messageText = text ?? inputValue;
       if (!messageText.trim()) return;
-
-      const userMessage: ChatMessage = {
-        id: `user-${Date.now()}`,
-        role: 'user',
-        content: messageText.trim(),
-      };
-
-      const assistantMessage: ChatMessage = {
-        id: `assistant-${Date.now()}`,
-        role: 'assistant',
-        content: DEFAULT_RESPONSE,
-      };
-
-      setMessages((prev) => [...prev, userMessage, assistantMessage]);
+      void sendMessage(messageText);
       setInputValue('');
     },
-    [inputValue]
+    [inputValue, sendMessage]
   );
 
   const handleKeyDown = useCallback(
@@ -74,7 +48,7 @@ export function AIChatPanel({ open, onOpenChange }: AIChatPanelProps) {
   const hasMessages = messages.length > 0;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={setOpen}>
       <SheetContent
         side="right"
         showCloseButton={false}
@@ -94,7 +68,7 @@ export function AIChatPanel({ open, onOpenChange }: AIChatPanelProps) {
             variant="ghost"
             size="icon-sm"
             aria-label="Close chat panel"
-            onClick={() => onOpenChange(false)}
+            onClick={() => setOpen(false)}
           >
             <X className="size-4" />
           </Button>
@@ -183,7 +157,7 @@ export function AIChatPanel({ open, onOpenChange }: AIChatPanelProps) {
               aria-label="Send message"
               className="shrink-0 rounded-full bg-[var(--primary-700)] hover:bg-[var(--primary-800)]"
               onClick={() => handleSend()}
-              disabled={!inputValue.trim()}
+              disabled={!inputValue.trim() || loading}
             >
               <Send className="size-4 text-white" />
             </Button>
