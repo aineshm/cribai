@@ -21,8 +21,6 @@ export function Lightbox({
   onClose,
   onIndexChange,
 }: LightboxProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
   const goPrev = useCallback(() => {
     onIndexChange(activeIndex === 0 ? photos.length - 1 : activeIndex - 1);
   }, [activeIndex, photos.length, onIndexChange]);
@@ -30,6 +28,8 @@ export function Lightbox({
   const goNext = useCallback(() => {
     onIndexChange(activeIndex === photos.length - 1 ? 0 : activeIndex + 1);
   }, [activeIndex, photos.length, onIndexChange]);
+
+  const lightboxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -45,11 +45,29 @@ export function Lightbox({
         case 'ArrowRight':
           goNext();
           break;
+        case 'Tab': {
+          if (!lightboxRef.current) break;
+          const focusableElements = lightboxRef.current.querySelectorAll<HTMLElement>(
+            'button, [href], [tabindex]:not([tabindex="-1"])'
+          );
+          const firstEl = focusableElements[0];
+          const lastEl = focusableElements[focusableElements.length - 1];
+
+          if (e.shiftKey && document.activeElement === firstEl) {
+            e.preventDefault();
+            lastEl?.focus();
+          } else if (!e.shiftKey && document.activeElement === lastEl) {
+            e.preventDefault();
+            firstEl?.focus();
+          }
+          break;
+        }
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     document.body.style.overflow = 'hidden';
+    lightboxRef.current?.focus();
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
@@ -57,28 +75,22 @@ export function Lightbox({
     };
   }, [isOpen, onClose, goPrev, goNext]);
 
-  useEffect(() => {
-    if (isOpen && containerRef.current) {
-      containerRef.current.focus();
-    }
-  }, [isOpen]);
-
   const currentPhoto = photos[activeIndex];
 
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          ref={containerRef}
-          className="fixed inset-0 z-50 flex items-center justify-center"
+          ref={lightboxRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Photo lightbox: ${currentPhoto?.alt ?? 'Photo gallery'}`}
+          tabIndex={-1}
+          className="fixed inset-0 z-50 flex items-center justify-center focus:outline-none"
           variants={fadeIn}
           initial="initial"
           animate="animate"
           exit="exit"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Photo lightbox"
-          tabIndex={-1}
         >
           {/* Backdrop */}
           <motion.div

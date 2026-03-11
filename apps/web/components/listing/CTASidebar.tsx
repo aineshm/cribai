@@ -47,7 +47,12 @@ export function CTASidebar({ price, listingTitle }: CTASidebarProps) {
             </Button>
 
             {/* Secondary CTA */}
-            <Button variant="outline" className="w-full h-10" disabled title="Coming soon">
+            <Button
+              variant="outline"
+              className="w-full h-10"
+              disabled
+              title="Coming soon"
+            >
               <MessageCircle className="size-4" />
               Ask AI About This Listing
             </Button>

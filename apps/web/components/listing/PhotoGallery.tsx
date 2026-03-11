@@ -104,7 +104,7 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
           type="button"
           onClick={() => openLightbox(mobileIndex)}
           className={`w-full h-full bg-gradient-to-br ${photos[mobileIndex]?.gradient ?? 'from-primary-200 to-primary-400'} flex items-center justify-center transition-all duration-300 cursor-pointer`}
-          aria-label={photos[mobileIndex]?.alt ?? 'View photo'}
+          aria-label={`View ${photos[mobileIndex]?.alt ?? 'photo'} in fullscreen`}
         >
           <span className="text-sm text-white/70">
             {photos[mobileIndex]?.alt}

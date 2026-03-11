@@ -175,12 +175,12 @@ export const MOCK_LISTING_DETAIL: DetailedListing = {
   },
 } as const;
 
-const LISTINGS_BY_ID: ReadonlyMap<string, DetailedListing> = new Map([
-  [MOCK_LISTING_DETAIL.id, MOCK_LISTING_DETAIL],
-]);
+const MOCK_LISTINGS_MAP: Record<string, DetailedListing> = {
+  'mock-listing-001': MOCK_LISTING_DETAIL,
+};
 
 export function getMockListingById(
   id: string,
 ): DetailedListing | undefined {
-  return LISTINGS_BY_ID.get(id);
+  return MOCK_LISTINGS_MAP[id] ?? MOCK_LISTINGS_MAP['mock-listing-001'];
 }

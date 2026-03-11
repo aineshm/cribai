@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Calendar, Clock, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,10 +16,9 @@ interface BookTourModalProps {
 function getNextWeekdays(count: number): readonly { label: string; value: string }[] {
   const dates: { label: string; value: string }[] = [];
   const current = new Date();
-  current.setHours(0, 0, 0, 0);
+  current.setDate(current.getDate() + 1); // start from tomorrow
 
   while (dates.length < count) {
-    current.setDate(current.getDate() + 1);
     const day = current.getDay();
     if (day !== 0 && day !== 6) {
       const label = current.toLocaleDateString('en-US', {
@@ -30,10 +29,13 @@ function getNextWeekdays(count: number): readonly { label: string; value: string
       const value = current.toISOString().split('T')[0] ?? '';
       dates.push({ label, value });
     }
+    current.setDate(current.getDate() + 1);
   }
 
   return dates;
 }
+
+const AVAILABLE_DATES = getNextWeekdays(5);
 
 const TIME_SLOTS = [
   '9:00 AM',
@@ -54,7 +56,6 @@ export function BookTourModal({
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [confirmed, setConfirmed] = useState(false);
-  const availableDates = useMemo(() => getNextWeekdays(5), []);
 
   const handleConfirm = useCallback(() => {
     if (!selectedDate || !selectedTime) return;
@@ -64,15 +65,6 @@ export function BookTourModal({
     });
   }, [selectedDate, selectedTime]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
-
   const handleClose = useCallback(() => {
     setConfirmed(false);
     setSelectedDate(null);
@@ -80,6 +72,44 @@ export function BookTourModal({
     setMessage('');
     onClose();
   }, [onClose]);
+
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  // Focus trap and Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleClose();
+        return;
+      }
+
+      if (e.key === 'Tab' && modalRef.current) {
+        const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        const firstEl = focusableElements[0];
+        const lastEl = focusableElements[focusableElements.length - 1];
+
+        if (e.shiftKey && document.activeElement === firstEl) {
+          e.preventDefault();
+          lastEl?.focus();
+        } else if (!e.shiftKey && document.activeElement === lastEl) {
+          e.preventDefault();
+          firstEl?.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    // Focus the modal on open
+    modalRef.current?.focus();
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, handleClose]);
 
   return (
     <AnimatePresence>
@@ -99,14 +129,16 @@ export function BookTourModal({
 
           {/* Modal */}
           <motion.div
-            className="relative z-10 w-full max-w-md bg-background rounded-xl shadow-xl ring-1 ring-foreground/10 overflow-hidden"
+            ref={modalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="book-tour-title"
+            tabIndex={-1}
+            className="relative z-10 w-full max-w-md bg-background rounded-xl shadow-xl ring-1 ring-foreground/10 overflow-hidden focus:outline-none"
             variants={scaleIn}
             initial="initial"
             animate="animate"
             exit="exit"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="book-tour-title"
           >
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-[var(--surface-200)]">
@@ -149,7 +181,7 @@ export function BookTourModal({
                       Select a Date
                     </label>
                     <div className="grid grid-cols-3 gap-2">
-                      {availableDates.map((date) => (
+                      {AVAILABLE_DATES.map((date) => (
                         <button
                           key={date.value}
                           type="button"

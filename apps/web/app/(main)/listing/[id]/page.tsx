@@ -1,3 +1,4 @@
+import { notFound } from 'next/navigation';
 import { getMockListingById } from '@/lib/mock-listing-detail';
 import { ListingDetailClient } from './ListingDetailClient';
 
@@ -12,7 +13,7 @@ export default async function ListingDetailPage({
   const listing = getMockListingById(id);
 
   if (!listing) {
-    return <div>Listing not found</div>;
+    notFound();
   }
 
   return <ListingDetailClient listing={listing} />;

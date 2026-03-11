@@ -81,11 +81,13 @@ export function ReviewSection({ reviews }: ReviewSectionProps) {
                     {review.text}
                   </p>
                   <p className="text-xs text-muted-foreground/60">
-                    {new Date(review.date).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })}
+                    <time dateTime={review.date}>
+                      {new Date(`${review.date}T00:00:00`).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </time>
                   </p>
                 </div>
               </CardContent>
