@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@campusnest/supabase/client';
 import { isEduEmail } from '@/lib/edu-validation';
@@ -33,6 +33,7 @@ const slideVariants = {
 
 export function AuthForm() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [step, setStep] = useState<AuthStep>('email');
   const [direction, setDirection] = useState(1);
   const [email, setEmail] = useState('');
@@ -40,12 +41,6 @@ export function AuthForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState(0);
-  const verifyingRef = useRef(false);
-
-  // Reset verifying guard when step changes
-  useEffect(() => {
-    verifyingRef.current = false;
-  }, [step]);
 
   // Resend countdown timer
   useEffect(() => {
@@ -111,8 +106,7 @@ export function AuthForm() {
 
   // Auto-verify when OTP is complete (6 digits)
   useEffect(() => {
-    if (step === 'otp' && otp.length === 6 && !loading && !verifyingRef.current) {
-      verifyingRef.current = true;
+    if (step === 'otp' && otp.length === 6 && !loading) {
       handleVerifyOtp();
     }
   }, [otp, step, loading, handleVerifyOtp]);
@@ -134,7 +128,7 @@ export function AuthForm() {
       returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//')
         ? returnTo
         : '/uw-madison/cribai';
-    window.location.href = destination;
+    router.push(destination);
   }
 
   return (

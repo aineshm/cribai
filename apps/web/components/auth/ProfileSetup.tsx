@@ -117,7 +117,7 @@ export function ProfileSetup({ email, onComplete, loading }: ProfileSetupProps) 
             value={graduationYear}
             onChange={(e) => setGraduationYear(e.target.value)}
             required
-            className="h-10 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm text-[var(--surface-900)] focus:border-ring focus:outline-none focus:ring-3 focus:ring-ring/50 transition-colors"
+            className="h-10 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm text-[var(--surface-900)] focus-visible:border-ring focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 transition-colors"
           >
             <option value="">Select year</option>
             {years.map((y) => (
