@@ -84,10 +84,8 @@ test.describe('Landing Page — Mobile', () => {
 
     // Scroll well past the hero section to trigger IntersectionObserver
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    // Wait for IntersectionObserver + AnimatePresence animation
-    await page.waitForTimeout(1000);
 
-    // The sticky bar should now be rendered by AnimatePresence
+    // Wait for the sticky bar to appear via assertion retry (no hardcoded timeout)
     const stickyLink = page.getByRole('link', { name: 'Get Started Free' }).last();
     await expect(stickyLink).toBeVisible({ timeout: 5000 });
   });
@@ -97,7 +95,6 @@ test.describe('Landing Page — Mobile', () => {
     await home.goto();
 
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await page.waitForTimeout(1000);
 
     // There are multiple "Get Started Free" links; the sticky bar one is last in DOM
     const allGetStarted = page.getByRole('link', { name: 'Get Started Free' });

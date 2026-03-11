@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@campusnest/supabase/client';
@@ -105,9 +105,14 @@ export function AuthForm() {
   }, [email, otp, goToStep]);
 
   // Auto-verify when OTP is complete (8 digits — Supabase project setting)
+  const autoVerifiedRef = useRef(false);
   useEffect(() => {
-    if (step === 'otp' && otp.length === 8 && !loading) {
+    if (step === 'otp' && otp.length === 8 && !loading && !autoVerifiedRef.current) {
+      autoVerifiedRef.current = true;
       handleVerifyOtp();
+    }
+    if (otp.length < 8) {
+      autoVerifiedRef.current = false;
     }
   }, [otp, step, loading, handleVerifyOtp]);
 
@@ -134,7 +139,7 @@ export function AuthForm() {
   return (
     <div className="w-full max-w-sm">
       {error && (
-        <div className="mb-4 rounded-lg bg-[var(--fair-bad-bg)] p-3 text-sm text-[var(--fair-bad)]">
+        <div data-testid="auth-error" className="mb-4 rounded-lg bg-[var(--fair-bad-bg)] p-3 text-sm text-[var(--fair-bad)]">
           {error}
         </div>
       )}
@@ -222,11 +227,10 @@ export function AuthForm() {
                 disabled={loading}
               />
               <motion.div
-                initial={{ opacity: 0, y: 8 }}
+                initial={{ opacity: 0.7, y: 0 }}
                 animate={{
-                  opacity: otp.length === 8 ? 1 : 0.5,
-                  y: otp.length === 8 ? 0 : 8,
-                  scale: otp.length === 8 ? 1 : 0.97,
+                  opacity: otp.length === 8 ? 1 : 0.7,
+                  scale: otp.length === 8 ? 1 : 0.98,
                 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 24 }}
               >

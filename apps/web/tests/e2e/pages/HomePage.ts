@@ -75,7 +75,7 @@ export class HomePage {
 
     // How It Works
     this.howItWorksHeading = page.getByRole('heading', { name: 'How It Works' });
-    this.howItWorksSteps = page.locator('#how-it-works [class*="grid"] > div');
+    this.howItWorksSteps = page.getByTestId('how-it-works-step');
 
     // Footer CTA
     this.footerCtaHeading = page.getByRole('heading', { name: 'Ready to find your nest?' });
@@ -83,7 +83,7 @@ export class HomePage {
 
     // Mobile sticky bar — the AnimatePresence wrapper renders a div with role-less link
     // Use a robust locator: fixed-position element containing "Get Started Free" that isn't in the hero
-    this.mobileStickyBar = page.locator('div[style*="position: fixed"], div[class*="fixed"]').filter({ hasText: 'Get Started Free' }).last();
+    this.mobileStickyBar = page.getByTestId('mobile-sticky-bar');
   }
 
   async goto() {

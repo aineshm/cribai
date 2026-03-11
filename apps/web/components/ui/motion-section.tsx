@@ -1,21 +1,8 @@
 'use client';
 
 import { type ReactNode } from 'react';
-import { motion, type Variants } from 'framer-motion';
-import { springConfig } from '@/lib/animations';
-import { cn } from '@/lib/utils';
-
-const sectionVariants: Variants = {
-  hidden: {
-    opacity: 0,
-    y: 24,
-  },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: springConfig.gentle,
-  },
-};
+import { motion } from 'framer-motion';
+import { slideInFromBottom } from '@/lib/animations';
 
 interface MotionSectionProps {
   children: ReactNode;
@@ -34,11 +21,11 @@ export function MotionSection({
 }: MotionSectionProps) {
   return (
     <motion.section
-      variants={sectionVariants}
-      initial="hidden"
-      whileInView="visible"
+      variants={slideInFromBottom}
+      initial="initial"
+      whileInView="animate"
       viewport={{ once, margin }}
-      className={cn(className)}
+      className={className}
     >
       {children}
     </motion.section>

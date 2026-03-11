@@ -55,7 +55,7 @@ export class LoginPage {
     this.description = page.getByText("we'll send you a verification code");
     this.emailInput = page.getByLabel('Email address');
     this.submitButton = page.getByRole('button', { name: /Continue|Sending code/i });
-    this.errorMessage = page.locator('[class*="fair-bad"]');
+    this.errorMessage = page.getByTestId('auth-error');
 
     // OTP step locators
     this.otpHeading = page.getByRole('heading', { name: 'Enter your code' });

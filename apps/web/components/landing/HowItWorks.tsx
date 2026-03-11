@@ -59,6 +59,7 @@ export function HowItWorks() {
               <motion.div
                 key={step.number}
                 variants={staggerItem}
+                data-testid="how-it-works-step"
                 className="relative text-center"
               >
                 {/* Connecting line (hidden on mobile, shown between items on desktop) */}
