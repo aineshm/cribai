@@ -1,134 +1,148 @@
-# Requirements: CampusNest
+# Requirements: CampusNest v1.1
 
-**Defined:** 2026-03-05
+**Defined:** 2026-03-10
 **Core Value:** Students can find off-campus housing through conversational AI search that understands what they actually want
 
-## v1 Requirements
+## v1.1 Requirements
 
-Requirements for initial release. Each maps to roadmap phases.
+### Design System
 
-### Authentication
+- [ ] **DESIGN-01**: User sees Space Grotesk display font and DM Sans body font across all pages
+- [ ] **DESIGN-02**: All pages use shadcn/ui component primitives (Button, Card, Sheet, Dialog, Input, etc.)
+- [ ] **DESIGN-03**: All pages use Lucide icons instead of inline Heroicon SVGs
+- [ ] **DESIGN-04**: Page transitions and interactive elements use framer-motion spring animations
+- [ ] **DESIGN-05**: Design tokens bridge existing CSS variables with shadcn/ui token system without breaking build
 
-- [x] **AUTH-01**: User can sign in via magic link email and land on authenticated experience without redirect errors
-- [x] **AUTH-02**: User session persists across browser refresh and tab close/reopen
-- [x] **AUTH-03**: System validates that user email is a .edu address at signup (client-side check, not full verification)
-- [x] **AUTH-04**: User can optionally create a profile (display name, avatar) with skip button at signup
-- [x] **AUTH-05**: User can edit profile from a settings/profile page at any time
+### Landing Page
 
-### Search
+- [ ] **LAND-01**: User sees a marketing landing page with hero section, AI value prop, and "Get Started" CTA
+- [ ] **LAND-02**: Landing page shows social proof bar with university logos and feature cards
+- [ ] **LAND-03**: Landing page has "How It Works" section and footer CTA banner
+- [ ] **LAND-04**: Mobile users see sticky "Get Started" CTA at bottom of landing page
 
-- [x] **SRCH-01**: Listings are embedded with Gemini gemini-embedding-001 and stored as pgvector columns for semantic search
-- [x] **SRCH-02**: CribAI performs hybrid search combining vector similarity (qualitative) with SQL filters (price, beds, campus)
-- [x] **SRCH-03**: CribAI can display listings on an interactive map as a chat block (agent-triggered map tool)
-- [x] **SRCH-04**: Search results are ranked by semantic relevance to the user's natural language query
+### Auth Redesign
 
-### Listings
+- [ ] **AUTH-05**: Auth page uses split layout with branded left panel (desktop) and animated multi-step form
+- [ ] **AUTH-06**: Auth form transitions between email, OTP, and profile steps with slide animations
 
-- [x] **LIST-01**: User can save/favorite listings and view them from a saved listings page
-- [x] **LIST-02**: User receives alerts when a saved listing's price changes
-- [x] **LIST-03**: Listing detail pages display photos scraped from source
-- [x] **LIST-04**: Listings show freshness indicators (when last verified/updated, days since posted)
-- [x] **LIST-05**: Listings display scraped reviews from Reddit and other sources (recent, relevant)
+### Explore Page
 
-### Data Pipeline
+- [ ] **EXPL-01**: User sees a split view with listing grid (60%) and interactive map (40%) on desktop
+- [ ] **EXPL-02**: Mobile users can toggle between List and Map views via segmented control
+- [ ] **EXPL-03**: Filter chips (Price, Beds, Distance, Move-in Date, Pet Friendly, Furnished) appear above results
+- [ ] **EXPL-04**: Floating AI button opens CribAI as a slide-over chat panel (not a separate page)
+- [ ] **EXPL-05**: Listing cards show photo, price, beds/baths, distance badge, rating, save button, and AI Verified badge
 
-- [x] **DATA-01**: Apartments.com scraper runs reliably against UW Madison area listings
-- [x] **DATA-02**: Scraper collects listing photos and stores/references them
-- [x] **DATA-03**: Manual listing submission form allows landlords or students to add listings directly
-- [x] **DATA-04**: Multi-source scraping covers Madison-specific PM sites (Steve Brown, Madison Property Mgmt, JD McCormick, etc.)
-- [x] **DATA-05**: Nightly scrape automation runs via GitHub Actions with monitoring/alerting on failures
-- [x] **DATA-06**: Stale listings are detected and marked inactive with freshness tracking
-- [x] **DATA-07**: Reddit/review scraping pipeline collects recent reviews for Madison-area properties
+### Listing Detail
 
-### AI Chat
+- [ ] **DETAIL-01**: User sees photo gallery grid (2/3 hero + 1/3 side grid) with lightbox expansion
+- [ ] **DETAIL-02**: Two-column layout with content (left) and sticky CTA card with Book Tour and Ask AI (right)
+- [ ] **DETAIL-03**: Listing detail shows landlord info card, amenities grid, and AI lease summary section
+- [ ] **DETAIL-04**: Commute section shows map with distance/time to campus buildings
+- [ ] **DETAIL-05**: Mobile users see sticky bottom bar with price, Book Tour, and Chat with AI buttons
 
-- [x] **CHAT-01**: Conversation history persists across sessions (user can resume previous chats)
-- [x] **CHAT-02**: Tour scheduling works end-to-end via chat (mocked backend for v1 -- no real PM integration)
-- [x] **CHAT-03**: CribAI has a map tool that renders an interactive map block in the chat UI
+### Post Sublease
 
-### Platform
+- [ ] **POST-01**: User completes sublease posting via multi-step wizard (Basics, Details, Amenities, Photos, Description, Review)
+- [ ] **POST-02**: Desktop shows sidebar progress tracker with step indicators
+- [ ] **POST-03**: Mobile shows progress bar with step count and percentage
 
-- [x] **PLAT-01**: Platform launches with UW Madison as the primary campus
-- [x] **PLAT-02**: Platform architecture supports 3-5 campuses (existing multi-tenancy works)
-- [x] **PLAT-03**: Responsive design works on mobile browsers
+### Profile and Saved
 
-## v2 Requirements
+- [ ] **PROF-01**: User sees profile header card with avatar, name, university, verification badge
+- [ ] **PROF-02**: Tabbed navigation between Saved Listings and Account Settings
+- [ ] **PROF-03**: Settings section has navigation items for Personal Info, Notifications, and Log Out
 
-Deferred to future release. Tracked but not in current roadmap.
+### AI Concierge UI
 
-### Roommate Matching
+- [ ] **AGENT-01**: User sees AI Concierge sidebar with task-based mission cards showing status indicators
+- [ ] **AGENT-02**: Mission detail view shows status-specific action cards (scheduled tour, draft approval, negotiation)
+- [ ] **AGENT-03**: Mission detail includes agent summary and expandable raw execution logs
+- [ ] **AGENT-04**: Persistent steering bar at bottom allows user to course-correct the agent
+- [ ] **AGENT-05**: Empty state shows proactive mission suggestions based on user activity
+- [ ] **AGENT-06**: Active/Past tabs filter missions by completion status
 
-- **ROOM-01**: User can create a roommate profile with preferences (cleanliness, sleep, noise, budget, guests)
-- **ROOM-02**: AI suggests compatible roommate matches based on weighted scoring
-- **ROOM-03**: Users can message potential roommates through the platform
+### Compatibility
 
-### Enhanced Features
+- [ ] **COMPAT-01**: Git tag `v1.0-mvp` marks revert point; v1.0 features are integrated into v1.1 where applicable
 
-- **ENHN-01**: True Cost surfacing -- total cost breakdown (rent + utilities + fees) prominently displayed
-- **ENHN-02**: OAuth login via Instagram or Snapchat (if APIs available)
-- **ENHN-03**: Full .edu email verification flow (not just client-side check)
-- **ENHN-04**: Traditional filter UI (price range, bedrooms, move-in date sliders) alongside AI chat
-- **ENHN-05**: Application tracking for students across multiple listings
+## Future Requirements
 
-### Sublease Marketplace
+### AI Concierge Backend (v1.2)
 
-- **SUBL-01**: Scrape Facebook Marketplace for subleases
-- **SUBL-02**: Sublet listing and matching system
+- **AGENT-BE-01**: Mission executor runs async with fire-and-forget pattern (202 Accepted)
+- **AGENT-BE-02**: Missions DB schema with HITL draft versioning, idempotency keys, and expires_at
+- **AGENT-BE-03**: Supabase Realtime subscription for live mission status updates
+- **AGENT-BE-04**: Steering bar intent parsing via Gemini function calling
+- **AGENT-BE-05**: Real landlord contact and tour scheduling via mission executor
+
+### Real Tool Integrations (v1.2+)
+
+- **TOOLS-01**: Real review integration (Reddit, Google Maps, Yelp)
+- **TOOLS-02**: Real PM contact integration
+- **TOOLS-03**: Real neighborhood info (Walk Score API, crime data)
+
+### Agentic Search (v2.0)
+
+- **SEARCH-01**: NL query extraction via LLM into structured filters
+- **SEARCH-02**: Auto-populate filter chips from AI interpretation
+- **SEARCH-03**: Failed search creates persistent mission alert
 
 ## Out of Scope
 
-Explicitly excluded. Documented to prevent scope creep.
-
 | Feature | Reason |
 |---------|--------|
-| Property management platform | v2+ milestone, build tenant side first |
-| PM-side automation (maintenance, tours) | Requires PM platform foundation |
-| Predictive pricing | Needs PM platform + sufficient historical data |
-| Group search / shared accounts | Design decision needed on multi-tenant leases, defer |
-| Payment processing | No v1 monetization decided |
-| Mobile native app | Web-first, responsive covers mobile |
-| Nationwide coverage | Launch tight in Madison, expand later |
-| Real-time chat between users | High complexity, not core to search value |
+| Full state machine backend (LangGraph/Step Functions) | v1.1 uses mock data for concierge; real backend in v1.2 |
+| Generative UI (AI returns component JSON) | Too early; hardcoded mission cards sufficient for v1.1 |
+| Dark mode | Design exists in Figma spec but deferred to reduce scope |
+| Real mission execution | v1.1 is UI-only with mock data; backend executor in v1.2 |
+| Supabase Storage for sublease photos | Existing photo handling sufficient; Storage bucket deferred |
+| TanStack Query adoption | Evaluate after v1.1; current data fetching patterns work |
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | Phase 1 | Complete |
-| AUTH-02 | Phase 1 | Complete |
-| AUTH-03 | Phase 1 | Complete |
-| AUTH-04 | Phase 1 | Complete |
-| AUTH-05 | Phase 1 | Complete |
-| SRCH-01 | Phase 3 | Complete |
-| SRCH-02 | Phase 3 | Complete |
-| SRCH-03 | Phase 3 | Complete |
-| SRCH-04 | Phase 3 | Complete |
-| LIST-01 | Phase 8 | Complete |
-| LIST-02 | Phase 8 | Complete |
-| LIST-03 | Phase 8 | Complete |
-| LIST-04 | Phase 8 | Complete |
-| LIST-05 | Phase 6 | Complete |
-| DATA-01 | Phase 2 | Complete |
-| DATA-02 | Phase 2 | Complete |
-| DATA-03 | Phase 6 | Complete |
-| DATA-04 | Phase 5 | Complete |
-| DATA-05 | Phase 2 | Complete |
-| DATA-06 | Phase 2 | Complete |
-| DATA-07 | Phase 6 | Complete |
-| CHAT-01 | Phase 6 | Complete |
-| CHAT-02 | Phase 6 | Complete |
-| CHAT-03 | Phase 6 | Complete |
-| PLAT-01 | Phase 1 | Complete |
-| PLAT-02 | Phase 1 | Complete |
-| PLAT-03 | Phase 1 | Complete |
+| DESIGN-01 | Phase 10 | Pending |
+| DESIGN-02 | Phase 10 | Pending |
+| DESIGN-03 | Phase 10 | Pending |
+| DESIGN-04 | Phase 10 | Pending |
+| DESIGN-05 | Phase 10 | Pending |
+| COMPAT-01 | Phase 10 | Pending |
+| LAND-01 | Phase 11 | Pending |
+| LAND-02 | Phase 11 | Pending |
+| LAND-03 | Phase 11 | Pending |
+| LAND-04 | Phase 11 | Pending |
+| AUTH-05 | Phase 11 | Pending |
+| AUTH-06 | Phase 11 | Pending |
+| EXPL-01 | Phase 12 | Pending |
+| EXPL-02 | Phase 12 | Pending |
+| EXPL-03 | Phase 12 | Pending |
+| EXPL-04 | Phase 12 | Pending |
+| EXPL-05 | Phase 12 | Pending |
+| DETAIL-01 | Phase 13 | Pending |
+| DETAIL-02 | Phase 13 | Pending |
+| DETAIL-03 | Phase 13 | Pending |
+| DETAIL-04 | Phase 13 | Pending |
+| DETAIL-05 | Phase 13 | Pending |
+| POST-01 | Phase 14 | Pending |
+| POST-02 | Phase 14 | Pending |
+| POST-03 | Phase 14 | Pending |
+| PROF-01 | Phase 14 | Pending |
+| PROF-02 | Phase 14 | Pending |
+| PROF-03 | Phase 14 | Pending |
+| AGENT-01 | Phase 15 | Pending |
+| AGENT-02 | Phase 15 | Pending |
+| AGENT-03 | Phase 15 | Pending |
+| AGENT-04 | Phase 15 | Pending |
+| AGENT-05 | Phase 15 | Pending |
+| AGENT-06 | Phase 15 | Pending |
 
 **Coverage:**
-- v1 requirements: 27 total
-- Mapped to phases: 27
+- v1.1 requirements: 34 total
+- Mapped to phases: 34
 - Unmapped: 0
 
 ---
-*Requirements defined: 2026-03-05*
-*Last updated: 2026-03-05 after roadmap creation*
+*Requirements defined: 2026-03-10*
+*Last updated: 2026-03-10 — traceability mapped to Phases 10-15*

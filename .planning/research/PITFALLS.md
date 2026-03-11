@@ -1,268 +1,409 @@
-# Domain Pitfalls
+# Pitfalls Research
 
-**Domain:** AI-native student housing platform (semantic search, saved listings/alerts, roommate matching, multi-source scraping)
-**Researched:** 2026-03-05
+**Domain:** Design system migration + AI Concierge features added to existing Next.js 15 + Supabase app (CampusNest v1.1)
+**Researched:** 2026-03-10
+**Confidence:** HIGH (verified against official docs, GitHub issues, and community post-mortems)
+
+---
 
 ## Critical Pitfalls
 
-Mistakes that cause rewrites, legal exposure, or platform-killing trust erosion.
+### Pitfall 1: Big-Bang Design System Migration Breaks Working Features
 
-### Pitfall 1: PageIndex Cannot Handle Semantic Search at Query Time
+**What goes wrong:**
+You attempt to migrate the entire frontend to shadcn/ui + Tailwind v4 tokens in one pass — touching every component file at once. Halfway through, the app is half-styled, tests break because class names changed, and it is unclear which pages are "done." The existing working features (CribAI chat, map blocks, tour scheduling) regress in the process.
 
-**What goes wrong:** The existing PageIndex RAG approach builds a hierarchical tree grouped by bedrooms and price tiers, then uses LLM reasoning to traverse it. This works for structured document retrieval but fundamentally cannot do what semantic search requires: matching qualitative user intent ("quiet neighborhood with natural light near the engineering building") against listing attributes. PageIndex is designed for navigating known document structures, not for similarity matching across hundreds of listings with fuzzy, subjective criteria.
+**Why it happens:**
+Tailwind v4 changes the CSS architecture fundamentally (JavaScript config eliminated, `@theme` CSS directive replaces `tailwind.config.js`, `@import "tailwindcss"` replaces `@tailwind` directives, utility class renames like `flex-shrink-0` → `shrink-0`). Shadcn/ui also shifts from the v3 HSL token format to v4 OKLCH. Trying to do this atomically across 20+ component files is a code freeze in practice. A single bad merge leaves the app in a broken state.
 
-**Why it happens:** PageIndex was a reasonable choice for the initial chat context retrieval -- it gives the LLM a structured overview of the listing landscape. But semantic search is a different problem: it requires encoding qualitative attributes into a comparable representation (embeddings) and performing nearest-neighbor lookup. Trying to force PageIndex into this role results in slow, expensive multi-LLM-call queries that still miss relevant results because the tree structure groups by price/bedrooms, not by qualitative features.
+**How to avoid:**
+Dedicate the first phase entirely to design system foundations: install Tailwind v4, install shadcn/ui with v4 support, configure `@theme` with the full CampusNest token set (Space Grotesk, DM Sans, brand colours), set up `next/font/google` for both fonts, install Lucide, install framer-motion. Validate with a single throwaway test page that exercises the full token system. Only after this foundation phase is solid do subsequent phases replace component-by-component. Use feature flags or parallel routes to keep the existing pages live while redesigned pages are built alongside them.
 
-**Consequences:** Search results feel arbitrary. Students describe what they want in natural language and get results filtered only by numeric attributes (rent, bedrooms, fairness score) -- which is exactly what the current `search-listings.ts` does with SQL WHERE clauses. The "AI-native" differentiator becomes a marketing claim, not a real capability.
+**Warning signs:**
+- PR titles like "redesign everything" or "full migration"
+- Tailwind config and `globals.css` both defining the same token names
+- `tailwind.config.js` still present after the migration (the codemod may not have cleaned it up)
+- Build succeeds locally but Vercel Preview fails because `@tailwindcss/postcss` is not in `devDependencies`
 
-**Prevention:**
-- Add pgvector to Supabase and generate embeddings for listings that encode qualitative attributes (neighborhood character, natural light, noise level, proximity descriptions, amenity quality).
-- Use a hybrid approach: vector similarity for semantic ranking + SQL filters for hard constraints (max rent, min bedrooms).
-- Keep PageIndex for what it does well: giving the CribAI chat engine a market overview for conversational context. Do not try to make it the search backend.
-- Use Gemini's embedding model (`text-embedding-004`, 768 dimensions) to stay within the existing AI provider.
-
-**Detection:** If search results only vary by numeric filters and never surface listings based on qualitative descriptions, semantic search is not actually working.
-
-**Phase mapping:** Semantic Search phase -- this is the core architectural decision and must be addressed first.
-
-**Confidence:** HIGH -- verified through official Supabase pgvector docs, PageIndex architecture analysis, and existing codebase review showing purely SQL-filter-based search.
+**Phase to address:**
+Phase 1 (Design System Foundation) — must be a standalone phase that all subsequent UI phases depend on.
 
 ---
 
-### Pitfall 2: Stale Listing Data Destroys Student Trust Instantly
+### Pitfall 2: Shadcn/ui CSS Variable Names Collide With Existing Custom Properties
 
-**What goes wrong:** Students find a listing through CampusNest, get excited, contact the landlord, and discover it was rented two weeks ago. This happens once and the student never comes back. In student housing, inventory moves fast -- leases for fall semester get signed months ahead, and desirable units near campus disappear within days.
+**What goes wrong:**
+CampusNest v1.0 already defines CSS custom properties in `globals.css` (e.g. `--primary`, `--foreground`, `--background`, `--border`). Shadcn/ui uses the identical names for its own token system. When you install shadcn/ui, its CLI overwrites or appends conflicting `:root` declarations. Existing components that relied on the old token values break visually; dark mode may silently regress because shadcn writes a `.dark` block using different OKLCH values than the existing HSL setup.
 
-**Why it happens:** The current scraper runs on a cron schedule (`scrape_cron` defaults to `0 2 * * *` -- daily at 2 AM). Daily scraping catches new listings but does not catch removals or status changes quickly enough. Apartments.com listings can go from available to leased within hours. The `is_active` flag on listings has no automated staleness check -- once scraped, a listing stays "active" until the next scrape explicitly marks it otherwise.
+**Why it happens:**
+Shadcn's default token names (`--primary`, `--secondary`, `--muted`, `--accent`, `--destructive`, `--border`, `--input`, `--ring`, `--background`, `--foreground`) are intentionally generic. Projects commonly pre-use these names. The Tailwind v4 migration further complicates this: variables must now also be mapped inside `@theme inline { --color-primary: var(--primary); }` or they produce no utility classes, and the HSL values in v3 become OKLCH in v4. If the project's existing colours are in HSL and shadcn's installed palette is in OKLCH, the two systems diverge silently.
 
-**Consequences:** Trust erosion is the number one killer of rental platforms. Students talk to each other. One bad experience ("CampusNest showed me a place that was already taken") spreads through dorm group chats and kills adoption at that campus. The platform's data quality reputation becomes its ceiling.
+**How to avoid:**
+Before running `npx shadcn@latest init`, audit `globals.css` and list every existing `--variable` name. Treat the shadcn init as a controlled operation: run it on a branch, review the diff to the CSS file, then manually merge the token values. Map existing brand colours (CampusNest palette from Figma) into the shadcn token names rather than running both systems in parallel. The final `globals.css` should have one authoritative `:root` block — shadcn's structure, populated with CampusNest's brand values converted to OKLCH.
 
-**Prevention:**
-- Implement a `stale_after` threshold: listings not re-confirmed in 72 hours get a "may be unavailable" badge. After 7 days without re-confirmation, auto-deactivate.
-- Add a "Report unavailable" button on listing cards so students can flag stale listings in real-time. This is cheap crowdsourced data quality.
-- For saved/favorited listings, run targeted re-scrapes more frequently (every 6-12 hours) rather than waiting for the full campus scrape cycle.
-- Track `last_seen_at` vs `first_seen_at` to calculate listing freshness and surface it in the UI ("Listed 2 days ago" vs "Listed 3 weeks ago").
-- Consider webhook or API integrations where available (some listing aggregators offer feeds) instead of relying solely on scraping.
+**Warning signs:**
+- Two `:root` blocks in `globals.css`
+- `--primary` resolving to different colours in different components
+- Dark mode works on some pages but not others
+- Tailwind's `bg-primary` utility renders a different colour than `style={{ backgroundColor: "var(--primary)" }}`
 
-**Detection:** Monitor the ratio of listings that disappear between scrape cycles. If >15% of "active" listings vanish in a single scrape run, the data is going stale too fast for the scrape frequency.
-
-**Phase mapping:** Multi-source Scraping phase -- freshness infrastructure must be part of the scraping pipeline, not bolted on later.
-
-**Confidence:** HIGH -- data freshness is the most commonly cited trust issue in rental platform literature and user feedback.
-
----
-
-### Pitfall 3: Fair Housing Act Violations Through AI Bias in Search and Matching
-
-**What goes wrong:** The AI search or roommate matching inadvertently discriminates based on protected classes (race, familial status, disability, national origin, religion, sex). This can happen through: (a) embedding models that encode societal biases about neighborhoods, (b) roommate matching that uses proxies for protected characteristics, (c) search ranking that deprioritizes listings in certain neighborhoods.
-
-**Why it happens:** HUD issued explicit guidance in 2024 on AI applications under the Fair Housing Act. Housing is one of the most legally sensitive domains for AI. Unlike e-commerce recommendations, housing search and tenant matching carry disparate impact liability. A roommate matching algorithm that factors in "lifestyle compatibility" can easily become a proxy for race, religion, or national origin. An embedding model trained on general text will encode neighborhood stereotypes.
-
-**Consequences:** Legal liability under the Fair Housing Act (disparate impact claims do not require intent). Platform shutdown. Reputational destruction. The 2025 Fair Housing Trends Report documented 32,321 discrimination complaints filed in 2024 alone.
-
-**Prevention:**
-- Never include demographic data in embedding inputs or matching features. Roommate matching should use behavioral preferences (sleep schedule, noise tolerance, cleanliness, study habits) not identity characteristics.
-- Do not use neighborhood names or ZIP codes as embedding features -- these are well-documented proxies for racial composition.
-- Add a Fair Housing disclaimer to all AI-generated responses (the existing lease-terms knowledge base already has legal disclaimer patterns -- extend this).
-- Audit search results periodically: do certain listing neighborhoods consistently rank lower? That is a red flag.
-- For roommate matching, let users set their own preferences and show mutual matches. Do not use AI to infer "compatibility" beyond stated preferences.
-- Log all AI-driven ranking decisions for auditability.
-
-**Detection:** Run disparate impact analysis on search results: group listings by neighborhood demographics, check if any group is systematically ranked lower. For roommate matching, check if match rates vary by demographic proxies.
-
-**Phase mapping:** Roommate Matching phase (primary) and Semantic Search phase (secondary). Must be designed in from the start, not audited after launch.
-
-**Confidence:** HIGH -- HUD guidance is explicit, case law is active (Equal Rights Center v. Meta), and housing AI discrimination is a 2025-2026 enforcement priority.
+**Phase to address:**
+Phase 1 (Design System Foundation) — the token merge is the most important task in this phase.
 
 ---
 
-### Pitfall 4: Scraper Fragility and Legal Exposure from Apartments.com
+### Pitfall 3: framer-motion Forces Every Animated Page Into a Client Component
 
-**What goes wrong:** Apartments.com changes their HTML structure, adds anti-bot protections (Cloudflare, TLS fingerprinting), or sends a cease-and-desist. The scraper breaks silently, listings stop updating, and the platform serves increasingly stale data without anyone noticing.
+**What goes wrong:**
+You add `motion.div` to a page component that was a Server Component (no `"use client"` directive). Next.js 15 App Router throws a hard error or silently falls back to CSR. Worse, you add `"use client"` to the page component itself — which propagates client-side rendering to all its children, including data-fetching components that were intentionally server-side. Performance regresses: data fetching moves to the browser, initial HTML is empty, and Lighthouse scores drop.
 
-**Why it happens:** Single-source dependency. The existing scraper targets only Apartments.com. Modern anti-scraping defenses in 2025-2026 use TLS fingerprinting, behavioral signals, and bot reputation scoring -- not just IP blocking. Crawlee/Playwright can handle basic protections but not sophisticated bot detection. Additionally, Apartments.com's Terms of Service likely prohibit scraping, and while scraping public data has legal precedent (hiQ Labs v. LinkedIn), the legal landscape is nuanced and enforcement is increasing.
+**Why it happens:**
+framer-motion is a purely client-side library (it accesses `window`, DOM nodes, and `requestAnimationFrame`). In Next.js App Router, the default is server rendering. Adding `motion.*` components without `"use client"` boundary management causes the entire subtree to execute on the client. Developers who are used to Next.js pages router (where all components were client-rendered by default) do not think about this boundary.
 
-**Consequences:** Complete data pipeline failure. If the scraper breaks on a Friday and nobody checks until Monday, three days of listings are missed during peak leasing season. Legal cease-and-desist forces a scramble to find alternative data sources.
+**How to avoid:**
+Create thin `"use client"` wrapper components that own the animation concern only. Example: `MotionWrapper.tsx` exports `motion` components with `"use client"` at the top; page-level Server Components import these wrappers, not `framer-motion` directly. The rule: pages remain Server Components; animated elements are extracted into small Client Component wrappers. Use `initial={false}` on AnimatePresence to suppress the first-render animation (prevents SSR hydration mismatch where the server renders no `data-projection-id` but the client expects one).
 
-**Prevention:**
-- Build multi-source scraping from the start: Apartments.com + Zillow Rentals + Craigslist + university housing boards. If one source breaks, others provide coverage.
-- Implement scraper health monitoring: alert if a scrape run returns zero new listings or significantly fewer than the previous run.
-- Add a manual listing submission flow for landlords/property managers as a scraping-independent data source.
-- Respect robots.txt, rate-limit requests, and add reasonable delays. Store attribution (source field already exists in schema).
-- Design the normalizer to handle source-specific failures gracefully -- a broken Apartments.com scraper should not crash the pipeline for other sources.
-- Consider listing aggregator APIs (RentCast, Apartment List API) as paid but legally clean alternatives for critical markets.
+**Warning signs:**
+- `"use client"` added to `page.tsx` or `layout.tsx` files directly
+- Network tab shows no server-rendered HTML (page source is just `<div id="__next"></div>`)
+- Hydration warnings in console mentioning `data-projection-id` mismatch
+- Exit animations not playing (AnimatePresence not wrapping the correct level, or missing `key` props)
 
-**Detection:** Scrape run monitoring: track listings_added, listings_removed, listings_unchanged per run. Alert on zero-add runs or >50% drop from previous run.
-
-**Phase mapping:** Multi-source Scraping phase -- this is the primary concern of that phase.
-
-**Confidence:** HIGH -- verified through existing codebase (single Apartments.com scraper) and current anti-scraping landscape research.
+**Phase to address:**
+Phase 2 (Marketing Landing Page) — this is the first phase that introduces framer-motion. Establish the wrapper pattern here; all subsequent phases inherit it.
 
 ---
 
-## Moderate Pitfalls
+### Pitfall 4: Fonts Not on Google Fonts Require Self-Hosting — But Space Grotesk and DM Sans Are Available
 
-### Pitfall 5: pgvector Performance Cliff on Supabase Free/Pro Tiers
+**What goes wrong:**
+A developer assumes all design system fonts require self-hosting via `next/font/local` and downloads WOFF2 files manually, adding unnecessary build complexity. Alternatively, a developer tries to use `next/font/google` for a font that truly is not on Google Fonts (e.g., Cabinet Grotesk, Satoshi) and gets a build-time or runtime failure. The fallback is a browser default serif font (Times New Roman), which destroys the brand feel and shifts layout due to different metrics. CLS (Cumulative Layout Shift) spikes because the fallback font has completely different glyph dimensions than the intended typefaces.
 
-**What goes wrong:** Vector search performance degrades dramatically when the HNSW index exceeds available shared memory. On Supabase's lower-tier plans, this happens sooner than expected, especially with 768+ dimension embeddings.
+**Why it happens:**
+Developers conflate fonts from Fontshare (e.g., Cabinet Grotesk, Satoshi) with fonts that share similar names but are actually on Google Fonts. Space Grotesk and DM Sans are both available on Google Fonts and work with `next/font/google` out of the box. However, fonts like Cabinet Grotesk and Satoshi are NOT on Google Fonts and must be self-hosted via `next/font/local`. Confusion arises when design specs reference these font families interchangeably.
 
-**Prevention:**
-- Use Gemini's `text-embedding-004` (768 dimensions) rather than OpenAI's ada-002 (1536 dimensions) -- half the memory footprint.
-- For a 3-5 campus launch with maybe 5,000-20,000 listings, pgvector on Supabase Pro is fine. But plan the index strategy upfront.
-- Create HNSW indexes with appropriate `m` and `ef_construction` parameters. Start with `m=16, ef_construction=64` for small datasets.
-- Monitor query latency. If vector searches exceed 200ms consistently, the index is being evicted from memory.
+**How to avoid:**
+For Space Grotesk and DM Sans: use `next/font/google` directly — both are available. Import with `import { Space_Grotesk, DM_Sans } from 'next/font/google'`, specify the full weight array, set `display: "swap"` and `variable` for CSS custom property mapping. For fonts that truly are not on Google Fonts (Cabinet Grotesk, Satoshi, etc.): download WOFF2 files and use `next/font/local`. In either case, set `adjustFontFallback: true` — Next.js will auto-generate a `size-adjust`-calibrated fallback to prevent CLS. Apply the font as a CSS variable on `<html>` and consume it via `font-family: var(--font-space-grotesk)` in the Tailwind `@theme` block. Test with a throttled connection to verify no FOUT (Flash of Unstyled Text).
 
-**Detection:** Track p95 latency on vector search queries. Sudden latency spikes (100ms to 2s+) indicate index eviction.
+**Warning signs:**
+- Self-hosting fonts that are available on Google Fonts (unnecessary complexity)
+- Using `next/font/google` for fonts not actually on Google Fonts (e.g., Cabinet Grotesk, Satoshi)
+- Times New Roman or system-ui visible during page load in slow-network tests
+- CLS score above 0.05 in Lighthouse
 
-**Phase mapping:** Semantic Search phase -- index configuration is part of the embedding infrastructure.
-
-**Confidence:** MEDIUM -- verified through Supabase pgvector docs; specific tier limitations depend on plan chosen.
-
----
-
-### Pitfall 6: Saved Listings Alerts Become Notification Spam
-
-**What goes wrong:** Students save 20 listings, enable price change alerts, and get bombarded with notifications every time the scraper re-ingests data with minor price variations, data normalization differences, or false-positive "changes." Students disable notifications entirely, defeating the feature's purpose.
-
-**Prevention:**
-- Define meaningful change thresholds: price changes >$25/month, availability status changes, new photos/descriptions. Ignore noise.
-- Batch notifications: send a daily digest rather than real-time alerts for non-critical changes. Reserve real-time for "listing removed" or "price dropped >10%."
-- Let students configure alert sensitivity (immediate for favorites, daily digest for saved).
-- Use Supabase Realtime for in-app notifications but email/push only for significant events. Supabase Realtime's Postgres Changes listener processes on a single thread -- fine for notification volume at this scale but be aware of the bottleneck.
-- Track notification engagement (open rate, click-through). If <5% of alerts get opened, the thresholds are too noisy.
-
-**Detection:** Monitor alert-to-action ratio. If students receive alerts but never click through, noise is too high.
-
-**Phase mapping:** Saved Listings/Alerts phase.
-
-**Confidence:** MEDIUM -- common pattern from email marketing and notification system design literature.
+**Phase to address:**
+Phase 1 (Design System Foundation) — font setup is prerequisite to all visual work.
 
 ---
 
-### Pitfall 7: Roommate Matching Cold Start Problem
+### Pitfall 5: Lucide Icon Barrel Imports Inflate Bundle Size 30-50x
 
-**What goes wrong:** With 3-5 campuses launching, the roommate pool at any given campus is tiny. A student creates a roommate profile and gets zero or one match. The feature feels broken, and students conclude it is useless before the network reaches critical mass.
+**What goes wrong:**
+Developers write `import { Home, Search, Bell, Star, Map, Settings, User, ChevronDown } from "lucide-react"`. This looks tree-shakeable but in practice — depending on Next.js version and bundler config — can import the entire Lucide library (1,300+ icons, ~500KB unminified). Dev server becomes sluggish. Production bundle includes icons that are never rendered.
 
-**Prevention:**
-- Do not launch roommate matching until a campus has a minimum viable pool (target: 50+ active roommate profiles per campus). Use waitlists with "notify me when matching is available at [campus]."
-- Show "X students are looking for roommates at [university]" as social proof even before matching is live.
-- Make the roommate profile creation valuable on its own -- let it feed into the AI chat ("based on your roommate preferences, here are listings that would work for sharing").
-- Consider allowing cross-campus matching for students transferring or choosing between schools.
-- Start with a simple compatibility score based on stated preferences rather than a complex ML model. Explainable matching ("85% compatible: you both prefer quiet, clean, and early sleep schedules") builds more trust than a black-box score.
+**Why it happens:**
+Lucide uses barrel exports (one `index.js` that re-exports all icons). Barrel exports defeat tree-shaking in certain bundler configurations because the static analysis cannot prove the re-exports are side-effect-free. This is documented in Next.js's own blog post on `optimizePackageImports`. In development mode specifically, Next.js resolves barrel files without tree-shaking, causing the dev server to load all icons on every page that imports any icon.
 
-**Detection:** Track profile creation rate and match-click rate per campus. If <20% of profiles ever view a match, the pool is too small.
+**How to avoid:**
+Add `lucide-react` to `optimizePackageImports` in `next.config.ts`:
 
-**Phase mapping:** Roommate Matching phase -- this determines whether to launch the feature per-campus or hold it.
+```ts
+experimental: {
+  optimizePackageImports: ["lucide-react"],
+}
+```
 
-**Confidence:** MEDIUM -- standard two-sided marketplace cold start problem, well-documented in marketplace literature.
+This is the correct fix — it converts barrel imports to precise imports automatically during build, giving clean code without bundle overhead. Do not switch to path-specific imports (`import Home from "lucide-react/dist/esm/icons/home"`) — the `optimizePackageImports` approach is cleaner and maintained. Verify the fix is working by checking bundle analysis (`ANALYZE=true pnpm build`).
 
----
+**Warning signs:**
+- Dev server noticeably slower after adding icons to more components
+- Bundle analyzer shows `lucide-react` as a large chunk
+- First page load in production is >200KB JS for a simple page that imports a few icons
 
-### Pitfall 8: Embedding Quality for Real Estate is Harder Than It Looks
-
-**What goes wrong:** Generic text embeddings do not capture real estate semantics well. "Cozy" means small. "Up and coming neighborhood" means gentrifying. "Character" means old. Students and listing descriptions use different vocabularies for the same concepts. The semantic search returns results that are textually similar but not actually what the student wanted.
-
-**Prevention:**
-- Do not embed raw listing descriptions verbatim. Pre-process listings into a structured embedding input that includes: explicit attributes (sqft, amenities), computed attributes (distance to campus, transit score), and a normalized qualitative summary generated by Gemini from the raw description.
-- Use Gemini to generate a "student-relevant summary" of each listing that translates real estate jargon into student language, then embed that summary.
-- Build evaluation sets: 50-100 test queries with expected top-5 results, manually curated. Run these against your embedding search and measure recall. This is your quality gate for the search feature.
-- Consider fine-tuning or using domain-adapted embeddings if generic models underperform, but start with the evaluation set first to quantify the gap.
-
-**Detection:** Manual review of search results for qualitative queries. If "quiet studio near campus" returns a noisy apartment complex because the listing description mentions "quiet" once, the embedding is picking up keyword overlap, not semantic meaning.
-
-**Phase mapping:** Semantic Search phase -- embedding pipeline design.
-
-**Confidence:** MEDIUM -- NoBroker Engineering's neural property embeddings work confirms this challenge; Zillow's tech blog documents similar issues with real estate data complexity.
+**Phase to address:**
+Phase 1 (Design System Foundation) — add `optimizePackageImports` config before any pages use icons.
 
 ---
 
-## Minor Pitfalls
+### Pitfall 6: Agent Mission State Becomes Inconsistent Between Polling and Optimistic Updates
 
-### Pitfall 9: RLS Policy Gaps When Adding New Tables
+**What goes wrong:**
+The AI Concierge shows a mission as `running` with an animated spinner. The user steers the mission via the steering bar. The optimistic update immediately shows `steering` in the UI. Meanwhile the poll interval fires, fetches the old `running` state from the DB, and overwrites the optimistic state. The spinner flickers between states, or worse: the steering command is visually acknowledged but the UI reverts to `running`, leaving the user unsure if their input was received.
 
-**What goes wrong:** New tables for saved listings, alerts, and roommate matches get created without RLS policies, or with policies that are too permissive. Students can see other students' saved listings, alert preferences, or (worse) roommate profile data they should not have access to.
+**Why it happens:**
+Polling and optimistic updates operate on the same state slice without coordination. A `setInterval`-based poll runs at a fixed cadence and overwrites whatever is in local state with the server response. The optimistic update writes to local state but does not pause the poller. This is the classic stale-server-response-overwrites-fresh-optimistic-state race condition.
 
-**Prevention:**
-- Every migration that creates a table must include `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` and at least a default-deny policy. The existing schema follows this pattern -- maintain it.
-- Saved listings: `user_id = auth.uid()` for all operations.
-- Roommate profiles: readable by other students at the same campus (for matching), but contact info / detailed preferences only visible after mutual match.
-- Write a checklist for migration review: RLS enabled? Policies for SELECT/INSERT/UPDATE/DELETE? Service role bypass documented?
+**How to avoid:**
+Use TanStack Query (`@tanstack/react-query`) as the mission state layer. TanStack Query's `useMutation` + `onMutate` for optimistic updates integrates directly with `useQuery` polling: mutations can temporarily disable refetch or set a flag that `onSuccess` uses to decide whether to overwrite. The pattern: (1) fire steering command, (2) optimistically set local mission state to `steering`, (3) pause the refetch interval for 3 seconds, (4) resume polling. This gives the server time to acknowledge the steering before the poller overwrites the state. Never use raw `setInterval` for mission status polling — use TanStack Query's `refetchInterval` option which respects mutation lifecycle.
 
-**Detection:** Supabase dashboard shows tables with RLS disabled. Check after every migration.
+**Warning signs:**
+- Mission status spinner flickering between two states
+- Console logs showing a poll response with an older `updated_at` than the local state
+- Steering bar button stays visually active but mission status resets to previous state
+- useEffect with setInterval in the same component as useState for mission status
 
-**Phase mapping:** All phases -- every schema change.
-
-**Confidence:** HIGH -- directly observable in the existing codebase pattern.
-
----
-
-### Pitfall 10: Campus-Scoped Multi-Tenancy Breaks with Cross-Campus Features
-
-**What goes wrong:** The existing RLS policies scope everything to `campus_id` from the user's profile. Features like "compare listings across campuses" (for students choosing between schools) or cross-campus roommate matching break the tenancy model.
-
-**Prevention:**
-- Do not add cross-campus features in this milestone. The current model is clean -- keep it.
-- If cross-campus features are needed later, add them as explicit opt-in queries that bypass the campus RLS using service-role calls with application-level authorization, not by loosening RLS policies.
-- Document the campus-scoping assumption clearly so future developers do not accidentally create cross-campus data leaks.
-
-**Detection:** Any feature request that says "across campuses" or "compare schools" is a flag to review the tenancy model impact.
-
-**Phase mapping:** Out of scope for this milestone, but document the constraint.
-
-**Confidence:** HIGH -- directly observable in schema design.
+**Phase to address:**
+Phase N (AI Concierge — Mission Board) — must be designed with TanStack Query from the start.
 
 ---
 
-### Pitfall 11: Gemini API Cost Escalation with Embedding Generation
+### Pitfall 7: HITL Draft Approval Has Three Failure Modes That Cause Silent Data Loss
 
-**What goes wrong:** Generating embeddings for every listing on every scrape cycle, plus per-query embeddings for search, plus PageIndex tree generation LLM calls adds up. With 5 campuses, 20,000 listings, daily scrapes, and hundreds of student queries, Gemini API costs grow faster than expected.
+**What goes wrong:**
 
-**Prevention:**
-- Cache embeddings. Only regenerate when listing content actually changes (compare content hash, not just `last_seen_at`).
-- Use `text-embedding-004` for embeddings (cheap) and `gemini-2.5-flash` for generation (also cheap). Do not use expensive models for embeddings.
-- Set a per-campus, per-day API budget cap. Alert at 80% of budget.
-- Batch embedding requests rather than one-at-a-time.
-- The PageIndex tree rebuild does not need to happen on every scrape -- only when listing composition changes materially (>10% new/removed listings).
+1. **Stale draft approved:** User receives a draft from the AI agent (e.g. a tour request email). The user leaves the page and returns 20 minutes later. Meanwhile the agent produced a revised draft. The user approves the stale first draft. The system executes based on stale parameters (wrong time slot, wrong listing).
 
-**Detection:** Track API cost per campus per day. Set alerts for anomalous spikes.
+2. **Double submit:** User clicks "Approve" — the server is slow — user clicks again. Two approval events fire. The action (e.g. tour scheduling) executes twice, creating duplicate DB records.
 
-**Phase mapping:** Semantic Search phase (embedding costs) and Multi-source Scraping phase (increased scrape volume = more embeddings).
+3. **Ignored draft blocks the mission:** The agent is waiting for HITL approval. The user never responds. The mission sits at `awaiting_approval` forever, consuming a slot in the mission board without any visible timeout or expiry.
 
-**Confidence:** MEDIUM -- cost depends on actual query volume and scrape frequency, but the pattern is well-known.
+**Why it happens:**
+HITL draft approval is a multi-step async workflow in a mostly-synchronous UI paradigm. Draft versioning is rarely implemented because it adds DB schema complexity. Submit buttons are not disabled after the first click because the developer forgot to track the submission-in-flight state. Mission timeouts are not designed upfront because "we'll add that later."
+
+**How to avoid:**
+
+- **Stale draft:** Store `draft_version` (auto-incrementing integer) on the draft record. The approval payload must include the `draft_version` it was approved against. The server rejects approvals where `draft_version` does not match the current record — return a 409 with "A newer draft is available; please review it." Show the draft's `created_at` in the UI ("Draft generated 3 minutes ago").
+
+- **Double submit:** Disable the Approve button immediately on first click (set `isSubmitting: true`). Use `useTransition` (React 19) or a `submitting` boolean tracked in component state — not just a network request flag. Add idempotency key to the approval API call (UUID stored in component state, generated once per draft render).
+
+- **Stuck mission:** Add `expires_at` to draft records: 24 hours for tour requests, 4 hours for time-sensitive actions. Run a Supabase Edge Function or Postgres cron job (`pg_cron`) that transitions `awaiting_approval` missions past their `expires_at` to `expired`. Show a countdown timer in the HITL card: "Auto-expires in 22 hours."
+
+**Warning signs:**
+- Draft approval DB table has no `version` column
+- Approve button does not visually change state after click
+- Mission board shows missions in `awaiting_approval` with `created_at` days ago
+- No `expires_at` column in the drafts/missions table
+
+**Phase to address:**
+Phase N (AI Concierge — HITL Draft Approval) — schema design must include versioning and expiry before any UI is built.
 
 ---
 
-## Phase-Specific Warnings
+### Pitfall 8: Steering Bar Intent Parsing Returns No-Op on Ambiguous Commands
 
-| Phase Topic | Likely Pitfall | Mitigation |
-|-------------|---------------|------------|
-| Semantic Search | PageIndex alone cannot do similarity search; need pgvector (#1) | Add pgvector + embeddings, keep PageIndex for chat context only |
-| Semantic Search | Embedding quality for real estate jargon (#8) | Pre-process listings into student-friendly summaries before embedding |
-| Semantic Search | pgvector memory limits on Supabase tiers (#5) | Use 768-dim embeddings, monitor query latency, configure HNSW properly |
-| Saved Listings/Alerts | Notification spam from noisy data changes (#6) | Define meaningful change thresholds, batch non-critical alerts |
-| Saved Listings/Alerts | RLS gaps on new tables (#9) | Follow existing RLS pattern, review every migration |
-| Roommate Matching | Cold start with small campus pools (#7) | Waitlist until 50+ profiles, make profiles useful for search |
-| Roommate Matching | Fair Housing discrimination via matching proxies (#3) | Behavioral preferences only, no identity or neighborhood proxies |
-| Multi-source Scraping | Single-source fragility and legal risk (#4) | Build multi-source from day one, add scraper health monitoring |
-| Multi-source Scraping | Stale listing data kills trust (#2) | Staleness badges, crowdsourced flagging, targeted re-scrapes for saved listings |
-| All Phases | API cost escalation (#11) | Cache embeddings, batch requests, set budget caps |
-| All Phases | Cross-campus feature requests break tenancy model (#10) | Defer cross-campus features, document the constraint |
+**What goes wrong:**
+User types "actually, make it cheaper" into the steering bar. The Gemini call returns an intent it cannot classify — is this "refine search criteria" or "restart mission with lower budget"? The system either: (a) silently does nothing (worst), (b) throws an unhandled error, or (c) picks an arbitrary interpretation. The user sees no feedback and repeats the command, triggering duplicate mission restarts.
+
+**Why it happens:**
+Natural language commands to a steering bar have infinite surface area. Developers build the happy path (clear intent, successful classification) and do not design the error path. Ambiguous commands are treated as unexpected inputs rather than first-class cases requiring feedback.
+
+**How to avoid:**
+
+- Define a fixed intent taxonomy for the steering bar: `{ refine_criteria, change_budget, restart_mission, cancel_mission, clarify_question }`. Any classification outside this taxonomy is `unknown_intent`.
+- For `unknown_intent`: do not silently no-op. Return a clarification prompt inline: "I'm not sure what you'd like me to do — did you mean [option A] or [option B]?" Display this in the steering bar context, not as a toast.
+- For ambiguous commands that could map to multiple intents: show a quick-select ("Did you mean: Refine price range / Start over with new criteria?").
+- Log all steering commands with their classified intents. Review the `unknown_intent` logs weekly during early usage to extend the taxonomy.
+- Cap steering actions per mission at a reasonable limit (e.g. 5 steers) to prevent infinite refinement loops.
+
+**Warning signs:**
+- Steering bar has no visual feedback state (no loading indicator, no response display)
+- No `unknown_intent` handler in the intent classification logic
+- Mission restarts accumulate in the DB (same user, same mission type, started within seconds of each other)
+
+**Phase to address:**
+Phase N (AI Concierge — Steering Bar) — intent taxonomy must be defined before the steering bar UI is built.
+
+---
+
+### Pitfall 9: Replacing Full-Page Chat With Floating Panel Loses Context Restoration
+
+**What goes wrong:**
+The current CribAI chat is a full-page route (`/chat`). The redesign moves it to a floating panel overlaid on the Explore page. Users navigate from the Explore page to a Listing Detail page. The floating panel either: (a) disappears because the panel state is not preserved across route navigations, or (b) resets its conversation because the session reference is lost. Users who were mid-conversation with CribAI lose their context when they click a listing.
+
+**Why it happens:**
+Floating panels that persist across route navigations require state to live above the router — in a layout component or a global state store. React state local to a page component is destroyed on route change. The existing chat already uses DB-backed persistence (`conversations` table) for logged-in users and sessionStorage for guests. But floating panels need to additionally track which conversation is "active" in the panel, the scroll position, and whether the panel is open/minimised — state that is UI-level, not DB-level.
+
+**How to avoid:**
+
+- Move the floating chat panel into `apps/web/app/layout.tsx` or a persistent shell layout component that is never unmounted during navigation. The panel renders at the layout level, not the page level.
+- Use Zustand (or React Context at the layout level) to store: `{ isOpen, conversationId, panelState: 'full' | 'minimised' }`. This state persists across route changes.
+- When a user navigates to a listing detail from within a CribAI conversation, pass the `listing_id` as context to the active conversation rather than opening a new one.
+- Keep the full-page `/chat` route for mobile (small viewports where a floating panel is unusable) and redirect to it when viewport < `lg`.
+- Test the panel with router navigation explicitly in E2E: open panel, start chat, navigate to another page, verify panel is still open with conversation intact.
+
+**Warning signs:**
+- Floating panel component is defined inside a page file rather than a layout file
+- No global state store for panel open/closed state
+- Panel component is unmounted and remounted on route change (visible as animation playing again on every navigation)
+
+**Phase to address:**
+Phase N (Explore Page — Split View + Floating AI Panel) — layout architecture must be decided before panel component is built.
+
+---
+
+### Pitfall 10: Tailwind v4 Removes `tailwind.config.js` — Existing Build Tooling May Assume It Exists
+
+**What goes wrong:**
+After migrating to Tailwind v4's CSS-first configuration, several things break silently:
+- `tailwindcss-animate` (used by shadcn v3 components) is removed — components using it produce broken animations until `tw-animate-css` is installed as replacement.
+- Storybook, Vitest with CSS processing, or any tool that reads `tailwind.config.js` for configuration breaks because the file no longer exists.
+- Arbitrary value syntax changed: some v3 arbitrary classes (`bg-[var(--my-color)]`) may need adjustment for v4 compatibility.
+- The `@tailwind base; @tailwind components; @tailwind utilities;` directives in `globals.css` must be replaced with `@import "tailwindcss"` — the old directives produce no output in v4.
+
+**Why it happens:**
+Tailwind v4 is a major architectural shift, not a minor version bump. The automated codemod (`npx @tailwindcss/upgrade`) handles ~90% of cases but misses: custom PostCSS plugins that expect the old config shape, third-party libraries that peer-depend on Tailwind v3, and arbitrary value patterns in dynamically constructed class names (which the AST parser cannot safely transform).
+
+**How to avoid:**
+- Run `npx @tailwindcss/upgrade` on a branch and thoroughly review the diff before merging.
+- Replace `tailwindcss-animate` with `tw-animate-css` and add `@import "tw-animate-css"` to `globals.css`.
+- Update PostCSS config: remove `tailwindcss` plugin, add `@tailwindcss/postcss`.
+- Search the codebase for `tailwind.config` imports in test setup files (Vitest, Jest, Storybook) and update them.
+- After migration, run `pnpm build` and `pnpm test` to verify both the build pipeline and test runner work correctly.
+
+**Warning signs:**
+- `globals.css` still contains `@tailwind base` after migration
+- `tailwindcss-animate` still in `package.json` (should be replaced by `tw-animate-css`)
+- `postcss.config.js` still references `tailwindcss` plugin (should be `@tailwindcss/postcss`)
+- Any `require('tailwind.config')` or `import tailwindConfig from './tailwind.config'` in non-config files
+
+**Phase to address:**
+Phase 1 (Design System Foundation) — migration verification must include build and test pipeline checks.
+
+---
+
+## Technical Debt Patterns
+
+Shortcuts that seem reasonable but create long-term problems.
+
+| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
+|----------|-------------------|----------------|-----------------|
+| Adding `"use client"` to page-level files to fix framer-motion errors | Fast fix for SSR errors | All data fetching on that page moves to client; RSC benefits lost | Never — always extract animation to wrapper component |
+| Keeping both old CSS variables and new shadcn tokens in parallel | Avoids touching working components | Two token systems diverge; dark mode inconsistent across pages | Only as a 1-2 day interim state during migration, never permanent |
+| Inline `setTimeout` to "pause" between mission state transitions | Quick visual debounce | Race conditions reappear under network latency or slow machines | Never — use TanStack Query mutation lifecycle instead |
+| Using raw `fetch` + `useState` for mission polling instead of TanStack Query | Avoids adding a dependency | Manual cache invalidation, no deduplication, stale-state bugs multiply | Only acceptable for one-off status checks, not recurring polling |
+| Skipping `draft_version` field on approval drafts | Saves one DB column | Stale approval bugs are nearly impossible to reproduce and fix | Never — draft versioning costs one integer column and prevents a class of silent bugs |
+| Importing full icon library without `optimizePackageImports` | Zero config | 500KB+ added to every page bundle, slow dev server | Never — the config fix is one line |
+
+---
+
+## Integration Gotchas
+
+Common mistakes when connecting libraries to the existing CampusNest stack.
+
+| Integration | Common Mistake | Correct Approach |
+|-------------|----------------|------------------|
+| shadcn/ui + Tailwind v4 | Running `npx shadcn@latest add` before Tailwind v4 migration is complete | Complete Tailwind v4 migration first; shadcn v4 components use `@theme` tokens that do not exist in v3 config |
+| framer-motion + Next.js 15 | Wrapping entire page in `motion.div` with `"use client"` | Create `MotionWrapper` client components that wrap only the animated element; keep pages as Server Components |
+| `next/font/google` + Tailwind v4 | Applying font CSS variable as a class on `<body>` but not mapping it in `@theme` | Map `--font-space-grotesk` into `@theme { --font-display: var(--font-space-grotesk); }` so Tailwind utility classes (`font-display`) work |
+| Lucide + Next.js 15 | Missing `optimizePackageImports` in `next.config.ts` | Add `experimental.optimizePackageImports: ["lucide-react"]` on day one |
+| TanStack Query + Supabase RLS | Queries hitting `anon` key for authenticated missions | Ensure Supabase client in `queryFn` uses the session-aware client from `packages/supabase/server.ts`, not the browser client |
+| framer-motion `AnimatePresence` + Next.js routing | Exit animations not running on page navigation | Wrap the animated content at the layout level; page components unmount before exit animation can complete |
+
+---
+
+## Performance Traps
+
+Patterns that work in development but cause problems in production.
+
+| Trap | Symptoms | Prevention | When It Breaks |
+|------|----------|------------|----------------|
+| framer-motion `layout` prop on large lists | List items reflow slowly when count changes; jank on add/remove | Only use `layout` prop on elements that genuinely need coordinated layout animation; avoid on list containers with 50+ items | Lists with >20 animated items |
+| `backdrop-filter: blur()` on floating panel | Frame rate drops on mid-range devices; panel feels laggy | Use `will-change: transform` on the panel; test blur on Lighthouse mobile simulation; consider removing blur for accessibility (`prefers-reduced-motion`) | Any device without GPU compositing support |
+| Mission polling at 2-second intervals for all active missions | Supabase connection pool exhausted under concurrent users; DB CPU spikes | Use Supabase Realtime channel subscription for mission status updates instead of polling; fall back to polling at 5s intervals only when Realtime is unavailable | > 50 concurrent users with active missions |
+| Loading all mission history on page mount | AI Concierge page slow initial load; unnecessary DB queries for archived missions | Paginate: load last 10 missions on mount, lazy-load older history | Mission history grows beyond 50 entries per user |
+| Applying framer-motion `whileHover` and `whileTap` to every interactive element | Subtle but cumulative: 50+ animated elements cause GC pauses | Reserve motion variants for primary CTAs and meaningful state transitions; use CSS `:hover` transitions for minor hover states | Pages with dense interactive lists |
+
+---
+
+## Security Mistakes
+
+Domain-specific to the AI Concierge and design system migration.
+
+| Mistake | Risk | Prevention |
+|---------|------|------------|
+| Steering bar sends raw user input as Gemini prompt without sanitisation | Prompt injection: user could craft input that changes the agent's mission scope or leaks system prompt | Classify intent client-side first; send only the structured intent + parameters to the server, never raw strings |
+| HITL approval endpoint lacks idempotency protection | Duplicate tour requests or repeated AI actions from double-submit | Add idempotency key (UUID) to approval requests; DB unique constraint on `(mission_id, draft_version, approved_by)` |
+| Mission data accessible to other users via direct API call | User can poll another student's mission status if the API only checks `mission_id` without scoping to `auth.uid()` | RLS policy on `missions` table: `user_id = auth.uid()` for all operations; service-role calls explicitly log access reason |
+| AI-drafted messages displayed verbatim without safety filter | Edge case: AI draft for a tour email contains PII or inappropriate content | Run Gemini safety settings at `BLOCK_MEDIUM_AND_ABOVE` for all HITL draft generation; show drafts in read-only preview before approval |
+
+---
+
+## UX Pitfalls
+
+Specific to the chat → floating panel transition and AI mission UX.
+
+| Pitfall | User Impact | Better Approach |
+|---------|-------------|-----------------|
+| Floating chat panel opens at full height by default | Obscures the listings view; feels intrusive; user immediately closes it | Default to minimised state (pill/tab at bottom-right); user explicitly expands to 60% height; remember preference in localStorage |
+| Mission status only shows "Running..." with no progress detail | User cannot tell if the agent is stuck or making progress; abandons the mission | Show the last agent action as a sub-status: "Running — searching listings near Engineering Hall" — update every tool call |
+| HITL draft card appears in the feed without visual priority | User misses the approval request; mission expires; user confused about why mission did not complete | Mark HITL cards with a distinct visual treatment (border colour, badge, gentle pulse animation) that differentiates them from informational cards |
+| Steering bar input clears after submission | User cannot see what they submitted; hard to iterate on steering commands | Keep the submitted text in the input for 2 seconds after submission (fades to placeholder), or maintain a collapsible history of sent steers |
+| No way to cancel an in-flight mission | AI is doing something the user changed their mind about; no escape | Every mission card shows a Cancel button that transitions the mission to `cancelled` status and stops all agent processing |
+
+---
+
+## "Looks Done But Isn't" Checklist
+
+Things that appear complete but are missing critical pieces.
+
+- [ ] **Font loading:** `next/font/google` configured for Space Grotesk + DM Sans (both on Google Fonts), font CSS variable mapped in Tailwind `@theme`, `display: 'swap'` set, no FOUT visible on throttled-network test
+- [ ] **Shadcn token merge:** Single `:root` block in `globals.css`, no conflicting custom property names, dark mode verified on every redesigned page, OKLCH values match Figma design
+- [ ] **framer-motion boundary:** Zero `"use client"` in `page.tsx` or `layout.tsx` files added due to animation needs, `initial={false}` on AnimatePresence components, no hydration warnings in console
+- [ ] **Lucide bundle:** `optimizePackageImports: ["lucide-react"]` present in `next.config.ts`, bundle analyser run confirming no icon library bloat
+- [ ] **Mission HITL schema:** `draft_version` column on drafts table, `expires_at` column with cron cleanup, unique constraint on approval preventing double-submit, RLS policy scoping missions to `auth.uid()`
+- [ ] **Floating panel persistence:** Panel renders in root layout (not page), `isOpen` + `conversationId` state lives in global store, panel survives Next.js route navigation without unmounting
+- [ ] **Steering bar resilience:** `unknown_intent` handler returns visible clarification UI, intent classification logs stored for review, duplicate mission creation prevented by deduplication check
+- [ ] **Tailwind v4 migration clean:** No `tailwind.config.js` remaining, `@tailwindcss/postcss` in PostCSS config, `tw-animate-css` replaces `tailwindcss-animate`, `@import "tailwindcss"` at top of `globals.css`
+
+---
+
+## Recovery Strategies
+
+When pitfalls occur despite prevention, how to recover.
+
+| Pitfall | Recovery Cost | Recovery Steps |
+|---------|---------------|----------------|
+| Big-bang migration breaks multiple pages | HIGH | Feature-flag broken pages off; revert to page-by-page migration; use git worktree to keep old pages live |
+| CSS token naming collision causes visual regressions | MEDIUM | Audit all custom property names with grep; rename conflicting variables systematically; run visual regression tests page-by-page |
+| framer-motion "use client" propagation breaks RSC data fetching | MEDIUM | Extract animated elements to separate client component files; restore `"use client"` boundaries; re-test data fetching on affected pages |
+| Font FOUT visible in production after deploy | LOW | Verify `display: 'swap'` on `next/font/google` config for above-the-fold font variants; confirm build preloads font files; redeploy |
+| Mission polling race condition causes state flicker | MEDIUM | Migrate polling to TanStack Query `refetchInterval`; add `staleTime` to prevent immediate overwrite after mutation |
+| Stale HITL draft approved by user | HIGH | Add `draft_version` to schema, migration adds column with default, approval API validates version, display "newer draft available" error in UI |
+| Double-submit creates duplicate tour requests | MEDIUM | Add `idempotency_key` unique constraint to tours table; run deduplication script to clean existing duplicates; disable submit button on click |
+
+---
+
+## Pitfall-to-Phase Mapping
+
+How roadmap phases should address these pitfalls.
+
+| Pitfall | Prevention Phase | Verification |
+|---------|------------------|--------------|
+| Big-bang migration breaks working features (#1) | Phase 1: Design System Foundation | All existing pages still pass E2E tests after Phase 1 |
+| Shadcn CSS variable name collisions (#2) | Phase 1: Design System Foundation | Single `:root` block in globals.css; dark mode verified on old pages |
+| framer-motion client component boundary (#3) | Phase 2: Marketing Landing Page (first use) | No `"use client"` in page.tsx files; no hydration warnings |
+| Font loading misconfiguration (#4) | Phase 1: Design System Foundation | `next/font/google` configured for Space Grotesk + DM Sans; no FOUT on throttled network |
+| Lucide barrel import bundle bloat (#5) | Phase 1: Design System Foundation | `optimizePackageImports` in next.config.ts verified |
+| Mission state polling race condition (#6) | AI Concierge Mission Board phase | TanStack Query used for all mission state; no setInterval in components |
+| HITL draft stale/double-submit/timeout (#7) | AI Concierge HITL phase (schema first) | draft_version column present; submit button disables on click; expires_at enforced by cron |
+| Steering bar ambiguous intent (#8) | AI Concierge Steering Bar phase | unknown_intent handler returns visible UI; tested with ambiguous inputs |
+| Floating panel loses context on route change (#9) | Explore Page Split View phase | E2E test: open panel, navigate, verify panel state persists |
+| Tailwind v4 build tooling breaks (#10) | Phase 1: Design System Foundation | `pnpm build` and `pnpm test` both pass after migration |
+
+---
 
 ## Sources
 
-- [Supabase pgvector documentation](https://supabase.com/docs/guides/database/extensions/pgvector)
-- [Supabase semantic search guide](https://supabase.com/docs/guides/ai/semantic-search)
-- [Supabase HNSW index troubleshooting](https://supabase.com/docs/guides/troubleshooting/increase-vector-lookup-speeds-by-applying-an-hsnw-index-ohLHUM)
-- [Optimizing Vector Search at Scale: pgvector & Supabase](https://medium.com/@dikhyantkrishnadalai/optimizing-vector-search-at-scale-lessons-from-pgvector-supabase-performance-tuning-ce4ada4ba2ed)
-- [PageIndex: Promising but not production-ready](https://medium.com/@hr_77146/pageindex-a-promising-paradigm-shift-in-rag-architecture-that-isnt-quite-ready-for-production-9a3ce87dc1db)
-- [PageIndex will not kill RAG](https://medium.com/@aldendorosario/no-pageindex-will-not-kill-rag-but-it-is-indeed-excellent-in-some-cases-11bc67473145)
-- [NoBroker neural property embeddings](https://medium.com/nobroker-engineering/finding-your-next-home-with-neural-property-embeddings-c42d0bea9011)
-- [Zillow: AI complexities and pitfalls in real estate data](https://www.zillow.com/tech/using-ai-to-understand-the-complexities-and-pitfalls-of-real-estate-data/)
-- [Zillow home embeddings for recommendations](https://www.zillow.com/tech/embedding-similar-home-recommendation/)
-- [HUD Fair Housing Act guidance on AI](https://archives.hud.gov/news/2024/pr24-098.cfm)
-- [2025 Fair Housing Trends Report](https://nationalfairhousing.org/new-fair-housing-trends-report-finds-pervasive-discrimination-as-federal-government-rolls-back-civil-rights/)
-- [Algorithmic bias in rental housing](https://www.dailyjournal.com/article/387067-how-algorithmic-bias-keeps-renters-out-and-puts-fair-housing-to-the-test)
-- [Web scraping legal best practices 2026](https://www.scraperapi.com/web-scraping/is-web-scraping-legal/)
-- [Data freshness in web scraping](https://shoppingscraper.com/blog/how-to-ensure-data-freshness-in-web-scraping)
-- [Supabase Realtime documentation](https://supabase.com/docs/guides/realtime)
-- [Diggz improved roommate matching algorithm](https://blog.diggz.co/the-new-and-improved-matching-algorithm/)
+- [shadcn/ui Tailwind v4 official docs](https://ui.shadcn.com/docs/tailwind-v4)
+- [Tailwind CSS v4 upgrade guide](https://tailwindcss.com/docs/upgrade-guide)
+- [Migrating Tailwind v3 to v4 with shadcn/ui — ZippyStarter](https://zippystarter.com/blog/guides/migrating-tailwind3-to-tailwind4-with-shadcn)
+- [Theming shadcn with Tailwind v4 and CSS variables](https://medium.com/@joseph.goins/theming-shadcn-with-tailwind-v4-and-css-variables-d602f6b3c258)
+- [framer-motion with Next.js Server Components](https://www.hemantasundaray.com/blog/use-framer-motion-with-nextjs-server-components)
+- [framer-motion + Next.js 14 "use client" workaround](https://medium.com/@dolce-emmy/resolving-framer-motion-compatibility-in-next-js-14-the-use-client-workaround-1ec82e5a0c75)
+- [framer-motion App Router shared layout animation GitHub issue](https://github.com/framer/motion/issues/1850)
+- [How Next.js optimizes package imports (barrel files)](https://vercel.com/blog/how-we-optimized-package-imports-in-next-js)
+- [Lucide icon bundle size GitHub issue](https://github.com/lucide-icons/lucide/issues/1733)
+- [Tree shaking lucide-react with Vite](https://javascript.plainenglish.io/tree-shaking-lucide-react-icons-with-vite-and-vitest-57bf4cfe6032)
+- [Next.js font optimization — official docs](https://nextjs.org/docs/app/getting-started/fonts)
+- [Next.js custom self-hosted fonts — Vercel blog](https://vercel.com/blog/nextjs-next-font)
+- [TanStack Query optimistic updates guide](https://tanstack.com/query/latest/docs/framework/react/guides/optimistic-updates)
+- [React stale closure in hooks — Dmitri Pavlutin](https://dmitripavlutin.com/react-hooks-stale-closures/)
+- [Implementing HITL in AI workflows](https://dev.to/brains_behind_bots/implementing-human-in-the-loop-hitl-in-ai-workflows-a-practical-guide-3b6b)
+- [Incremental vs big-bang migration strategy](https://medium.com/@navidbarsalari/%EF%B8%8F-incremental-vs-big-bang-migration-choosing-the-right-path-for-your-product-498521839a4d)
+- [framer-motion layout animation performance — official docs](https://www.framer.com/motion/layout-animations/)
+- [framer-motion AnimatePresence + layout animation GitHub issue](https://github.com/framer/motion/issues/1983)
+
+---
+
+*Pitfalls research for: CampusNest v1.1 — design system migration + AI Concierge addition*
+*Researched: 2026-03-10*
