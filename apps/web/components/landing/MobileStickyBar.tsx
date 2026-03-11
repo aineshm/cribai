@@ -36,6 +36,7 @@ export function MobileStickyBar() {
           initial="initial"
           animate="animate"
           exit="exit"
+          data-testid="mobile-sticky-bar"
           className="fixed bottom-0 inset-x-0 z-50 border-t border-[var(--surface-200)] bg-white/95 backdrop-blur-sm p-4 sm:hidden"
         >
           <Link

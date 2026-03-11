@@ -2,101 +2,104 @@ import { test, expect } from '@playwright/test';
 import { HomePage } from './pages/HomePage';
 
 /**
- * E2E tests — Homepage (/)
+ * E2E tests — Landing Page (/) — Phase 11 redesign
  *
- * Journey covered:
- *   1. Homepage loads and renders the CampusNest heading + subtitle
- *   2. Campus selector cards (uw-madison, ut-austin) are visible
- *   3. "Sign in" link navigates to /login
- *
- * Notes:
- *   - Campus cards are populated from the database.  If Supabase credentials
- *     are not present at test time the page renders "No campuses available yet."
- *     The test asserts one of two valid states so it never produces a false
- *     negative in CI without a live DB, while still validating the happy path
- *     when the DB IS reachable.
+ * UAT criteria:
+ *   1. Unauthenticated visitor sees marketing landing page (hero, value prop, CTA)
+ *   2. Social proof, feature cards, How It Works, footer CTA visible on desktop
+ *   3. Mobile sticky CTA pinned to bottom on scroll
  */
 
-test.describe('Homepage', () => {
-  test('renders heading and subtitle', async ({ page }) => {
+test.describe('Landing Page', () => {
+  test('renders hero with heading, subtitle, and Get Started CTA', async ({ page }) => {
     const home = new HomePage(page);
     await home.goto();
-
     await home.assertLoaded();
+    await expect(home.getStartedCta).toBeVisible();
   });
 
-  test('shows campus selector cards or empty-state message', async ({ page }) => {
+  test('nav shows CampusNest brand and Sign In link', async ({ page }) => {
     const home = new HomePage(page);
     await home.goto();
-
-    const uwCard = home.campusCard('uw-madison');
-    const utCard = home.campusCard('ut-austin');
-    const noData = home.noCampusesMessage;
-
-    const anyCardVisible =
-      (await uwCard.isVisible()) ||
-      (await utCard.isVisible()) ||
-      (await noData.isVisible());
-
-    expect(
-      anyCardVisible,
-      'Expected either campus cards or the empty-state message to be visible'
-    ).toBe(true);
-  });
-
-  test('campus card for uw-madison navigates to listings page', async ({ page }) => {
-    const home = new HomePage(page);
-    await home.goto();
-
-    const card = home.campusCard('uw-madison');
-
-    // Only run navigation sub-assertion if the card is present (DB reachable)
-    const isVisible = await card.isVisible();
-    if (!isVisible) {
-      test.skip(true, 'uw-madison campus card not rendered — DB may be unavailable');
-      return;
-    }
-
-    await home.clickCampusCard('uw-madison');
-
-    await page.waitForURL('/uw-madison/listings');
-    await expect(page).toHaveURL('/uw-madison/listings');
-  });
-
-  test('campus card for ut-austin navigates to listings page', async ({ page }) => {
-    const home = new HomePage(page);
-    await home.goto();
-
-    const card = home.campusCard('ut-austin');
-
-    const isVisible = await card.isVisible();
-    if (!isVisible) {
-      test.skip(true, 'ut-austin campus card not rendered — DB may be unavailable');
-      return;
-    }
-
-    await home.clickCampusCard('ut-austin');
-
-    await page.waitForURL('/ut-austin/listings');
-    await expect(page).toHaveURL('/ut-austin/listings');
-  });
-
-  test('sign in link navigates to /login', async ({ page }) => {
-    const home = new HomePage(page);
-    await home.goto();
-
+    await expect(home.brandText).toBeVisible();
     await expect(home.signInLink).toBeVisible();
-    await home.clickSignIn();
+  });
+
+  test('all landing page sections visible on desktop', async ({ page }) => {
+    const home = new HomePage(page);
+    await home.goto();
+
+    // Scroll to trigger lazy animations
+    await home.footerCtaHeading.scrollIntoViewIfNeeded();
+    await home.assertAllSections();
+  });
+
+  test('How It Works section has 3 steps', async ({ page }) => {
+    const home = new HomePage(page);
+    await home.goto();
+
+    await home.howItWorksHeading.scrollIntoViewIfNeeded();
+    await expect(home.howItWorksSteps).toHaveCount(3);
+  });
+
+  test('Get Started CTA navigates to /login', async ({ page }) => {
+    const home = new HomePage(page);
+    await home.goto();
+
+    // Use direct navigation via href check + click with extended timeout
+    await expect(home.getStartedCta).toHaveAttribute('href', '/login');
+    await home.getStartedCta.click();
+    await page.waitForURL(/\/login/, { timeout: 15000 });
+    await expect(page).toHaveURL(/\/login/);
+  });
+
+  test('Sign In nav link navigates to /login', async ({ page }) => {
+    const home = new HomePage(page);
+    await home.goto();
+
+    await expect(home.signInLink).toHaveAttribute('href', '/login');
+    await home.signInLink.click();
+    await page.waitForURL(/\/login/, { timeout: 15000 });
+    await expect(page).toHaveURL(/\/login/);
+  });
+
+  test('footer CTA Get Started link navigates to /login', async ({ page }) => {
+    const home = new HomePage(page);
+    await home.goto();
+
+    await home.footerCtaButton.scrollIntoViewIfNeeded();
+    await home.footerCtaButton.click();
 
     await page.waitForURL('/login');
     await expect(page).toHaveURL('/login');
   });
+});
 
-  test('has correct page title or meta', async ({ page }) => {
+test.describe('Landing Page — Mobile', () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  test('mobile sticky CTA appears after scrolling past hero', async ({ page }) => {
     const home = new HomePage(page);
     await home.goto();
 
-    // The heading must be present — fundamental load check
-    await expect(home.heading).toBeVisible();
+    // Scroll well past the hero section to trigger IntersectionObserver
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+
+    // Wait for the sticky bar to appear via assertion retry (no hardcoded timeout)
+    const stickyLink = page.getByRole('link', { name: 'Get Started Free' }).last();
+    await expect(stickyLink).toBeVisible({ timeout: 5000 });
+  });
+
+  test('mobile sticky CTA links to /login', async ({ page }) => {
+    const home = new HomePage(page);
+    await home.goto();
+
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+
+    // There are multiple "Get Started Free" links; the sticky bar one is last in DOM
+    const allGetStarted = page.getByRole('link', { name: 'Get Started Free' });
+    const lastLink = allGetStarted.last();
+    await expect(lastLink).toBeVisible({ timeout: 5000 });
+    await expect(lastLink).toHaveAttribute('href', '/login');
   });
 });
