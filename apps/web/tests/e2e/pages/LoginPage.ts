@@ -1,41 +1,44 @@
 import { type Page, type Locator, expect } from '@playwright/test';
 
 /**
- * Page Object Model for the login page (/login).
+ * Page Object Model for the login page (/login) — Phase 11 redesign.
  *
- * DOM notes (from apps/web/app/(auth)/login/page.tsx):
+ * Layout: AuthSplitLayout — branded left panel (lg:flex) + form right panel.
  *
  * Email step:
- *   - "← Back" link: href="/"
- *   - <h1> "Sign in to CampusNest"
- *   - <p> description text about .edu email + verification code
+ *   - <h2> "Sign in to CampusNest"
+ *   - <p> "Enter your .edu email and we'll send you a verification code."
  *   - <input type="email" aria-label="Email address" placeholder="you@university.edu">
- *   - <button type="submit"> text "Send verification code" (or "Sending code..." while loading)
- *   - Error div (conditional): data-testid="error-message"
+ *   - <button type="submit"> "Continue" (or "Sending code..." while loading)
  *
- * OTP step (after email submit):
- *   - "← Back" button (returns to email step)
- *   - "🔑" emoji
- *   - <h1> "Enter your code"
- *   - <p> containing the submitted email address
- *   - <input aria-label="8-digit verification code" inputMode="numeric">
- *   - <button type="submit"> "Verify code" (or "Verifying..." while loading)
+ * OTP step:
+ *   - "Back" button (returns to email step)
+ *   - <h2> "Enter your code"
+ *   - <p> containing submitted email
+ *   - 8 individual digit inputs (aria-label="Digit 1" through "Digit 8")
+ *   - <button type="submit"> "Verify Code" (or spinner "Verifying...")
  *   - "Resend code" button (30s cooldown)
+ *
+ * Profile step:
+ *   - ProfileSetup component with first name, university, graduation year
  */
 export class LoginPage {
   readonly page: Page;
+
+  // Split layout
+  readonly brandPanel: Locator;
+  readonly brandHeading: Locator;
 
   // Email step
   readonly heading: Locator;
   readonly description: Locator;
   readonly emailInput: Locator;
   readonly submitButton: Locator;
-  readonly backLink: Locator;
   readonly errorMessage: Locator;
 
   // OTP step
   readonly otpHeading: Locator;
-  readonly otpInput: Locator;
+  readonly otpDigitInputs: Locator;
   readonly verifyButton: Locator;
   readonly resendButton: Locator;
   readonly otpBackButton: Locator;
@@ -43,19 +46,22 @@ export class LoginPage {
   constructor(page: Page) {
     this.page = page;
 
+    // Split layout — branded left panel
+    this.brandPanel = page.locator('.auth-gradient-bg');
+    this.brandHeading = page.locator('.auth-gradient-bg').getByRole('heading', { name: 'CampusNest' });
+
     // Email step locators
-    this.heading = page.getByRole('heading', { name: 'Sign in to CampusNest', level: 1 });
+    this.heading = page.getByRole('heading', { name: 'Sign in to CampusNest' });
     this.description = page.getByText("we'll send you a verification code");
     this.emailInput = page.getByLabel('Email address');
-    this.submitButton = page.getByRole('button', { name: /Send verification code|Sending code/i });
-    this.backLink = page.getByRole('link', { name: /Back/i });
-    this.errorMessage = page.locator('[data-testid="error-message"]');
+    this.submitButton = page.getByRole('button', { name: /Continue|Sending code/i });
+    this.errorMessage = page.locator('[class*="fair-bad"]');
 
     // OTP step locators
-    this.otpHeading = page.getByRole('heading', { name: 'Enter your code', level: 1 });
-    this.otpInput = page.getByLabel('8-digit verification code');
-    this.verifyButton = page.getByRole('button', { name: /Verify code|Verifying/i });
-    this.resendButton = page.getByRole('button', { name: /Resend code|Code sent/i });
+    this.otpHeading = page.getByRole('heading', { name: 'Enter your code' });
+    this.otpDigitInputs = page.locator('input[aria-label^="Digit"]');
+    this.verifyButton = page.getByRole('button', { name: /Verify Code|Verifying/i });
+    this.resendButton = page.getByRole('button', { name: /Resend code/i });
     this.otpBackButton = page.getByRole('button', { name: /Back/i });
   }
 
@@ -74,15 +80,16 @@ export class LoginPage {
     await expect(this.submitButton).toBeVisible();
   }
 
-  async assertOtpStepVisible(email: string) {
-    await expect(this.otpHeading).toBeVisible();
-    await expect(this.otpInput).toBeVisible();
-    await expect(this.page.getByText(email)).toBeVisible();
-    await expect(this.verifyButton).toBeVisible();
+  async assertSplitLayoutVisible() {
+    await expect(this.brandPanel).toBeVisible();
+    await expect(this.brandHeading).toBeVisible();
   }
 
-  async assertErrorVisible() {
-    await expect(this.errorMessage).toBeVisible();
+  async assertOtpStepVisible(email: string) {
+    await expect(this.otpHeading).toBeVisible();
+    await expect(this.otpDigitInputs.first()).toBeVisible();
+    await expect(this.page.getByText(email)).toBeVisible();
+    await expect(this.verifyButton).toBeVisible();
   }
 
   async fillEmail(email: string) {
@@ -98,16 +105,15 @@ export class LoginPage {
     await this.clickSubmit();
   }
 
-  async fillOtp(code: string) {
-    await this.otpInput.fill(code);
+  async fillOtpDigits(code: string) {
+    const codeArr = code.split('');
+    for (let i = 0; i < codeArr.length; i++) {
+      await this.otpDigitInputs.nth(i).fill(codeArr[i]);
+    }
   }
 
   async clickVerify() {
     await this.verifyButton.click();
-  }
-
-  async clickBack() {
-    await this.backLink.click();
   }
 
   async clickOtpBack() {

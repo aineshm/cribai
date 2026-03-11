@@ -221,13 +221,45 @@ export function AuthForm() {
                 length={8}
                 disabled={loading}
               />
-              <Button
-                type="submit"
-                disabled={loading || otp.length < 8}
-                className="w-full h-10 rounded-lg bg-[var(--primary-600)] text-white hover:bg-[var(--primary-700)]"
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{
+                  opacity: otp.length === 8 ? 1 : 0.5,
+                  y: otp.length === 8 ? 0 : 8,
+                  scale: otp.length === 8 ? 1 : 0.97,
+                }}
+                transition={{ type: 'spring', stiffness: 300, damping: 24 }}
               >
-                {loading ? 'Verifying...' : 'Verify Code'}
-              </Button>
+                <Button
+                  type="submit"
+                  disabled={loading || otp.length < 8}
+                  className="w-full h-10 rounded-lg bg-[var(--primary-600)] text-white hover:bg-[var(--primary-700)]"
+                >
+                  {loading ? (
+                    <motion.span
+                      key="verifying"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex items-center gap-2"
+                    >
+                      <motion.span
+                        animate={{ rotate: 360 }}
+                        transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+                        className="inline-block h-4 w-4 rounded-full border-2 border-white/30 border-t-white"
+                      />
+                      Verifying...
+                    </motion.span>
+                  ) : (
+                    <motion.span
+                      key="verify"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                    >
+                      Verify Code
+                    </motion.span>
+                  )}
+                </Button>
+              </motion.div>
             </form>
 
             <button
