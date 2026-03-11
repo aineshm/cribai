@@ -55,7 +55,7 @@ export async function textSearchPlace(
   const data = await response.json() as { places?: Array<{ id: string }> };
   const places = data.places ?? [];
 
-  return places.length > 0 ? places[0].id : null;
+  return places.length > 0 ? places[0]!.id : null;
 }
 
 /**

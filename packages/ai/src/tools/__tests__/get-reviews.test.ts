@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getReviews } from '../handlers/get-reviews';
-import { createMockContext, createMockQueryBuilder, SAMPLE_LISTING_ROW } from './helpers';
+import { createMockContext, createMockQueryBuilder } from './helpers';
 import type { ToolResult } from '../types';
 
 // Mock dependencies

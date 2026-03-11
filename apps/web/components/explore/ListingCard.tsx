@@ -44,8 +44,6 @@ export function ListingCard({ listing }: ListingCardProps) {
               e.stopPropagation();
               setSaved((prev) => !prev);
             }}
-            aria-pressed={saved}
-            aria-label={saved ? 'Unsave listing' : 'Save listing'}
           >
             <Heart
               className={`size-4 ${

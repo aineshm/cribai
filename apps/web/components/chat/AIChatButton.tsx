@@ -22,7 +22,6 @@ export function AIChatButton({ onClick }: AIChatButtonProps) {
         aria-label="Open CribAI chat"
         className="size-14 rounded-full bg-[var(--primary-700)] hover:bg-[var(--primary-800)] text-white shadow-lg hover:shadow-xl transition-shadow"
         onClick={onClick}
-        aria-label="Open CribAI chat"
       >
         <motion.div
           animate={{

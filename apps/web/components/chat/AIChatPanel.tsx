@@ -95,7 +95,6 @@ export function AIChatPanel({ open, onOpenChange }: AIChatPanelProps) {
             size="icon-sm"
             aria-label="Close chat panel"
             onClick={() => onOpenChange(false)}
-            aria-label="Close chat"
           >
             <X className="size-4" />
           </Button>
@@ -185,7 +184,6 @@ export function AIChatPanel({ open, onOpenChange }: AIChatPanelProps) {
               className="shrink-0 rounded-full bg-[var(--primary-700)] hover:bg-[var(--primary-800)]"
               onClick={() => handleSend()}
               disabled={!inputValue.trim()}
-              aria-label="Send message"
             >
               <Send className="size-4 text-white" />
             </Button>
