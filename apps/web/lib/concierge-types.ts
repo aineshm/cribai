@@ -1,45 +1,64 @@
 /**
  * CampusNest AI Concierge Types
  *
- * Type definitions for the AI Concierge mission system.
- * All data is mock — no backend integration.
+ * DB-aligned type definitions for the AI Concierge mission system.
+ * Re-exports from @campusnest/types (Zod-validated, snake_case matching DB columns).
+ *
+ * Backward-compatible aliases are provided for existing mock-backed components.
+ * These aliases are deprecated and will be removed in Phase 20.
  */
 
-export type MissionStatus =
-  | 'active'
-  | 'waiting_approval'
-  | 'scheduled'
-  | 'completed'
-  | 'failed';
+// ─── DB-aligned types (Phase 16+) ──────────────────────────────────────────
 
-export type MissionType =
-  | 'tour_booking'
-  | 'lease_review'
-  | 'landlord_outreach'
-  | 'price_negotiation'
-  | 'listing_comparison';
+export type {
+  Mission,
+  MissionLog,
+  MissionDraft,
+  MissionSteering,
+  MissionStatus,
+  MissionType,
+  ExecutionLogStatus,
+  DraftType,
+  UserDecision,
+} from '@campusnest/types';
 
-export type ExecutionLogStatus = 'success' | 'pending' | 'error';
+// ─── Deprecated aliases for existing mock-backed components ──────────────────
+// These will be removed in Phase 20 when components migrate to DB-backed data.
 
+/**
+ * @deprecated Use `MissionLog` instead. Will be removed in Phase 20.
+ */
 export interface ExecutionLog {
   readonly timestamp: string;
   readonly action: string;
   readonly detail: string;
-  readonly status: ExecutionLogStatus;
+  readonly status: 'success' | 'pending' | 'error';
 }
 
+/**
+ * @deprecated Use `DraftType` instead. Will be removed in Phase 20.
+ */
 export type ActionCardType =
   | 'tour_scheduled'
   | 'draft_ready'
   | 'negotiation_update'
   | 'comparison_ready';
 
+/**
+ * @deprecated Use `MissionDraft` instead. Will be removed in Phase 20.
+ */
 export interface ActionCard {
   readonly type: ActionCardType;
   readonly data: Readonly<Record<string, unknown>>;
 }
 
-export interface Mission {
+/**
+ * @deprecated Use `Mission` (DB-aligned, snake_case) instead. Will be removed in Phase 20.
+ *
+ * Legacy mission shape used by mock-backed components (MissionCard, MissionDetail, etc.).
+ * Uses camelCase fields and embedded logs/actionCard that are separate tables in the DB.
+ */
+export interface LegacyMission {
   readonly id: string;
   readonly type: MissionType;
   readonly title: string;
@@ -51,3 +70,6 @@ export interface Mission {
   readonly logs: readonly ExecutionLog[];
   readonly actionCard?: ActionCard;
 }
+
+// Re-import MissionStatus and MissionType for use in LegacyMission
+import type { MissionStatus, MissionType } from '@campusnest/types';

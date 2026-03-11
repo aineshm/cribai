@@ -10,14 +10,17 @@ import {
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { staggerItem, scaleOnHover } from '@/lib/animations';
-import type { Mission, MissionStatus, MissionType } from '@/lib/concierge-types';
+import type { LegacyMission } from '@/lib/concierge-types';
+import type { MissionStatus, MissionType } from '@/lib/concierge-types';
 
 const STATUS_COLORS: Record<MissionStatus, string> = {
   active: 'bg-green-500',
+  paused: 'bg-yellow-500',
   waiting_approval: 'bg-amber-500',
   scheduled: 'bg-blue-500',
   completed: 'bg-gray-400',
   failed: 'bg-red-500',
+  expired: 'bg-gray-300',
 };
 
 const TYPE_ICONS: Record<MissionType, React.ComponentType<{ className?: string }>> = {
@@ -47,7 +50,7 @@ function getRelativeTime(dateStr: string): string {
 }
 
 interface MissionCardProps {
-  readonly mission: Mission;
+  readonly mission: LegacyMission;
   readonly onClick: () => void;
 }
 

@@ -4,9 +4,9 @@
  * Sample missions across all types and statuses for UI development.
  */
 
-import type { Mission } from '@/lib/concierge-types';
+import type { LegacyMission } from '@/lib/concierge-types';
 
-export const mockMissions: readonly Mission[] = [
+export const mockMissions: readonly LegacyMission[] = [
   {
     id: 'mission-1',
     type: 'tour_booking',

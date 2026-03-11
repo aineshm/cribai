@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
 import { staggerContainer, staggerItem, scaleOnHover } from '@/lib/animations';
 import { useConcierge } from '@/components/concierge/ConciergeProvider';
-import type { Mission } from '@/lib/concierge-types';
+import type { LegacyMission } from '@/lib/concierge-types';
 
 const SUGGESTIONS = [
   {
@@ -45,7 +45,7 @@ export function MissionSuggestions() {
   const { addMission } = useConcierge();
 
   function handleSuggestionClick(template: (typeof SUGGESTIONS)[number]['missionTemplate']) {
-    const newMission: Mission = {
+    const newMission: LegacyMission = {
       id: `mission-${Date.now()}`,
       type: template.type,
       title: template.title,

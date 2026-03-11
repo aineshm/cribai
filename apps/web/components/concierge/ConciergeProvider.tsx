@@ -7,17 +7,17 @@ import {
   useMemo,
   useState,
 } from 'react';
-import type { Mission } from '@/lib/concierge-types';
+import type { LegacyMission } from '@/lib/concierge-types';
 import { mockMissions } from '@/lib/mock-missions';
 
 interface ConciergeContextValue {
-  readonly missions: readonly Mission[];
-  readonly selectedMission: Mission | null;
+  readonly missions: readonly LegacyMission[];
+  readonly selectedMission: LegacyMission | null;
   readonly isOpen: boolean;
   readonly openSidebar: () => void;
   readonly closeSidebar: () => void;
-  readonly selectMission: (mission: Mission | null) => void;
-  readonly addMission: (mission: Mission) => void;
+  readonly selectMission: (mission: LegacyMission | null) => void;
+  readonly addMission: (mission: LegacyMission) => void;
 }
 
 const ConciergeContext = createContext<ConciergeContextValue | null>(null);
@@ -27,8 +27,8 @@ export function ConciergeProvider({
 }: {
   readonly children: React.ReactNode;
 }) {
-  const [missions, setMissions] = useState<readonly Mission[]>(mockMissions);
-  const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
+  const [missions, setMissions] = useState<readonly LegacyMission[]>(mockMissions);
+  const [selectedMission, setSelectedMission] = useState<LegacyMission | null>(null);
   const [isOpen, setIsOpen] = useState(false);
 
   const openSidebar = useCallback(() => setIsOpen(true), []);
@@ -38,12 +38,12 @@ export function ConciergeProvider({
   }, []);
 
   const selectMission = useCallback(
-    (mission: Mission | null) => setSelectedMission(mission),
+    (mission: LegacyMission | null) => setSelectedMission(mission),
     []
   );
 
   const addMission = useCallback(
-    (mission: Mission) =>
+    (mission: LegacyMission) =>
       setMissions((prev) => [mission, ...prev]),
     []
   );

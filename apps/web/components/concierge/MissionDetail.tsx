@@ -9,26 +9,30 @@ import { MissionActionCard } from '@/components/concierge/MissionActionCard';
 import { ExecutionLogs } from '@/components/concierge/ExecutionLogs';
 import { SteeringBar } from '@/components/concierge/SteeringBar';
 import { slideInFromRight } from '@/lib/animations';
-import type { Mission, MissionStatus } from '@/lib/concierge-types';
+import type { LegacyMission, MissionStatus } from '@/lib/concierge-types';
 
 const STATUS_LABELS: Record<MissionStatus, string> = {
   active: 'Active',
+  paused: 'Paused',
   waiting_approval: 'Waiting Approval',
   scheduled: 'Scheduled',
   completed: 'Completed',
   failed: 'Failed',
+  expired: 'Expired',
 };
 
 const STATUS_BADGE_VARIANT: Record<MissionStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   active: 'default',
+  paused: 'secondary',
   waiting_approval: 'secondary',
   scheduled: 'default',
   completed: 'outline',
   failed: 'destructive',
+  expired: 'outline',
 };
 
 interface MissionDetailProps {
-  readonly mission: Mission;
+  readonly mission: LegacyMission;
   readonly onBack: () => void;
 }
 
