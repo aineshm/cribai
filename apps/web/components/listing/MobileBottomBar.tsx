@@ -6,6 +6,7 @@ import { Calendar, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { slideInFromBottom } from '@/lib/animations';
 import { BookTourModal } from './BookTourModal';
+import { useChatContext } from '@/components/chat/ChatProvider';
 
 interface MobileBottomBarProps {
   readonly price: number;
@@ -14,6 +15,7 @@ interface MobileBottomBarProps {
 
 export function MobileBottomBar({ price, listingTitle }: MobileBottomBarProps) {
   const [tourModalOpen, setTourModalOpen] = useState(false);
+  const { setOpen: openChat } = useChatContext();
 
   return (
     <>
@@ -40,7 +42,7 @@ export function MobileBottomBar({ price, listingTitle }: MobileBottomBarProps) {
             <Calendar className="size-4" />
             Book Tour
           </Button>
-          <Button variant="outline" size="sm" disabled title="Coming soon">
+          <Button variant="outline" size="sm" onClick={() => openChat(true)}>
             <MessageCircle className="size-4" />
             Chat
           </Button>

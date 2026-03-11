@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Heart, MapPin, DollarSign } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { motion } from 'framer-motion';
@@ -67,25 +68,27 @@ export function SavedListings({ listings }: SavedListingsProps) {
     >
       {items.map((listing) => (
         <motion.div key={listing.id} variants={staggerItem}>
-          <Card className="cursor-pointer transition-shadow hover:shadow-md">
-            {/* Image placeholder */}
-            <div className="flex h-36 items-center justify-center bg-muted">
-              <MapPin className="size-8 text-muted-foreground/30" />
-            </div>
-            <CardContent className="space-y-2 pt-3">
-              <h4 className="text-sm font-semibold text-foreground line-clamp-1">
-                {listing.title}
-              </h4>
-              <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                <MapPin className="size-3" />
-                {listing.address}
-              </p>
-              <p className="flex items-center gap-1 text-sm font-bold text-primary">
-                <DollarSign className="size-3.5" />
-                {listing.price}/mo
-              </p>
-            </CardContent>
-          </Card>
+          <Link href={`/listing/${listing.id}`} className="block">
+            <Card className="cursor-pointer transition-shadow hover:shadow-md">
+              {/* Image placeholder */}
+              <div className="flex h-36 items-center justify-center bg-muted">
+                <MapPin className="size-8 text-muted-foreground/30" />
+              </div>
+              <CardContent className="space-y-2 pt-3">
+                <h4 className="text-sm font-semibold text-foreground line-clamp-1">
+                  {listing.title}
+                </h4>
+                <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <MapPin className="size-3" />
+                  {listing.address}
+                </p>
+                <p className="flex items-center gap-1 text-sm font-bold text-primary">
+                  <DollarSign className="size-3.5" />
+                  {listing.price}/mo
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
         </motion.div>
       ))}
     </motion.div>
