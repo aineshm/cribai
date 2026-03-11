@@ -7,10 +7,10 @@
 
 ### Design System
 
-- [ ] **DESIGN-01**: User sees Cabinet Grotesk display font and Satoshi body font across all pages
+- [ ] **DESIGN-01**: User sees Space Grotesk display font and DM Sans body font across all pages
 - [ ] **DESIGN-02**: All pages use shadcn/ui component primitives (Button, Card, Sheet, Dialog, Input, etc.)
 - [ ] **DESIGN-03**: All pages use Lucide icons instead of inline Heroicon SVGs
-- [ ] **DESIGN-04**: Page transitions and interactive elements use Framer Motion spring animations
+- [ ] **DESIGN-04**: Page transitions and interactive elements use framer-motion spring animations
 - [ ] **DESIGN-05**: Design tokens bridge existing CSS variables with shadcn/ui token system without breaking build
 
 ### Landing Page

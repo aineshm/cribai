@@ -26,9 +26,9 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 ### 🚧 v1.1 UI/UX Upgrade (In Progress)
 
-**Milestone Goal:** Migrate the entire frontend to the new Figma design system (Cabinet Grotesk + Satoshi, shadcn/ui, Lucide, Framer Motion) and introduce the AI Concierge missions page — shifting from chat-first to agent-first UX.
+**Milestone Goal:** Migrate the entire frontend to the new Figma design system (Space Grotesk + DM Sans, shadcn/ui, Lucide, framer-motion) and introduce the AI Concierge missions page — shifting from chat-first to agent-first UX.
 
-- [ ] **Phase 10: Design System Foundation** - Install and wire shadcn/ui, Cabinet Grotesk + Satoshi fonts, Lucide icons, Framer Motion base, and token bridge — gates all UI phases
+- [ ] **Phase 10: Design System Foundation** - Install and wire shadcn/ui, Space Grotesk + DM Sans fonts, Lucide icons, framer-motion base, and token bridge — gates all UI phases
 - [ ] **Phase 11: Landing Page + Auth Redesign** - Marketing landing page with hero/social proof/CTA + branded split-panel auth flow with slide animations
 - [ ] **Phase 12: Explore Page** - Unified split view (listings 60% + map 40%) with filter chips, floating CribAI panel in root layout, and extracted hook
 - [ ] **Phase 13: Listing Detail Redesign** - Photo gallery grid, two-column sticky CTA layout, AI lease summary, commute section, and mobile sticky bar
@@ -38,11 +38,11 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 ## Phase Details
 
 ### Phase 10: Design System Foundation
-**Goal**: The design system infrastructure is installed and verified — Cabinet Grotesk + Satoshi fonts load on every page, shadcn/ui primitives are available with a clean token bridge, Lucide icons are tree-shakeable, and Framer Motion wrappers are established — unblocking all subsequent UI phases without breaking any existing v1.0 features.
+**Goal**: The design system infrastructure is installed and verified — Space Grotesk + DM Sans fonts load on every page, shadcn/ui primitives are available with a clean token bridge, Lucide icons are tree-shakeable, and framer-motion wrappers are established — unblocking all subsequent UI phases without breaking any existing v1.0 features.
 **Depends on**: Nothing (v1.1 starting phase — v1.0 is complete)
 **Requirements**: DESIGN-01, DESIGN-02, DESIGN-03, DESIGN-04, DESIGN-05, COMPAT-01
 **Success Criteria** (what must be TRUE):
-  1. Every page renders Cabinet Grotesk for headings and Satoshi for body text (verified by font inspector)
+  1. Every page renders Space Grotesk for headings and DM Sans for body text (verified by font inspector)
   2. A shadcn/ui Button and Card render correctly in a smoke-test page with no CSS regression on existing pages
   3. An icon rendered via lucide-react appears correctly and the bundle does not include unused icons (verified by build output)
   4. A `MotionSection` client wrapper animates on mount without triggering Server Component boundary errors

@@ -37,13 +37,13 @@ Features v1.1 users assume exist. Missing or broken = product feels unpolished o
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| **Design system consistency** | Apps without visual coherence feel unfinished. Students compare CampusNest to Zillow and Apartments.com which have polished design systems. First impression determines trust. | MEDIUM | shadcn/ui primitives must underlie all new components. Cabinet Grotesk + Satoshi fonts via `@next/font`. Single `globals.css` token layer. Components live-in-repo (shadcn philosophy: you own the code). |
-| **Marketing landing page** | Any SaaS/platform product needs a public-facing homepage for unauthenticated users, new signups, and Google SEO. Without one, sharing the URL shows a blank auth page. | MEDIUM | Hero + social proof + how-it-works + features section + CTA. ~5 sections. Framer Motion scroll-triggered entry animations. Must convert visitors to auth flow. |
+| **Design system consistency** | Apps without visual coherence feel unfinished. Students compare CampusNest to Zillow and Apartments.com which have polished design systems. First impression determines trust. | MEDIUM | shadcn/ui primitives must underlie all new components. Space Grotesk + DM Sans fonts via `@next/font`. Single `globals.css` token layer. Components live-in-repo (shadcn philosophy: you own the code). |
+| **Marketing landing page** | Any SaaS/platform product needs a public-facing homepage for unauthenticated users, new signups, and Google SEO. Without one, sharing the URL shows a blank auth page. | MEDIUM | Hero + social proof + how-it-works + features section + CTA. ~5 sections. framer-motion scroll-triggered entry animations. Must convert visitors to auth flow. |
 | **Auth page with branded layout** | Login/signup pages with no brand identity feel like they belong to a different product. Generic auth = low trust. | LOW-MEDIUM | Split-panel: left = brand illustration/animated gradient, right = OTP form. Existing OTP logic stays, only layout changes. Multi-step: email input → OTP verify → profile setup (if new user). |
 | **Explore page with split list+map view** | Zillow, Redfin, and Apartments.com all use split-view explore as the industry standard. Students expect to see listings AND their map position simultaneously. | HIGH | 60% list / 40% map split. Filter chips as horizontal scrollable row (not a modal). Floating CribAI panel replaces the separate /cribai route. This is the highest-traffic page. |
 | **Listing detail with photo grid + sticky CTA** | Users expect property photos to be prominent (not buried), and the primary action (schedule tour / save) to always be visible while scrolling. Industry standard since Airbnb popularized it. | MEDIUM | 2-col layout: main content left, sticky sidebar right with CTA card. Photo gallery as masonry grid or hero+thumbnails strip. Address, price, fairness badge, true cost above fold. |
 | **Consistent icon system** | Mixing Heroicons and Lucide (or emoji) across pages looks unfinished. A single icon library is a baseline design quality signal. | LOW | Swap all icons to Lucide React. Tree-shakeable, matches shadcn/ui ecosystem. Single audit pass across all components. |
-| **Page transition animations** | Static page-to-page navigation feels dated. Modern web apps (Vercel, Linear, Notion) use subtle entrance animations to signal quality. | LOW-MEDIUM | Framer Motion `AnimatePresence` for route transitions. Spring physics for mounted components. Avoid overuse — every element should not animate. |
+| **Page transition animations** | Static page-to-page navigation feels dated. Modern web apps (Vercel, Linear, Notion) use subtle entrance animations to signal quality. | LOW-MEDIUM | framer-motion `AnimatePresence` for route transitions. Spring physics for mounted components. Avoid overuse — every element should not animate. |
 | **Profile/saved combined page** | Users expect a unified account page (Airbnb, Zillow both combine saved/profile under account). Separate pages create unnecessary navigation friction. | LOW-MEDIUM | Tabs: "Saved Listings" + "Settings" (profile form). Profile header with avatar, name, university, campus. Reuse existing `heart-button.tsx` and `profile-form.tsx` internals. |
 
 ### Differentiators (Competitive Advantage)
@@ -54,7 +54,7 @@ Features that define CampusNest v1.1's edge. These are not table stakes — stud
 |---------|-------------------|------------|-------|
 | **AI Concierge missions page** | No competitor (Zillow, Apartments.com, Redfin) offers task-based agentic housing search. Missions like "Find me 5 options under $800, compare them, and draft tour requests" execute asynchronously and return structured results. This is the flagship v1.1 differentiator. | HIGH | New page at `/[campusSlug]/concierge`. Mission cards with 5-state pipeline: Queued → In Progress → Action Needed → Draft Approval → Completed. HITL approval gates draft tour/compare outputs. Polling via Supabase Realtime on `missions` table. |
 | **HITL draft approval flow** | Agents making irreversible actions (scheduling tours, sending messages to landlords) without human sign-off is a UX anti-pattern. Showing drafts for approval before execution builds trust and converts more completions. | MEDIUM | "Action Needed" and "Draft Approval" states render a review card with Approve / Edit / Reject controls. On approve, mission resumes execution. Uses the existing tour scheduling tool as the first action requiring approval. |
-| **Steering bar for mid-mission correction** | Users discover their mission needs adjustment mid-execution (wrong price range, different neighborhood). Mid-task steering without losing context is an emerging differentiator from 2025 agentic systems. | MEDIUM | Persistent input bar at the bottom of an active mission. Pre-populated with the original prompt. Submit a correction re-queues with updated context. Framer Motion slide-in from bottom. |
+| **Steering bar for mid-mission correction** | Users discover their mission needs adjustment mid-execution (wrong price range, different neighborhood). Mid-task steering without losing context is an emerging differentiator from 2025 agentic systems. | MEDIUM | Persistent input bar at the bottom of an active mission. Pre-populated with the original prompt. Submit a correction re-queues with updated context. framer-motion slide-in from bottom. |
 | **Agent summary + raw logs toggle** | Power users want to see what the AI actually did. Beginner users want a 2-sentence summary. Both expectations must be met without clutter. | LOW-MEDIUM | Accordion-style: summary (always visible) + "View agent steps" expands a timeline of tool calls with icons (search, compare, map, etc). Reuses data already logged to conversation turns. |
 | **Proactive empty state with mission templates** | A blank concierge page loses 60% of users before they start (per research). Suggesting ready-made mission templates converts first-time users into active ones. | LOW | On zero missions: show 3-4 template cards ("Find 3BR under $800 near campus", "Compare downtown vs near-campus options", "Schedule tours for my saved listings"). One-click pre-fills the mission input. |
 | **Floating CribAI panel on explore page** | Replacing the separate `/cribai` route with a contextual panel on the explore page creates a seamless "search while chatting" experience. No competitor offers side-by-side AI chat + map + list filtering in one view. | HIGH | Panel slides in from right. Shares listing search state (filters applied in panel reflect in list, and vice versa). Dismissible. Re-openable via floating FAB. Requires shared state layer (React context or URL params). |
@@ -72,8 +72,8 @@ Features that define CampusNest v1.1's edge. These are not table stakes — stud
 | **Full state machine backend (LangGraph)** | Correctness, retries, observability at scale. | Over-engineered for v1.1 with one campus and unknown mission volume. LangGraph adds deployment complexity. Not needed until missions need retry logic and cross-session recovery. | Simple `missions` table with status column + Supabase Realtime polling. Per PROJECT.md explicit decision. |
 | **Traditional filter page as standalone route** | Familiar from desktop web circa 2015. | Violates the "AI chat replaces the filter box" core value. Keeping a full filter page implies AI search is optional. Creates two competing search paradigms. | Integrate filter chips into the explore page header. Keep them minimal and AI-readable (so AI understands context when filters are active). |
 | **Infinite scroll on listing grid** | Familiar from social media. | Prevents users from developing a mental map of how many listings exist. Paginated grid with "Load more" is less disorienting in housing context where options are limited (50-200 listings per campus). | Paginated grid, 12-24 listings per page. Total count visible ("47 listings near campus"). |
-| **Dark mode** | Nice-to-have, often requested. | Doubles the CSS variables surface area. Cabinet Grotesk and Satoshi are tuned for light contexts. Design system tokens need full second pass. | Ship light mode only for v1.1. Add dark mode toggle as a standalone v1.2 enhancement once token layer is stable. |
-| **Animation on every element** | Motion feels premium. | Overuse of Framer Motion degrades perceived performance on low-end devices. Every animated element adds a JS listener. Too much motion = vestibular disorder accessibility issue. | Animate page entrances, modal/drawer open/close, and listing card hover states only. Static for tables, text, and utility components. |
+| **Dark mode** | Nice-to-have, often requested. | Doubles the CSS variables surface area. Space Grotesk and DM Sans are tuned for light contexts. Design system tokens need full second pass. | Ship light mode only for v1.1. Add dark mode toggle as a standalone v1.2 enhancement once token layer is stable. |
+| **Animation on every element** | Motion feels premium. | Overuse of framer-motion degrades perceived performance on low-end devices. Every animated element adds a JS listener. Too much motion = vestibular disorder accessibility issue. | Animate page entrances, modal/drawer open/close, and listing card hover states only. Static for tables, text, and utility components. |
 
 ---
 
@@ -140,7 +140,7 @@ Profile/saved page
 
 ### v1.1 Launch With (All Required for Milestone)
 
-- [ ] **Design system** — Cabinet Grotesk + Satoshi + shadcn/ui + Lucide + Framer Motion base. Prerequisite for everything.
+- [ ] **Design system** — Space Grotesk + DM Sans + shadcn/ui + Lucide + framer-motion base. Prerequisite for everything.
 - [ ] **Landing page** — Marketing page for unauthenticated users. Entry point for all new users.
 - [ ] **Auth page redesign** — Split-panel branded layout. First post-landing impression.
 - [ ] **Explore page** — Split list+map with filter chips + floating CribAI panel. Core product interaction.
@@ -215,9 +215,9 @@ Profile/saved page
 
 shadcn/ui is installed directly into the repo (components are owned, not packaged). Use `npx shadcn@latest add [component]` selectively — do not bulk-install all components. Start with: Button, Card, Input, Badge, Tabs, Dialog, Drawer, Avatar, Accordion, Progress. Radix accessibility is inherited — do not override `aria-*` attributes.
 
-**Cabinet Grotesk + Satoshi:** Install via `@next/font/local` with `variable` option. Define CSS variables `--font-heading` and `--font-body` in `globals.css`. Apply via `cn()` utility to `<body>` and heading elements.
+**Space Grotesk + DM Sans:** Install via `@next/font/google` with `variable` option. Define CSS variables `--font-heading` and `--font-body` in `globals.css`. Apply via `cn()` utility to `<body>` and heading elements.
 
-**Framer Motion rules for this project:**
+**framer-motion rules for this project:**
 - Animate: page entrance (fade+translate Y), modal/drawer open/close, listing card hover lift, mission status badge transitions
 - Do not animate: table rows, text content, form fields, utility badges
 - Use `useReducedMotion()` hook — wrap all animation variants with a check so users with motion sensitivity preferences get static UI
@@ -243,7 +243,7 @@ Generate once, cache on `listings.ai_lease_summary` (nullable text column, add v
 ## Sources
 
 - [shadcn/ui official docs and changelog — March 2026](https://ui.shadcn.com/docs/changelog/2026-03-cli-v4)
-- [Framer Motion official docs](https://motion.dev/)
+- [framer-motion official docs](https://motion.dev/)
 - [Human-in-the-Loop AI Agents — Permit.io](https://www.permit.io/blog/human-in-the-loop-for-ai-agents-best-practices-frameworks-use-cases-and-demo)
 - [HITL in Agentic AI 2026 — Onereach.ai](https://onereach.ai/blog/human-in-the-loop-agentic-ai-systems/)
 - [Designing for Agentic AI — Smashing Magazine, Feb 2026](https://www.smashingmagazine.com/2026/02/designing-agentic-ai-practical-ux-patterns/)

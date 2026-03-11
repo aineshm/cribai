@@ -31,7 +31,7 @@ Students can find off-campus housing through conversational AI search that under
 
 ### Active
 
-- [ ] Design system migration: Cabinet Grotesk + Satoshi fonts, shadcn/ui primitives, Lucide icons, Framer Motion
+- [ ] Design system migration: Space Grotesk + DM Sans fonts, shadcn/ui primitives, Lucide icons, framer-motion
 - [ ] Marketing landing page with hero, social proof, features, how-it-works, CTA
 - [ ] Auth page redesign: split layout with branded panel + animated multi-step flow
 - [ ] Explore page: unified split view (listings 60% + map 40%) with filter chips + floating AI chat panel
@@ -79,7 +79,7 @@ Students can find off-campus housing through conversational AI search that under
 
 ## Current Milestone: v1.1 UI/UX Upgrade
 
-**Goal:** Migrate the entire frontend to the new Figma design system (Cabinet Grotesk + Satoshi, shadcn/ui, Lucide, Framer Motion) and introduce the AI Concierge missions page — shifting from chat-first to agent-first UX.
+**Goal:** Migrate the entire frontend to the new Figma design system (Space Grotesk + DM Sans, shadcn/ui, Lucide, framer-motion) and introduce the AI Concierge missions page — shifting from chat-first to agent-first UX.
 
 **Target features:**
 - Design system overhaul (fonts, colors, components, icons, animations)
@@ -103,8 +103,8 @@ Students can find off-campus housing through conversational AI search that under
 | DB conversations + sessionStorage fallback | Auth users get persistence, guests get tab-scoped chat | ✓ Good |
 | Free for students in v1 | Remove friction, validate usage, monetize via PM side later | — Pending |
 | shadcn/ui for v1.1 | Full component library, Tailwind-native, accessible, widely adopted | — Pending |
-| Framer Motion for animations | Spring physics, layout animations, presence/exit — industry standard | — Pending |
-| Cabinet Grotesk + Satoshi fonts | Modern geometric sans-serif pair from Figma design — youthful, clean | — Pending |
+| framer-motion for animations | Spring physics, layout animations, presence/exit — industry standard | — Pending |
+| Space Grotesk + DM Sans fonts | Modern geometric sans-serif pair from Figma design — youthful, clean | — Pending |
 | Lucide icons over Heroicons | Tree-shakeable, better DX, matches shadcn/ui ecosystem | — Pending |
 | Simple mission table over state machines | v1.1 MVP — mission status column + polling, defer LangGraph to v2 | — Pending |
 

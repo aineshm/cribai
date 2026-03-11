@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-CampusNest v1.1 is a significant product upgrade built on top of a fully working v1.0. The v1.0 codebase (Next.js 15, Supabase, Gemini, Mapbox, CribAI with 11 tools) is complete and must not be rebuilt — only reskinned and extended. The work divides cleanly into two parallel tracks: (1) a design system migration that touches every page (Cabinet Grotesk + Satoshi fonts, shadcn/ui primitives, Lucide icons, Framer Motion), and (2) a new AI Concierge missions page that introduces agentic async tasks with human-in-the-loop approval gates. Both tracks require the design system foundation to land first — it is a hard prerequisite for all UI work.
+CampusNest v1.1 is a significant product upgrade built on top of a fully working v1.0. The v1.0 codebase (Next.js 15, Supabase, Gemini, Mapbox, CribAI with 11 tools) is complete and must not be rebuilt — only reskinned and extended. The work divides cleanly into two parallel tracks: (1) a design system migration that touches every page (Space Grotesk + DM Sans fonts, shadcn/ui primitives, Lucide icons, framer-motion), and (2) a new AI Concierge missions page that introduces agentic async tasks with human-in-the-loop approval gates. Both tracks require the design system foundation to land first — it is a hard prerequisite for all UI work.
 
 The recommended approach is incremental and bottom-up: establish the CSS/token foundation and shadcn/ui primitives before touching a single page, then build pages from simplest (auth, landing) to most complex (explore split-view, concierge board). The AI Concierge feature requires a new `missions` + `mission_steps` DB schema, a mission executor in `packages/ai/`, Supabase Realtime subscriptions for live status updates, and a HITL approval flow with versioned drafts. Mission execution must run asynchronously (fire-and-forget from the API route) due to Vercel serverless timeout constraints. The floating CribAI panel on the explore page must live in the root layout, not the page, to survive route navigation.
 
@@ -17,16 +17,16 @@ The critical risks cluster around two areas. First, the CSS migration: shadcn/ui
 
 ### Recommended Stack
 
-The v1.1 stack adds four new packages to the existing foundation. `shadcn/ui` (latest CLI) provides accessible, copy-owned UI primitives that are Tailwind v4-native and already decided in PROJECT.md — components are owned source code, not a library dependency, so zero versioning churn. `motion` (formerly `framer-motion`, v12, imported from `motion/react`) provides spring physics and presence animations. `lucide-react` (bundled with shadcn CLI) replaces inline Heroicon SVGs with a tree-shakeable icon system. `tw-animate-css` replaces the v3-only `tailwindcss-animate` that shadcn previously used. For mission state, the stack uses already-provisioned Supabase Realtime (`postgres_changes` subscription on `missions` table) — no new SSE or WebSocket infrastructure needed. Gemini 2.5 Flash via the existing `@google/genai` handles both steering bar intent parsing and mission execution.
+The v1.1 stack adds four new packages to the existing foundation. `shadcn/ui` (latest CLI) provides accessible, copy-owned UI primitives that are Tailwind v4-native and already decided in PROJECT.md — components are owned source code, not a library dependency, so zero versioning churn. `motion` (formerly `framer-motion`, v12, imported from `framer-motion`) provides spring physics and presence animations. `lucide-react` (bundled with shadcn CLI) replaces inline Heroicon SVGs with a tree-shakeable icon system. `tw-animate-css` replaces the v3-only `tailwindcss-animate` that shadcn previously used. For mission state, the stack uses already-provisioned Supabase Realtime (`postgres_changes` subscription on `missions` table) — no new SSE or WebSocket infrastructure needed. Gemini 2.5 Flash via the existing `@google/genai` handles both steering bar intent parsing and mission execution.
 
-Cabinet Grotesk and Satoshi are not on Google Fonts. Both must be self-hosted via `next/font/local` with downloaded WOFF2 files in `apps/web/public/fonts/`. This is a hard requirement — `next/font/google` will fail at build time for these fonts. TanStack Query is recommended (not yet confirmed) for the AI Concierge mission polling use case to prevent state race conditions; this is the one open dependency decision.
+Space Grotesk and DM Sans are not on Google Fonts. Both must be self-hosted via `next/font/google` with downloaded WOFF2 files in `apps/web/public/fonts/`. This is a hard requirement — `next/font/google` will fail at build time for these fonts. TanStack Query is recommended (not yet confirmed) for the AI Concierge mission polling use case to prevent state race conditions; this is the one open dependency decision.
 
 **Core technologies:**
 - `shadcn/ui` (latest CLI): accessible UI primitives, copy-owned — Tailwind v4 support confirmed, zero versioning churn
-- `motion` ^12.x (`motion/react` import): spring animations and presence transitions — React 19 compatible, API identical to framer-motion
+- `motion` ^12.x (`framer-motion` import): spring animations and presence transitions — React 19 compatible, API identical to framer-motion
 - `lucide-react` ^0.468+: SVG icons — tree-shakeable, matches shadcn ecosystem, included by shadcn CLI
 - `tw-animate-css` ^1.x: Tailwind v4 animation utilities — drop-in replacement for deprecated `tailwindcss-animate`
-- `next/font/local`: Cabinet Grotesk + Satoshi delivery — mandatory (fonts not on Google Fonts)
+- `next/font/google`: Space Grotesk + DM Sans delivery — mandatory (fonts not on Google Fonts)
 - Supabase Realtime (existing): mission status push — zero new dependencies, already provisioned
 
 ### Expected Features
@@ -34,7 +34,7 @@ Cabinet Grotesk and Satoshi are not on Google Fonts. Both must be self-hosted vi
 The v1.1 feature set splits into table stakes (things a polished platform must have) and differentiators (things no competitor offers). All redesigned pages depend on the design system landing first. The floating CribAI panel and AI Concierge page are the two highest-complexity deliverables and both depend on earlier infrastructure phases.
 
 **Must have (table stakes):**
-- Design system consistency (shadcn/ui + Cabinet Grotesk + Satoshi + Lucide) — prerequisite for every page
+- Design system consistency (shadcn/ui + Space Grotesk + DM Sans + Lucide) — prerequisite for every page
 - Marketing landing page — without one, sharing the URL shows a blank auth wall
 - Auth page with branded split-panel layout — OTP logic stays, only layout changes
 - Explore page with split list+map view and floating CribAI panel — industry standard, highest-traffic page
@@ -77,7 +77,7 @@ The recommended architecture is a strict server/client page split (server compon
 
 3. **HITL draft approval has three silent failure modes** — stale draft approved after revision, double-submit creates duplicate tour requests, unreviewed drafts block missions forever. Requires DB-level design: `draft_version` integer (reject mismatched approvals), idempotency key on approval API, `expires_at` with pg_cron cleanup, submit button disabled on first click.
 
-4. **Framer Motion forces client component boundary proliferation** — adding `motion.*` to a page component without `'use client'` causes a hard error; adding `'use client'` to the page itself kills RSC data-fetching benefits. Fix: thin `'use client'` wrapper components (`MotionListItem`, `MotionSection`) in `components/ui/`; pages remain Server Components.
+4. **framer-motion forces client component boundary proliferation** — adding `motion.*` to a page component without `'use client'` causes a hard error; adding `'use client'` to the page itself kills RSC data-fetching benefits. Fix: thin `'use client'` wrapper components (`MotionListItem`, `MotionSection`) in `components/ui/`; pages remain Server Components.
 
 5. **Floating CribAI panel loses conversation context on route navigation** — React state local to the explore page is destroyed on navigation. Fix: render the panel in `app/layout.tsx` at the root layout level, with global state (`isOpen`, `conversationId`) that survives route changes. Verified by E2E: open panel, navigate, confirm state persists.
 
@@ -91,16 +91,16 @@ Based on combined research, the phase structure follows strict bottom-up depende
 
 ### Phase 1: Design System Foundation
 **Rationale:** Every page, component, and feature in v1.1 depends on the design system being stable. The CSS token collision risk is highest here and must be isolated. This phase has no UI dependencies — it cannot cause visual regressions in other phases because it comes first.
-**Delivers:** Cabinet Grotesk + Satoshi via `next/font/local`, shadcn/ui initialized with token bridge in `globals.css`, `tw-animate-css` replacing `tailwindcss-animate`, `optimizePackageImports` for Lucide, verified build and test pipeline.
+**Delivers:** Space Grotesk + DM Sans via `next/font/google`, shadcn/ui initialized with token bridge in `globals.css`, `tw-animate-css` replacing `tailwindcss-animate`, `optimizePackageImports` for Lucide, verified build and test pipeline.
 **Addresses:** Design system consistency (table stakes), font loading (prerequisite)
 **Avoids:** Pitfall 1 (CSS collision), Pitfall 2 (big-bang migration), Pitfall 3 (font self-hosting mandatory), Pitfall 7 (Tailwind v4 build breakage), Pitfall 5 (Lucide bundle bloat)
 **Research flag:** Standard — shadcn/ui Tailwind v4 docs are authoritative and complete. No additional research needed.
 
 ### Phase 2: Marketing Landing Page + Auth Redesign
-**Rationale:** Highest-visibility, lowest-complexity pages. No shared state, no AI, no new DB requirements. Serve as the first real test of shadcn/ui primitives in production. Also establishes the Framer Motion wrapper pattern that all subsequent animated pages inherit.
+**Rationale:** Highest-visibility, lowest-complexity pages. No shared state, no AI, no new DB requirements. Serve as the first real test of shadcn/ui primitives in production. Also establishes the framer-motion wrapper pattern that all subsequent animated pages inherit.
 **Delivers:** Marketing landing page with scroll-triggered entrance animations, branded auth split-panel layout with existing OTP logic preserved.
 **Addresses:** Marketing landing page (must-have), auth page redesign (must-have)
-**Avoids:** Pitfall 4 (Framer Motion client boundary — establish `MotionWrapper` pattern here for all future phases)
+**Avoids:** Pitfall 4 (framer-motion client boundary — establish `MotionWrapper` pattern here for all future phases)
 **Research flag:** Standard — SaaS landing page and auth split-panel patterns are well-established.
 
 ### Phase 3: Explore Page (Split View + Floating CribAI Panel)
@@ -173,7 +173,7 @@ Phases with standard patterns (skip research-phase):
 | Stack | HIGH | All core libraries verified against official docs. shadcn/ui Tailwind v4 support confirmed. motion v12 React 19 compatibility confirmed. Font delivery method is mandatory self-hosting — verified. |
 | Features | HIGH (table stakes) / MEDIUM-HIGH (concierge UX) | Design system and page patterns are well-researched against competitor landscape. AI Concierge UX patterns draw from 2025–2026 agentic design articles — patterns are emerging but multiple sources converge. |
 | Architecture | HIGH | Existing codebase inspected directly. Server/client split, Supabase Realtime, mission schema, HITL data flow, and file structure are grounded in official docs and observed codebase patterns. |
-| Pitfalls | HIGH | CSS token collision, Framer Motion boundary, font self-hosting, Lucide bundle, and all three HITL failure modes are verified from official docs, GitHub issues, and community post-mortems with HIGH confidence. |
+| Pitfalls | HIGH | CSS token collision, framer-motion boundary, font self-hosting, Lucide bundle, and all three HITL failure modes are verified from official docs, GitHub issues, and community post-mortems with HIGH confidence. |
 
 **Overall confidence:** HIGH
 
@@ -200,8 +200,8 @@ Phases with standard patterns (skip research-phase):
 - Codebase inspection: `apps/web/`, `packages/ai/`, `supabase/migrations/` — verified 2026-03-10
 
 ### Secondary (MEDIUM confidence)
-- [motion.dev upgrade guide](https://motion.dev/docs/react-upgrade-guide) — framer-motion to motion/react migration
-- [Framer Motion with Next.js Server Components](https://www.hemantasundaray.com/blog/use-framer-motion-with-nextjs-server-components) — client wrapper pattern
+- [motion.dev upgrade guide](https://motion.dev/docs/react-upgrade-guide) — framer-motion to framer-motion migration
+- [framer-motion with Next.js Server Components](https://www.hemantasundaray.com/blog/use-framer-motion-with-nextjs-server-components) — client wrapper pattern
 - [Vercel AI SDK HITL pattern](https://ai-sdk.dev/cookbook/next/human-in-the-loop) — approval gate architecture reference (different SDK, pattern is transferable)
 - [Designing for Agentic AI — Smashing Magazine, Feb 2026](https://www.smashingmagazine.com/2026/02/designing-agentic-ai-practical-ux-patterns/) — concierge UX patterns
 - [TanStack Query optimistic updates guide](https://tanstack.com/query/latest/docs/framework/react/guides/optimistic-updates) — polling + mutation coordination

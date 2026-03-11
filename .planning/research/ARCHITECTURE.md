@@ -67,7 +67,7 @@
 apps/web/
 ├── app/
 │   ├── page.tsx                          # Marketing landing (full rewrite)
-│   ├── layout.tsx                        # Root: Cabinet Grotesk + Satoshi fonts
+│   ├── layout.tsx                        # Root: Space Grotesk + DM Sans fonts
 │   ├── globals.css                       # @theme inline bridge for shadcn tokens
 │   ├── (auth)/
 │   │   └── login/page.tsx                # Redesigned split layout
@@ -199,11 +199,11 @@ export function ExploreClient({ listings, isAuthenticated, campusSlug }) {
 
 Source: [shadcn/ui Tailwind v4 docs](https://ui.shadcn.com/docs/tailwind-v4) — HIGH confidence.
 
-### Pattern 3: Framer Motion Client-Only Wrappers
+### Pattern 3: framer-motion Client-Only Wrappers
 
 **What:** Motion components require `'use client'`. Create thin wrapper components in `components/ui/` for animated layout primitives rather than annotating every page file.
 
-**Import path:** Use `motion/react` (not the legacy `framer-motion`) for React 19 and App Router compatibility.
+**Import path:** Use `framer-motion` (not the legacy `framer-motion`) for React 19 and App Router compatibility.
 
 **When to use:** Page entrances, list item staggering, floating panel open/close (Sheet already handles this via shadcn), mission card status transitions.
 
@@ -211,7 +211,7 @@ Source: [shadcn/ui Tailwind v4 docs](https://ui.shadcn.com/docs/tailwind-v4) —
 ```typescript
 // components/ui/motion-list-item.tsx
 'use client';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 
 export function MotionListItem({
   children,
@@ -232,7 +232,7 @@ export function MotionListItem({
 }
 ```
 
-Source: [Framer Motion with Next.js Server Components](https://www.hemantasundaray.com/blog/use-framer-motion-with-nextjs-server-components) — MEDIUM confidence (author-blog); verified by Next.js RSC boundary rules — HIGH.
+Source: [framer-motion with Next.js Server Components](https://www.hemantasundaray.com/blog/use-framer-motion-with-nextjs-server-components) — MEDIUM confidence (author-blog); verified by Next.js RSC boundary rules — HIGH.
 
 ### Pattern 4: Mission Status via Supabase Realtime
 
@@ -340,8 +340,8 @@ executor resumes → status = 'running' → 'complete'
 ```
 Root layout.tsx:
   Remove: DM_Serif_Display + Inter (next/font/google)
-  Add:    localFont for Cabinet Grotesk (variable: --font-display)
-          localFont for Satoshi (variable: --font-body)
+  Add:    googleFont for Space Grotesk (variable: --font-display)
+          googleFont for DM Sans (variable: --font-body)
   Result: All components using var(--font-display) and var(--font-body)
           pick up new fonts automatically — zero component changes needed.
 ```
@@ -387,7 +387,7 @@ v1.1:
 
 | File | Change | Risk |
 |------|--------|------|
-| `apps/web/app/layout.tsx` | Swap fonts (DM Serif → Cabinet Grotesk, Inter → Satoshi) | LOW — CSS var change only |
+| `apps/web/app/layout.tsx` | Swap fonts (DM Serif → Space Grotesk, Inter → DM Sans) | LOW — CSS var change only |
 | `apps/web/app/globals.css` | Add `@theme inline` bridge for shadcn tokens | LOW — additive only |
 | `apps/web/app/page.tsx` | Full rewrite — marketing landing | MEDIUM — replaces a stub |
 | `apps/web/components/cribai-chat.tsx` | Extract `useCribAIChat` hook; keep component working | MEDIUM — preserve SSE logic |
@@ -466,7 +466,7 @@ alter publication supabase_realtime add table missions;
 
 ### Anti-Pattern 1: Importing Motion in Server Components
 
-**What people do:** Add `import { motion } from 'motion/react'` to a file without `'use client'`, or forget to add the directive when building a page that uses animations.
+**What people do:** Add `import { motion } from 'framer-motion'` to a file without `'use client'`, or forget to add the directive when building a page that uses animations.
 
 **Why it's wrong:** Throws a build-time error. Next.js 15 is strict about RSC boundaries. Motion requires browser APIs.
 
@@ -518,7 +518,7 @@ Build bottom-up, respecting dependencies:
 
 **Phase 1 — CSS Foundation (no UI risk, immediate improvement)**
 - Update `globals.css`: add `@theme inline` shadcn bridge
-- Update `layout.tsx`: swap fonts to Cabinet Grotesk + Satoshi
+- Update `layout.tsx`: swap fonts to Space Grotesk + DM Sans
 - Verify existing pages still look correct (fonts change, tokens stay working)
 
 **Phase 2 — shadcn/ui Primitives**
@@ -565,7 +565,7 @@ Build bottom-up, respecting dependencies:
 
 - [shadcn/ui Tailwind v4 docs](https://ui.shadcn.com/docs/tailwind-v4) — CSS variable migration, `@theme inline` pattern — HIGH confidence
 - [shadcn/ui Next.js installation](https://ui.shadcn.com/docs/installation/next) — init command, component addition — HIGH confidence
-- [Framer Motion — motion/react import](https://www.hemantasundaray.com/blog/use-framer-motion-with-nextjs-server-components) — client component boundary — MEDIUM confidence (author-verified against RSC docs)
+- [framer-motion — framer-motion import](https://www.hemantasundaray.com/blog/use-framer-motion-with-nextjs-server-components) — client component boundary — MEDIUM confidence (author-verified against RSC docs)
 - [Supabase Realtime Postgres Changes](https://supabase.com/docs/guides/realtime/postgres-changes) — subscription pattern, publication setup — HIGH confidence
 - [Vercel AI SDK HITL pattern](https://ai-sdk.dev/cookbook/next/human-in-the-loop) — approval gate architecture reference — MEDIUM confidence (uses different SDK, but pattern is transferable)
 - Codebase inspection: `apps/web/`, `packages/ai/`, `supabase/migrations/` — verified 2026-03-10

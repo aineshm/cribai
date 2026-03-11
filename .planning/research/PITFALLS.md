@@ -17,7 +17,7 @@ You attempt to migrate the entire frontend to shadcn/ui + Tailwind v4 tokens in 
 Tailwind v4 changes the CSS architecture fundamentally (JavaScript config eliminated, `@theme` CSS directive replaces `tailwind.config.js`, `@import "tailwindcss"` replaces `@tailwind` directives, utility class renames like `flex-shrink-0` → `shrink-0`). Shadcn/ui also shifts from the v3 HSL token format to v4 OKLCH. Trying to do this atomically across 20+ component files is a code freeze in practice. A single bad merge leaves the app in a broken state.
 
 **How to avoid:**
-Dedicate the first phase entirely to design system foundations: install Tailwind v4, install shadcn/ui with v4 support, configure `@theme` with the full CampusNest token set (Cabinet Grotesk, Satoshi, brand colours), set up `next/font/local` for both fonts, install Lucide, install Framer Motion. Validate with a single throwaway test page that exercises the full token system. Only after this foundation phase is solid do subsequent phases replace component-by-component. Use feature flags or parallel routes to keep the existing pages live while redesigned pages are built alongside them.
+Dedicate the first phase entirely to design system foundations: install Tailwind v4, install shadcn/ui with v4 support, configure `@theme` with the full CampusNest token set (Space Grotesk, DM Sans, brand colours), set up `next/font/google` for both fonts, install Lucide, install framer-motion. Validate with a single throwaway test page that exercises the full token system. Only after this foundation phase is solid do subsequent phases replace component-by-component. Use feature flags or parallel routes to keep the existing pages live while redesigned pages are built alongside them.
 
 **Warning signs:**
 - PR titles like "redesign everything" or "full migration"
@@ -52,13 +52,13 @@ Phase 1 (Design System Foundation) — the token merge is the most important tas
 
 ---
 
-### Pitfall 3: Framer Motion Forces Every Animated Page Into a Client Component
+### Pitfall 3: framer-motion Forces Every Animated Page Into a Client Component
 
 **What goes wrong:**
 You add `motion.div` to a page component that was a Server Component (no `"use client"` directive). Next.js 15 App Router throws a hard error or silently falls back to CSR. Worse, you add `"use client"` to the page component itself — which propagates client-side rendering to all its children, including data-fetching components that were intentionally server-side. Performance regresses: data fetching moves to the browser, initial HTML is empty, and Lighthouse scores drop.
 
 **Why it happens:**
-Framer Motion is a purely client-side library (it accesses `window`, DOM nodes, and `requestAnimationFrame`). In Next.js App Router, the default is server rendering. Adding `motion.*` components without `"use client"` boundary management causes the entire subtree to execute on the client. Developers who are used to Next.js pages router (where all components were client-rendered by default) do not think about this boundary.
+framer-motion is a purely client-side library (it accesses `window`, DOM nodes, and `requestAnimationFrame`). In Next.js App Router, the default is server rendering. Adding `motion.*` components without `"use client"` boundary management causes the entire subtree to execute on the client. Developers who are used to Next.js pages router (where all components were client-rendered by default) do not think about this boundary.
 
 **How to avoid:**
 Create thin `"use client"` wrapper components that own the animation concern only. Example: `MotionWrapper.tsx` exports `motion` components with `"use client"` at the top; page-level Server Components import these wrappers, not `framer-motion` directly. The rule: pages remain Server Components; animated elements are extracted into small Client Component wrappers. Use `initial={false}` on AnimatePresence to suppress the first-render animation (prevents SSR hydration mismatch where the server renders no `data-projection-id` but the client expects one).
@@ -70,23 +70,23 @@ Create thin `"use client"` wrapper components that own the animation concern onl
 - Exit animations not playing (AnimatePresence not wrapping the correct level, or missing `key` props)
 
 **Phase to address:**
-Phase 2 (Marketing Landing Page) — this is the first phase that introduces Framer Motion. Establish the wrapper pattern here; all subsequent phases inherit it.
+Phase 2 (Marketing Landing Page) — this is the first phase that introduces framer-motion. Establish the wrapper pattern here; all subsequent phases inherit it.
 
 ---
 
-### Pitfall 4: Cabinet Grotesk and Satoshi Are Not on Google Fonts — Self-Hosting Is Mandatory
+### Pitfall 4: Space Grotesk and DM Sans Are Not on Google Fonts — Self-Hosting Is Mandatory
 
 **What goes wrong:**
-A developer tries to load Cabinet Grotesk or Satoshi via `next/font/google` (the convenient zero-config path). It fails silently or throws because these fonts are not in Google Fonts. The fallback is a browser default serif font (Times New Roman), which destroys the brand feel and shifts layout due to different metrics. CLS (Cumulative Layout Shift) spikes because the fallback font has completely different glyph dimensions than the intended typefaces.
+A developer tries to load Space Grotesk or DM Sans via `next/font/google` (the convenient zero-config path). It fails silently or throws because these fonts are not in Google Fonts. The fallback is a browser default serif font (Times New Roman), which destroys the brand feel and shifts layout due to different metrics. CLS (Cumulative Layout Shift) spikes because the fallback font has completely different glyph dimensions than the intended typefaces.
 
 **Why it happens:**
-Cabinet Grotesk is distributed by Fontshare (Indian Type Foundry); Satoshi is from Fontshare as well. Neither is on Google Fonts. Developers assume the `next/font/google` import covers all modern design system fonts. Next.js does not validate font names at import time — it fails at build time or runtime, which is a late-stage discovery.
+Space Grotesk is distributed by Fontshare (Indian Type Foundry); DM Sans is from Fontshare as well. Neither is on Google Fonts. Developers assume the `next/font/google` import covers all modern design system fonts. Next.js does not validate font names at import time — it fails at build time or runtime, which is a late-stage discovery.
 
 **How to avoid:**
-Download WOFF2 files for both fonts from Fontshare (Cabinet Grotesk: ExtraLight through ExtraBold + Italic variants; Satoshi: Light through Black + Italic variants). Place them in `apps/web/public/fonts/`. Use `next/font/local` with the full weight array. Set `display: "swap"` and `adjustFontFallback: true` — Next.js will auto-generate a `size-adjust`-calibrated fallback to prevent CLS. Apply the font as a CSS variable on `<html>` and consume it via `font-family: var(--font-cabinet-grotesk)` in the Tailwind `@theme` block. Test with a throttled connection to verify no FOUT (Flash of Unstyled Text).
+Download WOFF2 files for both fonts from Fontshare (Space Grotesk: ExtraLight through ExtraBold + Italic variants; DM Sans: Light through Black + Italic variants). Place them in `apps/web/public/fonts/`. Use `next/font/google` with the full weight array. Set `display: "swap"` and `adjustFontFallback: true` — Next.js will auto-generate a `size-adjust`-calibrated fallback to prevent CLS. Apply the font as a CSS variable on `<html>` and consume it via `font-family: var(--font-space-grotesk)` in the Tailwind `@theme` block. Test with a throttled connection to verify no FOUT (Flash of Unstyled Text).
 
 **Warning signs:**
-- `import { CabinetGrotesk } from "next/font/google"` in any file
+- `import { SpaceGrotesk } from "next/font/google"` in any file
 - Times New Roman or system-ui visible during page load in slow-network tests
 - CLS score above 0.05 in Lighthouse
 - Font files not present in `public/fonts/` directory
@@ -267,7 +267,7 @@ Shortcuts that seem reasonable but create long-term problems.
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Adding `"use client"` to page-level files to fix Framer Motion errors | Fast fix for SSR errors | All data fetching on that page moves to client; RSC benefits lost | Never — always extract animation to wrapper component |
+| Adding `"use client"` to page-level files to fix framer-motion errors | Fast fix for SSR errors | All data fetching on that page moves to client; RSC benefits lost | Never — always extract animation to wrapper component |
 | Keeping both old CSS variables and new shadcn tokens in parallel | Avoids touching working components | Two token systems diverge; dark mode inconsistent across pages | Only as a 1-2 day interim state during migration, never permanent |
 | Inline `setTimeout` to "pause" between mission state transitions | Quick visual debounce | Race conditions reappear under network latency or slow machines | Never — use TanStack Query mutation lifecycle instead |
 | Using raw `fetch` + `useState` for mission polling instead of TanStack Query | Avoids adding a dependency | Manual cache invalidation, no deduplication, stale-state bugs multiply | Only acceptable for one-off status checks, not recurring polling |
@@ -283,11 +283,11 @@ Common mistakes when connecting libraries to the existing CampusNest stack.
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
 | shadcn/ui + Tailwind v4 | Running `npx shadcn@latest add` before Tailwind v4 migration is complete | Complete Tailwind v4 migration first; shadcn v4 components use `@theme` tokens that do not exist in v3 config |
-| Framer Motion + Next.js 15 | Wrapping entire page in `motion.div` with `"use client"` | Create `MotionWrapper` client components that wrap only the animated element; keep pages as Server Components |
-| `next/font/local` + Tailwind v4 | Applying font CSS variable as a class on `<body>` but not mapping it in `@theme` | Map `--font-cabinet-grotesk` into `@theme { --font-display: var(--font-cabinet-grotesk); }` so Tailwind utility classes (`font-display`) work |
+| framer-motion + Next.js 15 | Wrapping entire page in `motion.div` with `"use client"` | Create `MotionWrapper` client components that wrap only the animated element; keep pages as Server Components |
+| `next/font/google` + Tailwind v4 | Applying font CSS variable as a class on `<body>` but not mapping it in `@theme` | Map `--font-space-grotesk` into `@theme { --font-display: var(--font-space-grotesk); }` so Tailwind utility classes (`font-display`) work |
 | Lucide + Next.js 15 | Missing `optimizePackageImports` in `next.config.ts` | Add `experimental.optimizePackageImports: ["lucide-react"]` on day one |
 | TanStack Query + Supabase RLS | Queries hitting `anon` key for authenticated missions | Ensure Supabase client in `queryFn` uses the session-aware client from `packages/supabase/server.ts`, not the browser client |
-| Framer Motion `AnimatePresence` + Next.js routing | Exit animations not running on page navigation | Wrap the animated content at the layout level; page components unmount before exit animation can complete |
+| framer-motion `AnimatePresence` + Next.js routing | Exit animations not running on page navigation | Wrap the animated content at the layout level; page components unmount before exit animation can complete |
 
 ---
 
@@ -297,11 +297,11 @@ Patterns that work in development but cause problems in production.
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Framer Motion `layout` prop on large lists | List items reflow slowly when count changes; jank on add/remove | Only use `layout` prop on elements that genuinely need coordinated layout animation; avoid on list containers with 50+ items | Lists with >20 animated items |
+| framer-motion `layout` prop on large lists | List items reflow slowly when count changes; jank on add/remove | Only use `layout` prop on elements that genuinely need coordinated layout animation; avoid on list containers with 50+ items | Lists with >20 animated items |
 | `backdrop-filter: blur()` on floating panel | Frame rate drops on mid-range devices; panel feels laggy | Use `will-change: transform` on the panel; test blur on Lighthouse mobile simulation; consider removing blur for accessibility (`prefers-reduced-motion`) | Any device without GPU compositing support |
 | Mission polling at 2-second intervals for all active missions | Supabase connection pool exhausted under concurrent users; DB CPU spikes | Use Supabase Realtime channel subscription for mission status updates instead of polling; fall back to polling at 5s intervals only when Realtime is unavailable | > 50 concurrent users with active missions |
 | Loading all mission history on page mount | AI Concierge page slow initial load; unnecessary DB queries for archived missions | Paginate: load last 10 missions on mount, lazy-load older history | Mission history grows beyond 50 entries per user |
-| Applying Framer Motion `whileHover` and `whileTap` to every interactive element | Subtle but cumulative: 50+ animated elements cause GC pauses | Reserve motion variants for primary CTAs and meaningful state transitions; use CSS `:hover` transitions for minor hover states | Pages with dense interactive lists |
+| Applying framer-motion `whileHover` and `whileTap` to every interactive element | Subtle but cumulative: 50+ animated elements cause GC pauses | Reserve motion variants for primary CTAs and meaningful state transitions; use CSS `:hover` transitions for minor hover states | Pages with dense interactive lists |
 
 ---
 
@@ -336,9 +336,9 @@ Specific to the chat → floating panel transition and AI mission UX.
 
 Things that appear complete but are missing critical pieces.
 
-- [ ] **Font loading:** WOFF2 files in `public/fonts/`, `next/font/local` configured, font CSS variable mapped in Tailwind `@theme`, `adjustFontFallback: true` set, no FOUT visible on throttled-network test
+- [ ] **Font loading:** WOFF2 files in `public/fonts/`, `next/font/google` configured, font CSS variable mapped in Tailwind `@theme`, `adjustFontFallback: true` set, no FOUT visible on throttled-network test
 - [ ] **Shadcn token merge:** Single `:root` block in `globals.css`, no conflicting custom property names, dark mode verified on every redesigned page, OKLCH values match Figma design
-- [ ] **Framer Motion boundary:** Zero `"use client"` in `page.tsx` or `layout.tsx` files added due to animation needs, `initial={false}` on AnimatePresence components, no hydration warnings in console
+- [ ] **framer-motion boundary:** Zero `"use client"` in `page.tsx` or `layout.tsx` files added due to animation needs, `initial={false}` on AnimatePresence components, no hydration warnings in console
 - [ ] **Lucide bundle:** `optimizePackageImports: ["lucide-react"]` present in `next.config.ts`, bundle analyser run confirming no icon library bloat
 - [ ] **Mission HITL schema:** `draft_version` column on drafts table, `expires_at` column with cron cleanup, unique constraint on approval preventing double-submit, RLS policy scoping missions to `auth.uid()`
 - [ ] **Floating panel persistence:** Panel renders in root layout (not page), `isOpen` + `conversationId` state lives in global store, panel survives Next.js route navigation without unmounting
@@ -355,8 +355,8 @@ When pitfalls occur despite prevention, how to recover.
 |---------|---------------|----------------|
 | Big-bang migration breaks multiple pages | HIGH | Feature-flag broken pages off; revert to page-by-page migration; use git worktree to keep old pages live |
 | CSS token naming collision causes visual regressions | MEDIUM | Audit all custom property names with grep; rename conflicting variables systematically; run visual regression tests page-by-page |
-| Framer Motion "use client" propagation breaks RSC data fetching | MEDIUM | Extract animated elements to separate client component files; restore `"use client"` boundaries; re-test data fetching on affected pages |
-| Font FOUT visible in production after deploy | LOW | Add `preload: true` to `next/font/local` config for above-the-fold font variants; verify `adjustFontFallback: true`; redeploy |
+| framer-motion "use client" propagation breaks RSC data fetching | MEDIUM | Extract animated elements to separate client component files; restore `"use client"` boundaries; re-test data fetching on affected pages |
+| Font FOUT visible in production after deploy | LOW | Add `preload: true` to `next/font/google` config for above-the-fold font variants; verify `adjustFontFallback: true`; redeploy |
 | Mission polling race condition causes state flicker | MEDIUM | Migrate polling to TanStack Query `refetchInterval`; add `staleTime` to prevent immediate overwrite after mutation |
 | Stale HITL draft approved by user | HIGH | Add `draft_version` to schema, migration adds column with default, approval API validates version, display "newer draft available" error in UI |
 | Double-submit creates duplicate tour requests | MEDIUM | Add `idempotency_key` unique constraint to tours table; run deduplication script to clean existing duplicates; disable submit button on click |
@@ -371,8 +371,8 @@ How roadmap phases should address these pitfalls.
 |---------|------------------|--------------|
 | Big-bang migration breaks working features (#1) | Phase 1: Design System Foundation | All existing pages still pass E2E tests after Phase 1 |
 | Shadcn CSS variable name collisions (#2) | Phase 1: Design System Foundation | Single `:root` block in globals.css; dark mode verified on old pages |
-| Framer Motion client component boundary (#3) | Phase 2: Marketing Landing Page (first use) | No `"use client"` in page.tsx files; no hydration warnings |
-| Cabinet Grotesk/Satoshi not on Google Fonts (#4) | Phase 1: Design System Foundation | `next/font/local` configured; no FOUT on throttled network |
+| framer-motion client component boundary (#3) | Phase 2: Marketing Landing Page (first use) | No `"use client"` in page.tsx files; no hydration warnings |
+| Space Grotesk/DM Sans not on Google Fonts (#4) | Phase 1: Design System Foundation | `next/font/google` configured; no FOUT on throttled network |
 | Lucide barrel import bundle bloat (#5) | Phase 1: Design System Foundation | `optimizePackageImports` in next.config.ts verified |
 | Mission state polling race condition (#6) | AI Concierge Mission Board phase | TanStack Query used for all mission state; no setInterval in components |
 | HITL draft stale/double-submit/timeout (#7) | AI Concierge HITL phase (schema first) | draft_version column present; submit button disables on click; expires_at enforced by cron |
@@ -388,9 +388,9 @@ How roadmap phases should address these pitfalls.
 - [Tailwind CSS v4 upgrade guide](https://tailwindcss.com/docs/upgrade-guide)
 - [Migrating Tailwind v3 to v4 with shadcn/ui — ZippyStarter](https://zippystarter.com/blog/guides/migrating-tailwind3-to-tailwind4-with-shadcn)
 - [Theming shadcn with Tailwind v4 and CSS variables](https://medium.com/@joseph.goins/theming-shadcn-with-tailwind-v4-and-css-variables-d602f6b3c258)
-- [Framer Motion with Next.js Server Components](https://www.hemantasundaray.com/blog/use-framer-motion-with-nextjs-server-components)
-- [Framer Motion + Next.js 14 "use client" workaround](https://medium.com/@dolce-emmy/resolving-framer-motion-compatibility-in-next-js-14-the-use-client-workaround-1ec82e5a0c75)
-- [Framer Motion App Router shared layout animation GitHub issue](https://github.com/framer/motion/issues/1850)
+- [framer-motion with Next.js Server Components](https://www.hemantasundaray.com/blog/use-framer-motion-with-nextjs-server-components)
+- [framer-motion + Next.js 14 "use client" workaround](https://medium.com/@dolce-emmy/resolving-framer-motion-compatibility-in-next-js-14-the-use-client-workaround-1ec82e5a0c75)
+- [framer-motion App Router shared layout animation GitHub issue](https://github.com/framer/motion/issues/1850)
 - [How Next.js optimizes package imports (barrel files)](https://vercel.com/blog/how-we-optimized-package-imports-in-next-js)
 - [Lucide icon bundle size GitHub issue](https://github.com/lucide-icons/lucide/issues/1733)
 - [Tree shaking lucide-react with Vite](https://javascript.plainenglish.io/tree-shaking-lucide-react-icons-with-vite-and-vitest-57bf4cfe6032)
@@ -400,8 +400,8 @@ How roadmap phases should address these pitfalls.
 - [React stale closure in hooks — Dmitri Pavlutin](https://dmitripavlutin.com/react-hooks-stale-closures/)
 - [Implementing HITL in AI workflows](https://dev.to/brains_behind_bots/implementing-human-in-the-loop-hitl-in-ai-workflows-a-practical-guide-3b6b)
 - [Incremental vs big-bang migration strategy](https://medium.com/@navidbarsalari/%EF%B8%8F-incremental-vs-big-bang-migration-choosing-the-right-path-for-your-product-498521839a4d)
-- [Framer Motion layout animation performance — official docs](https://www.framer.com/motion/layout-animations/)
-- [Framer Motion AnimatePresence + layout animation GitHub issue](https://github.com/framer/motion/issues/1983)
+- [framer-motion layout animation performance — official docs](https://www.framer.com/motion/layout-animations/)
+- [framer-motion AnimatePresence + layout animation GitHub issue](https://github.com/framer/motion/issues/1983)
 
 ---
 

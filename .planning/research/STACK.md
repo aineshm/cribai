@@ -10,7 +10,7 @@
 ## What This Research Covers
 
 The v1.1 milestone adds:
-1. Design system migration — Cabinet Grotesk + Satoshi fonts, shadcn/ui components, Lucide icons, Framer Motion animations
+1. Design system migration — Space Grotesk + DM Sans fonts, shadcn/ui components, Lucide icons, framer-motion animations
 2. AI Concierge missions page — task-based agent pipeline with status polling, draft approval (HITL), and an intent-parsing steering bar
 
 ---
@@ -22,7 +22,7 @@ The v1.1 milestone adds:
 | Technology | Version | Purpose | Why Recommended |
 |------------|---------|---------|-----------------|
 | `shadcn/ui` | latest CLI (`shadcn@latest`) | Accessible, copy-owned UI primitives built on Radix UI | Tailwind-native, full Tailwind v4 support shipped Q1 2025. Components are owned source code (not a library dependency), so zero versioning churn. CSS variables integrate directly with existing `globals.css` token system. Already decided in PROJECT.md. |
-| `motion` (formerly `framer-motion`) | ^12.x (`motion/react` entrypoint) | Spring physics, layout animations, presence/exit transitions | Rebranded from framer-motion in late 2024. New import path is `import { motion, AnimatePresence } from 'motion/react'`. API identical to framer-motion. v12 is current stable. Industry standard for React spring animations. |
+| `motion` (formerly `framer-motion`) | ^12.x (`framer-motion` entrypoint) | Spring physics, layout animations, presence/exit transitions | Rebranded from framer-motion in late 2024. New import path is `import { motion, AnimatePresence } from 'framer-motion'`. API identical to framer-motion. v12 is current stable. Industry standard for React spring animations. |
 | `lucide-react` | ^0.468+ | SVG icon set matching shadcn/ui ecosystem | Tree-shakeable ES modules — only imported icons ship. Named imports (`import { Home } from 'lucide-react'`) are fully typed. Bundled with shadcn/ui CLI so no separate decision needed. Replaces inline Heroicon SVGs. |
 | `tw-animate-css` | ^1.x | Tailwind v4 animation utilities (shadcn accordion, dialog, etc.) | shadcn/ui deprecated `tailwindcss-animate` in favor of `tw-animate-css` for Tailwind v4 compatibility. CSS-first approach, no JS plugin. Replace `@plugin 'tailwindcss-animate'` with `@import "tw-animate-css"` in `globals.css`. |
 
@@ -38,12 +38,12 @@ The v1.1 milestone adds:
 
 | Font | Delivery Method | Why |
 |------|----------------|-----|
-| Cabinet Grotesk | `next/font/local` with downloaded WOFF2 files | Not on Google Fonts. Free to download from cdnfonts.com / fontsource. Place in `apps/web/public/fonts/cabinet-grotesk/`. Use variable font weights (400–800). |
-| Satoshi | `next/font/local` with downloaded WOFF2 files | Not on Google Fonts. Download from fontsource or cdnfonts.com. Place in `apps/web/public/fonts/satoshi/`. Use for body text (replaces Inter). |
+| Space Grotesk | `next/font/google` with downloaded WOFF2 files | Not on Google Fonts. Free to download from cdnfonts.com / fontsource. Place in `apps/web/public/fonts/cabinet-grotesk/`. Use variable font weights (400–800). |
+| DM Sans | `next/font/google` with downloaded WOFF2 files | Not on Google Fonts. Download from fontsource or cdnfonts.com. Place in `apps/web/public/fonts/satoshi/`. Use for body text (replaces Inter). |
 
 **Implementation pattern for `apps/web/app/layout.tsx`:**
 ```typescript
-import localFont from 'next/font/local';
+import localFont from 'next/font/google';
 
 const cabinetGrotesk = localFont({
   src: [
@@ -58,9 +58,9 @@ const cabinetGrotesk = localFont({
 
 const satoshi = localFont({
   src: [
-    { path: '../public/fonts/satoshi/Satoshi-Regular.woff2', weight: '400' },
-    { path: '../public/fonts/satoshi/Satoshi-Medium.woff2', weight: '500' },
-    { path: '../public/fonts/satoshi/Satoshi-Bold.woff2', weight: '700' },
+    { path: '../public/fonts/satoshi/DM Sans-Regular.woff2', weight: '400' },
+    { path: '../public/fonts/satoshi/DM Sans-Medium.woff2', weight: '500' },
+    { path: '../public/fonts/satoshi/DM Sans-Bold.woff2', weight: '700' },
   ],
   variable: '--font-satoshi',
   display: 'swap',
@@ -108,15 +108,15 @@ pnpm dlx shadcn@latest init -t next
 # 2. Core animation utilities (shadcn/ui requires tw-animate-css for Tailwind v4)
 pnpm add tw-animate-css --filter @campusnest/web
 
-# 3. Motion (Framer Motion v2 — new package name)
+# 3. Motion (framer-motion v2 — new package name)
 pnpm add motion --filter @campusnest/web
 
 # shadcn/ui CLI installs these automatically:
 # class-variance-authority, clsx, tailwind-merge, lucide-react
 
 # 4. Font files (manual download — no npm package)
-# Download Cabinet Grotesk WOFF2 files from cdnfonts.com
-# Download Satoshi WOFF2 files from fontsource or cdnfonts.com
+# Download Space Grotesk WOFF2 files from cdnfonts.com
+# Download DM Sans WOFF2 files from fontsource or cdnfonts.com
 # Place in apps/web/public/fonts/{cabinet-grotesk,satoshi}/
 ```
 
@@ -149,10 +149,10 @@ The project already uses Tailwind v4 (`@import "tailwindcss"` in `globals.css`).
 
 | Recommended | Alternative | When to Use Alternative |
 |-------------|-------------|-------------------------|
-| `motion` (`motion/react` import) | `framer-motion` | Both packages are identical — `framer-motion` still receives updates. Use `framer-motion` if you have existing imports and want zero-change migration. |
+| `motion` (`framer-motion` import) | `framer-motion` | Both packages are identical — `framer-motion` still receives updates. Use `framer-motion` if you have existing imports and want zero-change migration. |
 | `shadcn/ui` (copy-paste model) | `@radix-ui/react-*` directly | Use Radix directly if you need full control with no pre-styled layer. shadcn is Radix + styling — it's not an abstraction on top, it's Radix with owned CSS. |
 | Supabase Realtime | SSE route handler | Use SSE if mission updates need sub-2-second latency without upgrading to Realtime. Pattern: `ReadableStream` in Next.js route handler, `EventSource` on client. |
-| `next/font/local` (manual files) | Google Fonts CDN for Cabinet Grotesk/Satoshi | Neither font is on Google Fonts. CDNFonts/Fontsource are alternatives but `next/font/local` provides automatic subsetting, preload hints, and zero external DNS request at runtime. |
+| `next/font/google` (manual files) | Google Fonts CDN for Space Grotesk/DM Sans | Neither font is on Google Fonts. CDNFonts/Fontsource are alternatives but `next/font/google` provides automatic subsetting, preload hints, and zero external DNS request at runtime. |
 | `tw-animate-css` | `tailwindcss-animate` (v3 only) | `tailwindcss-animate` does not support Tailwind v4. Do not use. |
 
 ---
@@ -162,12 +162,12 @@ The project already uses Tailwind v4 (`@import "tailwindcss"` in `globals.css`).
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
 | `tailwindcss-animate` | Tailwind v3 plugin only. Incompatible with `@import "tailwindcss"` v4 syntax. shadcn/ui explicitly deprecated it. | `tw-animate-css` |
-| `framer-motion` (new code) | Still works, but the package is being maintained under the `motion` name going forward. New code should use `motion/react` imports. | `motion` with `import { motion } from 'motion/react'` |
+| `framer-motion` (new code) | Still works, but the package is being maintained under the `motion` name going forward. New code should use `framer-motion` imports. | `motion` with `import { motion } from 'framer-motion'` |
 | WebSocket server (e.g., `ws`, Pusher) | Vercel serverless functions terminate at 30s — persistent WS connections are not supported without upgrading to Vercel Pro Edge + custom WS infra. | Supabase Realtime (already provisioned) or polling |
 | LangGraph / Inngest for mission state | v1.1 uses simple status enum column. State machine frameworks are deferred to v2 per PROJECT.md. | `missions` table with `status` enum + polling |
 | Heroicons (inline SVGs) | Manual copy-paste, not tree-shakeable, inconsistent sizing props. | `lucide-react` named imports |
-| `@next/font` (deprecated package) | Merged into `next` since Next.js 13.2. Using the old package causes duplicate font loading. | `import localFont from 'next/font/local'` |
-| Google Fonts CDN at runtime | CSP header blocks external font sources except `fonts.gstatic.com`. Cabinet Grotesk and Satoshi are not on Google Fonts anyway. | `next/font/local` with local WOFF2 files |
+| `@next/font` (deprecated package) | Merged into `next` since Next.js 13.2. Using the old package causes duplicate font loading. | `import localFont from 'next/font/google'` |
+| Google Fonts CDN at runtime | CSP header blocks external font sources except `fonts.gstatic.com`. Space Grotesk and DM Sans are not on Google Fonts anyway. | `next/font/google` with local WOFF2 files |
 
 ---
 
@@ -180,7 +180,7 @@ The project already uses Tailwind v4 (`@import "tailwindcss"` in `globals.css`).
 ```typescript
 // apps/web/components/motion/index.tsx
 'use client';
-export { motion, AnimatePresence } from 'motion/react';
+export { motion, AnimatePresence } from 'framer-motion';
 ```
 
 **For shadcn/ui in a monorepo:**
@@ -200,7 +200,7 @@ export { motion, AnimatePresence } from 'motion/react';
 | `motion` ^12.x | React 19, Next.js 15 | Tested with Next.js 16 + React 19 per community reports. v12.35.2 is current stable as of early 2026. |
 | `lucide-react` ^0.468+ | React 19 | Included by shadcn/ui CLI. Named imports provide tree shaking. |
 | `tw-animate-css` ^1.x | Tailwind v4 only | CSS-first, no JS plugin. Drop-in `@import` replacement for `tailwindcss-animate`. |
-| `next/font/local` | Next.js 15, App Router | Built into `next` package since 13.2. No separate install. Works with variable fonts. |
+| `next/font/google` | Next.js 15, App Router | Built into `next` package since 13.2. No separate install. Works with variable fonts. |
 | `class-variance-authority` ^0.7.0 | React 19 | Installed by shadcn/ui CLI. |
 | `clsx` ^2.1.0 | Any | Zero dependencies. |
 | `tailwind-merge` ^2.x | Tailwind v4 | v2+ required for Tailwind v4 class detection. |
@@ -211,8 +211,8 @@ export { motion, AnimatePresence } from 'motion/react';
 
 The existing `next.config.ts` has a strict CSP. Two changes needed for v1.1:
 
-1. **Local fonts** — no CSP change needed. `next/font/local` serves fonts from `/_next/static/` (same origin).
-2. **motion (Framer Motion)** — pure client-side JS, no external requests. No CSP change.
+1. **Local fonts** — no CSP change needed. `next/font/google` serves fonts from `/_next/static/` (same origin).
+2. **motion (framer-motion)** — pure client-side JS, no external requests. No CSP change.
 3. **shadcn/ui** — no external requests. No CSP change.
 
 The existing `font-src 'self' https://fonts.gstatic.com` can be simplified to `font-src 'self'` once the Google Fonts CDN import is removed from `layout.tsx`.
@@ -224,7 +224,7 @@ The existing `font-src 'self' https://fonts.gstatic.com` can be simplified to `f
 Current state uses `DM_Serif_Display` and `Inter` from `next/font/google`. Replace with:
 
 1. Remove `import { DM_Serif_Display, Inter } from 'next/font/google'`
-2. Add `import localFont from 'next/font/local'`
+2. Add `import localFont from 'next/font/google'`
 3. Define `cabinetGrotesk` and `satoshi` with local font configs (see pattern above)
 4. Update `className` on `<html>` to use new CSS variable names
 5. Update `globals.css` `--font-display` and `--font-body` tokens
@@ -238,7 +238,7 @@ Current state uses `DM_Serif_Display` and `Inter` from `next/font/google`. Repla
 - [shadcn/ui Next.js installation docs](https://ui.shadcn.com/docs/installation/next) — CLI command, monorepo flag
 - [shadcn/ui manual installation docs](https://ui.shadcn.com/docs/installation/manual) — full dependency list
 - [shadcn/ui React 19 docs](https://ui.shadcn.com/docs/react-19) — React 19 peer dep status HIGH confidence
-- [motion.dev upgrade guide](https://motion.dev/docs/react-upgrade-guide) — framer-motion → motion/react migration MEDIUM confidence (WebSearch)
+- [motion.dev upgrade guide](https://motion.dev/docs/react-upgrade-guide) — framer-motion → framer-motion migration MEDIUM confidence (WebSearch)
 - [tw-animate-css npm](https://www.npmjs.com/package/tw-animate-css) — Tailwind v4 animation replacement MEDIUM confidence (WebSearch)
 - [lucide-react official docs](https://lucide.dev/guide/packages/lucide-react) — tree shaking pattern HIGH confidence
 - [Next.js font optimization docs](https://nextjs.org/docs/app/getting-started/fonts) — localFont API HIGH confidence
