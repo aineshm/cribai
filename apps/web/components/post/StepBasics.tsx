@@ -56,7 +56,7 @@ export function StepBasics({ formData, updateFormData }: StepBasicsProps) {
           </span>
           <Input
             type="number"
-            placeholder="1,200"
+            placeholder="1200"
             className="pl-7"
             value={formData.monthlyRent}
             onChange={(e) => updateFormData({ monthlyRent: e.target.value })}

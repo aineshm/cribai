@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { scaleIn, fadeIn } from '@/lib/animations';
@@ -21,6 +21,8 @@ export function Lightbox({
   onClose,
   onIndexChange,
 }: LightboxProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
   const goPrev = useCallback(() => {
     onIndexChange(activeIndex === 0 ? photos.length - 1 : activeIndex - 1);
   }, [activeIndex, photos.length, onIndexChange]);
@@ -55,17 +57,28 @@ export function Lightbox({
     };
   }, [isOpen, onClose, goPrev, goNext]);
 
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      containerRef.current.focus();
+    }
+  }, [isOpen]);
+
   const currentPhoto = photos[activeIndex];
 
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
+          ref={containerRef}
           className="fixed inset-0 z-50 flex items-center justify-center"
           variants={fadeIn}
           initial="initial"
           animate="animate"
           exit="exit"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Photo lightbox"
+          tabIndex={-1}
         >
           {/* Backdrop */}
           <motion.div

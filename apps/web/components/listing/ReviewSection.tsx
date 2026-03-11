@@ -20,10 +20,11 @@ export function ReviewSection({ reviews }: ReviewSectionProps) {
     <div className="space-y-4">
       {/* Summary */}
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1" role="img" aria-label={`${averageRating.toFixed(1)} out of 5 stars`}>
           {Array.from({ length: 5 }).map((_, i) => (
             <Star
               key={`avg-star-${i}`}
+              aria-hidden="true"
               className={`size-5 ${
                 i < Math.round(averageRating)
                   ? 'fill-[var(--secondary-500)] text-[var(--secondary-500)]'
@@ -62,10 +63,11 @@ export function ReviewSection({ reviews }: ReviewSectionProps) {
                         {review.university}
                       </p>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1" role="img" aria-label={`${review.rating} out of 5 stars`}>
                       {Array.from({ length: 5 }).map((_, i) => (
                         <Star
                           key={`${review.id}-star-${i}`}
+                          aria-hidden="true"
                           className={`size-3.5 ${
                             i < review.rating
                               ? 'fill-[var(--secondary-500)] text-[var(--secondary-500)]'

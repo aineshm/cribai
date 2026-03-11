@@ -41,7 +41,7 @@ export function LandlordCard({ landlord }: LandlordCardProps) {
               </div>
             </div>
 
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" disabled title="Coming soon">
               <MessageCircle className="size-4" />
               Contact
             </Button>

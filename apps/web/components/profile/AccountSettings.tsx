@@ -84,10 +84,11 @@ export function AccountSettings() {
                   </h3>
                   <div className="space-y-3">
                     <div className="space-y-1.5">
-                      <label className="text-sm font-medium text-foreground">
+                      <label htmlFor="fullName" className="text-sm font-medium text-foreground">
                         Full Name
                       </label>
                       <Input
+                        id="fullName"
                         value={personalInfo.fullName}
                         onChange={(e) =>
                           updatePersonalInfo({ fullName: e.target.value })
@@ -95,10 +96,11 @@ export function AccountSettings() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-sm font-medium text-foreground">
+                      <label htmlFor="email" className="text-sm font-medium text-foreground">
                         Email
                       </label>
                       <Input
+                        id="email"
                         type="email"
                         value={personalInfo.email}
                         disabled
@@ -109,10 +111,11 @@ export function AccountSettings() {
                       </p>
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-sm font-medium text-foreground">
+                      <label htmlFor="phone" className="text-sm font-medium text-foreground">
                         Phone
                       </label>
                       <Input
+                        id="phone"
                         type="tel"
                         placeholder="(555) 123-4567"
                         value={personalInfo.phone}

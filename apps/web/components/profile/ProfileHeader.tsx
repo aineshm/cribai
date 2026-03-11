@@ -39,7 +39,7 @@ export function ProfileHeader({
       <CardContent className="flex flex-col items-center gap-4 py-6 sm:flex-row sm:items-start">
         <Avatar size="lg" className="size-20">
           {avatarUrl ? (
-            <AvatarImage src={avatarUrl} alt={name} />
+            <AvatarImage src={avatarUrl} alt={`${name}'s profile photo`} />
           ) : null}
           <AvatarFallback className="text-lg">{initials}</AvatarFallback>
         </Avatar>

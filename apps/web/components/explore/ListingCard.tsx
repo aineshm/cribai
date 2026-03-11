@@ -29,7 +29,7 @@ export function ListingCard({ listing }: ListingCardProps) {
   return (
     <motion.div {...scaleOnHover}>
       <Card className="relative overflow-hidden p-0 gap-0">
-        {/* Photo placeholder */}
+        {/* Photo placeholder — listing.photos[] contains Tailwind gradient classes (e.g. "from-teal-400 to-emerald-500") as placeholders, not real image URLs */}
         <div
           className={`relative aspect-[4/3] bg-gradient-to-br ${listing.photos[0]} flex items-end`}
         >
@@ -42,6 +42,8 @@ export function ListingCard({ listing }: ListingCardProps) {
               e.stopPropagation();
               setSaved((prev) => !prev);
             }}
+            aria-pressed={saved}
+            aria-label={saved ? 'Unsave listing' : 'Save listing'}
           >
             <Heart
               className={`size-4 ${

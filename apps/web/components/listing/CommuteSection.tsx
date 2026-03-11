@@ -36,19 +36,19 @@ export function CommuteSection({ commuteDistances }: CommuteSectionProps) {
               <th className="py-2 px-3 font-medium text-foreground">
                 <div className="flex items-center justify-center gap-1.5">
                   <Footprints className="size-4" />
-                  <span className="hidden sm:inline">Walk</span>
+                  <span className="sr-only sm:not-sr-only sm:inline">Walk</span>
                 </div>
               </th>
               <th className="py-2 px-3 font-medium text-foreground">
                 <div className="flex items-center justify-center gap-1.5">
                   <Bike className="size-4" />
-                  <span className="hidden sm:inline">Bike</span>
+                  <span className="sr-only sm:not-sr-only sm:inline">Bike</span>
                 </div>
               </th>
               <th className="py-2 px-3 font-medium text-foreground">
                 <div className="flex items-center justify-center gap-1.5">
                   <Bus className="size-4" />
-                  <span className="hidden sm:inline">Bus</span>
+                  <span className="sr-only sm:not-sr-only sm:inline">Bus</span>
                 </div>
               </th>
             </tr>

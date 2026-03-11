@@ -77,6 +77,7 @@ export function FilterChips({
                     : ''
                 }`}
                 onClick={() => toggleFilter(filter.id)}
+                aria-pressed={isActive}
               >
                 <Icon className="size-3.5" />
                 {filter.label}

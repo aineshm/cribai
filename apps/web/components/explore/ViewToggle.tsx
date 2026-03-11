@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { List, Map } from 'lucide-react';
+import { List, Map as MapIcon } from 'lucide-react';
 import { springConfig } from '@/lib/animations';
 
 type ViewMode = 'list' | 'map';
@@ -13,7 +13,7 @@ interface ViewToggleProps {
 
 const views = [
   { id: 'list' as const, label: 'List', icon: List },
-  { id: 'map' as const, label: 'Map', icon: Map },
+  { id: 'map' as const, label: 'Map', icon: MapIcon },
 ] as const;
 
 export function ViewToggle({ activeView, onViewChange }: ViewToggleProps) {
@@ -33,6 +33,7 @@ export function ViewToggle({ activeView, onViewChange }: ViewToggleProps) {
                 : 'var(--surface-500)',
             }}
             onClick={() => onViewChange(view.id)}
+            aria-pressed={activeView === view.id}
           >
             <Icon className="size-4" />
             {view.label}

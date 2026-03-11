@@ -56,8 +56,11 @@ export function StepDescription({
           placeholder="Describe your space, neighborhood, and what makes it a great sublease..."
           value={formData.description}
           onChange={(e) => {
-            if (e.target.value.length <= MAX_CHARS) {
-              updateFormData({ description: e.target.value });
+            const val = e.target.value;
+            if (val.length <= MAX_CHARS) {
+              updateFormData({ description: val });
+            } else {
+              updateFormData({ description: val.slice(0, MAX_CHARS) });
             }
           }}
           rows={8}

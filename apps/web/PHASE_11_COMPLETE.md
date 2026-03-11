@@ -19,6 +19,7 @@
 - `app/globals.css` — Added `.auth-gradient-bg` and `.auth-gradient-animate` CSS classes
 
 ## Requirement Coverage
+
 | ID | Description | Status |
 |----|-------------|--------|
 | LAND-01 | Marketing landing page with hero, AI value prop, "Get Started" CTA | Done |

@@ -41,12 +41,17 @@ function TourScheduledCard({ data }: { readonly data: Record<string, unknown> })
           <div className="flex items-center gap-2 text-sm text-blue-800">
             <Clock className="size-3.5" />
             <span>
-              {new Date(date).toLocaleDateString('en-US', {
-                weekday: 'long',
-                month: 'long',
-                day: 'numeric',
-              })}{' '}
-              at {time}
+              {(() => {
+                const parsedDate = new Date(date);
+                return Number.isNaN(parsedDate.getTime())
+                  ? 'Date TBD'
+                  : parsedDate.toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      month: 'long',
+                      day: 'numeric',
+                    });
+              })()}{' '}
+              at {time || 'Time TBD'}
             </span>
           </div>
           <div className="flex items-center gap-2 text-sm text-blue-800">

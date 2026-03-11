@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Calendar, Clock, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,13 +13,27 @@ interface BookTourModalProps {
   readonly listingTitle: string;
 }
 
-const AVAILABLE_DATES = [
-  { label: 'Mon, Mar 16', value: '2026-03-16' },
-  { label: 'Tue, Mar 17', value: '2026-03-17' },
-  { label: 'Wed, Mar 18', value: '2026-03-18' },
-  { label: 'Thu, Mar 19', value: '2026-03-19' },
-  { label: 'Fri, Mar 20', value: '2026-03-20' },
-] as const;
+function getNextWeekdays(count: number): readonly { label: string; value: string }[] {
+  const dates: { label: string; value: string }[] = [];
+  const current = new Date();
+  current.setHours(0, 0, 0, 0);
+
+  while (dates.length < count) {
+    current.setDate(current.getDate() + 1);
+    const day = current.getDay();
+    if (day !== 0 && day !== 6) {
+      const label = current.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+      });
+      const value = current.toISOString().split('T')[0] ?? '';
+      dates.push({ label, value });
+    }
+  }
+
+  return dates;
+}
 
 const TIME_SLOTS = [
   '9:00 AM',
@@ -40,6 +54,7 @@ export function BookTourModal({
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [confirmed, setConfirmed] = useState(false);
+  const availableDates = useMemo(() => getNextWeekdays(5), []);
 
   const handleConfirm = useCallback(() => {
     if (!selectedDate || !selectedTime) return;
@@ -48,6 +63,15 @@ export function BookTourModal({
       description: `${selectedDate} at ${selectedTime}`,
     });
   }, [selectedDate, selectedTime]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   const handleClose = useCallback(() => {
     setConfirmed(false);
@@ -80,10 +104,13 @@ export function BookTourModal({
             initial="initial"
             animate="animate"
             exit="exit"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="book-tour-title"
           >
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-[var(--surface-200)]">
-              <h2 className="text-base font-semibold text-foreground">
+              <h2 id="book-tour-title" className="text-base font-semibold text-foreground">
                 Book a Tour
               </h2>
               <button
@@ -122,7 +149,7 @@ export function BookTourModal({
                       Select a Date
                     </label>
                     <div className="grid grid-cols-3 gap-2">
-                      {AVAILABLE_DATES.map((date) => (
+                      {availableDates.map((date) => (
                         <button
                           key={date.value}
                           type="button"

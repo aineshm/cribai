@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -46,6 +46,11 @@ export function ProfileSetup({ email, onComplete, loading }: ProfileSetupProps) 
   const [university, setUniversity] = useState(detectedUni);
   const [graduationYear, setGraduationYear] = useState('');
   const years = useMemo(() => getGraduationYears(), []);
+
+  // Sync university state if email prop changes
+  useEffect(() => {
+    setUniversity(detectedUni);
+  }, [detectedUni]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

@@ -12,7 +12,7 @@ interface OTPInputProps {
 export function OTPInput({ value, onChange, length = 6, disabled = false }: OTPInputProps) {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  const digits = value.padEnd(length, '').split('').slice(0, length);
+  const digits = value.padEnd(length, ' ').split('').slice(0, length);
 
   const focusInput = useCallback((index: number) => {
     const clamped = Math.max(0, Math.min(index, length - 1));

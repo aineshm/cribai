@@ -175,8 +175,12 @@ export const MOCK_LISTING_DETAIL: DetailedListing = {
   },
 } as const;
 
+const LISTINGS_BY_ID: ReadonlyMap<string, DetailedListing> = new Map([
+  [MOCK_LISTING_DETAIL.id, MOCK_LISTING_DETAIL],
+]);
+
 export function getMockListingById(
-  _id: string,
-): DetailedListing {
-  return MOCK_LISTING_DETAIL;
+  id: string,
+): DetailedListing | undefined {
+  return LISTINGS_BY_ID.get(id);
 }

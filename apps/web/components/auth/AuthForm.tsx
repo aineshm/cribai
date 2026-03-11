@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@campusnest/supabase/client';
@@ -40,6 +40,12 @@ export function AuthForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const verifyingRef = useRef(false);
+
+  // Reset verifying guard when step changes
+  useEffect(() => {
+    verifyingRef.current = false;
+  }, [step]);
 
   // Resend countdown timer
   useEffect(() => {
@@ -105,7 +111,8 @@ export function AuthForm() {
 
   // Auto-verify when OTP is complete (6 digits)
   useEffect(() => {
-    if (step === 'otp' && otp.length === 6 && !loading) {
+    if (step === 'otp' && otp.length === 6 && !loading && !verifyingRef.current) {
+      verifyingRef.current = true;
       handleVerifyOtp();
     }
   }, [otp, step, loading, handleVerifyOtp]);

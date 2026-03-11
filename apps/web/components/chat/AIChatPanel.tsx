@@ -63,7 +63,7 @@ export function AIChatPanel({ open, onOpenChange }: AIChatPanelProps) {
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
         e.preventDefault();
         handleSend();
       }
@@ -94,6 +94,7 @@ export function AIChatPanel({ open, onOpenChange }: AIChatPanelProps) {
             variant="ghost"
             size="icon-sm"
             onClick={() => onOpenChange(false)}
+            aria-label="Close chat"
           >
             <X className="size-4" />
           </Button>
@@ -182,6 +183,7 @@ export function AIChatPanel({ open, onOpenChange }: AIChatPanelProps) {
               className="shrink-0 rounded-full bg-[var(--primary-700)] hover:bg-[var(--primary-800)]"
               onClick={() => handleSend()}
               disabled={!inputValue.trim()}
+              aria-label="Send message"
             >
               <Send className="size-4 text-white" />
             </Button>

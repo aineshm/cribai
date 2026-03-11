@@ -39,7 +39,7 @@ export function Features() {
         >
           {features.map((feature) => (
             <motion.div key={feature.title} variants={staggerItem}>
-              <Card className="h-full border-none shadow-none ring-0 text-center">
+              <Card className="group/card h-full border-none shadow-none ring-0 text-center">
                 <CardContent className="pt-6">
                   <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--primary-50)] text-[var(--primary-600)] group-hover/card:scale-110 transition-transform duration-300">
                     <feature.icon className="h-7 w-7" />

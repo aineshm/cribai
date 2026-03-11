@@ -11,6 +11,10 @@ export default async function ListingDetailPage({
   const { id } = await params;
   const listing = getMockListingById(id);
 
+  if (!listing) {
+    return <div>Listing not found</div>;
+  }
+
   return <ListingDetailClient listing={listing} />;
 }
 
