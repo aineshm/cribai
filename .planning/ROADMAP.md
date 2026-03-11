@@ -34,7 +34,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - [ ] **Phase 13: Listing Detail Redesign** - Photo gallery grid, two-column sticky CTA layout, AI lease summary, commute section, and mobile sticky bar
 - [ ] **Phase 14: Post Sublease + Profile/Saved Redesign** - Multi-step sublease wizard with progress tracker + combined profile/saved tabbed page
 - [ ] **Phase 15: AI Concierge UI** - Task-based mission board with status pipeline, HITL draft approval, steering bar, agent summaries, and proactive empty state
-- [ ] **Phase 18: Explore Page Wiring + Verification** - Add Links to ListingCard, scope AIChatButton to Explore, wire AIChatPanel, add tests for ExploreLayout/ViewToggle/FilterChips (gap closure)
+- [x] **Phase 18: Explore Page Wiring + Verification** - Add Links to ListingCard, scope AIChatButton to Explore, wire AIChatPanel, add tests for ExploreLayout/ViewToggle/FilterChips (gap closure) (completed 2026-03-11)
 - [x] **Phase 19: Auth Flow + Route Protection** - Fix post-auth redirect, protect /post and /profile with middleware, wire ProfileHeader to auth session, wire SavedListings with Links, enable Detail Chat button (gap closure) (completed 2026-03-11)
 - [x] **Phase 20: Concierge Mount + Design Cleanup** - Mount ConciergeProvider in (main) layout, migrate remaining inline SVGs to Lucide (gap closure) (completed 2026-03-11)
 
@@ -123,7 +123,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   3. AIChatPanel sends user messages to CribAI engine and displays responses (no hardcoded DEFAULT_RESPONSE)
   4. ExploreLayout, ViewToggle, and FilterChips have passing E2E or unit tests
   5. Explore → Listing Detail flow works end-to-end
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 18-01-PLAN.md — Wire ListingCard Link, scope AIChatButton to Explore, replace ChatProvider stub with SSE
 - [ ] 18-02-PLAN.md — Unit tests for ExploreLayout, ViewToggle, FilterChips, ListingCard, and filterListings
@@ -181,6 +181,6 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 18 �
 | 13. Listing Detail Redesign | v1.1 | 0/TBD | Not started | - |
 | 14. Post Sublease + Profile/Saved Redesign | v1.1 | 0/TBD | Not started | - |
 | 15. AI Concierge UI | v1.1 | 0/TBD | Not started | - |
-| 18. Explore Page Wiring + Verification | 1/2 | In Progress|  | - |
+| 18. Explore Page Wiring + Verification | 2/2 | Complete   | 2026-03-11 | - |
 | 19. Auth Flow + Route Protection | 2/2 | Complete    | 2026-03-11 | - |
 | 20. Concierge Mount + Design Cleanup | 2/2 | Complete    | 2026-03-11 | - |

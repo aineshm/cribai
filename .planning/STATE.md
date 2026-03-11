@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: UI/UX Upgrade
 status: completed
-stopped_at: Completed 18-01-PLAN.md
-last_updated: "2026-03-11T21:48:47.057Z"
+stopped_at: Completed 18-02-PLAN.md
+last_updated: "2026-03-11T21:52:06.094Z"
 last_activity: 2026-03-11 -- Completed 20-01 (main)/layout.tsx with ConciergeShell + ConciergeNavButton
 progress:
   total_phases: 9
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
   percent: 50
 ---
 
@@ -55,6 +55,7 @@ Progress: [█████░░░░░] 50%  (v1.2: 4/8 plans)
 | Phase 19 P02 | 95 | 2 tasks | 7 files |
 | Phase 20-concierge-mount-design-cleanup P02 | 8min | 2 tasks | 11 files |
 | Phase 18 P01 | 8 | 2 tasks | 7 files |
+| Phase 18-explore-page-wiring P02 | 12 | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -90,6 +91,8 @@ Recent decisions affecting v1.2 work:
 - [Phase 18]: campusSlug hardcoded to uw-madison in ChatProvider for Phase 18 scope
 - [Phase 18]: AIChatButton/AIChatPanel moved to explore page directly (not usePathname guard)
 - [Phase 18]: ChatProvider stays in root layout for context availability even when panel is page-scoped
+- [Phase 18-02]: Global framer-motion mock via Proxy in vitest.setup.ts converts motion.X to plain HTML elements
+- [Phase 18-02]: Pre-existing test failures in freshness-badge, map-block, ProfilePage are out of scope for plan 18-02
 
 ### Pending Todos
 
@@ -104,7 +107,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-11T21:46:34.818Z
-Stopped at: Completed 18-01-PLAN.md
+Last session: 2026-03-11T21:52:06.092Z
+Stopped at: Completed 18-02-PLAN.md
 Resume file: None
 Next: Plan 20-02 (design cleanup)

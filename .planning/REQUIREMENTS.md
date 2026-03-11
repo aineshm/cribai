@@ -27,9 +27,9 @@
 
 ### Explore Page
 
-- [ ] **EXPL-01**: User sees a split view with listing grid (60%) and interactive map (40%) on desktop
-- [ ] **EXPL-02**: Mobile users can toggle between List and Map views via segmented control
-- [ ] **EXPL-03**: Filter chips (Price, Beds, Distance, Move-in Date, Pet Friendly, Furnished) appear above results
+- [x] **EXPL-01**: User sees a split view with listing grid (60%) and interactive map (40%) on desktop
+- [x] **EXPL-02**: Mobile users can toggle between List and Map views via segmented control
+- [x] **EXPL-03**: Filter chips (Price, Beds, Distance, Move-in Date, Pet Friendly, Furnished) appear above results
 - [x] **EXPL-04**: Floating AI button opens CribAI as a slide-over chat panel (not a separate page)
 - [x] **EXPL-05**: Listing cards show photo, price, beds/baths, distance badge, rating, save button, and AI Verified badge
 
