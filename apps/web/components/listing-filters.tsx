@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useCallback, useRef, useEffect, useState } from 'react';
+import { X } from 'lucide-react';
 
 function useDebounce(value: string, delay: number): string {
   const [debounced, setDebounced] = useState(value);
@@ -142,9 +143,7 @@ export function ListingFilters() {
             className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium text-[var(--surface-500)] hover:text-[var(--surface-700)] hover:bg-[var(--surface-50)] transition-colors"
             aria-label="Clear all filters"
           >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X className="h-3.5 w-3.5" strokeWidth={2} />
             Clear{activeCount > 1 ? ` (${activeCount})` : ''}
           </button>
         )}
