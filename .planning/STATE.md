@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: UI/UX Upgrade
 status: completed
-stopped_at: Completed 20-02-PLAN.md
-last_updated: "2026-03-11T21:45:53.841Z"
+stopped_at: Completed 18-01-PLAN.md
+last_updated: "2026-03-11T21:46:34.820Z"
 last_activity: 2026-03-11 -- Completed 20-01 (main)/layout.tsx with ConciergeShell + ConciergeNavButton
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
   percent: 50
 ---
 
@@ -54,6 +54,7 @@ Progress: [█████░░░░░] 50%  (v1.2: 4/8 plans)
 | 20-concierge-mount-design-cleanup | 1/2 | 8min | 8min |
 | Phase 19 P02 | 95 | 2 tasks | 7 files |
 | Phase 20-concierge-mount-design-cleanup P02 | 8min | 2 tasks | 11 files |
+| Phase 18 P01 | 8 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -86,6 +87,9 @@ Recent decisions affecting v1.2 work:
 - [Phase 19]: SavedListings Link inside motion.div (not wrapping it) to preserve stagger animation
 - [Phase 20-02]: Heart button fill/stroke state now managed via Tailwind classes (fill-red-500/stroke-red-500) rather than inline SVG attributes
 - [Phase 20-02]: MapPin uses fill=currentColor + strokeWidth=0 to reproduce filled-pin appearance from original Heroicon
+- [Phase 18]: campusSlug hardcoded to uw-madison in ChatProvider for Phase 18 scope
+- [Phase 18]: AIChatButton/AIChatPanel moved to explore page directly (not usePathname guard)
+- [Phase 18]: ChatProvider stays in root layout for context availability even when panel is page-scoped
 
 ### Pending Todos
 
@@ -100,7 +104,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-11T21:44:48.873Z
-Stopped at: Completed 20-02-PLAN.md
+Last session: 2026-03-11T21:46:34.818Z
+Stopped at: Completed 18-01-PLAN.md
 Resume file: None
 Next: Plan 20-02 (design cleanup)
