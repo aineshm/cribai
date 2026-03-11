@@ -27,6 +27,8 @@ function TourScheduledCard({ data }: { readonly data: Record<string, unknown> })
   const date = String(data.date ?? '');
   const time = String(data.time ?? '');
   const address = String(data.address ?? '');
+  const parsedDate = new Date(date);
+  const isValidDate = !Number.isNaN(parsedDate.getTime());
 
   return (
     <Card className="border-none bg-blue-50 ring-1 ring-blue-200">
@@ -41,16 +43,13 @@ function TourScheduledCard({ data }: { readonly data: Record<string, unknown> })
           <div className="flex items-center gap-2 text-sm text-blue-800">
             <Clock className="size-3.5" />
             <span>
-              {(() => {
-                const parsedDate = new Date(date);
-                return Number.isNaN(parsedDate.getTime())
-                  ? 'Date TBD'
-                  : parsedDate.toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      month: 'long',
-                      day: 'numeric',
-                    });
-              })()}{' '}
+              {isValidDate
+                ? parsedDate.toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric',
+                  })
+                : 'Date TBD'}{' '}
               at {time || 'Time TBD'}
             </span>
           </div>
