@@ -41,7 +41,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 **Milestone Goal:** Build the real backend for the AI Concierge -- mission executor, DB schema with HITL draft approval, Realtime status updates, steering bar intent parsing, real tool integrations, and agent memory -- wiring the v1.1 mock UI to a live agentic pipeline.
 
-- [ ] **Phase 16: Missions DB Schema** - Migration 013 with 4 tables, RLS, Realtime publications, pg_cron cleanup, and aligned TypeScript types
+- [x] **Phase 16: Missions DB Schema** - Migration 013 with 4 tables, RLS, Realtime publications, pg_cron cleanup, and aligned TypeScript types (completed 2026-03-11)
 - [ ] **Phase 17: Real Tool Integrations** - Replace 3 placeholder tools with Google Places reviews, Walk Score neighborhood info, and PM contact draft generation
 - [ ] **Phase 18: Mission Executor + HITL Approval** - Async fire-and-forget executor with agentic loop, Realtime log push, and draft approval gate for irreversible actions
 - [ ] **Phase 19: Steering + Agent Memory** - Steering bar intent parsing via Gemini function calling and cross-session preference memory for personalized results
@@ -133,7 +133,7 @@ Note: Phase 16 and 17 have no dependency on each other and can execute in parall
 | 13. Listing Detail Redesign | v1.1 | -/- | Complete | 2026-03-10 |
 | 14. Post Sublease + Profile/Saved | v1.1 | -/- | Complete | 2026-03-10 |
 | 15. AI Concierge UI | v1.1 | -/- | Complete | 2026-03-10 |
-| 16. Missions DB Schema | v1.2 | 0/1 | Planning | - |
+| 16. Missions DB Schema | 1/1 | Complete   | 2026-03-11 | - |
 | 17. Real Tool Integrations | v1.2 | 0/TBD | Not started | - |
 | 18. Mission Executor + HITL Approval | v1.2 | 0/TBD | Not started | - |
 | 19. Steering + Agent Memory | v1.2 | 0/TBD | Not started | - |

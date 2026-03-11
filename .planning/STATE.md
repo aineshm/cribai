@@ -4,14 +4,14 @@ milestone: v1.2
 milestone_name: Native Agent Backend
 status: active
 stopped_at: ""
-last_updated: "2026-03-10T23:30:00.000Z"
-last_activity: 2026-03-10 - Roadmap created (5 phases, 20 requirements mapped)
+last_updated: "2026-03-11T01:32:37.000Z"
+last_activity: 2026-03-11 - Completed 16-01 missions DB schema plan
 progress:
   total_phases: 5
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 1
+  completed_plans: 1
+  percent: 20
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-10)
 ## Current Position
 
 Phase: 16 of 20 (Missions DB Schema)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-03-10 -- Roadmap created for v1.2 Native Agent Backend (5 phases, 20 requirements)
+Plan: 1 of 1 in current phase
+Status: Phase 16 complete
+Last activity: 2026-03-11 -- Completed 16-01 missions DB schema (migration 013, Zod types, 27 tests)
 
-Progress: [░░░░░░░░░░] 0%  (v1.2: 0/5 phases)
+Progress: [██░░░░░░░░] 20%  (v1.2: 1/5 phases)
 
 ## Performance Metrics
 
@@ -43,7 +43,7 @@ Progress: [░░░░░░░░░░] 0%  (v1.2: 0/5 phases)
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| (none started) | - | - | - |
+| 16-missions-db-schema | 1/1 | 5min | 5min |
 
 *Updated after each plan completion*
 
@@ -60,6 +60,9 @@ Recent decisions affecting v1.2 work:
 - [v1.2]: Google Places for reviews (Yelp ToS prohibits off-platform display)
 - [v1.2]: Walk Score API for neighborhood walkability
 - [v1.2]: DB schema is critical path -- blocks executor, Realtime, HITL, steering
+- [16-01]: Used .strict() on Zod schemas to reject unknown keys and catch mock-only field usage
+- [16-01]: Exported LegacyMission for backward compat with mock-backed components (Phase 20 reconciles)
+- [16-01]: pg_cron first use -- expire-stale-missions every 6h, purge-cron-job-details daily 4 AM
 
 ### Pending Todos
 
@@ -74,7 +77,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-10
-Stopped at: Roadmap created for v1.2 milestone
+Last session: 2026-03-11
+Stopped at: Completed 16-01-PLAN.md
 Resume file: None
-Next: `/gsd:plan-phase 16`
+Next: Phase 17 planning or execution

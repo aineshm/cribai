@@ -9,7 +9,7 @@
 
 - [ ] **EXEC-01**: User can create a mission from the Concierge page that triggers real async execution (202 Accepted, fire-and-forget)
 - [ ] **EXEC-02**: Mission executor runs a multi-step agentic loop (search -> filter -> shortlist) using existing CribAI tools
-- [ ] **EXEC-03**: Missions DB schema stores status, raw execution logs, draft payloads, idempotency keys, and expiration
+- [x] **EXEC-03**: Missions DB schema stores status, raw execution logs, draft payloads, idempotency keys, and expiration
 - [ ] **EXEC-04**: Mission status updates are pushed to the UI in real-time via Supabase Realtime (no polling)
 
 ### HITL Approval
@@ -154,7 +154,7 @@
 |-------------|-------|--------|
 | EXEC-01 | Phase 18 | Pending |
 | EXEC-02 | Phase 18 | Pending |
-| EXEC-03 | Phase 16 | Pending |
+| EXEC-03 | Phase 16 | Complete |
 | EXEC-04 | Phase 18 | Pending |
 | HITL-01 | Phase 18 | Pending |
 | HITL-02 | Phase 18 | Pending |
