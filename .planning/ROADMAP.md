@@ -133,7 +133,7 @@ Note: Phase 16 and 17 have no dependency on each other and can execute in parall
 | 13. Listing Detail Redesign | v1.1 | -/- | Complete | 2026-03-10 |
 | 14. Post Sublease + Profile/Saved | v1.1 | -/- | Complete | 2026-03-10 |
 | 15. AI Concierge UI | v1.1 | -/- | Complete | 2026-03-10 |
-| 16. Missions DB Schema | 1/1 | Complete   | 2026-03-11 | - |
+| 16. Missions DB Schema | 1/1 | Complete    | 2026-03-11 | - |
 | 17. Real Tool Integrations | v1.2 | 0/TBD | Not started | - |
 | 18. Mission Executor + HITL Approval | v1.2 | 0/TBD | Not started | - |
 | 19. Steering + Agent Memory | v1.2 | 0/TBD | Not started | - |
