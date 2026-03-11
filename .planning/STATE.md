@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-10)
 
 **Core value:** Students can find off-campus housing through conversational AI search that understands what they actually want
-**Current focus:** v1.2 Native Agent Backend — Phase 17: Real Tool Integrations
+**Current focus:** v1.1 Gap Closure — Phase 20: Concierge Mount + Design Cleanup
 
 ## Current Position
 
-Phase: 17 of 20 (Real Tool Integrations) -- COMPLETE
-Plan: 2 of 2 in current phase (complete)
-Status: Phase 17 complete, ready for Phase 18
-Last activity: 2026-03-11 -- Completed 17-02 tool handler implementations (3 handlers, 25 tests)
+Phase: 20 of 20 (Concierge Mount + Design Cleanup) -- IN PROGRESS
+Plan: 1 of 2 in current phase (complete)
+Status: Plan 20-01 complete — (main) layout mounted; ready for 20-02
+Last activity: 2026-03-11 -- Completed 20-01 (main)/layout.tsx with ConciergeShell + ConciergeNavButton
 
-Progress: [████░░░░░░] 40%  (v1.2: 2/5 phases)
+Progress: [█████░░░░░] 50%  (v1.2: 4/8 plans)
 
 ## Performance Metrics
 
@@ -47,8 +47,11 @@ Progress: [████░░░░░░] 40%  (v1.2: 2/5 phases)
 | 17-real-tool-integrations | 2/2 | 6min | 3min |
 
 *Updated after each plan completion*
-| Phase 20-concierge-mount-design-cleanup P01 | 525943min | 1 tasks | 2 files |
-| Phase 19-auth-flow-route-protection P01 | 35min | 2 tasks | 5 files |
+
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| 19-auth-flow-route-protection | 1/1 | 35min | 35min |
+| 20-concierge-mount-design-cleanup | 1/2 | 8min | 8min |
 
 ## Accumulated Context
 
@@ -91,6 +94,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-11T21:42:08.026Z
-Stopped at: Completed 19-01-PLAN.md
-Resume file: None
-Next: Phase 18 (mission executor) or next phase
+Stopped at: Completed 20-01-PLAN.md
+Resume file: .planning/phases/20-concierge-mount-design-cleanup/20-01-SUMMARY.md
+Next: Plan 20-02 (design cleanup)

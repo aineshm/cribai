@@ -55,7 +55,7 @@
 
 ### AI Concierge UI
 
-- [ ] **AGENT-01**: User sees AI Concierge sidebar with task-based mission cards showing status indicators
+- [x] **AGENT-01**: User sees AI Concierge sidebar with task-based mission cards showing status indicators
 - [ ] **AGENT-02**: Mission detail view shows status-specific action cards (scheduled tour, draft approval, negotiation)
 - [ ] **AGENT-03**: Mission detail includes agent summary and expandable raw execution logs
 - [ ] **AGENT-04**: Persistent steering bar at bottom allows user to course-correct the agent
