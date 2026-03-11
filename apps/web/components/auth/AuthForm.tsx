@@ -132,7 +132,7 @@ export function AuthForm() {
     const destination =
       returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//')
         ? returnTo
-        : '/uw-madison/cribai';
+        : '/explore';
     router.push(destination);
   }
 

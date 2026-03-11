@@ -44,7 +44,7 @@ export async function middleware(request: NextRequest) {
     if (pathname === '/login') {
       const lastCampus = request.cookies.get('last_campus')?.value ?? 'uw-madison';
       const redirectUrl = request.nextUrl.clone();
-      redirectUrl.pathname = `/${lastCampus}/cribai`;
+      redirectUrl.pathname = '/explore';
       return NextResponse.redirect(redirectUrl);
     }
 
