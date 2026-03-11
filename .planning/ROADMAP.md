@@ -24,7 +24,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 </details>
 
-### 🚧 v1.1 UI/UX Upgrade (In Progress)
+### v1.1 UI/UX Upgrade (In Progress)
 
 **Milestone Goal:** Migrate the entire frontend to the new Figma design system (Space Grotesk + DM Sans, shadcn/ui, Lucide, framer-motion) and introduce the AI Concierge missions page — shifting from chat-first to agent-first UX.
 
@@ -123,7 +123,10 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   3. AIChatPanel sends user messages to CribAI engine and displays responses (no hardcoded DEFAULT_RESPONSE)
   4. ExploreLayout, ViewToggle, and FilterChips have passing E2E or unit tests
   5. Explore → Listing Detail flow works end-to-end
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 18-01-PLAN.md — Wire ListingCard Link, scope AIChatButton to Explore, replace ChatProvider stub with SSE
+- [ ] 18-02-PLAN.md — Unit tests for ExploreLayout, ViewToggle, FilterChips, ListingCard, and filterListings
 
 ### Phase 19: Auth Flow + Route Protection
 **Goal**: Fix cross-phase integration issues — correct post-auth redirect to `/explore`, protect `/post` and `/profile` routes with auth middleware, wire ProfileHeader to real auth session data, add `<Link>` navigation to SavedListings cards, and enable the Detail page mobile Chat button.
@@ -136,7 +139,10 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   3. ProfileHeader displays the authenticated user's name and university from Supabase session
   4. SavedListings cards link to `/listing/[id]` — clicking navigates to listing detail
   5. MobileBottomBar "Chat with AI" button on listing detail opens AIChatPanel (not disabled)
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 19-01-PLAN.md -- Fix post-auth redirect and add middleware route protection
+- [ ] 19-02-PLAN.md -- Wire ProfileHeader to session, add SavedListings links, enable MobileBottomBar chat
 
 ### Phase 20: Concierge Mount + Design Cleanup
 **Goal**: Mount ConciergeProvider and ConciergeShell in the `(main)` route group layout so the AI Concierge UI is accessible from all v1.1 pages, and complete the Lucide icon migration by replacing 8 remaining inline SVGs.
@@ -172,6 +178,6 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 18 �
 | 13. Listing Detail Redesign | v1.1 | 0/TBD | Not started | - |
 | 14. Post Sublease + Profile/Saved Redesign | v1.1 | 0/TBD | Not started | - |
 | 15. AI Concierge UI | v1.1 | 0/TBD | Not started | - |
-| 18. Explore Page Wiring + Verification | v1.1 | 0/TBD | Not started | - |
-| 19. Auth Flow + Route Protection | v1.1 | 0/TBD | Not started | - |
+| 18. Explore Page Wiring + Verification | v1.1 | 0/2 | Not started | - |
+| 19. Auth Flow + Route Protection | v1.1 | 0/2 | Not started | - |
 | 20. Concierge Mount + Design Cleanup | v1.1 | 0/TBD | Not started | - |
