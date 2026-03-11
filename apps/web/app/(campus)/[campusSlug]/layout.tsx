@@ -6,6 +6,8 @@ import { MobileNav } from '../../../components/mobile-nav';
 import { ProfileModal } from '../../../components/profile-modal';
 import { NotificationBell } from '../../../components/notification-bell';
 import { DevUserSwitcher } from '../../../components/dev-user-switcher';
+import { ConciergeShell } from '../../../components/concierge/ConciergeShell';
+import { ConciergeNavButton } from '../../../components/concierge/ConciergeNavButton';
 import { getCurrentUser } from '../../../lib/get-current-user';
 import { createSecretClient } from '@campusnest/supabase/server';
 
@@ -112,6 +114,7 @@ export default async function CampusLayout({
 
   return (
     <CampusProvider campus={campusConfig}>
+      <ConciergeShell>
       <div className="min-h-[100dvh]">
         <nav className="sticky top-0 z-50 border-b border-[var(--surface-200)] bg-white/80 backdrop-blur-sm px-6 py-4">
           <div className="mx-auto flex max-w-6xl items-center justify-between">
@@ -141,6 +144,7 @@ export default async function CampusLayout({
               >
                 CribAI
               </Link>
+              {userId && <ConciergeNavButton />}
               {userId && (
                 <Link
                   href={`/${campusSlug}/submit-listing`}
@@ -211,6 +215,7 @@ export default async function CampusLayout({
           <DevUserSwitcher currentUserId={userId} />
         )}
       </div>
+      </ConciergeShell>
     </CampusProvider>
   );
 }
