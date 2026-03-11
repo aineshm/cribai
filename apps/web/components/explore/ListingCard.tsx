@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
   Bed,
@@ -28,6 +29,7 @@ export function ListingCard({ listing }: ListingCardProps) {
 
   return (
     <motion.div {...scaleOnHover}>
+      <Link href={`/listing/${listing.id}`} className="block">
       <Card className="relative overflow-hidden p-0 gap-0">
         {/* Photo placeholder — listing.photos[] contains Tailwind gradient classes (e.g. "from-teal-400 to-emerald-500") as placeholders, not real image URLs */}
         <div
@@ -105,6 +107,7 @@ export function ListingCard({ listing }: ListingCardProps) {
           </div>
         </CardContent>
       </Card>
+      </Link>
     </motion.div>
   );
 }

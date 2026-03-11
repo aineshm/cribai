@@ -4,12 +4,11 @@ import { motion } from 'framer-motion';
 import { Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { springConfig } from '@/lib/animations';
+import { useChatContext } from './ChatProvider';
 
-interface AIChatButtonProps {
-  readonly onClick: () => void;
-}
+export function AIChatButton() {
+  const { setOpen } = useChatContext();
 
-export function AIChatButton({ onClick }: AIChatButtonProps) {
   return (
     <motion.div
       className="fixed bottom-6 right-6 z-40"
@@ -21,7 +20,7 @@ export function AIChatButton({ onClick }: AIChatButtonProps) {
         size="icon-lg"
         aria-label="Open CribAI chat"
         className="size-14 rounded-full bg-[var(--primary-700)] hover:bg-[var(--primary-800)] text-white shadow-lg hover:shadow-xl transition-shadow"
-        onClick={onClick}
+        onClick={() => setOpen(true)}
       >
         <motion.div
           animate={{

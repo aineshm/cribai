@@ -1,16 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { ExploreLayout } from '@/components/explore/ExploreLayout';
 import { FilterChips } from '@/components/explore/FilterChips';
-import { AIChatButton } from '@/components/chat/AIChatButton';
-import { AIChatPanel } from '@/components/chat/AIChatPanel';
 import { mockListings } from '@/lib/mock-listings';
 import { pageTransition } from '@/lib/animations';
+import { filterListings, type ActiveFilters } from '@/lib/filter-listings';
+import { AIChatButton } from '@/components/chat/AIChatButton';
+import { AIChatPanel } from '@/components/chat/AIChatPanel';
 
 export default function ExplorePage() {
-  const [chatOpen, setChatOpen] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<ActiveFilters>(new Set());
+
+  const filteredListings = useMemo(
+    () => filterListings(mockListings, activeFilters),
+    [activeFilters]
+  );
 
   return (
     <motion.div
@@ -31,15 +37,17 @@ export default function ExplorePage() {
         </div>
 
         {/* Filters */}
-        <FilterChips resultCount={mockListings.length} />
+        <FilterChips
+          resultCount={filteredListings.length}
+          activeFilters={activeFilters}
+          onFiltersChange={setActiveFilters}
+        />
 
         {/* Main content: split layout */}
-        <ExploreLayout listings={mockListings} />
+        <ExploreLayout listings={filteredListings} />
       </div>
-
-      {/* Floating AI button + panel */}
-      <AIChatButton onClick={() => setChatOpen(true)} />
-      <AIChatPanel open={chatOpen} onOpenChange={setChatOpen} />
+      <AIChatButton />
+      <AIChatPanel />
     </motion.div>
   );
 }
