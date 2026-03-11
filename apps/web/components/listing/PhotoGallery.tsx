@@ -100,13 +100,16 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
 
       {/* Mobile Carousel */}
       <div className="md:hidden relative rounded-xl overflow-hidden" style={{ height: '280px' }}>
-        <div
-          className={`w-full h-full bg-gradient-to-br ${photos[mobileIndex]?.gradient ?? 'from-primary-200 to-primary-400'} flex items-center justify-center transition-all duration-300`}
+        <button
+          type="button"
+          onClick={() => openLightbox(mobileIndex)}
+          className={`w-full h-full bg-gradient-to-br ${photos[mobileIndex]?.gradient ?? 'from-primary-200 to-primary-400'} flex items-center justify-center transition-all duration-300 cursor-pointer`}
+          aria-label={`View ${photos[mobileIndex]?.alt ?? 'photo'} in fullscreen`}
         >
           <span className="text-sm text-white/70">
             {photos[mobileIndex]?.alt}
           </span>
-        </div>
+        </button>
 
         {/* Navigation Arrows */}
         <button

@@ -35,20 +35,23 @@ export function CommuteSection({ commuteDistances }: CommuteSectionProps) {
               </th>
               <th className="py-2 px-3 font-medium text-foreground">
                 <div className="flex items-center justify-center gap-1.5">
-                  <Footprints className="size-4" />
+                  <Footprints className="size-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Walk</span>
+                  <span className="sr-only sm:hidden">Walk</span>
                 </div>
               </th>
               <th className="py-2 px-3 font-medium text-foreground">
                 <div className="flex items-center justify-center gap-1.5">
-                  <Bike className="size-4" />
+                  <Bike className="size-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Bike</span>
+                  <span className="sr-only sm:hidden">Bike</span>
                 </div>
               </th>
               <th className="py-2 px-3 font-medium text-foreground">
                 <div className="flex items-center justify-center gap-1.5">
-                  <Bus className="size-4" />
+                  <Bus className="size-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Bus</span>
+                  <span className="sr-only sm:hidden">Bus</span>
                 </div>
               </th>
             </tr>

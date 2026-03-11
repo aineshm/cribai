@@ -40,7 +40,7 @@ export function MobileBottomBar({ price, listingTitle }: MobileBottomBarProps) {
             <Calendar className="size-4" />
             Book Tour
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" disabled title="Coming soon">
             <MessageCircle className="size-4" />
             Chat
           </Button>

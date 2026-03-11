@@ -1,3 +1,4 @@
+import { notFound } from 'next/navigation';
 import { getMockListingById } from '@/lib/mock-listing-detail';
 import { ListingDetailClient } from './ListingDetailClient';
 
@@ -10,6 +11,10 @@ export default async function ListingDetailPage({
 }: ListingDetailPageProps) {
   const { id } = await params;
   const listing = getMockListingById(id);
+
+  if (!listing) {
+    notFound();
+  }
 
   return <ListingDetailClient listing={listing} />;
 }

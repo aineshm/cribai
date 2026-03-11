@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Calendar, Clock, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,13 +13,29 @@ interface BookTourModalProps {
   readonly listingTitle: string;
 }
 
-const AVAILABLE_DATES = [
-  { label: 'Mon, Mar 16', value: '2026-03-16' },
-  { label: 'Tue, Mar 17', value: '2026-03-17' },
-  { label: 'Wed, Mar 18', value: '2026-03-18' },
-  { label: 'Thu, Mar 19', value: '2026-03-19' },
-  { label: 'Fri, Mar 20', value: '2026-03-20' },
-] as const;
+function getNextWeekdays(count: number): readonly { label: string; value: string }[] {
+  const dates: { label: string; value: string }[] = [];
+  const current = new Date();
+  current.setDate(current.getDate() + 1); // start from tomorrow
+
+  while (dates.length < count) {
+    const day = current.getDay();
+    if (day !== 0 && day !== 6) {
+      const label = current.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+      });
+      const value = current.toISOString().split('T')[0] ?? '';
+      dates.push({ label, value });
+    }
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
+}
+
+const AVAILABLE_DATES = getNextWeekdays(5);
 
 const TIME_SLOTS = [
   '9:00 AM',
@@ -57,6 +73,44 @@ export function BookTourModal({
     onClose();
   }, [onClose]);
 
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  // Focus trap and Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleClose();
+        return;
+      }
+
+      if (e.key === 'Tab' && modalRef.current) {
+        const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        const firstEl = focusableElements[0];
+        const lastEl = focusableElements[focusableElements.length - 1];
+
+        if (e.shiftKey && document.activeElement === firstEl) {
+          e.preventDefault();
+          lastEl?.focus();
+        } else if (!e.shiftKey && document.activeElement === lastEl) {
+          e.preventDefault();
+          firstEl?.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    // Focus the modal on open
+    modalRef.current?.focus();
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, handleClose]);
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -75,7 +129,12 @@ export function BookTourModal({
 
           {/* Modal */}
           <motion.div
-            className="relative z-10 w-full max-w-md bg-background rounded-xl shadow-xl ring-1 ring-foreground/10 overflow-hidden"
+            ref={modalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="book-tour-title"
+            tabIndex={-1}
+            className="relative z-10 w-full max-w-md bg-background rounded-xl shadow-xl ring-1 ring-foreground/10 overflow-hidden focus:outline-none"
             variants={scaleIn}
             initial="initial"
             animate="animate"
@@ -83,7 +142,7 @@ export function BookTourModal({
           >
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-[var(--surface-200)]">
-              <h2 className="text-base font-semibold text-foreground">
+              <h2 id="book-tour-title" className="text-base font-semibold text-foreground">
                 Book a Tour
               </h2>
               <button

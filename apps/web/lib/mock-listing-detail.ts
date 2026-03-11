@@ -175,8 +175,12 @@ export const MOCK_LISTING_DETAIL: DetailedListing = {
   },
 } as const;
 
+const MOCK_LISTINGS_MAP: Record<string, DetailedListing> = {
+  'mock-listing-001': MOCK_LISTING_DETAIL,
+};
+
 export function getMockListingById(
-  _id: string,
-): DetailedListing {
-  return MOCK_LISTING_DETAIL;
+  id: string,
+): DetailedListing | undefined {
+  return MOCK_LISTINGS_MAP[id] ?? MOCK_LISTINGS_MAP['mock-listing-001'];
 }

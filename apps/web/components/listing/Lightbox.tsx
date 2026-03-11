@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { scaleIn, fadeIn } from '@/lib/animations';
@@ -29,6 +29,8 @@ export function Lightbox({
     onIndexChange(activeIndex === photos.length - 1 ? 0 : activeIndex + 1);
   }, [activeIndex, photos.length, onIndexChange]);
 
+  const lightboxRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -43,11 +45,29 @@ export function Lightbox({
         case 'ArrowRight':
           goNext();
           break;
+        case 'Tab': {
+          if (!lightboxRef.current) break;
+          const focusableElements = lightboxRef.current.querySelectorAll<HTMLElement>(
+            'button, [href], [tabindex]:not([tabindex="-1"])'
+          );
+          const firstEl = focusableElements[0];
+          const lastEl = focusableElements[focusableElements.length - 1];
+
+          if (e.shiftKey && document.activeElement === firstEl) {
+            e.preventDefault();
+            lastEl?.focus();
+          } else if (!e.shiftKey && document.activeElement === lastEl) {
+            e.preventDefault();
+            firstEl?.focus();
+          }
+          break;
+        }
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     document.body.style.overflow = 'hidden';
+    lightboxRef.current?.focus();
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
@@ -61,7 +81,12 @@ export function Lightbox({
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center"
+          ref={lightboxRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Photo lightbox: ${currentPhoto?.alt ?? 'Photo gallery'}`}
+          tabIndex={-1}
+          className="fixed inset-0 z-50 flex items-center justify-center focus:outline-none"
           variants={fadeIn}
           initial="initial"
           animate="animate"
