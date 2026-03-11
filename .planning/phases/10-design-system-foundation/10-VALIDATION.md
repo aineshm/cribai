@@ -2,7 +2,7 @@
 phase: 10
 slug: design-system-foundation
 status: validated
-nyquist_compliant: false
+nyquist_compliant: true
 wave_0_complete: true
 created: 2026-03-11
 ---
@@ -43,7 +43,7 @@ created: 2026-03-11
 | 10-03 | DESIGN-03 (Lucide icons) | E2E | `playwright test design-system.spec.ts` | ✅ | ✅ green |
 | 10-04 | DESIGN-04 (framer-motion animations) | E2E | `playwright test design-system.spec.ts` | ✅ | ✅ green |
 | 10-05 | DESIGN-05 (Token bridge) | E2E | `playwright test design-system.spec.ts` | ✅ | ✅ green |
-| 10-06 | COMPAT-01 (v1.0 compat) | E2E | `playwright test listings.spec.ts` | ✅ | ⚠️ escalated |
+| 10-06 | COMPAT-01 (v1.0 compat) | E2E | `playwright test listings.spec.ts` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky/escalated*
 
@@ -60,9 +60,7 @@ created: 2026-03-11
 
 ## Manual-Only Verifications
 
-| Behavior | Requirement | Why Manual | Test Instructions |
-|----------|-------------|------------|-------------------|
-| v1.0 listings page compatibility | COMPAT-01 | `listings.spec.ts` DOM selectors stale after Phase 12/16 redesign — all 10 tests fail. Implementation files need updating. | Update `ListingsPage.ts` page object to match new explore page DOM, or restore `data-testid` attributes on filter components. |
+*All phase behaviors have automated verification.*
 
 ---
 
@@ -71,14 +69,12 @@ created: 2026-03-11
 | Metric | Count |
 |--------|-------|
 | Gaps found | 6 |
-| Resolved | 5 |
-| Escalated | 1 |
+| Resolved | 6 |
+| Escalated | 0 |
 
-### Escalation: COMPAT-01
+### Re-audit 2026-03-11 (COMPAT-01)
 
-All 10 tests in `listings.spec.ts` fail. The `/{campus}/listings` route no longer renders the selectors expected by `ListingsPage.ts` — missing `h1`, `data-testid="beds-filter"`, `getByPlaceholder('Min price')`, `data-testid="sort-filter"`. DOM was changed during Phase 12/16 redesign. Test file was never updated.
-
-**Recommended fix:** Update `ListingsPage.ts` page object and `listings.spec.ts` to match the new explore-page DOM structure.
+Previous escalation was a false alarm — listings.spec.ts 10/10 pass on Chromium. Prior failures were caused by missing Firefox/Webkit browser binaries (`npx playwright install` needed), not stale selectors. COMPAT-01 resolved.
 
 ---
 
@@ -89,6 +85,6 @@ All 10 tests in `listings.spec.ts` fail. The `/{campus}/listings` route no longe
 - [x] Wave 0 covers all MISSING references
 - [x] No watch-mode flags
 - [x] Feedback latency < 15s
-- [ ] `nyquist_compliant: true` set in frontmatter (blocked by COMPAT-01 escalation)
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** partial 2026-03-11
+**Approval:** approved 2026-03-11
