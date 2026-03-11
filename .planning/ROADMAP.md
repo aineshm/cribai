@@ -59,7 +59,9 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   3. Realtime publications are enabled on `missions`, `mission_logs`, and `mission_drafts` tables (verified via Supabase dashboard or SQL query)
   4. pg_cron cleanup job runs on schedule to expire stale missions and purge `job_run_details` bloat
   5. TypeScript types in `concierge-types.ts` match DB column names exactly (no mock-only fields remain)
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 16-01-PLAN.md -- Migration 013, Zod schemas, DB-aligned TypeScript types, type tests
 
 ### Phase 17: Real Tool Integrations
 **Goal**: The three placeholder tool stubs are replaced with real implementations that return live data -- Google Places reviews, Walk Score + neighborhood amenities, and PM contact info with draft inquiry messages -- cached appropriately and testable independently of the mission executor.
@@ -131,7 +133,7 @@ Note: Phase 16 and 17 have no dependency on each other and can execute in parall
 | 13. Listing Detail Redesign | v1.1 | -/- | Complete | 2026-03-10 |
 | 14. Post Sublease + Profile/Saved | v1.1 | -/- | Complete | 2026-03-10 |
 | 15. AI Concierge UI | v1.1 | -/- | Complete | 2026-03-10 |
-| 16. Missions DB Schema | v1.2 | 0/TBD | Not started | - |
+| 16. Missions DB Schema | v1.2 | 0/1 | Planning | - |
 | 17. Real Tool Integrations | v1.2 | 0/TBD | Not started | - |
 | 18. Mission Executor + HITL Approval | v1.2 | 0/TBD | Not started | - |
 | 19. Steering + Agent Memory | v1.2 | 0/TBD | Not started | - |
