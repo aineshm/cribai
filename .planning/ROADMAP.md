@@ -73,7 +73,10 @@ Plans:
   3. PM contact tool returns contact data from the `landlords` table and a Gemini-generated draft inquiry message (no outbound email sent)
   4. All three tools cache results (reviews at 24h TTL, neighborhood at 7-day TTL) to avoid redundant API calls
   5. Each tool handler has unit tests that mock external APIs and verify the response shape matches the existing `ToolResult` interface
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 17-01-PLAN.md -- DB migration (api_cache table, landlord contacts, listings FK) + shared lib modules (cache, Google Places, Walk Score) with tests
+- [ ] 17-02-PLAN.md -- Rewrite 3 stub tool handlers (get-reviews, get-neighborhood-info, contact-pm) with real API integrations and tests
 
 ### Phase 18: Mission Executor + HITL Approval
 **Goal**: Users can create missions that execute asynchronously -- the executor runs a multi-step agentic loop using existing CribAI tools, writes append-only logs pushed via Realtime, and pauses at irreversible actions (tour scheduling) for user approval before proceeding.
@@ -134,7 +137,7 @@ Note: Phase 16 and 17 have no dependency on each other and can execute in parall
 | 14. Post Sublease + Profile/Saved | v1.1 | -/- | Complete | 2026-03-10 |
 | 15. AI Concierge UI | v1.1 | -/- | Complete | 2026-03-10 |
 | 16. Missions DB Schema | 1/1 | Complete    | 2026-03-11 | - |
-| 17. Real Tool Integrations | v1.2 | 0/TBD | Not started | - |
+| 17. Real Tool Integrations | v1.2 | 0/2 | Not started | - |
 | 18. Mission Executor + HITL Approval | v1.2 | 0/TBD | Not started | - |
 | 19. Steering + Agent Memory | v1.2 | 0/TBD | Not started | - |
 | 20. UI Wiring + Production Readiness | v1.2 | 0/TBD | Not started | - |
