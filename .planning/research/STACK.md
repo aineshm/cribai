@@ -1,20 +1,17 @@
 # Stack Research
 
-**Domain:** Native Agent Backend — Mission Executor, HITL, Realtime Status, Steering Bar, Real Tool Integrations
+**Domain:** UI/UX Design System Migration + AI Concierge Missions (CampusNest v1.1)
 **Researched:** 2026-03-10
-**Confidence:** HIGH (core patterns verified against official Vercel, Next.js, Supabase docs; tool integrations verified via npm/Google APIs)
-**Scope:** NEW additions only for v1.2. Existing stack (Next.js 15.1, Supabase, Gemini 2.5 Flash, Tavily, Mapbox, shadcn/ui, Framer Motion, Vitest) is proven and not re-evaluated.
+**Confidence:** HIGH (all core libraries verified against official docs + shadcn/ui Tailwind v4 page)
+**Scope:** NEW additions only. Existing stack (Next.js 15, Supabase, Gemini, Mapbox, Vitest, Playwright, Sonner) is proven and not re-evaluated.
 
 ---
 
 ## What This Research Covers
 
-The v1.2 milestone adds:
-1. Mission executor backend — async agent pipeline that writes to a `missions` table and executes search/shortlist/contact/schedule flows
-2. Missions DB schema with HITL draft versioning, idempotency keys, and expiration
-3. Supabase Realtime subscriptions — live mission status updates pushed to the Concierge UI
-4. Steering bar intent parsing — free-text amendment via Gemini function calling
-5. Real tool integrations — replacing `get_reviews`, `contact_pm`, and `get_neighborhood_info` stub handlers with actual data
+The v1.1 milestone adds:
+1. Design system migration — Space Grotesk + DM Sans fonts, shadcn/ui components, Lucide icons, framer-motion animations
+2. AI Concierge missions page — task-based agent pipeline with status polling, draft approval (HITL), and an intent-parsing steering bar
 
 ---
 
@@ -24,104 +21,119 @@ The v1.2 milestone adds:
 
 | Technology | Version | Purpose | Why Recommended |
 |------------|---------|---------|-----------------|
-| `after()` from `next/server` | Built into Next.js 15.1+ | Fire-and-forget mission executor background tasks | Stable since Next.js v15.1.0. Schedules async work after the 202 Accepted response is sent. Available in Route Handlers. No new package needed — already in the `next` dep. Replaces the older `@vercel/functions waitUntil()` pattern. Official Vercel recommendation is `after()` for any Next.js ≥15.1. |
-| Supabase Realtime (existing `@supabase/supabase-js`) | ^2.47.0 (already installed) | Push `missions` table `UPDATE` events to Concierge UI clients | Zero new dependency. Subscribe to `postgres_changes` filtered by `user_id=eq.${userId}` on the `missions` table. RLS is enforced — users only receive events for rows they own. Already used in v1.0 for price change notifications. Pattern: `supabase.channel().on('postgres_changes', { event: 'UPDATE', table: 'missions', filter: \`user_id=eq.${userId}\` }, callback).subscribe()`. |
-| `@googlemaps/places` | ^2.3.0 | Neighborhood info, AI-generated area summaries, nearby place data | Official Google Places API (New) Node.js client. Exposes `neighborhoodSummary`, `generativeSummary`, `reviewSummary` fields introduced in 2025. Replaces the `get_neighborhood_info` stub. Last published 16 days ago (March 2026). Maintained by Google. Existing Mapbox API key is NOT usable — separate Google Maps Platform API key required. |
-| Tavily Extract (existing `@tavily/core`) | ^0.7.2 (already installed) | Scrape and structure landlord contact pages, review aggregation fallback | Zero new dependency. Tavily's `.extract()` method fetches and structures page content from a URL list. Use for `get_reviews` (Reddit, Google Maps, Yelp URLs passed as extract targets) and `contact_pm` (extract contact email/phone from listing source URL). Same API key already in env. |
+| `shadcn/ui` | latest CLI (`shadcn@latest`) | Accessible, copy-owned UI primitives built on Radix UI | Tailwind-native, full Tailwind v4 support shipped Q1 2025. Components are owned source code (not a library dependency), so zero versioning churn. CSS variables integrate directly with existing `globals.css` token system. Already decided in PROJECT.md. |
+| `motion` (formerly `framer-motion`) | ^12.x (`framer-motion` entrypoint) | Spring physics, layout animations, presence/exit transitions | Rebranded from framer-motion in late 2024. New import path is `import { motion, AnimatePresence } from 'framer-motion'`. API identical to framer-motion. v12 is current stable. Industry standard for React spring animations. |
+| `lucide-react` | ^0.468+ | SVG icon set matching shadcn/ui ecosystem | Tree-shakeable ES modules — only imported icons ship. Named imports (`import { Home } from 'lucide-react'`) are fully typed. Bundled with shadcn/ui CLI so no separate decision needed. Replaces inline Heroicon SVGs. |
+| `tw-animate-css` | ^1.x | Tailwind v4 animation utilities (shadcn accordion, dialog, etc.) | shadcn/ui deprecated `tailwindcss-animate` in favor of `tw-animate-css` for Tailwind v4 compatibility. CSS-first approach, no JS plugin. Replace `@plugin 'tailwindcss-animate'` with `@import "tw-animate-css"` in `globals.css`. |
 
 ### Supporting Libraries
 
 | Library | Version | Purpose | When to Use |
 |---------|---------|---------|-------------|
-| `resend` | ^4.x | Send HITL draft approval emails to students | When a mission reaches `waiting_approval` status and a draft is ready. Resend has a generous free tier (3,000 emails/month), native React Email template support, and no infra to manage. An alternative is Supabase Edge Functions with SMTP, but Resend is simpler to integrate. Only install if email HITL flow is in v1.2 scope. |
-| `zod` | ^3.24.0 (already installed) | Validate mission creation payloads, steering bar parse results | Already present. Use to define and validate the `CreateMissionInput` schema in the `/api/missions` route handler. |
+| `class-variance-authority` | ^0.7.0 | Type-safe component variant definitions | Installed by shadcn/ui CLI. Use when building custom variant components (e.g., Button with `primary`/`secondary`/`ghost` variants). |
+| `clsx` | ^2.1.0 | Conditional className construction | Installed by shadcn/ui CLI. Use in `cn()` utility (`clsx` + `tailwind-merge` combined). |
+| `tailwind-merge` | ^2.x | Merge Tailwind classes without conflicts | Installed by shadcn/ui CLI. Use in `cn()` utility to prevent class collisions when combining dynamic styles. |
 
-### What Does NOT Need a New Package
+### Font Loading
 
-| Capability | How It's Already Handled |
-|------------|--------------------------|
-| Steering bar intent parsing | Existing `@google/genai` + Gemini function calling. Define a `parse_steering_intent` function schema, call Gemini with the current mission state + user input, get back a structured `{ action, params }` object. Same pattern as the 11-tool CribAI loop. |
-| Mission status polling (fallback) | A custom `useInterval` hook (~15 lines) + Supabase `.from('missions').select()` query. If Realtime is too complex for a phase, fall back to 5s polling with no library needed. |
-| Idempotency keys | `crypto.randomUUID()` (Node.js built-in). Insert as `idempotency_key` column. Upsert with `onConflict: 'idempotency_key'` to deduplicate duplicate POSTs. |
-| Mission expiration | Postgres `expires_at TIMESTAMPTZ` column + a Supabase cron or GitHub Actions nightly job. No queueing library needed. |
-| HITL draft versioning | `mission_drafts` table with `version INTEGER` column + `approved_at TIMESTAMPTZ`. Append-only — never update existing draft rows, insert new versions. |
+| Font | Delivery Method | Why |
+|------|----------------|-----|
+| Space Grotesk | `next/font/google` | Available on Google Fonts. Use `import { Space_Grotesk } from 'next/font/google'`. Variable font weights (400–700). Zero manual download needed. |
+| DM Sans | `next/font/google` | Available on Google Fonts. Use `import { DM_Sans } from 'next/font/google'`. Variable font weights (400–700). Replaces Inter for body text. |
+
+**Implementation pattern for `apps/web/app/layout.tsx`:**
+```typescript
+import { Space_Grotesk, DM_Sans } from 'next/font/google';
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  variable: '--font-space-grotesk',
+  display: 'swap',
+  weight: ['400', '500', '600', '700'],
+});
+
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  variable: '--font-dm-sans',
+  display: 'swap',
+  weight: ['400', '500', '700'],
+});
+```
+
+Then update `globals.css`:
+```css
+/* Replace existing font token */
+--font-display: var(--font-space-grotesk), system-ui, sans-serif;
+--font-body: var(--font-dm-sans), system-ui, sans-serif;
+```
+
+### Mission State Management (AI Concierge)
+
+| Technology | Purpose | Why |
+|------------|---------|-----|
+| Supabase `missions` table (new) | Persist agent task state | Fits existing Supabase-first architecture. Single source of truth shared between Next.js route handlers (write) and client (read). |
+| React `useInterval` polling hook (custom, ~20 lines) | Poll `missions` table every 5s for status updates | Vercel serverless functions don't support persistent WebSocket connections. SSE works but adds streaming complexity for a status column (enum string). Simple 5s interval poll is sufficient — missions change state at most once per minute in practice. No new library needed. |
+| Supabase Realtime (existing) | Push mission status to connected clients | Already in `@supabase/supabase-js`. Use as upgrade path if polling proves too slow. Subscribe to `missions` table `UPDATE` filtered by `user_id`. Zero new dependencies. |
+
+**Decision: Start with polling, not SSE or WebSocket.**
+- Vercel blocks persistent WebSocket connections in serverless mode.
+- SSE (`ReadableStream` route handler) is viable but adds ~50 lines of boilerplate for what amounts to a status string.
+- 5s polling is imperceptible lag for a task that takes 30–120 seconds.
+- Upgrade to Supabase Realtime if `pending → running → done` transition needs sub-second UI response.
+
+### Intent Parsing (Steering Bar)
+
+| Technology | Purpose | Why |
+|------------|---------|-----|
+| Gemini 2.5 Flash (existing `@google/genai`) | Parse steering bar free-text into structured mission amendment | Zero new dependency. The existing CribAI agentic loop pattern applies: send "amend mission" prompt with current mission state + user input, receive structured `{ action, params }` via function calling. |
+
+**No new library needed.** The steering bar is a text input that fires a POST to a Next.js route handler, which calls Gemini with the current mission context and returns an amendment action. Same pattern as the existing 11-tool CribAI loop.
 
 ---
 
 ## Installation
 
 ```bash
-# Google Places API (New) Node.js client — for neighborhood info and AI summaries
-pnpm add @googlemaps/places --filter @campusnest/ai
+# 1. Initialize shadcn/ui (run from apps/web — reads existing tsconfig paths @/*)
+cd apps/web
+pnpm dlx shadcn@latest init -t next
 
-# Resend (conditional — only if email HITL notifications are in v1.2 scope)
-pnpm add resend --filter @campusnest/web
+# 2. Core animation utilities (shadcn/ui requires tw-animate-css for Tailwind v4)
+pnpm add tw-animate-css --filter @campusnest/web
 
-# after() and Supabase Realtime — already available in existing packages
-# No install needed
+# 3. Motion (framer-motion v2 — new package name)
+pnpm add motion --filter @campusnest/web
+
+# shadcn/ui CLI installs these automatically:
+# class-variance-authority, clsx, tailwind-merge, lucide-react
+
+# 4. Fonts — no manual download needed
+# Space Grotesk and DM Sans are both on Google Fonts
+# Import via next/font/google in layout.tsx (see Font Loading section above)
 ```
+
+**No new database tables beyond `missions` for the AI Concierge feature.**
 
 ---
 
-## Key Architecture Decisions
+## Tailwind v4 + shadcn/ui Configuration
 
-### Mission Executor: `after()` + Supabase, Not a Queue
+The project already uses Tailwind v4 (`@import "tailwindcss"` in `globals.css`). The shadcn/ui CLI will update `globals.css` to add `@theme inline` directives. Key changes after init:
 
-The v1.2 mission executor is implemented as a Next.js Route Handler that:
-1. Validates the incoming request and creates a `missions` row with status `pending`
-2. Returns `202 Accepted` immediately
-3. Calls `after(async () => { runMissionExecutor(missionId) })` to fire the agent pipeline in the background
+```css
+/* Replace this (tailwindcss-animate was never used in this project, skip) */
+/* Add after @import "tailwindcss": */
+@import "tw-animate-css";
 
-This works because:
-- `after()` is officially stable in Next.js 15.1 (which this project already uses per its `next: ^15.1.0` dep)
-- Vercel Hobby plan allows 60s serverless functions (enough for a search + shortlist pipeline)
-- Vercel Fluid Compute extends this to 300s if needed for longer missions — no plan upgrade required
-- No new infrastructure (no Redis, no queue, no Lambda) — the `missions` table IS the queue
-
-**Do NOT use:** Inngest, QStash, BullMQ, or LangGraph in v1.2. PROJECT.md explicitly defers state machine frameworks to v2. These are premature for a table-plus-polling pattern.
-
-### Realtime: Supabase Postgres Changes, Not SSE
-
-Supabase Realtime `postgres_changes` is the correct upgrade from the v1.1 polling recommendation:
-- The Concierge UI `ConciergeProvider` context currently holds mock missions state. Replace `mockMissions` with a live Supabase Realtime subscription filtered to the authenticated user's missions.
-- RLS is automatically enforced — users only receive events for rows where `user_id = auth.uid()`.
-- Subscribe on mount, unsubscribe on unmount: `supabase.removeChannel(channel)`.
-- No WebSocket server needed — `@supabase/supabase-js` manages the connection.
-
-**Pattern for `ConciergeProvider.tsx`:**
-```typescript
-// Replace useState(mockMissions) with Supabase Realtime
-useEffect(() => {
-  const channel = supabase
-    .channel('missions-changes')
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'missions', filter: `user_id=eq.${userId}` },
-      (payload) => {
-        // Update missions state from payload.new / payload.eventType
-      }
-    )
-    .subscribe();
-  return () => { supabase.removeChannel(channel); };
-}, [userId]);
+/* shadcn/ui adds @theme inline block — merge with existing :root tokens */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  /* ... shadcn color tokens ... */
+}
 ```
 
-### Real Tool Integrations: No Scraping, Use APIs + Tavily Extract
-
-**`get_neighborhood_info` → `@googlemaps/places` + Tavily web search:**
-- Call `@googlemaps/places` with the listing's lat/lng to get `neighborhoodSummary`, `generativeSummary`, and nearby places (restaurants, transit, parks).
-- Supplement with a Tavily search for `"[address] neighborhood crime safety transit"` to get community-sourced context.
-- Requires a Google Maps Platform API key with Places API (New) enabled. Add as `GOOGLE_PLACES_API_KEY` env var.
-
-**`get_reviews` → Tavily Extract:**
-- Pass the listing's source URL + related review URLs (Reddit r/UWMadison search URL, Google Maps search URL for the address) to `tavily.extract({ urls: [...] })`.
-- Tavily returns structured text content from each page. Pass the content to Gemini to summarize into a `reviews` block.
-- No scraping infra needed — Tavily handles JS-rendered pages.
-
-**`contact_pm` → Tavily Extract + listing `contact_email` column:**
-- The `listings` table already has a `contact_email` column (added in migration 011). If populated, use it directly.
-- If null, extract the listing's `source_url` via `tavily.extract()` to find contact info on the original listing page.
-- Compose the PM message via Gemini using the current mission context + user's stated request.
+**Critical:** Existing `globals.css` CSS custom properties (e.g., `--primary-500`, `--surface-100`) use a different naming convention than shadcn/ui defaults (`--background`, `--foreground`, `--primary`). Reconcile during migration: either adopt shadcn naming fully or map existing tokens into the shadcn theme namespace.
 
 ---
 
@@ -129,12 +141,11 @@ useEffect(() => {
 
 | Recommended | Alternative | When to Use Alternative |
 |-------------|-------------|-------------------------|
-| `after()` from `next/server` | `waitUntil` from `@vercel/functions` | Use `waitUntil` only if the project downgrades to Next.js < 15.1. Vercel explicitly recommends `after()` for Next.js 15.1+. |
-| Supabase Realtime `postgres_changes` | 5-second polling interval | Polling is acceptable for initial implementation — mission state transitions happen at most once per 30 seconds in practice. Realtime is the cleaner long-term solution. |
-| `@googlemaps/places` v2.3.0 (Places API New) | `@googlemaps/google-maps-services-js` (legacy) | The legacy package targets Places API (Old) which lacks `neighborhoodSummary` and AI summaries. Use the new client. |
-| Tavily Extract for reviews | Building a Reddit/Yelp scraper | A dedicated scraper creates infra overhead and fragility. Tavily's extract endpoint handles JS rendering, deduplication, and rate limiting — leveraging the existing Tavily key. |
-| `resend` for HITL email | Supabase Edge Function + SMTP | Resend has a simpler API, native React Email support, and no credentials to rotate. Use Supabase SMTP only if Resend's free tier is exhausted. |
-| Simple `missions` table + `mission_drafts` table | LangGraph state machines | LangGraph adds significant complexity and a new dependency. PROJECT.md explicitly defers this to v2. The table pattern is sufficient for v1.2's fire-and-forget missions. |
+| `motion` (`framer-motion` import) | `framer-motion` | Both packages are identical — `framer-motion` still receives updates. Use `framer-motion` if you have existing imports and want zero-change migration. |
+| `shadcn/ui` (copy-paste model) | `@radix-ui/react-*` directly | Use Radix directly if you need full control with no pre-styled layer. shadcn is Radix + styling — it's not an abstraction on top, it's Radix with owned CSS. |
+| Supabase Realtime | SSE route handler | Use SSE if mission updates need sub-2-second latency without upgrading to Realtime. Pattern: `ReadableStream` in Next.js route handler, `EventSource` on client. |
+| `next/font/google` | Google Fonts CDN `<link>` tag | Both Space Grotesk and DM Sans are on Google Fonts. `next/font/google` provides automatic subsetting, preload hints, and zero external DNS request at runtime — superior to a CDN `<link>` tag. Use `next/font/local` only for fonts not on Google Fonts (e.g., Cabinet Grotesk, Satoshi). |
+| `tw-animate-css` | `tailwindcss-animate` (v3 only) | `tailwindcss-animate` does not support Tailwind v4. Do not use. |
 
 ---
 
@@ -142,34 +153,34 @@ useEffect(() => {
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| `Inngest` / `QStash` / `BullMQ` | Full job queue infrastructure is premature for v1.2 mission volume (< 100 missions/day per user). Adds dependencies, cost, and debugging surface. | `after()` + `missions` table as queue |
-| `LangGraph` | PROJECT.md explicitly defers state machine frameworks to v2. Adds a major dependency with significant learning curve. | Simple `missions` table with `status` enum + `after()` executor |
-| `@vercel/functions waitUntil()` | Deprecated in favor of `after()` for Next.js ≥15.1. Vercel's official docs say to use `after()` instead. | `import { after } from 'next/server'` |
-| `tailwindcss-animate` | Already documented in v1.1 research — incompatible with Tailwind v4. | `tw-animate-css` (already installed) |
-| Google Places API (Old) via `@googlemaps/google-maps-services-js` | Old API lacks `neighborhoodSummary`, `generativeSummary`, and AI area summaries added in 2025. Less structured responses. | `@googlemaps/places` v2.x (Places API New) |
-| SSE (`ReadableStream` in route handler) | Adds ~80 lines of boilerplate for mission status updates that Supabase Realtime handles natively. Vercel serverless functions terminate, making SSE unreliable for long-running missions. | Supabase Realtime `postgres_changes` |
-| Persistent WebSockets (e.g., `ws`, Pusher) | Vercel serverless functions don't support persistent WebSocket connections without Vercel Pro Edge + custom infra. | Supabase Realtime (already provisioned, handles WebSocket lifecycle) |
+| `tailwindcss-animate` | Tailwind v3 plugin only. Incompatible with `@import "tailwindcss"` v4 syntax. shadcn/ui explicitly deprecated it. | `tw-animate-css` |
+| `framer-motion` (new code) | Still works, but the package is being maintained under the `motion` name going forward. New code should use `framer-motion` imports. | `motion` with `import { motion } from 'framer-motion'` |
+| WebSocket server (e.g., `ws`, Pusher) | Vercel serverless functions terminate at 30s — persistent WS connections are not supported without upgrading to Vercel Pro Edge + custom WS infra. | Supabase Realtime (already provisioned) or polling |
+| LangGraph / Inngest for mission state | v1.1 uses simple status enum column. State machine frameworks are deferred to v2 per PROJECT.md. | `missions` table with `status` enum + polling |
+| Heroicons (inline SVGs) | Manual copy-paste, not tree-shakeable, inconsistent sizing props. | `lucide-react` named imports |
+| `@next/font` (deprecated package) | Merged into `next` since Next.js 13.2. Using the old package causes duplicate font loading. | `import { Space_Grotesk, DM_Sans } from 'next/font/google'` |
+| Google Fonts CDN `<link>` tag at runtime | CSP header blocks external font sources except `fonts.gstatic.com`. `next/font/google` is strictly better — automatic subsetting, preload, zero external DNS. | `next/font/google` (handles both Google Fonts and local files) |
 
 ---
 
 ## Stack Patterns by Variant
 
-**For the mission executor route handler:**
-- Create mission row → return 202 → call `after()` with the executor logic.
-- Set `export const maxDuration = 60` in the route file for Hobby plan (60s limit). Fluid Compute extends to 300s if needed.
-- The executor writes status updates (`running → waiting_approval → completed`) back to the `missions` table as it progresses — Realtime pushes these to the client automatically.
+**For motion components in Server Components (App Router):**
+- `motion.*` components require `'use client'` — they cannot be used directly in server components.
+- Pattern: Create thin client wrapper files (`apps/web/components/motion/`) that re-export typed motion elements. Server components import the wrapper. This is the established Next.js 15 pattern per the community.
 
-**For the `get_neighborhood_info` tool replacement:**
-- Fetch from Google Places API (New) using the listing's PostGIS coordinates (already stored as `location GEOMETRY`).
-- Use `fields: ['displayName', 'neighborhoodSummary', 'generativeSummary', 'nearbyPlaces']`.
-- Cache the result on the listing row (add a `neighborhood_cache JSONB` column) with a 7-day TTL to avoid repeated API calls.
+```typescript
+// apps/web/components/motion/index.tsx
+'use client';
+export { motion, AnimatePresence } from 'framer-motion';
+```
 
-**For HITL draft approval flow:**
-- Mission reaches `waiting_approval` status.
-- `mission_drafts` table stores draft content with `version`, `mission_id`, `content JSONB`, `created_at`, `approved_at`.
-- Client Concierge UI shows a `draft_ready` action card — user clicks Approve/Edit/Reject.
-- PATCH `/api/missions/[id]/drafts/[draftId]/approve` updates `approved_at`, transitions mission to next status.
-- Optional: send an email notification via Resend when draft is ready.
+**For shadcn/ui in a monorepo:**
+- Run `pnpm dlx shadcn@latest init` from `apps/web/`, not the root. The CLI reads `apps/web/tsconfig.json` for the `@/*` path alias.
+- Components install into `apps/web/components/ui/` by default. This is correct — do not move them to a shared package unless you have multiple apps consuming them (CampusNest is single-app for v1.1).
+
+**For the `cn()` utility:**
+- shadcn/ui CLI creates `apps/web/lib/utils.ts` with the canonical `cn` function. Check if one already exists in `apps/web/lib/` and consolidate.
 
 ---
 
@@ -177,39 +188,55 @@ useEffect(() => {
 
 | Package | Compatible With | Notes |
 |---------|-----------------|-------|
-| `after()` from `next/server` | Next.js 15.1+ | Stable as of v15.1.0 (confirmed in Next.js changelog). This project uses `next: ^15.1.0` — compatible. |
-| `@supabase/supabase-js` ^2.47.0 | Realtime `postgres_changes` filter syntax | `filter: 'user_id=eq.{value}'` syntax is current. RLS enforcement on Realtime requires Realtime to be enabled for the `missions` table in Supabase dashboard. |
-| `@googlemaps/places` ^2.3.0 | Node.js 18+ | Follows Node.js LTS release schedule. Compatible with Vercel's Node.js 20 runtime. Requires Google Maps Platform API key with Places API (New) enabled. |
-| `@tavily/core` ^0.7.2 | Already installed | `.extract()` method available since ^0.6.x. Existing `TAVILY_API_KEY` env var is reused. |
-| `resend` ^4.x | Next.js 15, React 19 | No peer dep conflicts. Use from Route Handlers (server-side only). Never import in Client Components. |
+| `shadcn@latest` CLI | Next.js 15, React 19, Tailwind v4 | Full support confirmed on shadcn/ui docs as of 2025. React 19 peer dep resolved. |
+| `motion` ^12.x | React 19, Next.js 15 | Tested with Next.js 16 + React 19 per community reports. v12.35.2 is current stable as of early 2026. |
+| `lucide-react` ^0.468+ | React 19 | Included by shadcn/ui CLI. Named imports provide tree shaking. |
+| `tw-animate-css` ^1.x | Tailwind v4 only | CSS-first, no JS plugin. Drop-in `@import` replacement for `tailwindcss-animate`. |
+| `next/font/google` | Next.js 15, App Router | Built into `next` package since 13.2. No separate install. Works with variable fonts. |
+| `class-variance-authority` ^0.7.0 | React 19 | Installed by shadcn/ui CLI. |
+| `clsx` ^2.1.0 | Any | Zero dependencies. |
+| `tailwind-merge` ^2.x | Tailwind v4 | v2+ required for Tailwind v4 class detection. |
 
 ---
 
-## New Environment Variables Required
+## CSP Header Impact
 
-| Variable | Source | Purpose |
-|----------|--------|---------|
-| `GOOGLE_PLACES_API_KEY` | Google Maps Platform Console | `@googlemaps/places` client authentication for neighborhood info |
-| `RESEND_API_KEY` | Resend Dashboard | Transactional email for HITL draft notifications (conditional) |
+The existing `next.config.ts` has a strict CSP. Two changes needed for v1.1:
 
-Existing variables reused: `TAVILY_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`.
+1. **Fonts via `next/font/google`** — no CSP change needed. `next/font/google` downloads fonts at build time and serves them from `/_next/static/` (same origin).
+2. **motion (framer-motion)** — pure client-side JS, no external requests. No CSP change.
+3. **shadcn/ui** — no external requests. No CSP change.
+
+The existing `font-src 'self' https://fonts.gstatic.com` can be simplified to `font-src 'self'` once the Google Fonts CDN import is removed from `layout.tsx`.
+
+---
+
+## Migration Checklist for layout.tsx
+
+Current state uses `DM_Serif_Display` and `Inter` from `next/font/google`. Replace with:
+
+1. Remove `import { DM_Serif_Display, Inter } from 'next/font/google'`
+2. Add `import { Space_Grotesk, DM_Sans } from 'next/font/google'`
+3. Define `spaceGrotesk` and `dmSans` with Google Font configs (see Font Loading pattern above)
+4. Update `className` on `<html>` to use new CSS variable names
+5. Update `globals.css` `--font-display` and `--font-body` tokens
+6. Simplify CSP `font-src` to `'self'` only
 
 ---
 
 ## Sources
 
-- [Next.js `after()` docs](https://nextjs.org/docs/app/api-reference/functions/after) — confirmed stable in v15.1.0, Route Handler support, maxDuration interaction — HIGH confidence
-- [Vercel `@vercel/functions` reference](https://vercel.com/docs/functions/functions-api-reference/vercel-functions-package) — confirmed `after()` is the recommended replacement for `waitUntil()` in Next.js ≥15.1 — HIGH confidence
-- [Vercel function duration limits](https://vercel.com/docs/functions/limitations) — 60s Hobby plan, 300s Fluid Compute Hobby — HIGH confidence
-- [Supabase Realtime Postgres Changes docs](https://supabase.com/docs/guides/realtime/postgres-changes) — `postgres_changes` filter syntax, RLS enforcement behavior — HIGH confidence
-- [Supabase Realtime with Next.js guide](https://supabase.com/docs/guides/realtime/realtime-with-nextjs) — channel subscription and unsubscription pattern — HIGH confidence
-- [Supabase Realtime RLS announcement](https://supabase.com/blog/realtime-row-level-security-in-postgresql) — confirmed RLS applies to Realtime broadcasts — HIGH confidence
-- [`@googlemaps/places` npm](https://www.npmjs.com/package/@googlemaps/places) — v2.3.0 current, Places API (New) client — HIGH confidence
-- [Google Places API AI summaries](https://developers.google.com/maps/documentation/places/web-service/area-summaries) — `neighborhoodSummary`, `generativeSummary` fields — HIGH confidence
-- [Tavily Extract docs](https://docs.tavily.com/documentation/api-reference/endpoint/extract) — extract endpoint for structured web content from URLs — MEDIUM confidence (WebSearch)
-- [Resend Node.js docs](https://resend.com/docs/send-with-nodejs) — npm package, free tier, React Email integration — MEDIUM confidence (WebSearch)
+- [shadcn/ui Tailwind v4 docs](https://ui.shadcn.com/docs/tailwind-v4) — confirmed Tailwind v4 + React 19 support, tw-animate-css requirement
+- [shadcn/ui Next.js installation docs](https://ui.shadcn.com/docs/installation/next) — CLI command, monorepo flag
+- [shadcn/ui manual installation docs](https://ui.shadcn.com/docs/installation/manual) — full dependency list
+- [shadcn/ui React 19 docs](https://ui.shadcn.com/docs/react-19) — React 19 peer dep status HIGH confidence
+- [motion.dev upgrade guide](https://motion.dev/docs/react-upgrade-guide) — framer-motion → framer-motion migration MEDIUM confidence (WebSearch)
+- [tw-animate-css npm](https://www.npmjs.com/package/tw-animate-css) — Tailwind v4 animation replacement MEDIUM confidence (WebSearch)
+- [lucide-react official docs](https://lucide.dev/guide/packages/lucide-react) — tree shaking pattern HIGH confidence
+- [Next.js font optimization docs](https://nextjs.org/docs/app/getting-started/fonts) — localFont API HIGH confidence
+- [SSE vs WebSocket vs polling comparison](https://dev.to/haraf/server-sent-events-sse-vs-websockets-vs-long-polling-whats-best-in-2025-5ep8) — mission state pattern rationale MEDIUM confidence
 
 ---
 
-*Stack research for: CampusNest v1.2 Native Agent Backend*
+*Stack research for: CampusNest v1.1 UI/UX upgrade + AI Concierge*
 *Researched: 2026-03-10*

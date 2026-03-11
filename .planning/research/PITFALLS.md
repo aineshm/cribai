@@ -1,255 +1,263 @@
 # Pitfalls Research
 
-**Domain:** Native agent backend — mission executor, HITL draft approval, Realtime status, steering bar intent parsing, real tool integrations — added to existing Next.js 15 + Supabase + Gemini app (CampusNest v1.2)
+**Domain:** Design system migration + AI Concierge features added to existing Next.js 15 + Supabase app (CampusNest v1.1)
 **Researched:** 2026-03-10
-**Confidence:** HIGH (Supabase limits verified against official docs; Gemini issues verified against official GitHub/forum; HITL and agent patterns cross-referenced across multiple 2025-2026 sources)
+**Confidence:** HIGH (verified against official docs, GitHub issues, and community post-mortems)
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Edge Function Wall Clock Limit Kills Long-Running Mission Steps
+### Pitfall 1: Big-Bang Design System Migration Breaks Working Features
 
 **What goes wrong:**
-A mission step (e.g. search → shortlist → PM contact draft) takes longer than 150 seconds on the free tier. The Edge Function hits the wall clock limit and is forcibly terminated mid-execution. The mission row in the DB is left in `running` status permanently because the shutdown handler never fires (or fires too late). The Concierge UI shows an endlessly spinning mission that the user cannot cancel — the backend died silently.
+You attempt to migrate the entire frontend to shadcn/ui + Tailwind v4 tokens in one pass — touching every component file at once. Halfway through, the app is half-styled, tests break because class names changed, and it is unclear which pages are "done." The existing working features (CribAI chat, map blocks, tour scheduling) regress in the process.
 
 **Why it happens:**
-Supabase Edge Functions have a hard wall clock limit of 150 seconds on the free tier (400 seconds on paid). The agent loop calls Gemini (400–2000ms per turn), then calls external APIs (reviews, neighborhood data, PM contact lookup), then writes results to the DB. Multi-step missions that chain 3–5 of these operations can easily exceed 2 minutes on slow external API responses. Developers test with fast local mocks that return in <100ms and never observe the timeout in dev.
+Tailwind v4 changes the CSS architecture fundamentally (JavaScript config eliminated, `@theme` CSS directive replaces `tailwind.config.js`, `@import "tailwindcss"` replaces `@tailwind` directives, utility class renames like `flex-shrink-0` → `shrink-0`). Shadcn/ui also shifts from the v3 HSL token format to v4 OKLCH. Trying to do this atomically across 20+ component files is a code freeze in practice. A single bad merge leaves the app in a broken state.
 
 **How to avoid:**
-- Design each mission step as a single Edge Function invocation targeting <60 seconds (leaving generous headroom below the 150s limit).
-- Split multi-step missions into discrete steps stored as rows in a `mission_steps` table. Each step is dispatched separately via pgmq or a `pg_cron` + Edge Function worker pattern.
-- Use `EdgeRuntime.waitUntil()` to ensure DB writes complete even if the response is sent early, but do not rely on this for the full mission — it does not extend the wall clock.
-- Add a `beforeunload` handler inside the Edge Function to set the mission step status to `failed` with a reason of `timeout` when the runtime signals shutdown.
-- Upgrade to Pro ($25/month) to get 400s wall clock if multi-step missions need to run in a single invocation.
+Dedicate the first phase entirely to design system foundations: install Tailwind v4, install shadcn/ui with v4 support, configure `@theme` with the full CampusNest token set (Space Grotesk, DM Sans, brand colours), set up `next/font/google` for both fonts, install Lucide, install framer-motion. Validate with a single throwaway test page that exercises the full token system. Only after this foundation phase is solid do subsequent phases replace component-by-component. Use feature flags or parallel routes to keep the existing pages live while redesigned pages are built alongside them.
 
 **Warning signs:**
-- Mission rows stuck in `running` for more than 5 minutes with no `updated_at` change
-- No `failed` or `timeout` terminal states ever appearing in the missions table during testing
-- External API calls made without `AbortController` timeouts
-- Edge Function invocations visible in Supabase logs with status `wall-clock limit reached`
+- PR titles like "redesign everything" or "full migration"
+- Tailwind config and `globals.css` both defining the same token names
+- `tailwind.config.js` still present after the migration (the codemod may not have cleaned it up)
+- Build succeeds locally but Vercel Preview fails because `@tailwindcss/postcss` is not in `devDependencies`
 
 **Phase to address:**
-Phase 1 (Mission DB Schema + Executor Architecture) — step decomposition must be a schema-level decision before any executor code is written.
+Phase 1 (Design System Foundation) — must be a standalone phase that all subsequent UI phases depend on.
 
 ---
 
-### Pitfall 2: Fire-and-Forget Pattern Loses Missions Silently on Edge Function Cold Start Failure
+### Pitfall 2: Shadcn/ui CSS Variable Names Collide With Existing Custom Properties
 
 **What goes wrong:**
-The API route returns `202 Accepted` to the client immediately and calls `EdgeRuntime.waitUntil(runMission(missionId))`. If the Edge Function cold-starts slowly and the runtime decides to terminate the worker before `waitUntil` registers (a known edge case in Deno Deploy / Supabase Edge runtimes), the background promise is dropped entirely. The mission was accepted, the user sees "Starting..." in the UI, but no executor ever runs. The mission sits in `pending` forever.
+CampusNest v1.0 already defines CSS custom properties in `globals.css` (e.g. `--primary`, `--foreground`, `--background`, `--border`). Shadcn/ui uses the identical names for its own token system. When you install shadcn/ui, its CLI overwrites or appends conflicting `:root` declarations. Existing components that relied on the old token values break visually; dark mode may silently regress because shadcn writes a `.dark` block using different OKLCH values than the existing HSL setup.
 
 **Why it happens:**
-`EdgeRuntime.waitUntil()` assumes the Edge Function worker is already alive and executing. On cold starts, the request/response cycle can complete before the background promise is scheduled. Supabase's documentation explicitly notes: "When testing locally, instances terminate automatically after request completion, preventing background tasks from finishing." This also happens in production under low-traffic conditions that cause cold starts.
+Shadcn's default token names (`--primary`, `--secondary`, `--muted`, `--accent`, `--destructive`, `--border`, `--input`, `--ring`, `--background`, `--foreground`) are intentionally generic. Projects commonly pre-use these names. The Tailwind v4 migration further complicates this: variables must now also be mapped inside `@theme inline { --color-primary: var(--primary); }` or they produce no utility classes, and the HSL values in v3 become OKLCH in v4. If the project's existing colours are in HSL and shadcn's installed palette is in OKLCH, the two systems diverge silently.
 
 **How to avoid:**
-- Use the pgmq message queue (Supabase's built-in `pgmq` extension) instead of pure fire-and-forget. On mission creation: insert the mission row + enqueue a message to the queue in the same DB transaction. A separate Edge Function worker triggered by pg_cron (or a long-polling consumer) dequeues and executes missions. The queue provides durability — if the consumer crashes, the message is redelivered.
-- If staying with `waitUntil`, add a pg_cron job that runs every 2 minutes and looks for missions in `pending` status with `created_at` older than 3 minutes, then re-enqueues them. This is a recovery net, not the primary execution path.
-- Never set mission status to `running` before the executor actually starts processing. Set it inside the executor, not in the HTTP route.
+Before running `npx shadcn@latest init`, audit `globals.css` and list every existing `--variable` name. Treat the shadcn init as a controlled operation: run it on a branch, review the diff to the CSS file, then manually merge the token values. Map existing brand colours (CampusNest palette from Figma) into the shadcn token names rather than running both systems in parallel. The final `globals.css` should have one authoritative `:root` block — shadcn's structure, populated with CampusNest's brand values converted to OKLCH.
 
 **Warning signs:**
-- Missions visible with `status = 'pending'` and `created_at` > 5 minutes old
-- Edge Function logs showing requests that return 202 with no subsequent background execution log entry
-- Local dev testing shows background tasks not completing (this is expected locally — must test with `per_worker` policy in config.toml)
+- Two `:root` blocks in `globals.css`
+- `--primary` resolving to different colours in different components
+- Dark mode works on some pages but not others
+- Tailwind's `bg-primary` utility renders a different colour than `style={{ backgroundColor: "var(--primary)" }}`
 
 **Phase to address:**
-Phase 1 (Mission DB Schema + Executor Architecture) — queue vs. waitUntil decision must be made before Phase 1 ends.
+Phase 1 (Design System Foundation) — the token merge is the most important task in this phase.
 
 ---
 
-### Pitfall 3: Gemini 2.5 Flash Cannot Mix Function Calling and `responseSchema` in the Same Request
+### Pitfall 3: framer-motion Forces Every Animated Page Into a Client Component
 
 **What goes wrong:**
-The steering bar intent parsing uses Gemini function calling to classify user input (e.g. `classify_intent` tool). Separately, the mission executor uses structured JSON output (`responseSchema`) to get shortlist results in a typed format. A developer attempts to combine both in a single Gemini call — using `tools` for function calling AND `generationConfig.responseSchema` for typed output. Gemini 2.5 Flash returns a 400 error or silently ignores the schema.
+You add `motion.div` to a page component that was a Server Component (no `"use client"` directive). Next.js 15 App Router throws a hard error or silently falls back to CSR. Worse, you add `"use client"` to the page component itself — which propagates client-side rendering to all its children, including data-fetching components that were intentionally server-side. Performance regresses: data fetching moves to the browser, initial HTML is empty, and Lighthouse scores drop.
 
 **Why it happens:**
-This is a confirmed Gemini 2.5 Flash limitation as of late 2025: "Function calling with a response mime type of 'application/json' is unsupported in Gemini 2.5 models." When tool call messages are present in the conversation history, structured output mode fails entirely. The 2.0 models do not have this restriction, but 2.5 does. Developers who tested with 2.0 are caught off-guard when they switch to 2.5 Flash for its improved reasoning.
+framer-motion is a purely client-side library (it accesses `window`, DOM nodes, and `requestAnimationFrame`). In Next.js App Router, the default is server rendering. Adding `motion.*` components without `"use client"` boundary management causes the entire subtree to execute on the client. Developers who are used to Next.js pages router (where all components were client-rendered by default) do not think about this boundary.
 
 **How to avoid:**
-- For steering bar intent parsing: use function calling exclusively. Define a `classify_intent` function with an enum parameter. Do not set `responseSchema`. Parse the function call arguments for the intent classification.
-- For mission executor structured output (shortlist, draft email body): use `responseSchema` exclusively, no tools. Split the call if you need both classification and structured output — first classify via function call, then use the classification result as input to a structured output call.
-- In the mission executor, separate the "reasoning" turns (which may use tools) from the "output" turns (which produce structured JSON). Never attempt both in the same turn.
-- Pin Gemini model versions (e.g. `gemini-2.5-flash-latest`) but also test against explicit version strings to catch regression when Google updates the model.
+Create thin `"use client"` wrapper components that own the animation concern only. Example: `MotionWrapper.tsx` exports `motion` components with `"use client"` at the top; page-level Server Components import these wrappers, not `framer-motion` directly. The rule: pages remain Server Components; animated elements are extracted into small Client Component wrappers. Use `initial={false}` on AnimatePresence to suppress the first-render animation (prevents SSR hydration mismatch where the server renders no `data-projection-id` but the client expects one).
 
 **Warning signs:**
-- Gemini API returning 400 `InvalidArgument` with messages mentioning `response_mime_type` and `tools`
-- Steering bar intent calls returning raw JSON text instead of a function call
-- Inconsistent behavior between staging (using 2.0) and production (using 2.5)
+- `"use client"` added to `page.tsx` or `layout.tsx` files directly
+- Network tab shows no server-rendered HTML (page source is just `<div id="__next"></div>`)
+- Hydration warnings in console mentioning `data-projection-id` mismatch
+- Exit animations not playing (AnimatePresence not wrapping the correct level, or missing `key` props)
 
 **Phase to address:**
-Phase 2 (Steering Bar Intent Parsing) and Phase 3 (Mission Executor Loop) — the separation pattern must be established in the first Gemini call that uses either feature.
+Phase 2 (Marketing Landing Page) — this is the first phase that introduces framer-motion. Establish the wrapper pattern here; all subsequent phases inherit it.
 
 ---
 
-### Pitfall 4: Gemini Agentic Loop Enters Infinite Tool Call Cycle
+### Pitfall 4: Fonts Not on Google Fonts Require Self-Hosting — But Space Grotesk and DM Sans Are Available
 
 **What goes wrong:**
-The mission executor's agentic loop calls Gemini, receives a function call, executes the tool, feeds results back, and repeats. Under certain input conditions (e.g. a listing search that returns 0 results, or a tool that returns a partial error), Gemini 2.5 Flash enters a cycle where it calls the same tool repeatedly with marginally different parameters, never progressing to a final answer. The loop runs until the Edge Function's wall clock limit is hit, consuming credits for dozens of Gemini API calls and external API calls per mission.
+A developer assumes all design system fonts require self-hosting via `next/font/local` and downloads WOFF2 files manually, adding unnecessary build complexity. Alternatively, a developer tries to use `next/font/google` for a font that truly is not on Google Fonts (e.g., Cabinet Grotesk, Satoshi) and gets a build-time or runtime failure. The fallback is a browser default serif font (Times New Roman), which destroys the brand feel and shifts layout due to different metrics. CLS (Cumulative Layout Shift) spikes because the fallback font has completely different glyph dimensions than the intended typefaces.
 
 **Why it happens:**
-Gemini's built-in loop detection (comparing last 3 outputs) catches exact repetitions but not near-repetitions. A tool that returns "no results found" on every call triggers the model to try different search parameters indefinitely — each call is different enough to bypass detection. The existing CribAI implementation caps at 5 tool calls per turn (from Phase 6 v1.0 docs), but the mission executor's multi-turn loop across `waitUntil` calls may not inherit this cap.
+Developers conflate fonts from Fontshare (e.g., Cabinet Grotesk, Satoshi) with fonts that share similar names but are actually on Google Fonts. Space Grotesk and DM Sans are both available on Google Fonts and work with `next/font/google` out of the box. However, fonts like Cabinet Grotesk and Satoshi are NOT on Google Fonts and must be self-hosted via `next/font/local`. Confusion arises when design specs reference these font families interchangeably.
 
 **How to avoid:**
-- Implement a hard turn counter on the mission executor loop. Cap at 8 total Gemini API calls per mission (not per turn). Store the call count in the mission row and check it at the start of each loop iteration.
-- Tools that can return empty results must return a clearly terminal signal: `{ status: "no_results", suggestion: "broaden_criteria" }` rather than `{ results: [] }`. This tells the model to stop retrying rather than continue searching.
-- Implement a staleness check: if two consecutive tool calls have identical parameters, immediately exit the loop with a `max_retries_exceeded` status.
-- Log every Gemini call (model, input token count, output token count, tool called) in a `mission_logs` table. This is essential for debugging infinite loops and cost tracking.
-- Set `AbortController` timeout on every Gemini API call (30 seconds recommended) so a slow API response cannot consume the entire wall clock budget.
+For Space Grotesk and DM Sans: use `next/font/google` directly — both are available. Import with `import { Space_Grotesk, DM_Sans } from 'next/font/google'`, specify the full weight array, set `display: "swap"` and `variable` for CSS custom property mapping. For fonts that truly are not on Google Fonts (Cabinet Grotesk, Satoshi, etc.): download WOFF2 files and use `next/font/local`. In either case, set `adjustFontFallback: true` — Next.js will auto-generate a `size-adjust`-calibrated fallback to prevent CLS. Apply the font as a CSS variable on `<html>` and consume it via `font-family: var(--font-space-grotesk)` in the Tailwind `@theme` block. Test with a throttled connection to verify no FOUT (Flash of Unstyled Text).
 
 **Warning signs:**
-- Supabase Edge Function logs showing the same external API called 5+ times in a single mission execution
-- Mission costs (if tracked) far exceeding expected per-mission budget
-- Gemini API forum issues: "Gemini 2.5 Flash stuck in tool call loop when using tools and structured output" (confirmed bug pattern as of 2025)
+- Self-hosting fonts that are available on Google Fonts (unnecessary complexity)
+- Using `next/font/google` for fonts not actually on Google Fonts (e.g., Cabinet Grotesk, Satoshi)
+- Times New Roman or system-ui visible during page load in slow-network tests
+- CLS score above 0.05 in Lighthouse
 
 **Phase to address:**
-Phase 3 (Mission Executor Agentic Loop) — the turn counter and terminal tool response format must be part of the initial implementation, not added after observing the problem.
+Phase 1 (Design System Foundation) — font setup is prerequisite to all visual work.
 
 ---
 
-### Pitfall 5: Supabase Realtime 200-Connection Free Tier Limit Blocks During Mission Execution
+### Pitfall 5: Lucide Icon Barrel Imports Inflate Bundle Size 30-50x
 
 **What goes wrong:**
-The Concierge UI opens a Supabase Realtime channel subscription to receive live mission status updates. During a busy period (or load testing), the project hits the 200 concurrent connection limit on the free tier. New channel joins are silently rejected — the UI shows no error, just no updates. Users think their missions are running normally but receive no status events. The fallback polling (if any exists) is the only thing keeping the UI alive.
+Developers write `import { Home, Search, Bell, Star, Map, Settings, User, ChevronDown } from "lucide-react"`. This looks tree-shakeable but in practice — depending on Next.js version and bundler config — can import the entire Lucide library (1,300+ icons, ~500KB unminified). Dev server becomes sluggish. Production bundle includes icons that are never rendered.
 
 **Why it happens:**
-Supabase Realtime free tier limits: 200 concurrent connections, 100 messages/second, 20 presence messages/second. A web app where multiple browser tabs are open (each opening its own Realtime connection) can hit this limit with fewer than 200 active users. The client SDK does not surface a clear error when the connection limit is reached — it may silently fail or retry indefinitely.
+Lucide uses barrel exports (one `index.js` that re-exports all icons). Barrel exports defeat tree-shaking in certain bundler configurations because the static analysis cannot prove the re-exports are side-effect-free. This is documented in Next.js's own blog post on `optimizePackageImports`. In development mode specifically, Next.js resolves barrel files without tree-shaking, causing the dev server to load all icons on every page that imports any icon.
 
 **How to avoid:**
-- Each user should have exactly one Realtime channel subscription for mission updates (not one per mission card). Use a single channel scoped to `missions:user_id=eq.${userId}` that receives updates for all of that user's missions.
-- Implement a polling fallback: if the Realtime channel has not received an event in 30 seconds, fall back to polling the missions table every 5 seconds. Resume Realtime when the channel reconnects.
-- Keep mission status payload small (< 256KB, which is the free tier broadcast limit). Only send `{ mission_id, status, last_action, updated_at }` — do not embed full mission data in the Realtime payload.
-- For v1.2, the concurrent connection limit (200) is unlikely to be hit in early usage. Design for the limit from the start (one channel per user, not per mission), but do not prematurely optimize for 10K users.
+Add `lucide-react` to `optimizePackageImports` in `next.config.ts`:
+
+```ts
+experimental: {
+  optimizePackageImports: ["lucide-react"],
+}
+```
+
+This is the correct fix — it converts barrel imports to precise imports automatically during build, giving clean code without bundle overhead. Do not switch to path-specific imports (`import Home from "lucide-react/dist/esm/icons/home"`) — the `optimizePackageImports` approach is cleaner and maintained. Verify the fix is working by checking bundle analysis (`ANALYZE=true pnpm build`).
 
 **Warning signs:**
-- `supabase.channel()` calls inside a per-mission component (not a per-user root component)
-- No reconnection or fallback logic for when `channel.on('status', ...)` fires with `CLOSED` or `CHANNEL_ERROR`
-- Zero Realtime events received in the UI despite missions changing state in the DB (silent failure)
+- Dev server noticeably slower after adding icons to more components
+- Bundle analyzer shows `lucide-react` as a large chunk
+- First page load in production is >200KB JS for a simple page that imports a few icons
 
 **Phase to address:**
-Phase 4 (Realtime Status Updates) — channel architecture must be decided before the first subscription is written.
+Phase 1 (Design System Foundation) — add `optimizePackageImports` config before any pages use icons.
 
 ---
 
-### Pitfall 6: Realtime Postgres Changes RLS Bypass Exposes Mission Data Across Users
+### Pitfall 6: Agent Mission State Becomes Inconsistent Between Polling and Optimistic Updates
 
 **What goes wrong:**
-The Realtime Postgres Changes subscription listens for `UPDATE` events on the `missions` table. RLS is enabled on the table with a policy `user_id = auth.uid()`. The developer assumes Realtime respects this RLS policy and all users only receive their own mission updates. In fact, Realtime Postgres Changes operate under a separate authorization system from Realtime Channel authorization — and without explicit Realtime authorization configuration, all subscribers on the same channel can receive all changes, ignoring row-level RLS.
+The AI Concierge shows a mission as `running` with an animated spinner. The user steers the mission via the steering bar. The optimistic update immediately shows `steering` in the UI. Meanwhile the poll interval fires, fetches the old `running` state from the DB, and overwrites the optimistic state. The spinner flickers between states, or worse: the steering command is visually acknowledged but the UI reverts to `running`, leaving the user unsure if their input was received.
 
 **Why it happens:**
-Supabase's own documentation states: "Realtime Postgres Changes are separate from Channel authorization, and the private Channel option does not apply to Postgres Changes." Realtime uses its own JWT-based authorization for channels, and Postgres Changes additionally require the table to have Realtime enabled AND the subscription filter to be evaluated against the authenticated user context. Developers who are familiar with RLS for REST API calls assume it automatically applies to Realtime — it does not in the same way.
+Polling and optimistic updates operate on the same state slice without coordination. A `setInterval`-based poll runs at a fixed cadence and overwrites whatever is in local state with the server response. The optimistic update writes to local state but does not pause the poller. This is the classic stale-server-response-overwrites-fresh-optimistic-state race condition.
 
 **How to avoid:**
-- Subscribe to a filtered Realtime channel: `channel.on('postgres_changes', { event: '*', schema: 'public', table: 'missions', filter: \`user_id=eq.${userId}\` }, handler)`. The filter is applied server-side.
-- Additionally, configure Realtime authorization in Supabase: the channel must be created with `{ config: { private: true } }` and the JWT must be passed so Supabase validates the subscription against the RLS policy.
-- Test cross-user isolation explicitly in integration tests: create two users, start a mission for each, verify user A's Realtime subscription does not receive user B's mission updates.
-- Do not embed sensitive data (PM contact info, email drafts) in the Realtime payload. Use the Realtime event as a trigger to fetch fresh data from the REST API, which does enforce RLS correctly.
+Use TanStack Query (`@tanstack/react-query`) as the mission state layer. TanStack Query's `useMutation` + `onMutate` for optimistic updates integrates directly with `useQuery` polling: mutations can temporarily disable refetch or set a flag that `onSuccess` uses to decide whether to overwrite. The pattern: (1) fire steering command, (2) optimistically set local mission state to `steering`, (3) pause the refetch interval for 3 seconds, (4) resume polling. This gives the server time to acknowledge the steering before the poller overwrites the state. Never use raw `setInterval` for mission status polling — use TanStack Query's `refetchInterval` option which respects mutation lifecycle.
 
 **Warning signs:**
-- Realtime channel subscriptions with no `filter` parameter on the `missions` table
-- No integration test for cross-user Realtime isolation
-- Channel opened with `supabase.channel('missions')` (global channel) instead of `supabase.channel(\`missions:${userId}\`)`
+- Mission status spinner flickering between two states
+- Console logs showing a poll response with an older `updated_at` than the local state
+- Steering bar button stays visually active but mission status resets to previous state
+- useEffect with setInterval in the same component as useState for mission status
 
 **Phase to address:**
-Phase 4 (Realtime Status Updates) — test cross-user isolation before shipping, not after.
+Phase N (AI Concierge — Mission Board) — must be designed with TanStack Query from the start.
 
 ---
 
-### Pitfall 7: HITL Stale Draft Approval Executes on Wrong Parameters
+### Pitfall 7: HITL Draft Approval Has Three Failure Modes That Cause Silent Data Loss
 
 **What goes wrong:**
-The agent generates a PM contact email draft (Draft v1: "2BR at Oak Street, $1200/mo"). The user does not immediately approve. The agent refines the mission criteria and regenerates a draft (Draft v2: "2BR at Elm Street, $1100/mo"). The user returns, sees a draft card (now showing v2 in the DB), but their browser tab still shows v1 (cached). They approve the draft shown in their tab. The server applies the approval but the draft version has already advanced — or worse, the server accepts a stale approval because there is no versioning check, and sends the wrong email to the PM.
+
+1. **Stale draft approved:** User receives a draft from the AI agent (e.g. a tour request email). The user leaves the page and returns 20 minutes later. Meanwhile the agent produced a revised draft. The user approves the stale first draft. The system executes based on stale parameters (wrong time slot, wrong listing).
+
+2. **Double submit:** User clicks "Approve" — the server is slow — user clicks again. Two approval events fire. The action (e.g. tour scheduling) executes twice, creating duplicate DB records.
+
+3. **Ignored draft blocks the mission:** The agent is waiting for HITL approval. The user never responds. The mission sits at `awaiting_approval` forever, consuming a slot in the mission board without any visible timeout or expiry.
 
 **Why it happens:**
-The HITL draft approval pattern requires explicit draft versioning to be safe. Without a `draft_version` integer on the draft record, there is no way to detect that the user is approving something the agent has since superseded. This was flagged in v1.1 research as a critical pitfall and applies here with even higher stakes because v1.2 drafts trigger real external actions (PM contact emails), not just mission state changes.
+HITL draft approval is a multi-step async workflow in a mostly-synchronous UI paradigm. Draft versioning is rarely implemented because it adds DB schema complexity. Submit buttons are not disabled after the first click because the developer forgot to track the submission-in-flight state. Mission timeouts are not designed upfront because "we'll add that later."
 
 **How to avoid:**
-- Every draft row must have a `draft_version` integer (auto-incrementing per `mission_id`) and an `is_current` boolean. When the agent produces a new draft, it sets the previous draft's `is_current = false` and inserts the new draft with `is_current = true`.
-- The approval API endpoint validates: `WHERE draft_id = $1 AND draft_version = $2 AND is_current = true`. If this check fails, return `409 Conflict` with `{ error: "newer_draft_available", latest_version: N }`.
-- The UI must display the draft's `generated_at` timestamp: "Draft generated 3 minutes ago." If the user returns to an approval card and the `is_current` flag is false, the card must show "This draft has been superseded" and display the current draft.
-- Disable the Approve button immediately on first click. Use `useTransition` (React 19) to track in-flight state and prevent double-submission.
+
+- **Stale draft:** Store `draft_version` (auto-incrementing integer) on the draft record. The approval payload must include the `draft_version` it was approved against. The server rejects approvals where `draft_version` does not match the current record — return a 409 with "A newer draft is available; please review it." Show the draft's `created_at` in the UI ("Draft generated 3 minutes ago").
+
+- **Double submit:** Disable the Approve button immediately on first click (set `isSubmitting: true`). Use `useTransition` (React 19) or a `submitting` boolean tracked in component state — not just a network request flag. Add idempotency key to the approval API call (UUID stored in component state, generated once per draft render).
+
+- **Stuck mission:** Add `expires_at` to draft records: 24 hours for tour requests, 4 hours for time-sensitive actions. Run a Supabase Edge Function or Postgres cron job (`pg_cron`) that transitions `awaiting_approval` missions past their `expires_at` to `expired`. Show a countdown timer in the HITL card: "Auto-expires in 22 hours."
 
 **Warning signs:**
-- `missions_drafts` table has no `draft_version` or `is_current` column
-- Approval API does not query `is_current = true`
-- No `409` response handling in the approval UI component
-- Approve button remains enabled after click
+- Draft approval DB table has no `version` column
+- Approve button does not visually change state after click
+- Mission board shows missions in `awaiting_approval` with `created_at` days ago
+- No `expires_at` column in the drafts/missions table
 
 **Phase to address:**
-Phase 1 (Mission DB Schema) — versioning columns must be in the initial schema migration, not added later.
+Phase N (AI Concierge — HITL Draft Approval) — schema design must include versioning and expiry before any UI is built.
 
 ---
 
-### Pitfall 8: PM Contact Tool Hits ToS and Anti-Scraping Barriers
+### Pitfall 8: Steering Bar Intent Parsing Returns No-Op on Ambiguous Commands
 
 **What goes wrong:**
-The PM contact tool scrapes landlord phone numbers or email addresses from Apartments.com or Zillow listing pages to send contact drafts. The scraper is blocked after 50–200 requests via CAPTCHA, IP rate limiting, or User-Agent detection. Zillow's ToS explicitly prohibits scraping. The feature breaks in production and the team is forced to either buy a data API ($229+/month for Yelp, or $0.10+/call for ATTOM) or replace the feature entirely.
+User types "actually, make it cheaper" into the steering bar. The Gemini call returns an intent it cannot classify — is this "refine search criteria" or "restart mission with lower budget"? The system either: (a) silently does nothing (worst), (b) throws an unhandled error, or (c) picks an arbitrary interpretation. The user sees no feedback and repeats the command, triggering duplicate mission restarts.
 
 **Why it happens:**
-The real estate platforms (Apartments.com, Zillow, Craigslist) that CampusNest already scrapes for listing data do not expose landlord contact info through structured APIs. The contact info is embedded in the listing HTML. Developers assume that since they already scrape listing data, scraping contact info is the same operation — but contact info is more aggressively protected and its scraping is explicitly prohibited in most ToS agreements.
+Natural language commands to a steering bar have infinite surface area. Developers build the happy path (clear intent, successful classification) and do not design the error path. Ambiguous commands are treated as unexpected inputs rather than first-class cases requiring feedback.
 
 **How to avoid:**
-- Use only contact info that users or landlords have explicitly submitted through CampusNest's own manual listing submission form. This is the safest and most legally defensible source.
-- For listings without CampusNest-submitted contact info, the PM contact tool should generate a template for the user to send manually (copy-to-clipboard + deep link to the listing's native contact form), rather than sending on their behalf.
-- Do not attempt to scrape contact info from third-party listing sites in v1.2. Flag this as a "Phase N with business model validation" feature that requires either a partner data API or landlord opt-in.
-- If a paid API is acceptable, evaluate Estated ($0.10/call for property data including owner info) — it has explicit data licensing and is ToS-compliant.
+
+- Define a fixed intent taxonomy for the steering bar: `{ refine_criteria, change_budget, restart_mission, cancel_mission, clarify_question }`. Any classification outside this taxonomy is `unknown_intent`.
+- For `unknown_intent`: do not silently no-op. Return a clarification prompt inline: "I'm not sure what you'd like me to do — did you mean [option A] or [option B]?" Display this in the steering bar context, not as a toast.
+- For ambiguous commands that could map to multiple intents: show a quick-select ("Did you mean: Refine price range / Start over with new criteria?").
+- Log all steering commands with their classified intents. Review the `unknown_intent` logs weekly during early usage to extend the taxonomy.
+- Cap steering actions per mission at a reasonable limit (e.g. 5 steers) to prevent infinite refinement loops.
 
 **Warning signs:**
-- `get_pm_contact` tool implementation that calls `fetch()` against Apartments.com or Zillow URLs
-- Crawlee/Playwright code in the PM contact tool (scraping) rather than a structured data API call
-- No fallback UI when contact info is unavailable for a listing
+- Steering bar has no visual feedback state (no loading indicator, no response display)
+- No `unknown_intent` handler in the intent classification logic
+- Mission restarts accumulate in the DB (same user, same mission type, started within seconds of each other)
 
 **Phase to address:**
-Phase 5 (Real Tool Integrations) — define the PM contact strategy before writing any tool code. This decision determines whether the feature ships as full automation or assisted automation.
+Phase N (AI Concierge — Steering Bar) — intent taxonomy must be defined before the steering bar UI is built.
 
 ---
 
-### Pitfall 9: Reviews and Neighborhood Data APIs Have Hidden Costs and Caching Restrictions
+### Pitfall 9: Replacing Full-Page Chat With Floating Panel Loses Context Restoration
 
 **What goes wrong:**
-The `get_reviews` tool calls Yelp API or Google Places for each listing the agent evaluates. A mission that shortlists 10 listings makes 10 review API calls. At Yelp's $9.99/1000 calls rate, this is ~$0.10 per mission. Over 500 missions per month (modest scale), this is $50/month on reviews alone. Additionally, Yelp's ToS restricts caching to 24 hours maximum — the team builds a longer-duration cache thinking it saves costs, which violates the ToS and risks API key revocation.
+The current CribAI chat is a full-page route (`/chat`). The redesign moves it to a floating panel overlaid on the Explore page. Users navigate from the Explore page to a Listing Detail page. The floating panel either: (a) disappears because the panel state is not preserved across route navigations, or (b) resets its conversation because the session reference is lost. Users who were mid-conversation with CribAI lose their context when they click a listing.
 
 **Why it happens:**
-Developers evaluate API costs per-call without projecting to per-mission and per-month costs at realistic usage. Caching policies (Yelp: 24h max, Google Places: "no caching except for specific exceptions") are in the ToS fine print, not in the API pricing page. The team discovers the caching restriction only when they receive a ToS violation notice.
+Floating panels that persist across route navigations require state to live above the router — in a layout component or a global state store. React state local to a page component is destroyed on route change. The existing chat already uses DB-backed persistence (`conversations` table) for logged-in users and sessionStorage for guests. But floating panels need to additionally track which conversation is "active" in the panel, the scroll position, and whether the panel is open/minimised — state that is UI-level, not DB-level.
 
 **How to avoid:**
-- For the `get_reviews` tool in v1.2: use Tavily web search (already integrated, session cache implemented) to retrieve recent review content rather than a dedicated reviews API. Tavily's search-based approach avoids per-review API fees and does not have review caching ToS restrictions.
-- For Google Places reviews: use field masks to request only `reviews` and `rating` (the Basic tier SKU, billed at $0.017/call). Cache results in the `listings` table for 24 hours with a `reviews_cached_at` timestamp. Never exceed 24 hours per Google's ToS.
-- For Walk Score / neighborhood data: Walk Score API offers 5,000 free calls/day. Cache results in the `listings` table with `walk_score_cached_at` — neighborhood walkability does not change frequently so a 7-day cache is reasonable (Walk Score ToS allows caching for up to 1 year for non-display purposes).
-- Build a `listings_enrichment` table to store all third-party data (reviews, scores, neighborhood data) with per-source `cached_at` timestamps and TTLs enforced by the query layer.
+
+- Move the floating chat panel into `apps/web/app/layout.tsx` or a persistent shell layout component that is never unmounted during navigation. The panel renders at the layout level, not the page level.
+- Use Zustand (or React Context at the layout level) to store: `{ isOpen, conversationId, panelState: 'full' | 'minimised' }`. This state persists across route changes.
+- When a user navigates to a listing detail from within a CribAI conversation, pass the `listing_id` as context to the active conversation rather than opening a new one.
+- Keep the full-page `/chat` route for mobile (small viewports where a floating panel is unusable) and redirect to it when viewport < `lg`.
+- Test the panel with router navigation explicitly in E2E: open panel, start chat, navigate to another page, verify panel is still open with conversation intact.
 
 **Warning signs:**
-- Review API calls made on-the-fly for every mission without a caching layer
-- `reviews_cached_at` column not present in the listings or enrichment table
-- Google Places API calls using the `BASIC` or `PREFERRED` SKU (expensive) instead of targeted field masks
-- No cost tracking for third-party API calls per mission
+- Floating panel component is defined inside a page file rather than a layout file
+- No global state store for panel open/closed state
+- Panel component is unmounted and remounted on route change (visible as animation playing again on every navigation)
 
 **Phase to address:**
-Phase 5 (Real Tool Integrations) — caching strategy and cost model must be designed before any external API integration is implemented.
+Phase N (Explore Page — Split View + Floating AI Panel) — layout architecture must be decided before panel component is built.
 
 ---
 
-### Pitfall 10: pg_cron Job Bloat Causes Silent Failures on Free Tier
+### Pitfall 10: Tailwind v4 Removes `tailwind.config.js` — Existing Build Tooling May Assume It Exists
 
 **What goes wrong:**
-Two pg_cron jobs are planned for v1.2: (1) expire HITL drafts past `expires_at`, and (2) recover `pending` missions stuck without an executor. Both run frequently (every 5 minutes). After accumulating several thousand runs, the `cron.job_run_details` table grows to hundreds of megabytes. On the free tier (500MB DB storage total), this table consumes a significant share of the storage budget. Eventually, pg_cron jobs fail silently with no disk space errors, or the DB reaches its storage limit and the entire project is paused.
+After migrating to Tailwind v4's CSS-first configuration, several things break silently:
+- `tailwindcss-animate` (used by shadcn v3 components) is removed — components using it produce broken animations until `tw-animate-css` is installed as replacement.
+- Storybook, Vitest with CSS processing, or any tool that reads `tailwind.config.js` for configuration breaks because the file no longer exists.
+- Arbitrary value syntax changed: some v3 arbitrary classes (`bg-[var(--my-color)]`) may need adjustment for v4 compatibility.
+- The `@tailwind base; @tailwind components; @tailwind utilities;` directives in `globals.css` must be replaced with `@import "tailwindcss"` — the old directives produce no output in v4.
 
 **Why it happens:**
-pg_cron stores every job run in `cron.job_run_details` by default. High-frequency jobs that run every 5 minutes generate 288 rows per job per day. Two jobs running for 30 days = 17,280 rows. This is not a large number, but the associated text columns (status, return_message) can store verbose error messages that inflate the table. The free tier's 500MB constraint is tight when combined with the listings corpus and migrations. Community reports confirm complete cron job failure from table bloat on the free tier.
+Tailwind v4 is a major architectural shift, not a minor version bump. The automated codemod (`npx @tailwindcss/upgrade`) handles ~90% of cases but misses: custom PostCSS plugins that expect the old config shape, third-party libraries that peer-depend on Tailwind v3, and arbitrary value patterns in dynamically constructed class names (which the AST parser cannot safely transform).
 
 **How to avoid:**
-- Add a third pg_cron job that runs daily to truncate `cron.job_run_details` older than 7 days: `DELETE FROM cron.job_run_details WHERE end_time < now() - interval '7 days'`.
-- Run cron cleanup jobs every 15 minutes minimum (not every 1–2 minutes) to reduce log accumulation. Mission expiry checks every 15 minutes is acceptable — expired drafts are non-urgent.
-- Monitor DB storage usage in Supabase dashboard weekly. Set up an alert (Supabase monitoring or a simple Edge Function health check) that warns when storage exceeds 80% of the free tier limit.
-- Consider moving to Supabase Pro ($25/month) before launching the mission executor to get 8GB storage and remove the 500MB constraint.
+- Run `npx @tailwindcss/upgrade` on a branch and thoroughly review the diff before merging.
+- Replace `tailwindcss-animate` with `tw-animate-css` and add `@import "tw-animate-css"` to `globals.css`.
+- Update PostCSS config: remove `tailwindcss` plugin, add `@tailwindcss/postcss`.
+- Search the codebase for `tailwind.config` imports in test setup files (Vitest, Jest, Storybook) and update them.
+- After migration, run `pnpm build` and `pnpm test` to verify both the build pipeline and test runner work correctly.
 
 **Warning signs:**
-- pg_cron jobs scheduled at 1–5 minute intervals
-- No `cron.job_run_details` cleanup job in the migration
-- DB storage usage above 300MB on the free tier (leaves little headroom)
-- cron jobs that were running stop running with no obvious error in the function logs
+- `globals.css` still contains `@tailwind base` after migration
+- `tailwindcss-animate` still in `package.json` (should be replaced by `tw-animate-css`)
+- `postcss.config.js` still references `tailwindcss` plugin (should be `@tailwindcss/postcss`)
+- Any `require('tailwind.config')` or `import tailwindConfig from './tailwind.config'` in non-config files
 
 **Phase to address:**
-Phase 1 (Mission DB Schema) — include the cron cleanup migration as part of the initial schema setup.
+Phase 1 (Design System Foundation) — migration verification must include build and test pipeline checks.
 
 ---
 
@@ -259,71 +267,68 @@ Shortcuts that seem reasonable but create long-term problems.
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Using `EdgeRuntime.waitUntil` for multi-step missions instead of a queue | No new infrastructure | Missions lost on cold start, no retry, no durability | Only for single-step lightweight operations (<30s) |
-| Skipping `draft_version` on HITL drafts | Saves one integer column | Stale approvals trigger wrong real-world actions (PM emails) silently | Never — one column prevents a class of irreversible bugs |
-| Making review/neighborhood API calls per-request without caching | Simplest code | Unexpected monthly API costs at scale; ToS violation risk if cache TTL is ignored | Never — cache layer must be in place before real API keys are used |
-| Polling mission status at 2-second intervals instead of Realtime | No WebSocket complexity | Exhausts Supabase connection pool under concurrent users | Only as a short-term fallback when Realtime is unavailable |
-| Scraping PM contact info from listing sites | Feature works for demo | ToS violation, IP ban, broken feature in production | Never — use only user-submitted contact info or a licensed data API |
-| Logging raw user steering commands without truncation | Easy to debug | PII exposure risk (users may type personal info in the steering bar) | Never — truncate/redact steering bar input in logs to 200 chars |
+| Adding `"use client"` to page-level files to fix framer-motion errors | Fast fix for SSR errors | All data fetching on that page moves to client; RSC benefits lost | Never — always extract animation to wrapper component |
+| Keeping both old CSS variables and new shadcn tokens in parallel | Avoids touching working components | Two token systems diverge; dark mode inconsistent across pages | Only as a 1-2 day interim state during migration, never permanent |
+| Inline `setTimeout` to "pause" between mission state transitions | Quick visual debounce | Race conditions reappear under network latency or slow machines | Never — use TanStack Query mutation lifecycle instead |
+| Using raw `fetch` + `useState` for mission polling instead of TanStack Query | Avoids adding a dependency | Manual cache invalidation, no deduplication, stale-state bugs multiply | Only acceptable for one-off status checks, not recurring polling |
+| Skipping `draft_version` field on approval drafts | Saves one DB column | Stale approval bugs are nearly impossible to reproduce and fix | Never — draft versioning costs one integer column and prevents a class of silent bugs |
+| Importing full icon library without `optimizePackageImports` | Zero config | 500KB+ added to every page bundle, slow dev server | Never — the config fix is one line |
 
 ---
 
 ## Integration Gotchas
 
-Common mistakes when connecting to external services in v1.2.
+Common mistakes when connecting libraries to the existing CampusNest stack.
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| Gemini 2.5 Flash + function calling | Using `responseSchema` and `tools` in the same request | Separate calls: function calling for intent/classification turns, responseSchema for structured output turns — never combine |
-| Gemini agentic loop | No hard cap on total loop iterations | Enforce a `max_turns = 8` counter stored in the mission row; check at loop entry |
-| Supabase Realtime Postgres Changes | Assuming table-level RLS automatically scopes Realtime events | Add `filter: \`user_id=eq.${userId}\`` to the subscription AND configure Realtime authorization with private channels |
-| Yelp API / Google Places reviews | Caching results for >24 hours to save costs | Cache for exactly 24 hours (Yelp ToS max); use Tavily as a review data alternative that has no caching ToS |
-| Walk Score API | Making per-request calls during mission execution | Eagerly cache scores in `listings_enrichment` table; refresh at 7-day TTL since walkability rarely changes |
-| PM contact from listing scrapers | Scraping contact fields from Apartments.com / Zillow | Use only CampusNest-submitted contact info; generate a template + deep link for listings without it |
-| pgmq / pg_cron | Not cleaning `cron.job_run_details` table | Add a daily cleanup cron job in the initial schema migration |
-| Supabase Edge Function background tasks | Local dev tests passing but production missions not running | Set `[edge_runtime] policy = "per_worker"` in `supabase/config.toml` for local testing of background tasks |
+| shadcn/ui + Tailwind v4 | Running `npx shadcn@latest add` before Tailwind v4 migration is complete | Complete Tailwind v4 migration first; shadcn v4 components use `@theme` tokens that do not exist in v3 config |
+| framer-motion + Next.js 15 | Wrapping entire page in `motion.div` with `"use client"` | Create `MotionWrapper` client components that wrap only the animated element; keep pages as Server Components |
+| `next/font/google` + Tailwind v4 | Applying font CSS variable as a class on `<body>` but not mapping it in `@theme` | Map `--font-space-grotesk` into `@theme { --font-display: var(--font-space-grotesk); }` so Tailwind utility classes (`font-display`) work |
+| Lucide + Next.js 15 | Missing `optimizePackageImports` in `next.config.ts` | Add `experimental.optimizePackageImports: ["lucide-react"]` on day one |
+| TanStack Query + Supabase RLS | Queries hitting `anon` key for authenticated missions | Ensure Supabase client in `queryFn` uses the session-aware client from `packages/supabase/server.ts`, not the browser client |
+| framer-motion `AnimatePresence` + Next.js routing | Exit animations not running on page navigation | Wrap the animated content at the layout level; page components unmount before exit animation can complete |
 
 ---
 
 ## Performance Traps
 
-Patterns that work at small scale but fail as usage grows.
+Patterns that work in development but cause problems in production.
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| One Realtime channel per mission card component | Supabase hits 200 concurrent connection limit with ~20 active users (10 tabs × 2 missions) | One channel per user, filtered by `user_id` | As few as 20 concurrent users with multiple open tabs |
-| Fetching all mission history on Concierge page mount | Page load slow; DB query scans all historical missions | Paginate: fetch last 10 missions on mount, lazy-load older via "Load more" | >30 missions per user |
-| Inline Gemini calls from Next.js API routes (not Edge Functions) | Route timeout at Vercel's 10-second default (25s on Pro) before Gemini responds for complex missions | Move mission execution to Supabase Edge Functions (150–400s limit) or use background tasks | Any mission step taking >10s on Vercel Hobby/Pro API routes |
-| Blocking UI while steering bar awaits Gemini intent classification | Steering bar feels unresponsive; user submits command again | Show optimistic acknowledgement immediately ("Got it, processing..."); run Gemini call async | Every user — latency is always noticeable without optimistic UI |
-| Fetching PM reviews fresh on every mission step evaluation | Gemini tool calls stack up; single mission makes 10 external API calls | Pre-fetch and cache enrichment data for all shortlisted listings before entering the agentic evaluation loop | Any mission shortlisting >3 listings |
+| framer-motion `layout` prop on large lists | List items reflow slowly when count changes; jank on add/remove | Only use `layout` prop on elements that genuinely need coordinated layout animation; avoid on list containers with 50+ items | Lists with >20 animated items |
+| `backdrop-filter: blur()` on floating panel | Frame rate drops on mid-range devices; panel feels laggy | Use `will-change: transform` on the panel; test blur on Lighthouse mobile simulation; consider removing blur for accessibility (`prefers-reduced-motion`) | Any device without GPU compositing support |
+| Mission polling at 2-second intervals for all active missions | Supabase connection pool exhausted under concurrent users; DB CPU spikes | Use Supabase Realtime channel subscription for mission status updates instead of polling; fall back to polling at 5s intervals only when Realtime is unavailable | > 50 concurrent users with active missions |
+| Loading all mission history on page mount | AI Concierge page slow initial load; unnecessary DB queries for archived missions | Paginate: load last 10 missions on mount, lazy-load older history | Mission history grows beyond 50 entries per user |
+| Applying framer-motion `whileHover` and `whileTap` to every interactive element | Subtle but cumulative: 50+ animated elements cause GC pauses | Reserve motion variants for primary CTAs and meaningful state transitions; use CSS `:hover` transitions for minor hover states | Pages with dense interactive lists |
 
 ---
 
 ## Security Mistakes
 
-Domain-specific to the mission executor and real tool integrations.
+Domain-specific to the AI Concierge and design system migration.
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| Mission executor uses `service_role` key without scoping DB writes to the session user | Any mission can write to any user's data; privilege escalation if Edge Function is compromised | Use the session user's JWT for all mission DB operations; only use service role for background tasks that have a verified `mission_id → user_id` lookup |
-| Steering bar sends raw freetext to Gemini without sanitisation | Prompt injection — user crafts input that changes agent behavior, leaks system prompt, or triggers unintended tool calls | Parse intent on the server with a strict JSON schema response; never pass raw user strings into the agent system prompt |
-| HITL approval endpoint accessible without auth | Any unauthenticated request can approve any mission draft | Middleware must validate JWT before the approval handler runs; RLS on `mission_drafts` table enforces `user_id = auth.uid()` |
-| PM contact email drafts logged in full to mission_logs | Logs contain PII (PM email addresses, property details); logs may be visible to support staff | Log only `{ draft_id, draft_version, generated_at }` in mission_logs; store draft content only in the `mission_drafts` table with RLS |
-| Realtime channel opened before user auth is confirmed | Anonymous users can subscribe to mission updates channels; with a misconfigured filter, they could receive other users' updates | Only open the Realtime channel after `supabase.auth.getUser()` resolves with a valid session; assert `userId` is defined before channel creation |
+| Steering bar sends raw user input as Gemini prompt without sanitisation | Prompt injection: user could craft input that changes the agent's mission scope or leaks system prompt | Classify intent client-side first; send only the structured intent + parameters to the server, never raw strings |
+| HITL approval endpoint lacks idempotency protection | Duplicate tour requests or repeated AI actions from double-submit | Add idempotency key (UUID) to approval requests; DB unique constraint on `(mission_id, draft_version, approved_by)` |
+| Mission data accessible to other users via direct API call | User can poll another student's mission status if the API only checks `mission_id` without scoping to `auth.uid()` | RLS policy on `missions` table: `user_id = auth.uid()` for all operations; service-role calls explicitly log access reason |
+| AI-drafted messages displayed verbatim without safety filter | Edge case: AI draft for a tour email contains PII or inappropriate content | Run Gemini safety settings at `BLOCK_MEDIUM_AND_ABOVE` for all HITL draft generation; show drafts in read-only preview before approval |
 
 ---
 
 ## UX Pitfalls
 
-Specific to adding HITL flows, Realtime status, and steering bar to the existing Concierge UI.
+Specific to the chat → floating panel transition and AI mission UX.
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| Binary Approve/Reject on HITL draft with no edit | Users who want to change one word must reject and re-run the entire mission | Show the draft in an editable textarea; allow light editing before approval; log edits as "user-modified" for quality tracking |
-| No expiry countdown on HITL cards | Mission expires silently; user confused why their mission shows "Expired" | Show a countdown timer on every HITL approval card: "Auto-expires in 22h 15m" — update it live |
-| Steering bar accepts any input silently (no `unknown_intent` feedback) | User types ambiguous command; nothing happens; user thinks the feature is broken | `unknown_intent` returns a visible clarification prompt inline: "Did you mean A or B?" with tap-to-select options |
-| Mission status shows only top-level state ("Running") | User cannot tell if the agent is stuck or progressing | Show the last agent action as sub-status: "Running — Drafting email to Oak St landlord" — updated on every mission_log insert |
-| Agent sends PM contact email without showing user what it sent | User is unaware of what communication was sent in their name | Always gate irreversible external actions (email sends, form submissions) behind HITL approval; display the sent content in the mission log |
+| Floating chat panel opens at full height by default | Obscures the listings view; feels intrusive; user immediately closes it | Default to minimised state (pill/tab at bottom-right); user explicitly expands to 60% height; remember preference in localStorage |
+| Mission status only shows "Running..." with no progress detail | User cannot tell if the agent is stuck or making progress; abandons the mission | Show the last agent action as a sub-status: "Running — searching listings near Engineering Hall" — update every tool call |
+| HITL draft card appears in the feed without visual priority | User misses the approval request; mission expires; user confused about why mission did not complete | Mark HITL cards with a distinct visual treatment (border colour, badge, gentle pulse animation) that differentiates them from informational cards |
+| Steering bar input clears after submission | User cannot see what they submitted; hard to iterate on steering commands | Keep the submitted text in the input for 2 seconds after submission (fades to placeholder), or maintain a collapsible history of sent steers |
+| No way to cancel an in-flight mission | AI is doing something the user changed their mind about; no escape | Every mission card shows a Cancel button that transitions the mission to `cancelled` status and stops all agent processing |
 
 ---
 
@@ -331,15 +336,14 @@ Specific to adding HITL flows, Realtime status, and steering bar to the existing
 
 Things that appear complete but are missing critical pieces.
 
-- [ ] **Mission executor:** Step counter enforced (max_turns stored in DB); `beforeunload` handler sets failed status on timeout; wall clock budget tested with realistic external API latency
-- [ ] **Fire-and-forget durability:** pgmq queue used (not pure waitUntil); recovery pg_cron job restarts stuck `pending` missions after 5 minutes; `running` missions without `updated_at` change for >5 minutes auto-expire
-- [ ] **Gemini 2.5 Flash calls:** Function calling and responseSchema never combined in the same request; each turn is classified as a "tool turn" or "output turn" explicitly in code
-- [ ] **HITL schema:** `draft_version` column present; `is_current` boolean present; `expires_at` column present; approval API validates all three; 409 response on stale approval handled in UI
-- [ ] **Realtime subscriptions:** One channel per user (not per mission); `filter: user_id=eq.X` applied; cross-user isolation tested in integration tests; polling fallback implemented
-- [ ] **Realtime RLS:** Private channel config enabled; JWT passed in channel creation; cross-user event leakage tested before shipping
-- [ ] **PM contact tool:** No scraping from Apartments.com / Zillow; only CampusNest-submitted contact info used; graceful fallback UI when contact info unavailable
-- [ ] **Review/neighborhood caching:** `listings_enrichment` table with per-source `cached_at` timestamps; Yelp TTL ≤24h enforced in query layer; Walk Score TTL ≤7 days
-- [ ] **pg_cron cleanup:** `cron.job_run_details` cleanup job included in initial migration; cron intervals ≥15 minutes; DB storage monitored
+- [ ] **Font loading:** `next/font/google` configured for Space Grotesk + DM Sans (both on Google Fonts), font CSS variable mapped in Tailwind `@theme`, `display: 'swap'` set, no FOUT visible on throttled-network test
+- [ ] **Shadcn token merge:** Single `:root` block in `globals.css`, no conflicting custom property names, dark mode verified on every redesigned page, OKLCH values match Figma design
+- [ ] **framer-motion boundary:** Zero `"use client"` in `page.tsx` or `layout.tsx` files added due to animation needs, `initial={false}` on AnimatePresence components, no hydration warnings in console
+- [ ] **Lucide bundle:** `optimizePackageImports: ["lucide-react"]` present in `next.config.ts`, bundle analyser run confirming no icon library bloat
+- [ ] **Mission HITL schema:** `draft_version` column on drafts table, `expires_at` column with cron cleanup, unique constraint on approval preventing double-submit, RLS policy scoping missions to `auth.uid()`
+- [ ] **Floating panel persistence:** Panel renders in root layout (not page), `isOpen` + `conversationId` state lives in global store, panel survives Next.js route navigation without unmounting
+- [ ] **Steering bar resilience:** `unknown_intent` handler returns visible clarification UI, intent classification logs stored for review, duplicate mission creation prevented by deduplication check
+- [ ] **Tailwind v4 migration clean:** No `tailwind.config.js` remaining, `@tailwindcss/postcss` in PostCSS config, `tw-animate-css` replaces `tailwindcss-animate`, `@import "tailwindcss"` at top of `globals.css`
 
 ---
 
@@ -349,13 +353,13 @@ When pitfalls occur despite prevention, how to recover.
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Missions stuck in `running` due to Edge Function timeout | MEDIUM | Write a migration that transitions all `running` missions with `updated_at` > 10 minutes to `failed`; add the wall-clock timeout handler; redeploy |
-| Fire-and-forget missions silently dropped | MEDIUM | Implement pgmq queue; write a one-time script to re-enqueue all `pending` missions older than 10 minutes; re-run them |
-| Gemini 2.5 Flash 400 errors from combined function+schema calls | LOW | Separate the Gemini call into two sequential calls; no DB migration needed; immediate fix |
-| Realtime events leaking across users | HIGH | Immediately add filter parameter to all Realtime subscriptions; add RLS verification test; audit logs for any cross-user data exposure during the window of vulnerability |
-| PM contact tool scraping blocked by Zillow | LOW | Replace with template + manual send flow; no data migration needed; feature scope reduction |
-| Yelp API key revoked for caching ToS violation | MEDIUM | Replace Yelp with Tavily-based review search (already integrated); clear the reviews enrichment cache; update TTL logic |
-| pg_cron jobs silently failing from job_run_details bloat | MEDIUM | Truncate `cron.job_run_details`; add cleanup job; reduce cron frequency; monitor storage |
+| Big-bang migration breaks multiple pages | HIGH | Feature-flag broken pages off; revert to page-by-page migration; use git worktree to keep old pages live |
+| CSS token naming collision causes visual regressions | MEDIUM | Audit all custom property names with grep; rename conflicting variables systematically; run visual regression tests page-by-page |
+| framer-motion "use client" propagation breaks RSC data fetching | MEDIUM | Extract animated elements to separate client component files; restore `"use client"` boundaries; re-test data fetching on affected pages |
+| Font FOUT visible in production after deploy | LOW | Verify `display: 'swap'` on `next/font/google` config for above-the-fold font variants; confirm build preloads font files; redeploy |
+| Mission polling race condition causes state flicker | MEDIUM | Migrate polling to TanStack Query `refetchInterval`; add `staleTime` to prevent immediate overwrite after mutation |
+| Stale HITL draft approved by user | HIGH | Add `draft_version` to schema, migration adds column with default, approval API validates version, display "newer draft available" error in UI |
+| Double-submit creates duplicate tour requests | MEDIUM | Add `idempotency_key` unique constraint to tours table; run deduplication script to clean existing duplicates; disable submit button on click |
 
 ---
 
@@ -365,46 +369,41 @@ How roadmap phases should address these pitfalls.
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| Edge Function wall clock timeout kills missions (#1) | Phase 1: Mission DB Schema + Executor Architecture | Step decomposition in schema; single step < 60s in integration test |
-| Fire-and-forget drops missions on cold start (#2) | Phase 1: Mission DB Schema + Executor Architecture | pgmq queue used; recovery cron job present; stuck pending missions test |
-| Gemini 2.5 Flash function+schema conflict (#3) | Phase 2: Steering Bar + Phase 3: Executor Loop (first use) | No request uses both tools and responseSchema; verified with a targeted Gemini API test |
-| Gemini agentic loop infinite cycle (#4) | Phase 3: Mission Executor Agentic Loop | max_turns counter enforced; zero-result tool response terminates loop; verified with stubbed no-result tool |
-| Realtime 200-connection free tier limit (#5) | Phase 4: Realtime Status Updates | Single channel per user; Realtime architecture review before implementation |
-| Realtime Postgres Changes RLS bypass (#6) | Phase 4: Realtime Status Updates | Cross-user isolation integration test required before phase completion |
-| HITL stale draft approval (#7) | Phase 1: Mission DB Schema | `draft_version` and `is_current` in schema; approval API returns 409 on stale; UI handles 409 |
-| PM contact tool ToS/scraping barrier (#8) | Phase 5: Real Tool Integrations | No scraping code in PM contact tool; fallback UI present for missing contact info |
-| Review/neighborhood API cost + caching ToS (#9) | Phase 5: Real Tool Integrations | `listings_enrichment` table with TTL columns; cost projection reviewed before API keys activated |
-| pg_cron job bloat on free tier (#10) | Phase 1: Mission DB Schema | Cleanup cron job in initial migration; cron interval ≥15 minutes; DB storage alert configured |
+| Big-bang migration breaks working features (#1) | Phase 1: Design System Foundation | All existing pages still pass E2E tests after Phase 1 |
+| Shadcn CSS variable name collisions (#2) | Phase 1: Design System Foundation | Single `:root` block in globals.css; dark mode verified on old pages |
+| framer-motion client component boundary (#3) | Phase 2: Marketing Landing Page (first use) | No `"use client"` in page.tsx files; no hydration warnings |
+| Font loading misconfiguration (#4) | Phase 1: Design System Foundation | `next/font/google` configured for Space Grotesk + DM Sans; no FOUT on throttled network |
+| Lucide barrel import bundle bloat (#5) | Phase 1: Design System Foundation | `optimizePackageImports` in next.config.ts verified |
+| Mission state polling race condition (#6) | AI Concierge Mission Board phase | TanStack Query used for all mission state; no setInterval in components |
+| HITL draft stale/double-submit/timeout (#7) | AI Concierge HITL phase (schema first) | draft_version column present; submit button disables on click; expires_at enforced by cron |
+| Steering bar ambiguous intent (#8) | AI Concierge Steering Bar phase | unknown_intent handler returns visible UI; tested with ambiguous inputs |
+| Floating panel loses context on route change (#9) | Explore Page Split View phase | E2E test: open panel, navigate, verify panel state persists |
+| Tailwind v4 build tooling breaks (#10) | Phase 1: Design System Foundation | `pnpm build` and `pnpm test` both pass after migration |
 
 ---
 
 ## Sources
 
-- [Supabase Edge Functions Limits — official docs](https://supabase.com/docs/guides/functions/limits)
-- [Supabase Edge Functions Background Tasks — official docs](https://supabase.com/docs/guides/functions/background-tasks)
-- [Supabase Edge Functions Background Tasks + WebSockets announcement](https://supabase.com/blog/edge-functions-background-tasks-websockets)
-- [Supabase Edge Function wall clock time limit troubleshooting](https://supabase.com/docs/guides/troubleshooting/edge-function-wall-clock-time-limit-reached-Nk38bW)
-- [Supabase Realtime Limits — official docs](https://supabase.com/docs/guides/realtime/limits)
-- [Supabase Realtime Authorization — official docs](https://supabase.com/docs/guides/realtime/authorization)
-- [Supabase RLS Performance and Best Practices](https://supabase.com/docs/guides/troubleshooting/rls-performance-and-best-practices-Z5Jjwv)
-- [Supabase pg_cron availability free tier — community discussion](https://github.com/orgs/supabase/discussions/37405)
-- [Processing large jobs with Edge Functions, Cron, and Queues — Supabase blog](https://supabase.com/blog/processing-large-jobs-with-edge-functions)
-- [Gemini 2.5 Flash stuck in tool call loop — official Google AI forum](https://discuss.ai.google.dev/t/gemini-2-5-flash-stuck-in-a-tool-call-loop-when-using-both-tools-and-structured-output/110777)
-- [Gemini 2.5 inconsistent structured outputs vs 2.0 — googleapis/python-genai #706](https://github.com/googleapis/python-genai/issues/706)
-- [Gemini 2.5 JSON structured output stopped working — Google AI forum](https://discuss.ai.google.dev/t/2-5-flash-stopped-delivering-true-json-structures/100175)
-- [Gemini-cli infinite loop issues — google-gemini/gemini-cli #3928, #3958, #4829](https://github.com/google-gemini/gemini-cli/issues/3928)
-- [Yelp API rate limits and plans — official docs](https://docs.developer.yelp.com/docs/places-rate-limiting)
-- [Yelp API pricing plans](https://docs.developer.yelp.com/docs/plans)
-- [Yelp API ToS transparency issues — TechCrunch](https://techcrunch.com/2024/08/02/yelps-lack-of-transparency-around-api-charges-angers-developers/)
-- [Google Places API usage and billing](https://developers.google.com/maps/documentation/places/web-service/usage-and-billing)
-- [Walk Score API — official docs](https://www.walkscore.com/professional/api.php)
-- [Is scraping Zillow legal — SoftwarePair](https://softwarepair.com/is-scraping-zillow-legal/)
-- [Human-in-the-loop for AI agents best practices — permit.io](https://www.permit.io/blog/human-in-the-loop-for-ai-agents-best-practices-frameworks-use-cases-and-demo)
-- [Designing for agentic AI: practical UX patterns — Smashing Magazine 2026](https://www.smashingmagazine.com/2026/02/designing-agentic-ai-practical-ux-patterns/)
-- [Building trust in agentic tools — GitLab blog](https://about.gitlab.com/blog/building-trust-in-agentic-tools-what-we-learned-from-our-users/)
-- [HITL implementation with function tools — Medium](https://medium.com/@sainitesh/using-function-tools-with-human-in-the-loop-approvals-90b57b12f8d6)
+- [shadcn/ui Tailwind v4 official docs](https://ui.shadcn.com/docs/tailwind-v4)
+- [Tailwind CSS v4 upgrade guide](https://tailwindcss.com/docs/upgrade-guide)
+- [Migrating Tailwind v3 to v4 with shadcn/ui — ZippyStarter](https://zippystarter.com/blog/guides/migrating-tailwind3-to-tailwind4-with-shadcn)
+- [Theming shadcn with Tailwind v4 and CSS variables](https://medium.com/@joseph.goins/theming-shadcn-with-tailwind-v4-and-css-variables-d602f6b3c258)
+- [framer-motion with Next.js Server Components](https://www.hemantasundaray.com/blog/use-framer-motion-with-nextjs-server-components)
+- [framer-motion + Next.js 14 "use client" workaround](https://medium.com/@dolce-emmy/resolving-framer-motion-compatibility-in-next-js-14-the-use-client-workaround-1ec82e5a0c75)
+- [framer-motion App Router shared layout animation GitHub issue](https://github.com/framer/motion/issues/1850)
+- [How Next.js optimizes package imports (barrel files)](https://vercel.com/blog/how-we-optimized-package-imports-in-next-js)
+- [Lucide icon bundle size GitHub issue](https://github.com/lucide-icons/lucide/issues/1733)
+- [Tree shaking lucide-react with Vite](https://javascript.plainenglish.io/tree-shaking-lucide-react-icons-with-vite-and-vitest-57bf4cfe6032)
+- [Next.js font optimization — official docs](https://nextjs.org/docs/app/getting-started/fonts)
+- [Next.js custom self-hosted fonts — Vercel blog](https://vercel.com/blog/nextjs-next-font)
+- [TanStack Query optimistic updates guide](https://tanstack.com/query/latest/docs/framework/react/guides/optimistic-updates)
+- [React stale closure in hooks — Dmitri Pavlutin](https://dmitripavlutin.com/react-hooks-stale-closures/)
+- [Implementing HITL in AI workflows](https://dev.to/brains_behind_bots/implementing-human-in-the-loop-hitl-in-ai-workflows-a-practical-guide-3b6b)
+- [Incremental vs big-bang migration strategy](https://medium.com/@navidbarsalari/%EF%B8%8F-incremental-vs-big-bang-migration-choosing-the-right-path-for-your-product-498521839a4d)
+- [framer-motion layout animation performance — official docs](https://www.framer.com/motion/layout-animations/)
+- [framer-motion AnimatePresence + layout animation GitHub issue](https://github.com/framer/motion/issues/1983)
 
 ---
 
-*Pitfalls research for: CampusNest v1.2 — native agent backend (mission executor, HITL, Realtime, steering bar, real tool integrations)*
+*Pitfalls research for: CampusNest v1.1 — design system migration + AI Concierge addition*
 *Researched: 2026-03-10*

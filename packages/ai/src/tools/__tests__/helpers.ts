@@ -11,6 +11,7 @@ interface MockQueryBuilder {
   limit: ReturnType<typeof vi.fn>;
   single: ReturnType<typeof vi.fn>;
   insert: ReturnType<typeof vi.fn>;
+  upsert: ReturnType<typeof vi.fn>;
 }
 
 export function createMockQueryBuilder(resolvedData: unknown = [], error: unknown = null): MockQueryBuilder {
@@ -24,6 +25,7 @@ export function createMockQueryBuilder(resolvedData: unknown = [], error: unknow
     limit: vi.fn(),
     single: vi.fn(),
     insert: vi.fn(),
+    upsert: vi.fn(),
   };
 
   // Each method returns the builder for chaining
@@ -39,6 +41,7 @@ export function createMockQueryBuilder(resolvedData: unknown = [], error: unknow
     error,
   });
   builder.insert.mockReturnValue(builder);
+  builder.upsert.mockResolvedValue({ data: null, error: null });
 
   return builder;
 }

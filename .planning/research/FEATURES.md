@@ -1,23 +1,31 @@
 # Feature Research
 
-**Domain:** AI-native agent backend — mission executor, HITL approval, real-time status, tool integrations
+**Domain:** AI-native student housing platform — v1.1 UI/UX upgrade + AI Concierge missions
 **Researched:** 2026-03-10
-**Confidence:** HIGH (async executor, Supabase Realtime, Gemini function calling) / MEDIUM (review aggregation APIs, neighborhood data providers)
+**Confidence:** HIGH (design system patterns) / MEDIUM-HIGH (AI Concierge UX, real estate explore patterns)
 
 ---
 
-## Context: What is Already Built (v1.1)
+## Context: v1.0 Already Built
 
-These ship and must NOT be rebuilt — only wired to real data:
+The following are fully shipped and must NOT be redesigned from scratch — only reskinned:
 
 | Existing Feature | Current State |
 |-----------------|---------------|
-| AI Concierge UI: mission sidebar, action cards, logs, steering bar | Built — all mock data, needs real backend |
-| Supabase Realtime: price change notifications | Built — pattern proven, extend to missions table |
-| CribAI with 11 Gemini function-calling tools | Built — powers chat, mission executor will reuse these |
-| Tour scheduling with calendar conflict detection | Built — first action requiring HITL approval |
-| DB-backed conversation persistence | Built — pattern proven, extend for mission logs |
-| 3 placeholder tools: reviews, PM contact, neighborhood info | Built — return "coming soon" stubs, need real integrations |
+| OTP auth with .edu validation | Built — page exists, needs layout redesign |
+| Multi-source scraper + nightly pipeline | Built — backend only, no redesign needed |
+| Semantic search via pgvector + Gemini | Built — powers the explore page AI chat |
+| Mapbox map blocks in CribAI chat | Built — needs migration to floating panel |
+| Save/favorite listings with dedicated page | Built — needs profile/saved tab merge |
+| Real-time price change notifications | Built — notification bell component exists |
+| Photo galleries on listing detail | Built — `listing-photo-gallery.tsx` exists |
+| CribAI with 11 function-calling tools | Built — powers both chat and AI Concierge |
+| DB-backed conversation persistence + sidebar | Built — needs nav integration only |
+| Manual listing submission form | Built — needs wizard redesign |
+| Tour scheduling with conflict detection | Built — backend complete |
+| Freshness indicators, fairness badge | Built — components exist |
+
+**Design system currently in use:** Tailwind v4 with custom classes, Heroicons, no animation library, no component primitives.
 
 ---
 
@@ -25,122 +33,133 @@ These ship and must NOT be rebuilt — only wired to real data:
 
 ### Table Stakes (Users Expect These)
 
-Features that must exist for the v1.2 milestone to be considered complete. Missing any of these = the Concierge UI built in v1.1 is just a demo and cannot ship.
+Features v1.1 users assume exist. Missing or broken = product feels unpolished or untrustworthy.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| **Mission executor backend** | The v1.1 Concierge UI renders mission cards, progress states, and action logs. Without a real backend driving those states, everything is mock data and shipping v1.1 would be misleading to users. | HIGH | Next.js API route (not Edge Function — needs Node.js for Gemini SDK). POST /api/missions creates a record and returns 202. Separate async execution updates `missions.status` at checkpoints. Reuses all 11 existing CribAI tools via the existing `executeTool()` registry. Max 10 tool calls per mission, 60s timeout. |
-| **Missions DB schema** | Any async background work that users can view later requires a DB-backed record. Without the schema, no status persistence, no HITL checkpoint storage, no idempotency. | MEDIUM | New migration. Minimum columns: `id`, `user_id`, `campus_id`, `prompt`, `steering_prompt`, `status` (enum: queued/in_progress/action_needed/draft_approval/completed/failed/expired), `summary`, `raw_logs` (JSONB array), `draft_payload` (JSONB), `idempotency_key`, `expires_at`, `created_at`, `updated_at`. RLS: own rows only. |
-| **Supabase Realtime subscriptions for mission status** | The Concierge UI must update live without polling or page refresh. This is expected behavior for any agent product — users should see "In Progress → Action Needed" animate in real time. | MEDIUM | Client subscribes to `missions` channel filtered by `user_id` on page mount. Listens for `UPDATE` events on `status` and `summary` columns. Existing `@supabase/supabase-js` Realtime client is proven (used for price notifications). Server-side: executor writes status updates to DB; Realtime WAL-decoding broadcasts to client automatically. |
-| **Wire Concierge UI to real backend data** | The v1.1 UI is 100% mock. After v1.2 lands, mission cards, status badges, log entries, draft approval cards, and steering bar submissions must all read from and write to the real backend. | MEDIUM | Replace all mock data constants with Supabase queries. Mission list: SELECT from `missions` where `user_id`. Status badge: driven by `missions.status`. Log timeline: driven by `raw_logs` JSONB. Draft review card: driven by `draft_payload`. Steering submission: PATCH `missions.steering_prompt` + re-queue. |
-| **HITL draft approval gate** | Any mission step that triggers an irreversible real-world action (tour scheduling, contacting a PM) must pause and show the user what will happen before proceeding. This is the fundamental trust mechanism for agentic systems and is expected from any production agent product. | MEDIUM | Mission parks at `draft_approval` status. `draft_payload` contains the action details (e.g., tour request: listing, proposed time, message to PM). Review card in UI: shows proposed action + Approve / Edit / Reject controls. On approve: POST /api/missions/[id]/approve executes the action and resumes. On reject: marks mission failed with reason. On edit: updates `draft_payload` and re-shows card. |
-| **Steering bar intent parsing** | Users correcting a mid-mission prompt ("actually I need a 3BR, not 2BR") expect the agent to understand the correction contextually, not re-run from scratch with a literal string replacement. Intent parsing distinguishes "modify this specific constraint" from "restart with new goal". | MEDIUM | POST /api/missions/[id]/steer. Body: `{ correction: string }`. Gemini function-calling call with single schema: `parse_steering_intent` → fields: `action` (modify_constraint / add_constraint / change_goal / cancel), `parameter` (e.g., "bedrooms"), `new_value` (e.g., "3"). Result is merged into the mission context before re-execution. |
+| **Design system consistency** | Apps without visual coherence feel unfinished. Students compare CampusNest to Zillow and Apartments.com which have polished design systems. First impression determines trust. | MEDIUM | shadcn/ui primitives must underlie all new components. Space Grotesk + DM Sans fonts via `next/font/google`. Single `globals.css` token layer. Components live-in-repo (shadcn philosophy: you own the code). |
+| **Marketing landing page** | Any SaaS/platform product needs a public-facing homepage for unauthenticated users, new signups, and Google SEO. Without one, sharing the URL shows a blank auth page. | MEDIUM | Hero + social proof + how-it-works + features section + CTA. ~5 sections. framer-motion scroll-triggered entry animations. Must convert visitors to auth flow. |
+| **Auth page with branded layout** | Login/signup pages with no brand identity feel like they belong to a different product. Generic auth = low trust. | LOW-MEDIUM | Split-panel: left = brand illustration/animated gradient, right = OTP form. Existing OTP logic stays, only layout changes. Multi-step: email input → OTP verify → profile setup (if new user). |
+| **Explore page with split list+map view** | Zillow, Redfin, and Apartments.com all use split-view explore as the industry standard. Students expect to see listings AND their map position simultaneously. | HIGH | 60% list / 40% map split. Filter chips as horizontal scrollable row (not a modal). Floating CribAI panel replaces the separate /cribai route. This is the highest-traffic page. |
+| **Listing detail with photo grid + sticky CTA** | Users expect property photos to be prominent (not buried), and the primary action (schedule tour / save) to always be visible while scrolling. Industry standard since Airbnb popularized it. | MEDIUM | 2-col layout: main content left, sticky sidebar right with CTA card. Photo gallery as masonry grid or hero+thumbnails strip. Address, price, fairness badge, true cost above fold. |
+| **Consistent icon system** | Mixing Heroicons and Lucide (or emoji) across pages looks unfinished. A single icon library is a baseline design quality signal. | LOW | Swap all icons to Lucide React. Tree-shakeable, matches shadcn/ui ecosystem. Single audit pass across all components. |
+| **Page transition animations** | Static page-to-page navigation feels dated. Modern web apps (Vercel, Linear, Notion) use subtle entrance animations to signal quality. | LOW-MEDIUM | framer-motion `AnimatePresence` for route transitions. Spring physics for mounted components. Avoid overuse — every element should not animate. |
+| **Profile/saved combined page** | Users expect a unified account page (Airbnb, Zillow both combine saved/profile under account). Separate pages create unnecessary navigation friction. | LOW-MEDIUM | Tabs: "Saved Listings" + "Settings" (profile form). Profile header with avatar, name, university, campus. Reuse existing `heart-button.tsx` and `profile-form.tsx` internals. |
 
 ### Differentiators (Competitive Advantage)
 
-Features that separate CampusNest from generic housing sites. These are not requirements for the executor to function, but they define the product's AI-native identity.
+Features that define CampusNest v1.1's edge. These are not table stakes — students do not have them from competitors.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| **Real reviews aggregation tool** | Students deciding between landlords want social proof beyond the listing copy. A tool that surfaces real Google/Yelp ratings for the property or management company makes the agent genuinely useful for decision-making, not just search. | MEDIUM | Replace `get_landlord_info` stub. Google Places API (New) — `places:searchText` or `places:nearbySearch` with `type=apartment_complex`. Return: `rating`, `user_rating_count`, `reviews[0..3].text`. Cache results in `landlords` table (existing) under `google_place_id` + `review_cache`. TTL: 7 days before re-fetch. Auth: `GOOGLE_PLACES_API_KEY` env var. |
-| **PM contact tool** | The current `get_landlord_info` stub returns no contact data. A tool that returns a real phone number or email for the property manager lets the agent draft outreach messages and complete the "contact landlord" mission step, which is the most requested agent action in student housing. | MEDIUM | Pull from `landlords` table (already exists with `contact_email`, `phone`, `website` columns). For listings without a matched landlord record, fall back to `listings.raw_data.contact` scraped field. Add a `draft_message` parameter to the tool so the agent can generate a pre-written inquiry. Return: `{ landlord_name, phone, email, draft_message }`. No outbound email in v1.2 — draft only, user sends manually. |
-| **Neighborhood info tool with real data** | "Is this neighborhood safe? Is there a grocery store? How far is it from campus transit?" are the top 3 questions students ask after price and size. Replacing the stub with real walkability and amenity data makes the agent genuinely answer these questions rather than deflecting. | MEDIUM | Replace `neighborhood_info` stub. Walk Score API: returns Walk Score (0-100), Transit Score, Bike Score for a lat/lng. Google Places API (New): `nearbySearch` for `grocery_or_supermarket`, `transit_station`, `gym`, `restaurant` within 800m radius. Return: `{ walk_score, transit_score, bike_score, nearby: { groceries: N, transit_stops: N, restaurants: N } }`. Auth: `WALK_SCORE_API_KEY` + `GOOGLE_PLACES_API_KEY`. |
-| **Mission idempotency and expiration** | Users retrying a failed mission should not accidentally create duplicate tour requests. Missions that are never approved should auto-expire rather than clog the list indefinitely. Both are baseline reliability expectations for any async task system. | LOW-MEDIUM | `idempotency_key` column: SHA256 of `user_id + prompt + created_at_date` (day-level granularity). On mission create: check for existing in-progress/queued mission with same key before inserting. `expires_at` column: set to `created_at + 24 hours` for `action_needed`/`draft_approval` states. Cron via Supabase Edge Function: mark expired missions as `failed` with `expiry_reason`. |
-| **Execution log timeline in UI** | Power users want to understand what the agent actually did. Showing a chronological timeline of tool calls ("Searched listings → Found 8 matches → Compared top 3 → Drafted tour request") differentiates CampusNest from black-box AI search tools. | LOW | Driven by `missions.raw_logs` JSONB array already planned in schema. Each log entry: `{ timestamp, tool_name, summary, success }`. Render as vertical timeline in the accordion "View agent steps" panel (already in v1.1 UI mock). Tool names map to icons via a lookup (search → MagnifyingGlass, compare → BarChart, tour → Calendar, etc.). |
+| **AI Concierge missions page** | No competitor (Zillow, Apartments.com, Redfin) offers task-based agentic housing search. Missions like "Find me 5 options under $800, compare them, and draft tour requests" execute asynchronously and return structured results. This is the flagship v1.1 differentiator. | HIGH | New page at `/[campusSlug]/concierge`. Mission cards with 5-state pipeline: Queued → In Progress → Action Needed → Draft Approval → Completed. HITL approval gates draft tour/compare outputs. Polling via Supabase Realtime on `missions` table. |
+| **HITL draft approval flow** | Agents making irreversible actions (scheduling tours, sending messages to landlords) without human sign-off is a UX anti-pattern. Showing drafts for approval before execution builds trust and converts more completions. | MEDIUM | "Action Needed" and "Draft Approval" states render a review card with Approve / Edit / Reject controls. On approve, mission resumes execution. Uses the existing tour scheduling tool as the first action requiring approval. |
+| **Steering bar for mid-mission correction** | Users discover their mission needs adjustment mid-execution (wrong price range, different neighborhood). Mid-task steering without losing context is an emerging differentiator from 2025 agentic systems. | MEDIUM | Persistent input bar at the bottom of an active mission. Pre-populated with the original prompt. Submit a correction re-queues with updated context. framer-motion slide-in from bottom. |
+| **Agent summary + raw logs toggle** | Power users want to see what the AI actually did. Beginner users want a 2-sentence summary. Both expectations must be met without clutter. | LOW-MEDIUM | Accordion-style: summary (always visible) + "View agent steps" expands a timeline of tool calls with icons (search, compare, map, etc). Reuses data already logged to conversation turns. |
+| **Proactive empty state with mission templates** | A blank concierge page loses 60% of users before they start (per research). Suggesting ready-made mission templates converts first-time users into active ones. | LOW | On zero missions: show 3-4 template cards ("Find 3BR under $800 near campus", "Compare downtown vs near-campus options", "Schedule tours for my saved listings"). One-click pre-fills the mission input. |
+| **Floating CribAI panel on explore page** | Replacing the separate `/cribai` route with a contextual panel on the explore page creates a seamless "search while chatting" experience. No competitor offers side-by-side AI chat + map + list filtering in one view. | HIGH | Panel slides in from right. Shares listing search state (filters applied in panel reflect in list, and vice versa). Dismissible. Re-openable via floating FAB. Requires shared state layer (React context or URL params). |
+| **AI lease summary on listing detail** | No student housing platform summarizes lease terms in plain English from the listing data. Displaying a 3-bullet AI summary ("12-month lease, pets allowed with $200 deposit, utilities separate") removes a major friction point for students. | MEDIUM | Gemini call against listing data + lease_terms KB at render time. Cached in listing record after first generation. Renders in the listing detail sidebar. Falls back gracefully if data insufficient. |
+| **Commute section on listing detail** | Distance and commute time to campus is the #1 filter criterion for students. Building it into the detail page (not just the map pin) is a concrete differentiator vs generic real estate sites. | MEDIUM | Campus-to-listing commute: walking, biking, transit, driving. Use Mapbox Directions API (already integrated). Display as 4-chip row with icons. Depends on campus config having lat/lng (already in DB). |
+| **Post sublease wizard** | Students need to sublet during summers/study abroad. Facebook groups and Craigslist are the current solutions — terrible UX. A guided multi-step form with progress sidebar positions CampusNest as the canonical student sublease platform. | MEDIUM-HIGH | Steps: Lease details → Pricing → Photos → Campus/Location → Review → Submit. Sidebar progress tracker shows completed/active/pending steps. React Hook Form + Zod validation per step. Photo upload to Supabase Storage. |
 
 ### Anti-Features (Commonly Requested, Often Problematic)
 
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| **Fully autonomous outbound email/SMS to PMs** | "Have the agent contact the landlord for me automatically" sounds like the full agent dream. | Sending emails on behalf of users without final review creates legal liability (CAN-SPAM, implicit representation), and students frequently change their mind about a listing between search and contact. Trust requires the user to be the sender. | Draft the message, show it to the user for approval, and provide a one-click "Copy message" or "Open in email" button. The agent prepares, the user executes. |
-| **Full LangGraph / Step Functions state machine** | Correctness, retry logic, and observability at scale are genuinely valuable. | LangGraph requires a separate deployment target (LangServe or Python backend) and adds significant infra complexity for a Next.js + Supabase app. At current scale (one campus, unknown mission volume), the simple `missions` table + status column + Supabase Realtime pattern is correct per the explicit PROJECT.md decision. | Simple status column with executor checkpointing. Revisit after missions reach 1K+/day volume with retry failures visible in logs. |
-| **Streaming execution logs (live tool call SSE)** | Feels more alive and transparent. | Most tool calls complete in 300-800ms. Streaming creates visual churn (things appearing and disappearing too fast to read) for no comprehension gain. Implementation complexity is high — SSE for a background job requires either a second subscription channel or a persistent connection while the executor runs. | Show a pulsing "In Progress" state, then reveal the full log summary when done. Reserve live streaming for a v2 "debug mode" if power users request it. |
-| **Generative mission card types (agent returns component JSON)** | Full flexibility for any mission type. | No established rendering safety pattern exists for this. Type safety at the serialization boundary is hard. Fallback handling for unknown component types is undefined. Accessibility of generative components is unpredictable. Per PROJECT.md: v2+ only. | Hardcoded mission result card types for v1.2: shortlist card, comparison card, tour draft card. New types are added by a developer, not generatively. |
-| **Third-party review import (Yelp API, ApartmentRatings)** | More reviews = more credibility. | Yelp's API Terms of Service prohibit displaying Yelp reviews outside of Yelp. ApartmentRatings.com does not provide a public API. Attempting to aggregate these creates ToS violations and potential C&D risk. | Google Places API explicitly permits displaying reviews with proper attribution (and returns up to 5 reviews per place). This is the only safe aggregation source. Supplement with in-product landlord reviews (already in DB schema). |
-| **Real-time review freshness (rechecking on every page load)** | Always show the most current rating. | Google Places API pricing is per-request. Uncached re-fetching on every listing detail load at even modest traffic (100 users/day) could cost $50-200/month in API fees. | Cache reviews in `landlords.review_cache` with a `review_cache_updated_at` timestamp. Re-fetch only when TTL expires (7 days). Show "Last updated X days ago" in the UI for transparency. |
-| **Walk Score displayed as a standalone marketing feature** | Walkability is a known search filter on Zillow/Redfin. | Walk Score is a feature completion item, not a product differentiator. Students already know to look for campus proximity (which we handle via commute time). Prominently featuring Walk Score can distract from the AI-native identity of the product. | Embed Walk Score and Transit Score as supporting data within the neighborhood_info tool response, surfaced in the AI chat answer rather than as a UI widget on the listing detail page. |
+| **Fully autonomous agent (no approval gates)** | "Just do everything automatically" sounds faster. | Scheduling tours or contacting landlords without user approval creates real-world consequences students may not want. Trust requires visibility. Legal and liability exposure if agent acts on stale listings. | HITL draft approval at all irreversible actions. Show what will happen before it happens. |
+| **Real-time agent execution feedback (streaming logs)** | Feels more transparent and alive. | Streaming tool call logs are noise. Most steps complete in <2 seconds. Streaming creates visual churn without user value. High implementation complexity for negligible UX gain. | Show a progress indicator (spinner/pulse) while in-progress, then reveal the summary once done. Reserve raw logs for the expandable toggle. |
+| **Generative UI (agent returns component JSON)** | Future-forward, fully dynamic layouts. | Dramatically increases complexity: type safety, rendering safety, fallback handling, accessibility. Out of scope per PROJECT.md for v1.1. No established pattern to copy from. | Hardcoded mission card types for v1.1. Generative UI is a v2+ investigation once mission types stabilize. |
+| **Full state machine backend (LangGraph)** | Correctness, retries, observability at scale. | Over-engineered for v1.1 with one campus and unknown mission volume. LangGraph adds deployment complexity. Not needed until missions need retry logic and cross-session recovery. | Simple `missions` table with status column + Supabase Realtime polling. Per PROJECT.md explicit decision. |
+| **Traditional filter page as standalone route** | Familiar from desktop web circa 2015. | Violates the "AI chat replaces the filter box" core value. Keeping a full filter page implies AI search is optional. Creates two competing search paradigms. | Integrate filter chips into the explore page header. Keep them minimal and AI-readable (so AI understands context when filters are active). |
+| **Infinite scroll on listing grid** | Familiar from social media. | Prevents users from developing a mental map of how many listings exist. Paginated grid with "Load more" is less disorienting in housing context where options are limited (50-200 listings per campus). | Paginated grid, 12-24 listings per page. Total count visible ("47 listings near campus"). |
+| **Dark mode** | Nice-to-have, often requested. | Doubles the CSS variables surface area. Space Grotesk and DM Sans are tuned for light contexts. Design system tokens need full second pass. | Ship light mode only for v1.1. Add dark mode toggle as a standalone v1.2 enhancement once token layer is stable. |
+| **Animation on every element** | Motion feels premium. | Overuse of framer-motion degrades perceived performance on low-end devices. Every animated element adds a JS listener. Too much motion = vestibular disorder accessibility issue. | Animate page entrances, modal/drawer open/close, and listing card hover states only. Static for tables, text, and utility components. |
 
 ---
 
 ## Feature Dependencies
 
 ```
-Missions DB Schema (new migration)
-    └──required by──> Mission executor backend
-    └──required by──> Supabase Realtime subscriptions (needs table to subscribe to)
-    └──required by──> HITL draft approval (needs draft_payload column)
-    └──required by──> Steering bar intent parsing (needs steering_prompt column)
-    └──required by──> Wire Concierge UI to real data
+Design System (shadcn/ui + tokens + fonts)
+    └──required by──> ALL new pages and components
+                     ├── Landing page
+                     ├── Auth redesign
+                     ├── Explore page redesign
+                     ├── Listing detail redesign
+                     ├── Post sublease wizard
+                     ├── Profile/saved page
+                     └── AI Concierge page
 
-Mission executor backend
-    ├──requires──> Missions DB schema
-    ├──requires──> Existing CribAI tools (already built — search_listings, compare_listings, etc.)
-    ├──requires──> Real reviews tool (replace stub)
-    ├──requires──> Real PM contact tool (replace stub)
-    └──requires──> Real neighborhood info tool (replace stub)
+Explore page (split list+map)
+    ├──requires──> Existing listings API (already built)
+    ├──requires──> Mapbox integration (already built)
+    ├──requires──> Filter chips state (new, shared with AI panel)
+    └──enhances──> Floating CribAI panel (shares filter state)
 
-HITL draft approval
-    ├──requires──> Missions DB schema (draft_payload column)
-    ├──requires──> Mission executor backend (must be able to park at draft_approval status)
-    └──enhances──> Tour scheduling tool (first action requiring approval)
+Floating CribAI panel
+    ├──requires──> Existing CribAI conversation API (already built)
+    ├──requires──> Shared filter/context state with explore page
+    └──replaces──> Separate /cribai route (retire that route)
 
-Supabase Realtime subscriptions
-    ├──requires──> Missions DB schema (table must exist to subscribe)
-    └──requires──> Wire Concierge UI (client must subscribe on page mount)
+AI Concierge page
+    ├──requires──> New `missions` table (Supabase migration)
+    ├──requires──> Mission executor (new API route, wraps existing tools)
+    ├──requires──> Supabase Realtime on missions (status polling)
+    ├──requires──> Auth (user-scoped missions)
+    └──HITL draft approval──requires──> Review card UI + approve/reject API
 
-Steering bar intent parsing
-    ├──requires──> Missions DB schema (steering_prompt column)
-    ├──requires──> Gemini function calling (existing SDK)
-    └──enhances──> Mission executor backend (parsed intent re-queues execution)
+Listing detail redesign
+    ├──requires──> Existing listing data API (already built)
+    ├──requires──> Photo gallery component (already built, needs reskin)
+    ├──requires──> AI lease summary (new Gemini call, cached in DB)
+    └──requires──> Commute section (Mapbox Directions API, campus config)
 
-Real tool integrations (reviews, PM contact, neighborhood)
-    ├──requires──> Google Places API key (new env var)
-    ├──requires──> Walk Score API key (new env var)
-    └──requires──> Existing landlords table (reviews and contact write to existing columns)
+Post sublease wizard
+    ├──requires──> Auth
+    ├──requires──> Supabase Storage for photo uploads (new bucket)
+    ├──requires──> `sublets` table (schema exists, needs full activation)
+    └──requires──> Campus assignment (campus_id from user profile)
 
-Wire Concierge UI to real data
-    ├──requires──> Missions DB schema
-    ├──requires──> Mission executor backend
-    ├──requires──> Supabase Realtime subscriptions
-    └──requires──> HITL draft approval (UI renders draft_payload from DB)
+Profile/saved page
+    ├──requires──> Auth
+    ├──requires──> Existing saved listings API (already built)
+    └──requires──> Existing profile form (already built, needs reskin)
 ```
 
 ### Dependency Notes
 
-- **Missions schema is Phase 1:** It is the foundation for every other v1.2 feature. The executor, HITL flow, Realtime, and UI wiring all depend on it. It must be the first thing written and applied.
-- **Real tool integrations are independent of missions:** Reviews, PM contact, and neighborhood info replace stubs in the existing CribAI tool system. They can be built in parallel with the mission executor without blocking each other.
-- **HITL requires executor to be able to pause:** The executor must implement a checkpoint mechanism where it writes `status = draft_approval` and `draft_payload`, then returns without completing the mission. The approval API then triggers re-execution from the checkpoint. This is an executor design constraint, not just a UI feature.
-- **Steering bar requires intent parsing to be non-trivial:** A simple string-replace on the mission prompt is not sufficient. Gemini must parse the steering input into structured intent so the executor knows what changed and can continue from the last safe state rather than re-running from scratch.
-- **Supabase Realtime already proven in the codebase:** Price change notifications use this exact pattern. The v1.2 subscription on `missions` is a direct extension of the existing pattern in `packages/supabase/`.
+- **Design system must be Phase 1:** Every subsequent page depends on it. Building explore or concierge before the token layer is stable causes rework.
+- **Explore page before AI Concierge:** The floating panel on explore and the concierge page share tool/search infrastructure. Explore validates that the tools work in the new UI before concierge adds async mission complexity.
+- **Missions table is a new DB migration:** Must be written and applied before the concierge page can be developed or tested.
+- **Post sublease wizard requires Supabase Storage:** The `sublets` schema exists but the photo upload infrastructure does not. This is a prerequisite for the wizard to be feature-complete.
+- **Landing page and auth redesign are independent:** Can be built in any order after the design system.
 
 ---
 
 ## MVP Definition
 
-### v1.2 Launch With (All Required for Milestone)
+### v1.1 Launch With (All Required for Milestone)
 
-- [ ] **Missions DB schema with HITL draft versioning** — idempotency, expiration, status enum, raw_logs JSONB, draft_payload JSONB. Migration applied before any other work.
-- [ ] **Mission executor backend** — POST /api/missions (202 Accepted), async execution via Next.js `after()` API or background route, status checkpointing, tool reuse from existing CribAI registry.
-- [ ] **Supabase Realtime subscriptions for live status** — Client subscribes on concierge page mount, receives status UPDATE events, animates badge transitions.
-- [ ] **HITL draft approval flow** — Mission parks at `draft_approval`, UI renders draft review card, Approve/Edit/Reject API, execution resumes on approve.
-- [ ] **Steering bar intent parsing** — POST /api/missions/[id]/steer, Gemini parses correction into structured intent, executor re-queues with updated context.
-- [ ] **Real reviews tool** — Replaces `get_landlord_info` stub with Google Places API. Rating + review count + 3 recent reviews. Cached in `landlords` table.
-- [ ] **Real PM contact tool** — Returns real contact data from `landlords` table + `listings.raw_data`. Draft message generation.
-- [ ] **Real neighborhood info tool** — Walk Score API (walkability/transit/bike) + Google Places nearby search. Replaces neighborhood stub.
-- [ ] **Wire Concierge UI to real backend data** — All mock constants replaced with Supabase queries and Realtime subscriptions.
+- [ ] **Design system** — Space Grotesk + DM Sans + shadcn/ui + Lucide + framer-motion base. Prerequisite for everything.
+- [ ] **Landing page** — Marketing page for unauthenticated users. Entry point for all new users.
+- [ ] **Auth page redesign** — Split-panel branded layout. First post-landing impression.
+- [ ] **Explore page** — Split list+map with filter chips + floating CribAI panel. Core product interaction.
+- [ ] **Listing detail redesign** — Photo grid, sticky CTA, AI lease summary, commute section.
+- [ ] **Post sublease wizard** — Multi-step with sidebar tracker. Enables supply-side growth.
+- [ ] **Profile/saved page** — Combined tabbed page. Account management.
+- [ ] **AI Concierge page** — Mission cards, 5-state pipeline, HITL draft approval, steering bar, raw logs toggle.
 
-### Add After v1.2 Validation
+### Add After v1.1 Validation
 
-- [ ] **Mission retry on transient failures** — Trigger: if failure rate on missions exceeds 5% due to tool timeouts.
-- [ ] **Review freshness controls in UI** — "Refresh reviews" button on listing detail. Trigger: if users report stale review data.
-- [ ] **More mission types** — "Find a roommate", "Compare neighborhoods". Trigger: once baseline search→tour mission is stable.
+- [ ] **Proactive mission templates (empty state)** — Trigger: if <10% of users create their first mission within 3 days of account creation.
+- [ ] **Dark mode** — Trigger: user request volume or design system token stability.
+- [ ] **More AI Concierge mission types** — Trigger: once volume data shows which mission types users request most.
 
 ### Future Consideration (v2+)
 
-- [ ] **Full LangGraph state machine** — When mission volume exceeds 1K/day with observable retry failures. Requires Python backend service.
-- [ ] **Live streaming execution logs** — SSE-streamed tool call timeline. Deferred: high complexity, low comprehension value at current scale.
-- [ ] **Outbound email on user behalf** — When CampusNest has verified landlord partnerships and explicit user consent mechanism.
-- [ ] **Generative mission card types** — When mission type inventory stabilizes and rendering safety patterns emerge.
+- [ ] **Generative UI in concierge** — Agent returns component JSON. Deferred; needs stable mission type inventory first.
+- [ ] **Full LangGraph state machine backend** — Correctness and retries at scale. Deferred per PROJECT.md explicit decision.
+- [ ] **Landlord-facing mission types** — "Find a tenant for my 2BR opening in May." Requires PM platform.
 
 ---
 
@@ -148,97 +167,96 @@ Wire Concierge UI to real data
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| Missions DB schema | HIGH (foundation) | LOW-MEDIUM | P1 |
-| Mission executor backend | HIGH | HIGH | P1 |
-| Supabase Realtime for missions | HIGH | MEDIUM | P1 |
+| Design system migration | HIGH | MEDIUM | P1 |
+| Landing page | HIGH | MEDIUM | P1 |
+| Explore page (split + floating panel) | HIGH | HIGH | P1 |
+| AI Concierge missions page | HIGH | HIGH | P1 |
+| Listing detail redesign | HIGH | MEDIUM | P1 |
+| Auth page redesign | MEDIUM | LOW | P1 |
+| Post sublease wizard | MEDIUM | MEDIUM-HIGH | P1 |
+| Profile/saved page | MEDIUM | LOW | P1 |
 | HITL draft approval | HIGH | MEDIUM | P1 |
-| Wire Concierge UI to real data | HIGH | MEDIUM | P1 |
-| Steering bar intent parsing | MEDIUM | MEDIUM | P1 |
-| Real reviews tool | MEDIUM | MEDIUM | P1 |
-| Real PM contact tool | MEDIUM | LOW | P1 |
-| Real neighborhood info tool | MEDIUM | MEDIUM | P1 |
-| Mission idempotency + expiration | MEDIUM | LOW | P2 |
-| Execution log timeline UI | MEDIUM | LOW | P2 |
-| Mission retry on failure | LOW | MEDIUM | P3 |
-| Live streaming execution logs | LOW | HIGH | P3 |
+| Steering bar | MEDIUM | MEDIUM | P1 |
+| AI lease summary | MEDIUM | MEDIUM | P2 |
+| Commute section | HIGH | MEDIUM | P2 |
+| Agent summary + raw logs toggle | MEDIUM | LOW | P2 |
+| Proactive empty state templates | MEDIUM | LOW | P2 |
+| Dark mode | LOW | MEDIUM | P3 |
+| Generative UI | HIGH (long-term) | HIGH | P3 |
 
 **Priority key:**
-- P1: Must have for v1.2 milestone launch
+- P1: Must have for v1.1 milestone launch
 - P2: Should have — include if time permits, not a blocker
 - P3: Nice to have — future consideration
 
 ---
 
-## Implementation Notes
+## Competitor Feature Analysis
 
-### Mission Executor: Fire-and-Forget on Vercel
+| Feature | Zillow / Apartments.com | Redfin | CampusNest v1.1 |
+|---------|------------------------|--------|-----------------|
+| Split list+map explore | Yes — industry standard | Yes — Redfin pioneered it | Yes + floating AI panel alongside |
+| Filter chips on explore | Yes — full filter panel | Yes — top bar with filter chips | Yes — minimal chips, AI-first, filters sync with chat |
+| Listing detail photo gallery | Yes — full-screen slideshow | Yes — hero + thumbnail strip | Yes — masonry grid or hero+strip |
+| Sticky CTA on listing detail | Partial — "Contact" button | Yes — sticky agent contact bar | Yes — "Schedule Tour" + "Save" always visible |
+| AI chat assistant | Zillow: ChatGPT plugin (2025) | No | Yes — floating panel in explore, separate CribAI |
+| Agentic task missions | No competitor | No competitor | Yes — flagship differentiator |
+| HITL draft approval | No competitor | No competitor | Yes |
+| Sublease posting | Craigslist-tier | No | Yes — guided wizard |
+| AI lease summary | No competitor | No competitor | Yes |
+| Commute from campus | Partial — general commute tools | Partial — walk score | Yes — campus-specific, in-detail |
+| Student-specific auth (.edu) | No — open to all | No | Yes — .edu gating is a trust signal |
 
-The key constraint is Vercel's serverless function execution model. A mission executor doing multiple LLM tool calls can exceed the 10s default function timeout. Two patterns work:
+---
 
-1. **`after()` API (Next.js 15.1+, recommended):** POST /api/missions returns 202 immediately after inserting the DB record. The mission execution runs in `after()` which guarantees completion even after the response is sent. Available on Vercel with Node.js runtime. Confirmed pattern from Next.js 15.1 release notes.
+## v1.1-Specific Implementation Notes
 
-2. **Separate async route + trigger:** POST /api/missions returns 202 and triggers POST /api/missions/execute (fire-and-forget via `fetch` with no `await`). The execute route runs under the Vercel function timeout (300s on Pro plan). This is the fallback if `after()` has issues.
+### Design System Migration Approach
 
-Do NOT use Supabase Edge Functions for execution — Deno runtime does not support the `@google/genai` Node.js SDK. The executor must run in the Next.js Node.js runtime.
+shadcn/ui is installed directly into the repo (components are owned, not packaged). Use `npx shadcn@latest add [component]` selectively — do not bulk-install all components. Start with: Button, Card, Input, Badge, Tabs, Dialog, Drawer, Avatar, Accordion, Progress. Radix accessibility is inherited — do not override `aria-*` attributes.
 
-### HITL Checkpoint Pattern
+**Space Grotesk + DM Sans:** Load via `next/font/google` with `variable` option (`import { Space_Grotesk, DM_Sans } from 'next/font/google'`). Define CSS variables `--font-heading` and `--font-body` in `globals.css`. Apply via `cn()` utility to `<body>` and heading elements.
 
-The executor must support a "park" operation:
-1. Tool call identifies an irreversible action (tour scheduling, PM contact draft)
-2. Executor writes `status = draft_approval`, `draft_payload = { action_type, params }` to DB
-3. Executor returns (does not complete the full mission)
-4. Supabase Realtime pushes the status change to client
-5. UI renders the draft review card
-6. User approves → POST /api/missions/[id]/approve → executor re-instantiated with the approved payload, continues from checkpoint
-7. User rejects → POST /api/missions/[id]/reject → status = failed, reason logged
+**framer-motion rules for this project:**
+- Animate: page entrance (fade+translate Y), modal/drawer open/close, listing card hover lift, mission status badge transitions
+- Do not animate: table rows, text content, form fields, utility badges
+- Use `useReducedMotion()` hook — wrap all animation variants with a check so users with motion sensitivity preferences get static UI
 
-The checkpoint state is stored entirely in `draft_payload` — executor has no in-memory state to recover. This is the correct pattern for serverless environments.
+### AI Concierge Missions Architecture
 
-### Steering Bar Intent Parsing
+The `missions` table needs at minimum: `id`, `user_id`, `campus_id`, `prompt` (original text), `steering_prompt` (latest correction), `status` (enum: queued/in_progress/action_needed/draft_approval/completed/failed), `summary` (AI-generated), `raw_logs` (JSONB array of tool call steps), `draft_payload` (JSONB for HITL review), `created_at`, `updated_at`.
 
-Single-call Gemini function-calling pattern (not agentic loop). System prompt describes the current mission context (original prompt, tools called so far, current status). User input is the correction. Function schema:
+Mission execution runs in a Next.js API route (not an Edge Function — needs Node.js for Gemini SDK). The route is called by the client on mission create, runs the agentic loop (existing 11 tools), updates `missions.status` at each checkpoint, and parks at `action_needed` or `draft_approval` when human sign-off is required.
 
-```typescript
-parse_steering_intent: {
-  action: "modify_constraint" | "add_constraint" | "change_goal" | "cancel",
-  parameter?: string,     // e.g. "max_rent", "bedrooms", "neighborhood"
-  new_value?: string,     // e.g. "900", "3", "near engineering buildings"
-  rerun_from_start: boolean  // true if goal changed, false if constraint modified
-}
-```
+Polling via Supabase Realtime channel subscription on `missions` filtered by `user_id`. Client subscribes on concierge page mount, updates local state on `UPDATE` events.
 
-If `rerun_from_start: true`, create a new mission with the merged prompt and archive the old one. If `false`, update `steering_prompt`, reset `status = queued`, and executor starts with the updated constraint context.
+### Explore Page Floating Panel
 
-### Google Places API for Reviews
+The floating CribAI panel needs shared state with the listing grid. The cleanest pattern: URL search params as the source of truth for active filters. Both the filter chips row and the AI chat panel can read/write `?price_max=800&beds=2&pet_friendly=true`. This makes the state shareable via URL and eliminates prop drilling. The AI panel, when the user says "show me 2BR only", writes `beds=2` to the URL. The listing grid reads URL params and re-fetches.
 
-Use the Places API (New) — the legacy Places API is deprecated as of 2025. Key: `GOOGLE_PLACES_API_KEY`. For reviews aggregation on apartment complexes, use `places:searchText` with the property address as the query, `type = apartment_complex`, and request the `reviews` field mask. Reviews are returned as `google.maps.places.v1.Review` objects with `text.text`, `rating`, `publishTime`. Cache `place_id` in `landlords.google_place_id` so subsequent fetches use `places/{place_id}` directly (much cheaper than text search).
+### Listing Detail AI Lease Summary
 
-Attribution requirement: Google Places reviews must display "Powered by Google" attribution per Terms of Service.
-
-### Walk Score API
-
-REST API: `https://api.walkscore.com/score?format=json&address={address}&lat={lat}&lon={lon}&transit=1&bike=1&wsapikey={key}`. Returns `walkscore` (0-100), `transit.score`, `bike.score`, `description` (e.g. "Very Walkable"), `transit.description`. No SDK required — plain fetch. Rate limit: 5,000 requests/day on free tier. Cache in `listings.walk_score_data` JSONB column (add via migration, nullable). TTL: 30 days (walkability doesn't change frequently).
+Generate once, cache on `listings.ai_lease_summary` (nullable text column, add via migration). On first visit to a listing detail: if null, call Gemini synchronously, store result, return it. Subsequent visits: read from column. Add a "Refresh summary" option for stale listings. Cap generation at 3 bullets, ~150 words.
 
 ---
 
 ## Sources
 
-- [Next.js `after()` API — Next.js 15.1 Release](https://medium.com/@alamdar.hussain0007/the-after-api-in-next-js-15-1-a-game-changer-for-background-tasks-1a1ffd79684e)
-- [Fire-and-forget pattern in Next.js API routes — Vercel Community](https://community.vercel.com/t/fire-and-forget-next-js-api-route/15865)
-- [Human-in-the-Loop for AI Agents — Permit.io](https://www.permit.io/blog/human-in-the-loop-for-ai-agents-best-practices-frameworks-use-cases-and-demo)
-- [HITL patterns in agent frameworks — Zapier](https://zapier.com/blog/human-in-the-loop/)
-- [LangGraph HITL documentation — LangChain](https://docs.langchain.com/oss/python/langchain/human-in-the-loop)
-- [Supabase Realtime architecture — Supabase Docs](https://supabase.com/docs/guides/realtime/architecture)
-- [Supabase Realtime GitHub — core features](https://deepwiki.com/supabase/realtime/4-core-real-time-features)
-- [Google Places API (New) — Overview](https://developers.google.com/maps/documentation/places/web-service/op-overview)
-- [Google Places API — AI-powered review summaries](https://developers.google.com/maps/documentation/places/web-service/review-summaries)
-- [Google Places Aggregate API — Overview](https://developers.google.com/maps/documentation/places-aggregate/overview)
-- [Walk Score API documentation](https://www.walkscore.com/professional/api.php)
-- [Walk Score on RapidAPI](https://rapidapi.com/theapiguy/api/walk-score)
-- [Gemini function calling guide — Google AI for Developers](https://ai.google.dev/gemini-api/docs/function-calling)
-- [Gemini 2.0 Flash function calling — Phil Schmid](https://www.philschmid.de/gemini-function-calling)
-- [Top apartment review site integrations — Local Data Exchange](https://www.localdataexchange.com/top-6-apartment-property-reviews-integrations/)
+- [shadcn/ui official docs and changelog — March 2026](https://ui.shadcn.com/docs/changelog/2026-03-cli-v4)
+- [framer-motion official docs](https://motion.dev/)
+- [Human-in-the-Loop AI Agents — Permit.io](https://www.permit.io/blog/human-in-the-loop-for-ai-agents-best-practices-frameworks-use-cases-and-demo)
+- [HITL in Agentic AI 2026 — Onereach.ai](https://onereach.ai/blog/human-in-the-loop-agentic-ai-systems/)
+- [Designing for Agentic AI — Smashing Magazine, Feb 2026](https://www.smashingmagazine.com/2026/02/designing-agentic-ai-practical-ux-patterns/)
+- [Agentic UX design patterns — Exalt Studio](https://exalt-studio.com/blog/designing-for-ai-agents-7-ux-patterns-that-drive-engagement)
+- [UX design for agents — Microsoft Design](https://microsoft.design/articles/ux-design-for-agents/)
+- [Real estate website design best practices — HousingWire 2026](https://www.housingwire.com/articles/real-estate-website-design/)
+- [SaaS landing page best practices 2025 — Userpilot](https://userpilot.com/blog/saas-landing-page-best-practices/)
+- [Empty state UX examples — Eleken](https://www.eleken.co/blog-posts/empty-state-ux)
+- [Multi-step form wizard UX — LogRocket](https://blog.logrocket.com/building-reusable-multi-step-form-react-hook-form-zod/)
+- [Real estate UX trends 2025 — Medium](https://medium.com/@emilyanderson51691/top-12-ux-ui-design-trends-for-real-estate-apps-in-2025-37a5b70aef21)
+- [Zillow ChatGPT integration launch — Oct 2025](https://zillow.mediaroom.com/2025-10-06-Zillow-debuts-the-only-real-estate-app-in-ChatGPT)
+- [shadcn/ui best practices 2026 — Medium](https://medium.com/write-a-catalyst/shadcn-ui-best-practices-for-2026-444efd204f44)
 
 ---
-*Feature research for: CampusNest v1.2 Native Agent Backend*
+*Feature research for: CampusNest v1.1 UI/UX Upgrade + AI Concierge*
 *Researched: 2026-03-10*

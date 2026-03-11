@@ -28,30 +28,28 @@ Students can find off-campus housing through conversational AI search that under
 - ✓ Responsive mobile design with hamburger nav — v1.0
 - ✓ Stale listing detection and archival lifecycle — v1.0
 - ✓ Nightly GitHub Actions pipeline (scrape → embed → PageIndex rebuild) — v1.0
-- ✓ Design system: Space Grotesk + DM Sans fonts, shadcn/ui, Lucide icons, Framer Motion — v1.1
-- ✓ Marketing landing page with hero, social proof, features, CTA — v1.1
-- ✓ Auth redesign: split layout with branded panel + animated multi-step OTP — v1.1
-- ✓ Explore page: split view (listings + map) with filter chips + floating AI panel — v1.1
-- ✓ Listing detail: photo gallery grid, lightbox, sticky CTA, AI lease summary, commute — v1.1
-- ✓ Post sublease wizard with progress tracker + profile/saved tabbed page — v1.1
-- ✓ AI Concierge UI: mission sidebar, action cards, logs, steering bar (mock data) — v1.1
 
 ### Active
 
-- [ ] Mission executor backend: async agent that runs search → shortlist → contact → schedule pipelines
-- [ ] Missions DB schema with HITL draft versioning, idempotency, and expiration
-- [ ] Supabase Realtime subscriptions for live mission status updates in Concierge UI
-- [ ] Steering bar intent parsing via Gemini function calling
-- [ ] Real tool integrations replacing placeholder stubs (reviews, PM contact, neighborhood info)
-- [ ] Wire Concierge UI (v1.1) to real backend data
+- [ ] Design system migration: Space Grotesk + DM Sans fonts, shadcn/ui primitives, Lucide icons, framer-motion
+- [ ] Marketing landing page with hero, social proof, features, how-it-works, CTA
+- [ ] Auth page redesign: split layout with branded panel + animated multi-step flow
+- [ ] Explore page: unified split view (listings 60% + map 40%) with filter chips + floating AI chat panel
+- [ ] Listing detail redesign: photo gallery grid, 2-column layout, sticky CTA, AI lease summary, commute section
+- [ ] Post sublease redesign: multi-step wizard with sidebar progress tracker
+- [ ] Profile/saved redesign: combined page with profile header + tabbed saved/settings
+- [ ] AI Concierge (Messages page): task-based agent missions with status pipeline, draft approval (HITL), steering bar, agent summaries
 
 ### Future
 
+- [ ] Real review integration (Reddit, Google Maps, Yelp) — replacing placeholder tools
+- [ ] Real PM contact integration — replacing placeholder tool
+- [ ] Real neighborhood info (Walk Score API, crime data) — replacing placeholder tool
 - [ ] On-demand embedding trigger for manual listing submissions
 - [ ] Basic roommate matching (profile + preferences)
 - [ ] Expand to 2-3 additional campuses
+- [ ] Full agent-first backend: state machines (LangGraph/Inngest), intent parsing, generative UI
 - [ ] Agentic search: NL query → LLM extraction → auto-populate filter chips → mission creation on no results
-- [ ] Generative UI (AI returns component JSON) — v2+
 
 ### Out of Scope
 
@@ -79,19 +77,17 @@ Students can find off-campus housing through conversational AI search that under
 - submit-listing API lacks dev auth bypass (production unaffected)
 - Orphaned 07-scraper-fix/ planning directory
 
-## Current Milestone: v1.2 Native Agent Backend
+## Current Milestone: v1.1 UI/UX Upgrade
 
-**Goal:** Build the real backend for the AI Concierge — mission executor, DB schema with HITL draft approval, Realtime status updates, steering bar intent parsing, and real tool integrations — wiring the v1.1 mock UI to a live agentic pipeline.
+**Goal:** Migrate the entire frontend to the new Figma design system (Space Grotesk + DM Sans, shadcn/ui, Lucide, framer-motion) and introduce the AI Concierge missions page — shifting from chat-first to agent-first UX.
 
 **Target features:**
-- Mission executor with async fire-and-forget pattern (202 Accepted)
-- Missions DB schema with HITL draft versioning, idempotency keys, expiration
-- Supabase Realtime subscriptions for live mission status in Concierge UI
-- Steering bar intent parsing via Gemini function calling
-- Real tool integrations (reviews, PM contact, neighborhood info)
-- Wire Concierge UI to real backend data
+- Design system overhaul (fonts, colors, components, icons, animations)
+- New marketing landing page
+- Redesigned auth, explore (split list+map), listing detail, post sublease, profile/saved pages
+- AI Concierge page with task-based missions, HITL draft approval, and steering bar
 
-**What's next (future):** Agentic search (NL → filters → missions), roommate matching, additional campuses, generative UI.
+**What's next (future):** Real tool integrations (reviews, neighborhood data), additional campuses, roommate matching, full agentic backend with state machines.
 
 ## Key Decisions
 
@@ -107,7 +103,7 @@ Students can find off-campus housing through conversational AI search that under
 | DB conversations + sessionStorage fallback | Auth users get persistence, guests get tab-scoped chat | ✓ Good |
 | Free for students in v1 | Remove friction, validate usage, monetize via PM side later | — Pending |
 | shadcn/ui for v1.1 | Full component library, Tailwind-native, accessible, widely adopted | — Pending |
-| Framer Motion for animations | Spring physics, layout animations, presence/exit — industry standard | — Pending |
+| framer-motion for animations | Spring physics, layout animations, presence/exit — industry standard | — Pending |
 | Space Grotesk + DM Sans fonts | Modern geometric sans-serif pair from Figma design — youthful, clean | — Pending |
 | Lucide icons over Heroicons | Tree-shakeable, better DX, matches shadcn/ui ecosystem | — Pending |
 | Simple mission table over state machines | v1.1 MVP — mission status column + polling, defer LangGraph to v2 | — Pending |
@@ -122,4 +118,4 @@ Students can find off-campus housing through conversational AI search that under
 - **Data**: Listings must be real and current — stale data kills trust
 
 ---
-*Last updated: 2026-03-10 after v1.2 milestone start*
+*Last updated: 2026-03-10 after v1.1 milestone start*
