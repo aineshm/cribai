@@ -3,7 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0 CampusNest MVP** — Phases 1-9 (shipped 2026-03-10)
-- 🚧 **v1.1 UI/UX Upgrade** — Phases 10-15 (in progress)
+- 🚧 **v1.1 UI/UX Upgrade** — Phases 10-20 (in progress)
 
 ## Phases
 
@@ -34,6 +34,9 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - [ ] **Phase 13: Listing Detail Redesign** - Photo gallery grid, two-column sticky CTA layout, AI lease summary, commute section, and mobile sticky bar
 - [ ] **Phase 14: Post Sublease + Profile/Saved Redesign** - Multi-step sublease wizard with progress tracker + combined profile/saved tabbed page
 - [ ] **Phase 15: AI Concierge UI** - Task-based mission board with status pipeline, HITL draft approval, steering bar, agent summaries, and proactive empty state
+- [ ] **Phase 18: Explore Page Wiring + Verification** - Add Links to ListingCard, scope AIChatButton to Explore, wire AIChatPanel, add tests for ExploreLayout/ViewToggle/FilterChips (gap closure)
+- [ ] **Phase 19: Auth Flow + Route Protection** - Fix post-auth redirect, protect /post and /profile with middleware, wire ProfileHeader to auth session, wire SavedListings with Links, enable Detail Chat button (gap closure)
+- [ ] **Phase 20: Concierge Mount + Design Cleanup** - Mount ConciergeProvider in (main) layout, migrate remaining inline SVGs to Lucide (gap closure)
 
 ## Phase Details
 
@@ -109,10 +112,48 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   5. Empty state (no missions) shows at least three proactive mission suggestion cards based on context
 **Plans**: TBD
 
+### Phase 18: Explore Page Wiring + Verification
+**Goal**: Close all Phase 12 audit gaps — add `<Link>` navigation to ListingCard, scope AIChatButton to Explore page only, wire AIChatPanel to CribAI engine (or remove hardcoded response), and add E2E/unit test coverage for ExploreLayout, ViewToggle, and FilterChips components.
+**Depends on**: Phase 12
+**Requirements**: EXPL-01, EXPL-02, EXPL-03, EXPL-04, EXPL-05
+**Gap Closure**: Closes gaps from v1.1 milestone audit
+**Success Criteria** (what must be TRUE):
+  1. ListingCard wraps content in a `<Link>` to `/listing/[id]` — clicking navigates to listing detail
+  2. AIChatButton only renders on Explore page (not landing, detail, or profile pages)
+  3. AIChatPanel sends user messages to CribAI engine and displays responses (no hardcoded DEFAULT_RESPONSE)
+  4. ExploreLayout, ViewToggle, and FilterChips have passing E2E or unit tests
+  5. Explore → Listing Detail flow works end-to-end
+**Plans**: TBD
+
+### Phase 19: Auth Flow + Route Protection
+**Goal**: Fix cross-phase integration issues — correct post-auth redirect to `/explore`, protect `/post` and `/profile` routes with auth middleware, wire ProfileHeader to real auth session data, add `<Link>` navigation to SavedListings cards, and enable the Detail page mobile Chat button.
+**Depends on**: Phase 11, Phase 13, Phase 14
+**Requirements**: AUTH-06, POST-01, PROF-01, PROF-02, DETAIL-05
+**Gap Closure**: Closes gaps from v1.1 milestone audit
+**Success Criteria** (what must be TRUE):
+  1. After OTP verification, user is redirected to `/explore` (not `/uw-madison/cribai`)
+  2. Unauthenticated users accessing `/post` or `/profile` are redirected to auth page
+  3. ProfileHeader displays the authenticated user's name and university from Supabase session
+  4. SavedListings cards link to `/listing/[id]` — clicking navigates to listing detail
+  5. MobileBottomBar "Chat with AI" button on listing detail opens AIChatPanel (not disabled)
+**Plans**: TBD
+
+### Phase 20: Concierge Mount + Design Cleanup
+**Goal**: Mount ConciergeProvider and ConciergeShell in the `(main)` route group layout so the AI Concierge UI is accessible from all v1.1 pages, and complete the Lucide icon migration by replacing 8 remaining inline SVGs.
+**Depends on**: Phase 15, Phase 10
+**Requirements**: AGENT-01, DESIGN-03
+**Gap Closure**: Closes gaps from v1.1 milestone audit
+**Success Criteria** (what must be TRUE):
+  1. ConciergeProvider wraps children in `(main)/layout.tsx` — ConciergeNavButton visible in main nav
+  2. ConciergeShell (sidebar + detail) opens from nav button on any (main) route page
+  3. All 8 previously-identified inline SVGs are replaced with Lucide icon imports
+  4. No inline `<svg>` elements remain in v1.1 components (verified by grep)
+**Plans**: TBD
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15
+Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 18 → 19 → 20
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -131,3 +172,6 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15
 | 13. Listing Detail Redesign | v1.1 | 0/TBD | Not started | - |
 | 14. Post Sublease + Profile/Saved Redesign | v1.1 | 0/TBD | Not started | - |
 | 15. AI Concierge UI | v1.1 | 0/TBD | Not started | - |
+| 18. Explore Page Wiring + Verification | v1.1 | 0/TBD | Not started | - |
+| 19. Auth Flow + Route Protection | v1.1 | 0/TBD | Not started | - |
+| 20. Concierge Mount + Design Cleanup | v1.1 | 0/TBD | Not started | - |

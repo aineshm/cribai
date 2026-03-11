@@ -101,48 +101,50 @@
 
 ## Traceability
 
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| DESIGN-01 | Phase 10 | Pending |
-| DESIGN-02 | Phase 10 | Pending |
-| DESIGN-03 | Phase 10 | Pending |
-| DESIGN-04 | Phase 10 | Pending |
-| DESIGN-05 | Phase 10 | Pending |
-| COMPAT-01 | Phase 10 | Pending |
-| LAND-01 | Phase 11 | Pending |
-| LAND-02 | Phase 11 | Pending |
-| LAND-03 | Phase 11 | Pending |
-| LAND-04 | Phase 11 | Pending |
-| AUTH-05 | Phase 11 | Pending |
-| AUTH-06 | Phase 11 | Pending |
-| EXPL-01 | Phase 12 | Pending |
-| EXPL-02 | Phase 12 | Pending |
-| EXPL-03 | Phase 12 | Pending |
-| EXPL-04 | Phase 12 | Pending |
-| EXPL-05 | Phase 12 | Pending |
-| DETAIL-01 | Phase 13 | Pending |
-| DETAIL-02 | Phase 13 | Pending |
-| DETAIL-03 | Phase 13 | Pending |
-| DETAIL-04 | Phase 13 | Pending |
-| DETAIL-05 | Phase 13 | Pending |
-| POST-01 | Phase 14 | Pending |
-| POST-02 | Phase 14 | Pending |
-| POST-03 | Phase 14 | Pending |
-| PROF-01 | Phase 14 | Pending |
-| PROF-02 | Phase 14 | Pending |
-| PROF-03 | Phase 14 | Pending |
-| AGENT-01 | Phase 15 | Pending |
-| AGENT-02 | Phase 15 | Pending |
-| AGENT-03 | Phase 15 | Pending |
-| AGENT-04 | Phase 15 | Pending |
-| AGENT-05 | Phase 15 | Pending |
-| AGENT-06 | Phase 15 | Pending |
+| Requirement | Phase | Gap Closure | Status |
+|-------------|-------|-------------|--------|
+| DESIGN-01 | Phase 10 | — | Satisfied |
+| DESIGN-02 | Phase 10 | — | Satisfied |
+| DESIGN-03 | Phase 10 | Phase 20 | Partial |
+| DESIGN-04 | Phase 10 | — | Satisfied |
+| DESIGN-05 | Phase 10 | — | Satisfied |
+| COMPAT-01 | Phase 10 | — | Satisfied |
+| LAND-01 | Phase 11 | — | Satisfied |
+| LAND-02 | Phase 11 | — | Satisfied |
+| LAND-03 | Phase 11 | — | Satisfied |
+| LAND-04 | Phase 11 | — | Satisfied |
+| AUTH-05 | Phase 11 | — | Satisfied |
+| AUTH-06 | Phase 11 | Phase 19 | Partial |
+| EXPL-01 | Phase 12 | Phase 18 | Unverified |
+| EXPL-02 | Phase 12 | Phase 18 | Unverified |
+| EXPL-03 | Phase 12 | Phase 18 | Unverified |
+| EXPL-04 | Phase 12 | Phase 18 | Partial |
+| EXPL-05 | Phase 12 | Phase 18 | Partial |
+| DETAIL-01 | Phase 13 | — | Satisfied |
+| DETAIL-02 | Phase 13 | — | Satisfied |
+| DETAIL-03 | Phase 13 | — | Satisfied |
+| DETAIL-04 | Phase 13 | — | Satisfied |
+| DETAIL-05 | Phase 13 | Phase 19 | Partial |
+| POST-01 | Phase 14 | Phase 19 | Partial |
+| POST-02 | Phase 14 | — | Satisfied |
+| POST-03 | Phase 14 | — | Satisfied |
+| PROF-01 | Phase 14 | Phase 19 | Partial |
+| PROF-02 | Phase 14 | Phase 19 | Partial |
+| PROF-03 | Phase 14 | — | Satisfied |
+| AGENT-01 | Phase 15 | Phase 20 | Partial |
+| AGENT-02 | Phase 15 | — | Satisfied |
+| AGENT-03 | Phase 15 | — | Satisfied |
+| AGENT-04 | Phase 15 | — | Satisfied |
+| AGENT-05 | Phase 15 | — | Satisfied |
+| AGENT-06 | Phase 15 | — | Satisfied |
 
 **Coverage:**
 - v1.1 requirements: 34 total
-- Mapped to phases: 34
+- Satisfied: 22
+- Partial (gap closure assigned): 10
+- Unverified (gap closure assigned): 3
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-10*
-*Last updated: 2026-03-10 — traceability mapped to Phases 10-15*
+*Last updated: 2026-03-11 — gap closure phases 18-20 added from milestone audit*
