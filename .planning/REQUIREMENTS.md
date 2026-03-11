@@ -8,7 +8,7 @@
 ### Mission Executor
 
 - [ ] **EXEC-01**: User can create a mission from the Concierge page that triggers real async execution (202 Accepted, fire-and-forget)
-- [ ] **EXEC-02**: Mission executor runs a multi-step agentic loop (search → filter → shortlist) using existing CribAI tools
+- [ ] **EXEC-02**: Mission executor runs a multi-step agentic loop (search -> filter -> shortlist) using existing CribAI tools
 - [ ] **EXEC-03**: Missions DB schema stores status, raw execution logs, draft payloads, idempotency keys, and expiration
 - [ ] **EXEC-04**: Mission status updates are pushed to the UI in real-time via Supabase Realtime (no polling)
 
@@ -43,13 +43,13 @@
 
 - [ ] **PROD-01**: Scraper produces fresh UW-Madison listings and embeddings are current
 - [ ] **PROD-02**: v1.1 UI pages work end-to-end with real data (no broken flows, missing images, or dead links)
-- [ ] **PROD-03**: Error states are handled gracefully (failed missions, API timeouts, empty results) — no raw errors shown to users
+- [ ] **PROD-03**: Error states are handled gracefully (failed missions, API timeouts, empty results) -- no raw errors shown to users
 - [ ] **PROD-04**: App is deployed to Vercel with all required environment variables and API keys configured
 
 ## v1.1 Requirements (Shipped)
 
 <details>
-<summary>v1.1 UI/UX Upgrade — 34 requirements, all complete</summary>
+<summary>v1.1 UI/UX Upgrade -- 34 requirements, all complete</summary>
 
 ### Design System
 
@@ -141,7 +141,7 @@
 |---------|--------|
 | Full state machine backend (LangGraph/Step Functions) | Simple missions table + status column sufficient at current scale; revisit at 1K+ missions/day |
 | Generative UI (AI returns component JSON) | No rendering safety pattern established; hardcoded mission card types for v1.2 |
-| Live streaming execution logs | High complexity, low comprehension value — tool calls complete in 300-800ms |
+| Live streaming execution logs | High complexity, low comprehension value -- tool calls complete in 300-800ms |
 | Outbound email/SMS to PMs on user behalf | Legal liability (CAN-SPAM), trust issues; draft-only in v1.2, user sends manually |
 | Yelp review integration | ToS prohibits off-platform display; Google Places only |
 | Payment processing / Stripe | No monetization model decided for v1.2 |
@@ -152,32 +152,32 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| EXEC-01 | TBD | Pending |
-| EXEC-02 | TBD | Pending |
-| EXEC-03 | TBD | Pending |
-| EXEC-04 | TBD | Pending |
-| HITL-01 | TBD | Pending |
-| HITL-02 | TBD | Pending |
-| STEER-01 | TBD | Pending |
-| STEER-02 | TBD | Pending |
-| TOOLS-01 | TBD | Pending |
-| TOOLS-02 | TBD | Pending |
-| TOOLS-03 | TBD | Pending |
-| MEM-01 | TBD | Pending |
-| MEM-02 | TBD | Pending |
-| WIRE-01 | TBD | Pending |
-| WIRE-02 | TBD | Pending |
-| WIRE-03 | TBD | Pending |
-| PROD-01 | TBD | Pending |
-| PROD-02 | TBD | Pending |
-| PROD-03 | TBD | Pending |
-| PROD-04 | TBD | Pending |
+| EXEC-01 | Phase 18 | Pending |
+| EXEC-02 | Phase 18 | Pending |
+| EXEC-03 | Phase 16 | Pending |
+| EXEC-04 | Phase 18 | Pending |
+| HITL-01 | Phase 18 | Pending |
+| HITL-02 | Phase 18 | Pending |
+| STEER-01 | Phase 19 | Pending |
+| STEER-02 | Phase 19 | Pending |
+| TOOLS-01 | Phase 17 | Pending |
+| TOOLS-02 | Phase 17 | Pending |
+| TOOLS-03 | Phase 17 | Pending |
+| MEM-01 | Phase 19 | Pending |
+| MEM-02 | Phase 19 | Pending |
+| WIRE-01 | Phase 20 | Pending |
+| WIRE-02 | Phase 20 | Pending |
+| WIRE-03 | Phase 20 | Pending |
+| PROD-01 | Phase 20 | Pending |
+| PROD-02 | Phase 20 | Pending |
+| PROD-03 | Phase 20 | Pending |
+| PROD-04 | Phase 20 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 20 total
-- Mapped to phases: 0
-- Unmapped: 20 ⚠️
+- Mapped to phases: 20/20
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-10*
-*Last updated: 2026-03-10 after initial definition*
+*Last updated: 2026-03-10 after roadmap creation*
