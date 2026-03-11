@@ -154,7 +154,10 @@ Plans:
   2. ConciergeShell (sidebar + detail) opens from nav button on any (main) route page
   3. All 8 previously-identified inline SVGs are replaced with Lucide icon imports
   4. No inline `<svg>` elements remain in v1.1 components (verified by grep)
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 20-01-PLAN.md — Mount ConciergeShell + ConciergeNavButton in (main)/layout.tsx with unit test
+- [ ] 20-02-PLAN.md — Replace 14 inline SVGs across 10 component files with Lucide icon imports
 
 ## Progress
 
@@ -180,4 +183,4 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 18 �
 | 15. AI Concierge UI | v1.1 | 0/TBD | Not started | - |
 | 18. Explore Page Wiring + Verification | v1.1 | 0/2 | Not started | - |
 | 19. Auth Flow + Route Protection | v1.1 | 0/2 | Not started | - |
-| 20. Concierge Mount + Design Cleanup | v1.1 | 0/TBD | Not started | - |
+| 20. Concierge Mount + Design Cleanup | v1.1 | 0/2 | Not started | - |
