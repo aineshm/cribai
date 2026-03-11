@@ -76,6 +76,7 @@ export function FilterChips({
                     ? 'bg-[var(--primary-700)] text-white hover:bg-[var(--primary-800)]'
                     : ''
                 }`}
+                aria-pressed={isActive}
                 onClick={() => toggleFilter(filter.id)}
               >
                 <Icon className="size-3.5" />

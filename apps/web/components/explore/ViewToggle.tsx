@@ -18,7 +18,7 @@ const views = [
 
 export function ViewToggle({ activeView, onViewChange }: ViewToggleProps) {
   return (
-    <div className="relative flex items-center bg-[var(--surface-100)] rounded-lg p-1 border border-[var(--surface-200)]">
+    <div role="radiogroup" aria-label="View mode" className="relative flex items-center bg-[var(--surface-100)] rounded-lg p-1 border border-[var(--surface-200)]">
       {views.map((view) => {
         const isActive = activeView === view.id;
         const Icon = view.icon;
@@ -26,6 +26,9 @@ export function ViewToggle({ activeView, onViewChange }: ViewToggleProps) {
         return (
           <button
             key={view.id}
+            role="radio"
+            aria-checked={isActive}
+            aria-label={`${view.label} view`}
             className="relative z-10 flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-md transition-colors"
             style={{
               color: isActive
