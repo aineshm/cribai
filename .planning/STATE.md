@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: UI/UX Upgrade
 status: completed
-stopped_at: Completed 24-01-PLAN.md
-last_updated: "2026-03-12T03:23:49.310Z"
+stopped_at: Completed 23-02-PLAN.md
+last_updated: "2026-03-12T03:26:37.718Z"
 last_activity: 2026-03-11 -- Completed 20-01 (main)/layout.tsx with ConciergeShell + ConciergeNavButton
 progress:
   total_phases: 13
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 15
-  completed_plans: 13
+  completed_plans: 14
   percent: 50
 ---
 
@@ -63,6 +63,7 @@ Progress: [█████░░░░░] 50%  (v1.2: 4/8 plans)
 | Phase 23-chat-campus-context-profile-persistence P01 | 2min | 2 tasks | 2 files |
 | Phase 24-listing-ai-summary-verification-sweep P02 | 20min | 3 tasks | 3 files |
 | Phase 24-listing-ai-summary-verification-sweep P01 | 8min | 2 tasks | 4 files |
+| Phase 23-chat-campus-context-profile-persistence P02 | 7min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -113,6 +114,8 @@ Recent decisions affecting v1.2 work:
 - [Phase 24-listing-ai-summary-verification-sweep]: [Phase 24-02]: Phase 13 status set to passed — DETAIL-03 AI prose pending Phase 24-01 is a planned gap, not an oversight
 - [Phase 24-listing-ai-summary-verification-sweep]: aiSummary is optional (readonly aiSummary?: string) — no existing consumers broken
 - [Phase 24-listing-ai-summary-verification-sweep]: Prose renders above structured grid inside CardContent — no extra motion.div wrapper needed
+- [Phase 23-02]: handleProfileComplete uses useCallback async pattern — persists full_name/university/graduation_year to Supabase user_metadata before navigating (AUTH-05)
+- [Phase 23-02]: redirect tests required waitFor upgrade after handleProfileComplete became async — synchronous expect(mockPush) fired before promise resolved
 
 ### Pending Todos
 
@@ -127,7 +130,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T03:23:49.307Z
-Stopped at: Completed 24-01-PLAN.md
+Last session: 2026-03-12T03:26:37.715Z
+Stopped at: Completed 23-02-PLAN.md
 Resume file: None
 Next: Plan 20-02 (design cleanup)

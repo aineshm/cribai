@@ -201,7 +201,7 @@ Plans:
   3. ProfileSetup handleProfileComplete persists firstName, university, and graduationYear to Supabase user metadata
   4. After onboarding, /profile page displays the persisted name and university (not email-derived defaults)
   5. Unit tests cover campusSlug derivation and profile persistence
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 23-01-PLAN.md — Derive campusSlug in (main)/layout.tsx and inject into inner ChatProvider
 - [ ] 23-02-PLAN.md — Fix AuthForm.handleProfileComplete to persist profile data via supabase.auth.updateUser
@@ -250,5 +250,5 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 18 �
 | 20. Concierge Mount + Design Cleanup | 2/2 | Complete    | 2026-03-11 | - |
 | 21. App Navigation + Auth State | 2/2 | Complete    | 2026-03-12 | - |
 | 22. Token Cleanup + Chat Multi-Campus | 2/2 | Complete    | 2026-03-12 | - |
-| 23. Chat Campus Context + Profile Persistence | 1/2 | In Progress|  | - |
+| 23. Chat Campus Context + Profile Persistence | 2/2 | Complete   | 2026-03-12 | - |
 | 24. Listing AI Summary + Verification Sweep | 2/3 | In Progress|  | - |
