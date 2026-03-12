@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: UI/UX Upgrade
 status: completed
-stopped_at: Completed 22-02-PLAN.md
-last_updated: "2026-03-12T01:12:57.857Z"
+stopped_at: Completed 21-01-PLAN.md
+last_updated: "2026-03-12T01:13:56.870Z"
 last_activity: 2026-03-11 -- Completed 20-01 (main)/layout.tsx with ConciergeShell + ConciergeNavButton
 progress:
   total_phases: 11
   completed_phases: 4
   total_plans: 10
-  completed_plans: 8
+  completed_plans: 9
   percent: 50
 ---
 
@@ -58,6 +58,7 @@ Progress: [█████░░░░░] 50%  (v1.2: 4/8 plans)
 | Phase 18-explore-page-wiring P02 | 12 | 3 tasks | 9 files |
 | Phase 22-token-cleanup-chat-multi-campus P01 | 1 | 2 tasks | 1 files |
 | Phase 22-token-cleanup-chat-multi-campus P02 | 2min | 2 tasks | 3 files |
+| Phase 21-app-navigation-auth-state P01 | 3 | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -99,6 +100,8 @@ Recent decisions affecting v1.2 work:
 - [Phase 22-01]: No TypeScript bridge needed — Tailwind utility classes generated from @theme inline block at build time
 - [Phase 22]: ChatProvider uses explicit campusSlug prop (not useCampus hook) — hook throws outside campus route tree
 - [Phase 22]: Campus layout mounts inner ChatProvider with real slug; root layout ChatProvider with empty string covers explore page (innermost-wins pattern)
+- [Phase 21-app-navigation-auth-state]: MobileStickyBar accepts optional visible prop to bypass IntersectionObserver in tests — zero production behavior change
+- [Phase 21-app-navigation-auth-state]: Server Component page.tsx can import 'use client' child components — valid Next.js 15 pattern
 
 ### Pending Todos
 
@@ -113,7 +116,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T01:12:57.855Z
-Stopped at: Completed 22-02-PLAN.md
+Last session: 2026-03-12T01:13:56.868Z
+Stopped at: Completed 21-01-PLAN.md
 Resume file: None
 Next: Plan 20-02 (design cleanup)

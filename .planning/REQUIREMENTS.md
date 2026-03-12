@@ -15,10 +15,10 @@
 
 ### Landing Page
 
-- [ ] **LAND-01**: User sees a marketing landing page with hero section, AI value prop, and "Get Started" CTA
+- [x] **LAND-01**: User sees a marketing landing page with hero section, AI value prop, and "Get Started" CTA
 - [ ] **LAND-02**: Landing page shows social proof bar with university logos and feature cards
 - [ ] **LAND-03**: Landing page has "How It Works" section and footer CTA banner
-- [ ] **LAND-04**: Mobile users see sticky "Get Started" CTA at bottom of landing page
+- [x] **LAND-04**: Mobile users see sticky "Get Started" CTA at bottom of landing page
 
 ### Auth Redesign
 
@@ -43,13 +43,13 @@
 
 ### Post Sublease
 
-- [ ] **POST-01**: User completes sublease posting via multi-step wizard (Basics, Details, Amenities, Photos, Description, Review)
+- [x] **POST-01**: User completes sublease posting via multi-step wizard (Basics, Details, Amenities, Photos, Description, Review)
 - [ ] **POST-02**: Desktop shows sidebar progress tracker with step indicators
 - [ ] **POST-03**: Mobile shows progress bar with step count and percentage
 
 ### Profile and Saved
 
-- [ ] **PROF-01**: User sees profile header card with avatar, name, university, verification badge
+- [x] **PROF-01**: User sees profile header card with avatar, name, university, verification badge
 - [x] **PROF-02**: Tabbed navigation between Saved Listings and Account Settings
 - [ ] **PROF-03**: Settings section has navigation items for Personal Info, Notifications, and Log Out
 
