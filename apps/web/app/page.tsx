@@ -1,8 +1,6 @@
 import Link from 'next/link';
 import { cookies, headers } from 'next/headers';
 import { createServerComponentClient } from '@campusnest/supabase/server';
-import { buttonVariants } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import { Hero } from '@/components/landing/Hero';
 import { SocialProof } from '@/components/landing/SocialProof';
 import { Features } from '@/components/landing/Features';
@@ -38,10 +36,7 @@ export default async function HomePage() {
           </span>
           <Link
             href={navHref}
-            className={cn(
-              buttonVariants({ variant: 'default', size: 'sm' }),
-              'rounded-full bg-[var(--primary-600)] text-white hover:bg-[var(--primary-700)]'
-            )}
+            className="inline-flex items-center justify-center rounded-full bg-[var(--primary-600)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--primary-700)]"
           >
             {navText}
           </Link>

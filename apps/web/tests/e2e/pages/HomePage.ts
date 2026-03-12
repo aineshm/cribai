@@ -3,10 +3,13 @@ import { type Page, type Locator, expect } from '@playwright/test';
 /**
  * Page Object Model for the CampusNest landing page (/).
  *
- * DOM notes (from apps/web/app/page.tsx — Phase 11 redesign):
- *   - Nav with "CampusNest" brand text + "Sign In" link → /login
+ * DOM notes (from apps/web/app/page.tsx — Phase 11 redesign, updated Phase 21):
+ *   - Nav with "CampusNest" brand text
+ *   - Unauthenticated: "Sign In" link → /login
+ *   - Authenticated: "Dashboard" link → /explore
  *   - Hero section with h1 "Find Your Perfect College Apartment"
- *   - "Get Started Free" CTA link → /login
+ *   - Unauthenticated: "Get Started Free" CTA link → /login
+ *   - Authenticated: "Go to Dashboard" CTA link → /explore
  *   - SocialProof section: "Trusted by students at 50+ universities"
  *   - Features section: 3 cards (AI-Powered Search, Verified Student Community, End-to-End Support)
  *   - HowItWorks section: h2 "How It Works", 3 steps
@@ -16,15 +19,21 @@ import { type Page, type Locator, expect } from '@playwright/test';
 export class HomePage {
   readonly page: Page;
 
-  // Nav
+  // Nav — unauthenticated state
   readonly brandText: Locator;
   readonly signInLink: Locator;
 
-  // Hero
+  // Nav — authenticated state
+  readonly dashboardLink: Locator;
+
+  // Hero — unauthenticated state
   readonly heroHeading: Locator;
   readonly heroSubtitle: Locator;
   readonly getStartedCta: Locator;
   readonly seeHowItWorksLink: Locator;
+
+  // Hero — authenticated state
+  readonly dashboardCta: Locator;
 
   // Social proof
   readonly socialProofText: Locator;
@@ -50,9 +59,12 @@ export class HomePage {
   constructor(page: Page) {
     this.page = page;
 
-    // Nav
+    // Nav — unauthenticated state
     this.brandText = page.locator('nav').getByText('CampusNest');
     this.signInLink = page.locator('nav').getByRole('link', { name: 'Sign In' });
+
+    // Nav — authenticated state
+    this.dashboardLink = page.locator('nav').getByRole('link', { name: /Dashboard/i });
 
     // Hero
     this.heroHeading = page.getByRole('heading', {
@@ -62,6 +74,9 @@ export class HomePage {
     this.heroSubtitle = page.getByText('True Cost Calculator, Price Fairness Scores');
     this.getStartedCta = page.locator('#hero-cta').getByRole('link', { name: 'Get Started Free' });
     this.seeHowItWorksLink = page.getByRole('link', { name: 'See How It Works' });
+
+    // Hero — authenticated state
+    this.dashboardCta = page.locator('#hero-cta').getByRole('link', { name: 'Go to Dashboard' });
 
     // Social proof
     this.socialProofText = page.getByText('Trusted by students at 50+ universities');
