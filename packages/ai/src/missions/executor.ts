@@ -18,7 +18,11 @@ import {
   insertMissionLog,
   insertMissionDraft,
   getCampusSlug,
+  getLatestSteering,
+  markSteeringApplied,
+  updateMissionInput,
 } from './mission-repository';
+import { parseSteeringIntent } from './steering-parser';
 
 /**
  * Execute a mission's step pipeline sequentially.
@@ -117,6 +121,47 @@ export async function executeMission(options: ExecuteOptions): Promise<void> {
         tool_name: step.tool ?? null,
         tool_output: result.output as Record<string, unknown>,
       });
+
+      // ── Steering check: apply any pending mid-mission correction ────────────
+      // Runs after each completed step so corrections take effect on the next
+      // iteration. Never throws — failures are warned and skipped to avoid
+      // killing the mission. Returns {} (nothing to change) vs null (parse error).
+      try {
+        const steering = await getLatestSteering(supabase, options.missionId);
+        if (steering) {
+          const parsed = await parseSteeringIntent(
+            steering.raw_input,
+            mission.type,
+            mission.input,
+          );
+          if (parsed !== null) {
+            if (Object.keys(parsed).length > 0) {
+              // Immutably replace mission.input — next iteration's ctx.input reflects this
+              mission = { ...mission, input: { ...mission.input, ...parsed } };
+              await updateMissionInput(supabase, options.missionId, mission.input);
+            }
+            await markSteeringApplied(supabase, steering.id);
+            await insertMissionLog(supabase, {
+              mission_id: options.missionId,
+              action: 'steering_applied',
+              detail: `Steering applied: "${steering.raw_input}"`,
+              status: 'success',
+              tool_output: Object.keys(parsed).length > 0
+                ? (parsed as Record<string, unknown>)
+                : null,
+            });
+          } else {
+            // Parse failed — leave steering unapplied so it is retried on next step
+            console.warn(
+              `[executor] Steering parse failed for mission ${options.missionId}, steering ${steering.id}`,
+            );
+          }
+        }
+      } catch (steeringErr) {
+        const msg = steeringErr instanceof Error ? steeringErr.message : 'unknown';
+        console.warn(`[executor] Steering check error for mission ${options.missionId}: ${msg}`);
+        // Steering errors never kill the mission — continue to next step
+      }
 
       // HITL pause: save draft and wait for user approval.
       // Execution stops here — the approve endpoint resumes from current_step_index.
