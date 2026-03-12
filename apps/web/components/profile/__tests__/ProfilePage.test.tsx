@@ -1,6 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
+// ProfilePage is an async Server Component (Supabase + cookies) — test the client shell instead
+import { ProfilePageClient } from '../ProfilePageClient';
+
 // Mock framer-motion to avoid animation issues
 vi.mock('framer-motion', () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -44,36 +47,45 @@ vi.mock('sonner', () => ({
   },
 }));
 
-// Import AFTER mocks are in place
-import ProfilePage from '../../../app/(main)/profile/page';
+const defaultProps = {
+  name: 'Test Student',
+  email: 'test@wisc.edu',
+  university: 'University of Wisconsin-Madison',
+  graduationYear: '2026',
+  memberSince: 'Jan 2024',
+  isVerified: true,
+};
+
+const demoListings = [
+  { id: '1', title: 'Cozy Studio near Campus', address: '123 College Ave', price: 950 },
+  { id: '2', title: 'Spacious 2BR Apartment', address: '456 University Blvd', price: 1400 },
+];
 
 describe('ProfilePage tabs', () => {
   it('renders the "Saved Listings" tab trigger', () => {
-    render(<ProfilePage />);
+    render(<ProfilePageClient {...defaultProps} />);
     expect(screen.getByRole('tab', { name: /saved listings/i })).toBeInTheDocument();
   });
 
   it('renders the "Account Settings" tab trigger', () => {
-    render(<ProfilePage />);
+    render(<ProfilePageClient {...defaultProps} />);
     expect(screen.getByRole('tab', { name: /account settings/i })).toBeInTheDocument();
   });
 
-  it('shows Saved Listings content by default (defaultValue="saved")', () => {
-    render(<ProfilePage />);
-    // SavedListings renders demo listing titles
+  it('shows Saved Listings content by default when listings are provided', () => {
+    render(<ProfilePageClient {...defaultProps} savedListings={demoListings} />);
     expect(screen.getByText('Cozy Studio near Campus')).toBeInTheDocument();
   });
 
   it('switches to Account Settings content when the settings tab is clicked', () => {
-    render(<ProfilePage />);
+    render(<ProfilePageClient {...defaultProps} />);
     const settingsTab = screen.getByRole('tab', { name: /account settings/i });
     fireEvent.click(settingsTab);
-    // AccountSettings renders "Personal Information" heading
     expect(screen.getByText('Personal Information')).toBeInTheDocument();
   });
 
   it('hides Saved Listings content after switching to Account Settings', () => {
-    render(<ProfilePage />);
+    render(<ProfilePageClient {...defaultProps} savedListings={demoListings} />);
     fireEvent.click(screen.getByRole('tab', { name: /account settings/i }));
     expect(screen.queryByText('Cozy Studio near Campus')).not.toBeInTheDocument();
   });

@@ -1,7 +1,15 @@
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import type { MapBlock } from '@campusnest/types';
+
+// ChatMapBlock only renders the map when NEXT_PUBLIC_MAPBOX_TOKEN is set
+beforeAll(() => {
+  vi.stubEnv('NEXT_PUBLIC_MAPBOX_TOKEN', 'pk.test-token');
+});
+afterAll(() => {
+  vi.unstubAllEnvs();
+});
 
 // Mock react-map-gl/mapbox
 vi.mock('react-map-gl/mapbox', () => ({
@@ -149,10 +157,10 @@ describe('ChatMapBlock', () => {
     const markers = screen.getAllByTestId('marker');
     fireEvent.click(markers[0]!);
 
-    // The selected pin should have blue bg class
+    // The selected pin should have the primary selected bg class (CSS var)
     const priceLabels = screen.getAllByText('$1,200');
     const selectedLabel = priceLabels.find((el) =>
-      el.className.includes('bg-blue-600')
+      el.className.includes('bg-[var(--primary-600)]')
     );
     expect(selectedLabel).toBeTruthy();
   });

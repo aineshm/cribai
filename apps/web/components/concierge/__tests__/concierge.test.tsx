@@ -11,8 +11,30 @@
  */
 
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+
+// ConciergeProvider fetches /api/missions — stub fetch globally with active missions
+const MOCK_MISSIONS = [
+  { id: 'mission-1', title: 'Housing Search', status: 'active', type: 'housing_search', goal: 'Find housing', current_step_index: 1, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: 'mission-2', title: 'Tour Outreach', status: 'waiting_approval', type: 'tour_outreach', goal: 'Schedule tours', current_step_index: 2, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+];
+
+beforeAll(() => {
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (String(url).includes('/api/missions')) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ missions: MOCK_MISSIONS }),
+      });
+    }
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+  }));
+});
+
+afterAll(() => {
+  vi.unstubAllGlobals();
+});
 import { ConciergeProvider } from '../ConciergeProvider';
 import { ConciergeNavButton } from '../ConciergeNavButton';
 import { MissionCard } from '../MissionCard';
@@ -63,6 +85,8 @@ vi.mock('lucide-react', () => {
     MessageSquare: Icon,
     DollarSign: Icon,
     GitCompare: Icon,
+    Search: Icon,
+    Mail: Icon,
     ArrowLeft: Icon,
     ChevronDown: Icon,
     Send: Icon,
@@ -72,8 +96,36 @@ vi.mock('lucide-react', () => {
     ArrowLeftRight: Icon,
     Clock: Icon,
     MapPin: Icon,
+    MessageSquare: Icon,
   };
 });
+
+// ── Mock @campusnest/supabase/client — ConciergeProvider calls createClient() ──
+vi.mock('@campusnest/supabase/client', () => ({
+  createClient: () => ({
+    auth: {
+      getSession: vi.fn().mockResolvedValue({
+        data: {
+          session: { user: { id: 'test-user-id' }, access_token: 'test-token' },
+        },
+      }),
+      onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
+    },
+    channel: vi.fn().mockReturnValue({
+      on: vi.fn().mockReturnThis(),
+      subscribe: vi.fn(),
+    }),
+    removeChannel: vi.fn(),
+    from: vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+        order: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+        }),
+      }),
+    }),
+  }),
+}));
 
 // ── Mock @/lib/animations ─────────────────────────────────────────────────────
 vi.mock('@/lib/animations', () => ({
@@ -516,10 +568,10 @@ describe('MissionActionCard — DraftReadyCard (AGENT-02)', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders "Approve & Send" and "Edit Draft" buttons', () => {
+  it('renders "Approve & Send" and "Cancel" buttons', () => {
     render(<MissionActionCard actionCard={draftCard} />);
     expect(screen.getByText('Approve & Send')).toBeInTheDocument();
-    expect(screen.getByText('Edit Draft')).toBeInTheDocument();
+    expect(screen.getByText('Cancel')).toBeInTheDocument();
   });
 });
 
@@ -666,19 +718,18 @@ describe('ConciergeNavButton (AGENT-01)', () => {
     expect(screen.getByText('Concierge')).toBeInTheDocument();
   });
 
-  it('shows a badge with the active mission count when there are active missions', () => {
-    // ConciergeProvider seeds from mockMissions which has active/scheduled/waiting_approval missions
+  it('shows a badge with the active mission count when there are active missions', async () => {
     render(
       <ConciergeProvider>
         <ConciergeNavButton />
       </ConciergeProvider>
     );
-    // mockMissions has mission-3 (active), mission-6 (active), mission-1 (scheduled), mission-2 (waiting_approval) = 4
-    const badge = document.querySelector('[class*="rounded-full"][class*="bg-"]');
-    expect(badge).toBeInTheDocument();
-    // The count should be a positive number
-    const countText = badge?.textContent;
-    expect(Number(countText)).toBeGreaterThan(0);
+    // ConciergeProvider loads missions async from /api/missions (mocked via fetch stub)
+    await waitFor(() => {
+      const badge = document.querySelector('[class*="rounded-full"]');
+      expect(badge).toBeInTheDocument();
+      expect(Number(badge?.textContent)).toBeGreaterThan(0);
+    });
   });
 
   it('calls openSidebar when the button is clicked', () => {
