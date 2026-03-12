@@ -37,7 +37,7 @@
 
 - [x] **DETAIL-01**: User sees photo gallery grid (2/3 hero + 1/3 side grid) with lightbox expansion
 - [x] **DETAIL-02**: Two-column layout with content (left) and sticky CTA card with Book Tour and Ask AI (right)
-- [ ] **DETAIL-03**: Listing detail shows landlord info card, amenities grid, and AI lease summary section
+- [x] **DETAIL-03**: Listing detail shows landlord info card, amenities grid, and AI lease summary section
 - [x] **DETAIL-04**: Commute section shows map with distance/time to campus buildings
 - [x] **DETAIL-05**: Mobile users see sticky bottom bar with price, Book Tour, and Chat with AI buttons
 
