@@ -24,7 +24,12 @@ interface ChatContextValue {
 
 const ChatContext = createContext<ChatContextValue | null>(null);
 
-export function ChatProvider({ children }: { readonly children: ReactNode }) {
+interface ChatProviderProps {
+  readonly children: ReactNode;
+  readonly campusSlug?: string;
+}
+
+export function ChatProvider({ children, campusSlug = '' }: ChatProviderProps) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<readonly ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
@@ -55,7 +60,7 @@ export function ChatProvider({ children }: { readonly children: ReactNode }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: text.trim(),
-          campusSlug: 'uw-madison',
+          campusSlug: campusSlug,
           history: [],
         }),
       });
@@ -116,7 +121,7 @@ export function ChatProvider({ children }: { readonly children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [campusSlug]);
 
   return (
     <ChatContext.Provider value={{ open, messages, loading, setOpen, sendMessage }}>

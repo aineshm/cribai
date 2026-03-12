@@ -77,7 +77,7 @@ describe('ChatProvider', () => {
     } as Response);
 
     render(
-      <ChatProvider>
+      <ChatProvider campusSlug="test-campus">
         <TestConsumer />
       </ChatProvider>
     );
@@ -95,7 +95,28 @@ describe('ChatProvider', () => {
       })
     );
     const callBody = JSON.parse(mockFetch.mock.calls[0][1]!.body as string);
-    expect(callBody.campusSlug).toBe('uw-madison');
+    expect(callBody.campusSlug).toBe('test-campus');
+  });
+
+  it('sends empty campusSlug when no prop provided', async () => {
+    const stream = makeMockStream(['data: {"type":"done"}\n\n']);
+    const mockFetch = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      body: stream,
+    } as Response);
+
+    render(
+      <ChatProvider>
+        <TestConsumer />
+      </ChatProvider>
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Send'));
+    });
+
+    const callBody = JSON.parse(mockFetch.mock.calls[0][1]!.body as string);
+    expect(callBody.campusSlug).toBe('');
   });
 
   it('loading is false after stream completes', async () => {
