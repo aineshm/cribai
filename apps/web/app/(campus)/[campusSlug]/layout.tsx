@@ -7,6 +7,7 @@ import { ProfileModal } from '../../../components/profile-modal';
 import { NotificationBell } from '../../../components/notification-bell';
 import { DevUserSwitcher } from '../../../components/dev-user-switcher';
 import { ConciergeShell } from '../../../components/concierge/ConciergeShell';
+import { ChatProvider } from '../../../components/chat/ChatProvider';
 import { ConciergeNavButton } from '../../../components/concierge/ConciergeNavButton';
 import { getCurrentUser } from '../../../lib/get-current-user';
 import { createSecretClient } from '@campusnest/supabase/server';
@@ -113,6 +114,7 @@ export default async function CampusLayout({
   }
 
   return (
+    <ChatProvider campusSlug={campusSlug}>
     <CampusProvider campus={campusConfig}>
       <ConciergeShell>
       <div className="min-h-[100dvh]">
@@ -217,5 +219,6 @@ export default async function CampusLayout({
       </div>
       </ConciergeShell>
     </CampusProvider>
+    </ChatProvider>
   );
 }
