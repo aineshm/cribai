@@ -11,7 +11,7 @@
 - [ ] **DESIGN-02**: All pages use shadcn/ui component primitives (Button, Card, Sheet, Dialog, Input, etc.)
 - [x] **DESIGN-03**: All pages use Lucide icons instead of inline Heroicon SVGs
 - [ ] **DESIGN-04**: Page transitions and interactive elements use framer-motion spring animations
-- [ ] **DESIGN-05**: Design tokens bridge existing CSS variables with shadcn/ui token system without breaking build
+- [x] **DESIGN-05**: Design tokens bridge existing CSS variables with shadcn/ui token system without breaking build
 
 ### Landing Page
 
