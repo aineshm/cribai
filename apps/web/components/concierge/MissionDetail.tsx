@@ -12,6 +12,8 @@ import { slideInFromRight } from '@/lib/animations';
 import type { LegacyMission, MissionStatus } from '@/lib/concierge-types';
 
 const STATUS_LABELS: Record<MissionStatus, string> = {
+  pending: 'Pending',
+  running: 'Running',
   active: 'Active',
   paused: 'Paused',
   waiting_approval: 'Waiting Approval',
@@ -22,6 +24,8 @@ const STATUS_LABELS: Record<MissionStatus, string> = {
 };
 
 const STATUS_BADGE_VARIANT: Record<MissionStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  pending: 'secondary',
+  running: 'default',
   active: 'default',
   paused: 'secondary',
   waiting_approval: 'secondary',

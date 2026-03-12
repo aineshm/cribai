@@ -10,6 +10,7 @@ const LOG_STATUS_COLORS: Record<ExecutionLogStatus, string> = {
   success: 'bg-green-500',
   pending: 'bg-amber-500',
   error: 'bg-red-500',
+  running: 'bg-blue-500',
 };
 
 function formatLogTime(timestamp: string): string {
