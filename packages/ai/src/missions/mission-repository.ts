@@ -234,6 +234,43 @@ export async function getLatestSteering(
   return (data as MissionSteering | null) ?? null;
 }
 
+/**
+ * Mark a steering as applied by setting applied_at to now.
+ * Must be called with a service-role client — users have no UPDATE policy on mission_steerings.
+ */
+export async function markSteeringApplied(
+  supabase: SupabaseClient,
+  steeringId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('mission_steerings')
+    .update({ applied_at: new Date().toISOString() })
+    .eq('id', steeringId);
+
+  if (error) {
+    throw new Error(`Failed to mark steering applied: ${error.message}`);
+  }
+}
+
+/**
+ * Persist updated mission input after a steering correction is applied.
+ * Ensures executor restarts pick up the steered parameters from the DB.
+ */
+export async function updateMissionInput(
+  supabase: SupabaseClient,
+  missionId: string,
+  input: Readonly<Record<string, unknown>>,
+): Promise<void> {
+  const { error } = await supabase
+    .from('missions')
+    .update({ input })
+    .eq('id', missionId);
+
+  if (error) {
+    throw new Error(`Failed to update mission input: ${error.message}`);
+  }
+}
+
 // ─── Campus Lookup ──────────────────────────────────────────
 
 /** Resolve campus slug from campus ID. Returns 'unknown' if not found. */

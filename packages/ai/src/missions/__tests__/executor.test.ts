@@ -26,6 +26,13 @@ vi.mock('../mission-repository', () => ({
   insertMissionLog: vi.fn(),
   insertMissionDraft: vi.fn(),
   getCampusSlug: vi.fn(),
+  getLatestSteering: vi.fn(),
+  markSteeringApplied: vi.fn(),
+  updateMissionInput: vi.fn(),
+}));
+
+vi.mock('../steering-parser', () => ({
+  parseSteeringIntent: vi.fn(),
 }));
 
 vi.mock('../registry', () => ({
@@ -41,8 +48,12 @@ import {
   insertMissionLog,
   insertMissionDraft,
   getCampusSlug,
+  getLatestSteering,
+  markSteeringApplied,
+  updateMissionInput,
 } from '../mission-repository';
 import { getMissionDefinition } from '../registry';
+import { parseSteeringIntent } from '../steering-parser';
 
 // ── Typed mock references ─────────────────────────────────────
 // Gives us strongly-typed .mockResolvedValue / .mockReturnValue calls
@@ -55,6 +66,10 @@ const mockInsertLog = vi.mocked(insertMissionLog);
 const mockInsertDraft = vi.mocked(insertMissionDraft);
 const mockGetCampusSlug = vi.mocked(getCampusSlug);
 const mockGetDefinition = vi.mocked(getMissionDefinition);
+const mockGetLatestSteering = vi.mocked(getLatestSteering);
+const mockMarkSteeringApplied = vi.mocked(markSteeringApplied);
+const mockUpdateMissionInput = vi.mocked(updateMissionInput);
+const mockParseSteeringIntent = vi.mocked(parseSteeringIntent);
 
 /** Returns a minimal valid Mission object with optional field overrides. */
 function baseMission(overrides: Partial<Mission> = {}): Mission {
@@ -107,6 +122,11 @@ describe('executeMission', () => {
     mockSetResult.mockResolvedValue(undefined);
     mockInsertLog.mockResolvedValue({} as any);
     mockInsertDraft.mockResolvedValue({} as any);
+    // Default: no pending steerings — tests that need one override this
+    mockGetLatestSteering.mockResolvedValue(null);
+    mockMarkSteeringApplied.mockResolvedValue(undefined);
+    mockUpdateMissionInput.mockResolvedValue(undefined);
+    mockParseSteeringIntent.mockResolvedValue(null);
   });
 
   it('runs all steps and completes the mission', async () => {
@@ -326,5 +346,164 @@ describe('executeMission', () => {
     await executeMission({ missionId: 'mission-1' });
 
     expect(mockGetCampusSlug).not.toHaveBeenCalled();
+  });
+
+  // ── Steering tests ───────────────────────────────────────────
+
+  it('applies steering between steps: updates input, marks applied, logs action', async () => {
+    const steering = {
+      id: 'steering-1',
+      mission_id: 'mission-1',
+      raw_input: 'lower budget to $1100',
+      parsed_intent: null,
+      applied_at: null,
+      created_at: '2026-03-12T00:00:00Z',
+    } as any;
+
+    mockGetMission.mockResolvedValue(baseMission());
+    mockGetDefinition.mockReturnValue({
+      type: 'housing_search',
+      steps: [makeStep('search'), makeStep('rank')],
+    });
+    // Return steering after step 1, then null after step 2
+    mockGetLatestSteering.mockResolvedValueOnce(steering).mockResolvedValueOnce(null);
+    mockParseSteeringIntent.mockResolvedValueOnce({ maxRent: 1100 });
+
+    await executeMission({ missionId: 'mission-1' });
+
+    expect(mockUpdateMissionInput).toHaveBeenCalledWith(
+      expect.anything(),
+      'mission-1',
+      expect.objectContaining({ maxRent: 1100 }),
+    );
+    expect(mockMarkSteeringApplied).toHaveBeenCalledWith(expect.anything(), 'steering-1');
+
+    const steeringLog = mockInsertLog.mock.calls.find(
+      (call) => (call[1] as any).action === 'steering_applied',
+    );
+    expect(steeringLog).toBeDefined();
+    expect((steeringLog![1] as any).detail).toContain('lower budget to $1100');
+  });
+
+  it('step after steering sees updated ctx.input', async () => {
+    const capturedInputs: Record<string, unknown>[] = [];
+    const steering = {
+      id: 'steering-1',
+      mission_id: 'mission-1',
+      raw_input: 'lower to $1100',
+      parsed_intent: null,
+      applied_at: null,
+      created_at: '2026-03-12T00:00:00Z',
+    } as any;
+
+    mockGetMission.mockResolvedValue(baseMission({ input: { bedrooms: 2, maxRent: 1500 } }));
+    mockGetDefinition.mockReturnValue({
+      type: 'housing_search',
+      steps: [
+        makeStep('step1'),
+        makeStep('step2', async (ctx) => {
+          capturedInputs.push({ ...ctx.input });
+          return { output: {} };
+        }),
+      ],
+    });
+    mockGetLatestSteering.mockResolvedValueOnce(steering).mockResolvedValueOnce(null);
+    mockParseSteeringIntent.mockResolvedValueOnce({ maxRent: 1100 });
+
+    await executeMission({ missionId: 'mission-1' });
+
+    expect(capturedInputs[0]).toMatchObject({ bedrooms: 2, maxRent: 1100 });
+  });
+
+  it('marks steering applied but skips updateMissionInput when parse returns {}', async () => {
+    const steering = {
+      id: 'steering-2',
+      mission_id: 'mission-1',
+      raw_input: 'never mind',
+      parsed_intent: null,
+      applied_at: null,
+      created_at: '2026-03-12T00:00:00Z',
+    } as any;
+
+    mockGetMission.mockResolvedValue(baseMission());
+    mockGetDefinition.mockReturnValue({
+      type: 'housing_search',
+      steps: [makeStep('only')],
+    });
+    mockGetLatestSteering.mockResolvedValueOnce(steering);
+    mockParseSteeringIntent.mockResolvedValueOnce({});
+
+    await executeMission({ missionId: 'mission-1' });
+
+    expect(mockMarkSteeringApplied).toHaveBeenCalledWith(expect.anything(), 'steering-2');
+    expect(mockUpdateMissionInput).not.toHaveBeenCalled();
+  });
+
+  it('does not mark steering applied when parse returns null (retry on next step)', async () => {
+    const steering = {
+      id: 'steering-3',
+      mission_id: 'mission-1',
+      raw_input: 'gibberish',
+      parsed_intent: null,
+      applied_at: null,
+      created_at: '2026-03-12T00:00:00Z',
+    } as any;
+
+    mockGetMission.mockResolvedValue(baseMission());
+    mockGetDefinition.mockReturnValue({
+      type: 'housing_search',
+      steps: [makeStep('only')],
+    });
+    mockGetLatestSteering.mockResolvedValue(steering);
+    mockParseSteeringIntent.mockResolvedValue(null);
+
+    await executeMission({ missionId: 'mission-1' });
+
+    expect(mockMarkSteeringApplied).not.toHaveBeenCalled();
+    // Mission still completes normally
+    expect(mockUpdateStatus).toHaveBeenCalledWith(expect.anything(), 'mission-1', 'completed');
+  });
+
+  it('does not kill mission when getLatestSteering throws', async () => {
+    mockGetMission.mockResolvedValue(baseMission());
+    mockGetDefinition.mockReturnValue({
+      type: 'housing_search',
+      steps: [makeStep('only')],
+    });
+    mockGetLatestSteering.mockRejectedValue(new Error('DB connection lost'));
+
+    await executeMission({ missionId: 'mission-1' });
+
+    // Mission completes despite steering DB error
+    expect(mockUpdateStatus).toHaveBeenCalledWith(expect.anything(), 'mission-1', 'completed');
+    expect(mockUpdateStatus).not.toHaveBeenCalledWith(expect.anything(), 'mission-1', 'failed');
+  });
+
+  it('applies steering only once across multiple steps', async () => {
+    const steering = {
+      id: 'steering-4',
+      mission_id: 'mission-1',
+      raw_input: 'max $1300',
+      parsed_intent: null,
+      applied_at: null,
+      created_at: '2026-03-12T00:00:00Z',
+    } as any;
+
+    mockGetMission.mockResolvedValue(baseMission());
+    mockGetDefinition.mockReturnValue({
+      type: 'housing_search',
+      steps: [makeStep('s1'), makeStep('s2'), makeStep('s3')],
+    });
+    // Return steering after step 1, then null for steps 2 and 3
+    mockGetLatestSteering
+      .mockResolvedValueOnce(steering)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    mockParseSteeringIntent.mockResolvedValueOnce({ maxRent: 1300 });
+
+    await executeMission({ missionId: 'mission-1' });
+
+    expect(mockMarkSteeringApplied).toHaveBeenCalledTimes(1);
+    expect(mockUpdateMissionInput).toHaveBeenCalledTimes(1);
   });
 });
