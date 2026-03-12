@@ -29,3 +29,4 @@ export {
   getCampusSlug,
 } from './mission-repository';
 export type { InsertLogParams, InsertDraftParams, InsertSteeringParams } from './mission-repository';
+export { tourOutreachDefinition } from './tour-outreach-mission';

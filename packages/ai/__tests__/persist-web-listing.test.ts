@@ -13,7 +13,8 @@ function createMockSupabase() {
   const singleFn = vi.fn();
   const selectFn = vi.fn().mockReturnValue({ single: singleFn });
   const upsertFn = vi.fn().mockReturnValue({ select: selectFn });
-  const eqFn = vi.fn();
+  const notFn = vi.fn().mockResolvedValue({ error: null });
+  const eqFn = vi.fn().mockReturnValue({ not: notFn });
   const updateFn = vi.fn().mockReturnValue({ eq: eqFn });
   const fromFn = vi.fn().mockImplementation((table: string) => {
     if (table === 'listings') {
@@ -32,6 +33,7 @@ function createMockSupabase() {
     singleFn,
     updateFn,
     eqFn,
+    notFn,
   };
 }
 
@@ -59,7 +61,6 @@ describe('persistWebListing', () => {
       data: { id: 'new-listing-uuid' },
       error: null,
     });
-    mock.eqFn.mockResolvedValue({ error: null });
 
     const result = await persistWebListing(
       {
@@ -80,7 +81,6 @@ describe('persistWebListing', () => {
       data: { id: 'new-listing-uuid' },
       error: null,
     });
-    mock.eqFn.mockResolvedValue({ error: null });
 
     await persistWebListing(
       {
@@ -93,6 +93,7 @@ describe('persistWebListing', () => {
 
     expect(mock.updateFn).toHaveBeenCalledWith({ last_embedded_at: null });
     expect(mock.eqFn).toHaveBeenCalledWith('id', 'new-listing-uuid');
+    expect(mock.notFn).toHaveBeenCalledWith('last_embedded_at', 'is', null);
   });
 
   it('returns null and does not throw when upsert fails', async () => {
@@ -155,6 +156,7 @@ describe('persistWebListing', () => {
 
     expect(mock.upsertFn).toHaveBeenCalledWith(
       {
+        external_id: 'https://zillow.com/listing/789',
         address: '456 Campus Dr',
         source: 'web_search',
         source_url: 'https://zillow.com/listing/789',
@@ -164,7 +166,7 @@ describe('persistWebListing', () => {
         is_active: true,
         raw_data: { web_content: 'Cozy studio apartment' },
       },
-      { onConflict: 'source,source_url' },
+      { onConflict: 'external_id,source' },
     );
   });
 });
