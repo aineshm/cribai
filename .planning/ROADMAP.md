@@ -4,7 +4,7 @@
 
 - ✅ **v1.0 CampusNest MVP** — Phases 1-9 (shipped 2026-03-10)
 - ✅ **v1.1 UI/UX Upgrade** — Phases 10-24 (shipped 2026-03-12)
-- 📋 **v1.2** — planned
+- 🚧 **v2.0 Agent Platform** — Phases 25-29 (in progress, target Spring 2026)
 
 ## Phases
 
@@ -47,9 +47,72 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 
 </details>
 
-### v1.2 (Planned)
+### v2.0 Agent Platform (Phases 25-29)
 
-Next milestone — define requirements with `/gsd:new-milestone`.
+Goal: Transform CribAI from a chatbot into a genuine housing lifecycle agent.
+
+- [ ] **Phase 25: Wire Real Data + Tech Debt Clearance**
+- [ ] **Phase 26: MissionExecutor Core + API Routes**
+- [ ] **Phase 27: Housing Search Mission**
+- [ ] **Phase 28: Tour Outreach Mission**
+- [ ] **Phase 29: Chat-to-Mission Bridge + Concierge UI Wiring**
+
+### Phase 25: Wire Real Data + Tech Debt Clearance
+**Goal**: Kill all mock data, fix typecheck baseline, provision API keys — give Phase 26 a clean foundation with real data
+**Depends on**: Phase 24
+**Requirements**: V2-DATA-01, V2-DATA-02, V2-DATA-03, V2-DATA-04, V2-DATA-05
+**Success Criteria**:
+  1. /explore renders real listings from Supabase (no mockListings)
+  2. Profile saved tab shows real saved_listings from DB
+  3. Post sublease wizard persists to DB and redirects on success
+  4. campusSlug exposed on ChatContextValue
+  5. pnpm build exits zero with no typecheck errors
+
+### Phase 26: MissionExecutor Core + API Routes
+**Goal**: Sequential async mission runner with DB state persistence and all CRUD API routes
+**Depends on**: Phase 25
+**Requirements**: V2-EXEC-01, V2-EXEC-02, V2-EXEC-03
+**Success Criteria**:
+  1. POST /api/missions creates mission record and fires executor via after()
+  2. Executor loop runs steps, logs to mission_logs, handles errors with fail-safe
+  3. GET /api/missions returns user's missions; GET /api/missions/[id] returns detail + logs
+  4. HITL pause: executor sets status to awaiting_approval and returns when draft generated
+  5. pnpm build exits zero
+
+### Phase 27: Housing Search Mission
+**Goal**: End-to-end housing search pipeline — search → research top 5 → rank → shortlist report in Concierge UI
+**Depends on**: Phase 26
+**Requirements**: V2-HSM-01, V2-HSM-02, V2-HSM-03
+**Success Criteria**:
+  1. Housing search mission runs all steps (search, research, rank, report) via MissionExecutor
+  2. Each listing researched: Google Places reviews + Walk Score + fairness score + true cost
+  3. Shortlist rendered in Concierge UI as structured result card
+  4. Composite ranking score computed from 4 weighted dimensions
+  5. pnpm build exits zero
+
+### Phase 28: Tour Outreach Mission
+**Goal**: Draft personalized tour request emails, HITL approval gate, send via Resend API
+**Depends on**: Phase 26
+**Requirements**: V2-TOUR-01, V2-TOUR-02, V2-TOUR-03
+**Success Criteria**:
+  1. Tour outreach mission generates Gemini-drafted email per selected listing
+  2. Drafts shown in Concierge UI with edit/approve/reject per email
+  3. Approved drafts sent via Resend API; mission_draft marked approved
+  4. Rejected drafts marked rejected; student can restart with custom note
+  5. pnpm build exits zero
+
+### Phase 29: Chat-to-Mission Bridge + Concierge UI Wiring
+**Goal**: CribAI detects housing search intent and proposes mission creation; Concierge UI wired to real mission data with live Supabase Realtime updates
+**Depends on**: Phase 27, Phase 28
+**Requirements**: V2-BRIDGE-01, V2-BRIDGE-02, V2-BRIDGE-03, V2-CONCIERGE-01, V2-CONCIERGE-02
+**Success Criteria**:
+  1. CribAI detects housing search intent with confidence > 0.75 and proposes mission in chat
+  2. Student confirms in chat → mission created → executor fires in background
+  3. Concierge sidebar shows real missions from DB (no mock-missions.ts)
+  4. Mission status, logs, and drafts update live via Supabase Realtime without page refresh
+  5. SteeringBar wired to POST /api/missions/[id]/steer
+  6. HITL draft approval/rejection wired to draft approve/reject API routes
+  7. pnpm build exits zero
 
 ## Progress
 
@@ -57,3 +120,4 @@ Next milestone — define requirements with `/gsd:new-milestone`.
 |-------|-----------|-------|--------|-----------|
 | 1-9 (9 phases) | v1.0 | 29/29 | Complete | 2026-03-10 |
 | 10-24 (13 phases) | v1.1 | 17/17 GSD plans | Complete | 2026-03-12 |
+| 25-29 (5 phases) | v2.0 | 0/0 | In Progress | — |
