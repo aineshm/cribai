@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { staggerContainer, staggerItem, springConfig } from '@/lib/animations';
 import { useChatContext } from './ChatProvider';
+import { MissionProposalCard } from './MissionProposalCard';
 
 const suggestedPrompts = [
   'Find me a 2BR under $1,500',
@@ -115,30 +116,34 @@ export function AIChatPanel() {
               </motion.div>
             </motion.div>
           ) : (
-            /* Messages */
-            <AnimatePresence>
-              {messages.map((message) => (
-                <motion.div
-                  key={message.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={springConfig.gentle}
-                  className={`flex ${
-                    message.role === 'user' ? 'justify-end' : 'justify-start'
-                  }`}
-                >
-                  <div
-                    className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${
-                      message.role === 'user'
-                        ? 'bg-[var(--primary-700)] text-white rounded-br-md'
-                        : 'bg-[var(--surface-100)] text-foreground rounded-bl-md'
+            /* Messages + mission proposal */
+            <>
+              <AnimatePresence>
+                {messages.map((message) => (
+                  <motion.div
+                    key={message.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={springConfig.gentle}
+                    className={`flex ${
+                      message.role === 'user' ? 'justify-end' : 'justify-start'
                     }`}
                   >
-                    {message.content}
-                  </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
+                    <div
+                      className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${
+                        message.role === 'user'
+                          ? 'bg-[var(--primary-700)] text-white rounded-br-md'
+                          : 'bg-[var(--surface-100)] text-foreground rounded-bl-md'
+                      }`}
+                    >
+                      {message.content}
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+              {/* Mission proposal card — rendered after message list */}
+              <MissionProposalCard />
+            </>
           )}
         </div>
 

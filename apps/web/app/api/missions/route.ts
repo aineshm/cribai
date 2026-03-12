@@ -4,6 +4,10 @@
  * POST creates a new mission row and fires the executor asynchronously
  * via Next.js `after()`. GET returns the authenticated user's missions
  * ordered by most recently updated.
+ *
+ * The POST body accepts either `campusId` (UUID) or `campus_slug` (string).
+ * When only `campus_slug` is provided the route resolves the UUID via a
+ * campus_configs lookup before inserting.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -14,15 +18,41 @@ import { isDevAuthEnabled } from '../../../lib/dev-auth';
 import { executeMission } from '@campusnest/ai';
 import { resolveMissionAuth, getQueryClient } from './_helpers';
 
+/** Accept either a UUID campusId or a campus_slug string. */
 const createBodySchema = z.object({
   type: z.string().min(1),
   title: z.string().min(1).max(200),
   goal: z.string().min(1).max(1000),
-  campusId: z.string().uuid(),
+  /** Direct campus UUID — takes precedence over campus_slug. */
+  campusId: z.string().uuid().optional(),
+  /** Human-readable campus slug — used when campusId is not provided. */
+  campus_slug: z.string().min(1).max(100).optional(),
   input: z.record(z.unknown()).optional().default({}),
   listingId: z.string().uuid().optional(),
   idempotencyKey: z.string().max(200).optional(),
-});
+}).refine(
+  (data) => data.campusId !== undefined || data.campus_slug !== undefined,
+  { message: 'Either campusId or campus_slug must be provided' }
+);
+
+/**
+ * Resolve a campus UUID from a slug.
+ * Returns null when no matching row is found.
+ */
+async function resolveCampusId(
+  supabase: ReturnType<typeof import('@campusnest/supabase/server').createServerComponentClient>,
+  slug: string,
+): Promise<string | null> {
+  const queryClient = getQueryClient(supabase);
+  const { data, error } = await queryClient
+    .from('campus_configs')
+    .select('id')
+    .eq('slug', slug)
+    .single();
+
+  if (error || !data) return null;
+  return (data as { id: string }).id;
+}
 
 /** POST /api/missions — create a mission and fire the executor. */
 export async function POST(request: NextRequest) {
@@ -42,7 +72,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { type, title, goal, campusId, input, listingId, idempotencyKey } = parsed.data;
+  const { type, title, goal, campusId, campus_slug, input, listingId, idempotencyKey } = parsed.data;
+
+  // Resolve campus UUID — prefer explicit campusId, fall back to slug lookup
+  let resolvedCampusId = campusId;
+  if (!resolvedCampusId && campus_slug) {
+    const lookedUp = await resolveCampusId(supabase, campus_slug);
+    if (!lookedUp) {
+      return NextResponse.json(
+        { error: `Campus not found for slug: ${campus_slug}` },
+        { status: 404 },
+      );
+    }
+    resolvedCampusId = lookedUp;
+  }
 
   // Dev mode bypasses RLS — use service-role client for writes
   const writeClient = isDevAuthEnabled() ? createSecretClient() as any : supabase;
@@ -54,7 +97,7 @@ export async function POST(request: NextRequest) {
       type,
       title,
       goal,
-      campus_id: campusId,
+      campus_id: resolvedCampusId,
       input,
       status: 'pending',
       listing_id: listingId ?? null,

@@ -38,6 +38,12 @@ vi.mock('@/components/chat/ChatProvider', () => ({
   ChatProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+// Mock MainLayoutClient — bridges ConciergeContext into ChatProvider.
+// In unit tests we stub this to avoid the useConcierge() dependency.
+vi.mock('@/components/layout/MainLayoutClient', () => ({
+  MainLayoutClient: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 const mockFrom = vi.fn(() => ({
   select: vi.fn().mockReturnThis(),
   order: vi.fn().mockReturnThis(),
