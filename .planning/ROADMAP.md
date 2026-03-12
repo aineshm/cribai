@@ -190,7 +190,36 @@ Plans:
 - [ ] 22-01-PLAN.md — Delete design-tokens.ts and verify build passes
 - [ ] 22-02-PLAN.md — Make ChatProvider campus-aware via campusSlug prop injection from campus layout
 
+### Phase 23: Chat Campus Context + Profile Persistence
+**Goal**: Fix the two broken E2E flows — give the root-layout ChatProvider a valid campusSlug (derived from user profile or a sensible default) so Explore page and Listing Detail chat work, and persist ProfileSetup data to Supabase so onboarding profile step is not a dead end.
+**Depends on**: Phase 22, Phase 19
+**Requirements**: EXPL-04, DETAIL-05, AUTH-05
+**Gap Closure**: Closes integration gaps from v1.1 milestone audit (2026-03-12)
+**Success Criteria** (what must be TRUE):
+  1. Explore page AIChatPanel sends a valid campusSlug to /api/ai/cribai and receives a successful response (not 404)
+  2. Listing Detail MobileBottomBar Chat button opens AIChatPanel that sends a valid campusSlug and receives a successful response
+  3. ProfileSetup handleProfileComplete persists firstName, university, and graduationYear to Supabase user metadata
+  4. After onboarding, /profile page displays the persisted name and university (not email-derived defaults)
+  5. Unit tests cover campusSlug derivation and profile persistence
+**Plans:** TBD
+
+### Phase 24: Listing AI Summary + Verification Sweep
+**Goal**: Add the missing AI-generated lease summary section to the listing detail page, run formal verification for phases 10-15 and 18 to close the 23-requirement verification gap, and update REQUIREMENTS.md traceability table to reflect current state.
+**Depends on**: Phase 23
+**Requirements**: DETAIL-03, DESIGN-01, DESIGN-02, DESIGN-04, COMPAT-01, LAND-02, LAND-03, AUTH-05, EXPL-01, EXPL-02, EXPL-03, EXPL-05, DETAIL-01, DETAIL-02, DETAIL-04, POST-02, POST-03, PROF-03, AGENT-02, AGENT-03, AGENT-04, AGENT-05, AGENT-06
+**Gap Closure**: Closes verification gaps from v1.1 milestone audit (2026-03-12)
+**Success Criteria** (what must be TRUE):
+  1. ListingContent renders an AI lease summary section with key lease terms extracted from listing data
+  2. DetailedListing type includes an aiSummary or leaseSummary field
+  3. VERIFICATION.md exists for phases 10, 11, 13, 14, 15, and 18
+  4. All 23 previously-unverified requirements confirmed as satisfied or gaps identified
+  5. REQUIREMENTS.md traceability table reflects current status for all 34 v1.1 requirements
+**Plans:** TBD
+
 ## Progress
+
+**Execution Order:**
+Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 18 → 19 → 20 → 21 → 22 → 23 → 24
 
 **Execution Order:**
 Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 18 → 19 → 20 → 21 → 22
@@ -217,3 +246,5 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 18 �
 | 20. Concierge Mount + Design Cleanup | 2/2 | Complete    | 2026-03-11 | - |
 | 21. App Navigation + Auth State | 2/2 | Complete    | 2026-03-12 | - |
 | 22. Token Cleanup + Chat Multi-Campus | 2/2 | Complete    | 2026-03-12 | - |
+| 23. Chat Campus Context + Profile Persistence | 0/TBD | Not started | - | - |
+| 24. Listing AI Summary + Verification Sweep | 0/TBD | Not started | - | - |
