@@ -126,15 +126,36 @@ export function AuthForm() {
     handleVerifyOtp();
   }
 
-  function handleProfileComplete(_profile: { firstName: string; university: string; graduationYear: string }) {
-    // Profile data could be saved to Supabase user metadata here in the future
+  const handleProfileComplete = useCallback(async (profile: {
+    firstName: string;
+    university: string;
+    graduationYear: string;
+  }) => {
+    setLoading(true);
+    setError(null);
+
+    const supabase = createClient();
+    const { error: updateError } = await supabase.auth.updateUser({
+      data: {
+        full_name: profile.firstName,
+        university: profile.university,
+        graduation_year: profile.graduationYear,
+      },
+    });
+
+    if (updateError) {
+      setError(updateError.message);
+      setLoading(false);
+      return;
+    }
+
     const returnTo = searchParams.get('returnTo');
     const destination =
       returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//')
         ? returnTo
         : '/explore';
     router.push(destination);
-  }
+  }, [searchParams, router]);
 
   return (
     <div className="w-full max-w-sm">

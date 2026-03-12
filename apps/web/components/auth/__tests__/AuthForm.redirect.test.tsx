@@ -95,6 +95,7 @@ vi.mock('@campusnest/supabase/client', () => ({
     auth: {
       signInWithOtp: mockSignInWithOtp,
       verifyOtp: mockVerifyOtp,
+      updateUser: vi.fn().mockResolvedValue({ error: null }),
     },
   }),
 }));
@@ -147,7 +148,9 @@ describe('AuthForm — post-auth redirect', () => {
     const completeBtn = screen.getByTestId('complete-profile-btn');
     fireEvent.click(completeBtn);
 
-    expect(mockPush).toHaveBeenCalledWith('/explore');
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/explore');
+    });
   });
 
   it('redirects to returnTo path when valid relative path is provided', async () => {
@@ -158,7 +161,9 @@ describe('AuthForm — post-auth redirect', () => {
     const completeBtn = screen.getByTestId('complete-profile-btn');
     fireEvent.click(completeBtn);
 
-    expect(mockPush).toHaveBeenCalledWith('/profile');
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/profile');
+    });
   });
 
   it('redirects to /explore when returnTo is an open redirect attempt (//evil.com)', async () => {
@@ -169,6 +174,8 @@ describe('AuthForm — post-auth redirect', () => {
     const completeBtn = screen.getByTestId('complete-profile-btn');
     fireEvent.click(completeBtn);
 
-    expect(mockPush).toHaveBeenCalledWith('/explore');
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/explore');
+    });
   });
 });
