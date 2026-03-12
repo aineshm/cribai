@@ -15,6 +15,8 @@ export interface DetailedListing {
   readonly description: string;
   readonly amenities: readonly AmenityItem[];
   readonly leaseSummary: LeaseSummary;
+  // AI-generated plain-language lease summary
+  readonly aiSummary?: string;
   readonly commuteDistances: readonly CommuteDistance[];
   readonly reviews: readonly Review[];
   readonly landlord: LandlordInfo;
@@ -165,6 +167,8 @@ export const MOCK_LISTING_DETAIL: DetailedListing = {
     utilitiesIncluded: ['Water', 'Trash', 'Internet'],
     utilitiesTenantPaid: ['Electricity', 'Gas'],
   },
+  aiSummary:
+    "This is a standard 12-month lease with utilities split between tenants. The no-subletting clause requires landlord approval. Security deposit is one month's rent, refundable within 21 days of move-out. Pet policy allows cats and small dogs under 25 lbs with a $300 non-refundable pet deposit.",
   commuteDistances: MOCK_COMMUTE,
   reviews: MOCK_REVIEWS,
   landlord: {
