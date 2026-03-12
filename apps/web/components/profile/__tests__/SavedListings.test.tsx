@@ -36,15 +36,11 @@ describe('SavedListings', () => {
     expect(links[2]).toHaveAttribute('href', '/listing/3');
   });
 
-  it('renders the default demo listings when no listings prop is provided', () => {
+  it('renders empty state when no listings prop is provided', () => {
     render(<SavedListings />);
 
-    const links = screen.getAllByRole('link');
-    expect(links).toHaveLength(3);
-    // All hrefs match the /listing/{id} pattern
-    links.forEach((link) => {
-      expect(link.getAttribute('href')).toMatch(/^\/listing\/.+/);
-    });
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.getByText('No saved listings yet')).toBeInTheDocument();
   });
 
   it('renders empty state without links when listings array is empty', () => {

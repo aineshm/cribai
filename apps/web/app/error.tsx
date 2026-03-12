@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect } from 'react';
 
 export default function GlobalError({
@@ -44,12 +45,12 @@ export default function GlobalError({
           >
             Try again
           </button>
-          <a
+          <Link
             href="/"
             className="rounded-xl border border-[var(--surface-200)] px-5 py-2.5 text-sm font-medium text-[var(--surface-600)] hover:bg-[var(--surface-50)] transition-colors"
           >
             Go home
-          </a>
+          </Link>
         </div>
       </div>
     </div>
