@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: UI/UX Upgrade
-status: archived
-stopped_at: Milestone archived 2026-03-12
-last_updated: "2026-03-12"
-last_activity: 2026-03-12 -- v1.1 milestone archived, tagged v1.1
+milestone: v2.0
+milestone_name: Agent Platform
+status: completed
+stopped_at: Completed Phase 29 Plan 01 - intent classifier + ChatEvent mission events
+last_updated: "2026-03-12T17:19:57.197Z"
+last_activity: 2026-03-11 -- Completed 20-01 (main)/layout.tsx with ConciergeShell + ConciergeNavButton
 progress:
-  total_phases: 13
-  completed_phases: 13
-  total_plans: 17
-  completed_plans: 17
-  percent: 100
+  total_phases: 5
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 1
+  percent: 50
 ---
 
 # Project State
@@ -65,6 +65,7 @@ Progress: [█████░░░░░] 50%  (v1.2: 4/8 plans)
 | Phase 24-listing-ai-summary-verification-sweep P01 | 8min | 2 tasks | 4 files |
 | Phase 23-chat-campus-context-profile-persistence P02 | 7min | 2 tasks | 3 files |
 | Phase 24 P03 | 15min | 3 tasks | 4 files |
+| Phase 29 P01 | 12min | 6 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -119,6 +120,9 @@ Recent decisions affecting v1.2 work:
 - [Phase 23-02]: redirect tests required waitFor upgrade after handleProfileComplete became async — synchronous expect(mockPush) fired before promise resolved
 - [Phase 24]: REQUIREMENTS.md updated atomically — all 34 v1.1 requirements now Satisfied, verification sweep complete
 - [Phase 24]: Phase 24-03: ProfilePage.test.tsx framer-motion layoutId failures are known test infrastructure limitation, not a PROF-02 gap
+- [Phase 29]: Intent classifier uses JSON mode only (no tools) — Gemini cannot combine responseMimeType + tools config
+- [Phase 29]: classifyIntent never throws — all errors return FALLBACK (general_chat, confidence 0)
+- [Phase 29]: mission_proposal SSE emitted only when confidence > 0.75 and intent != general_chat
 
 ### Pending Todos
 
@@ -133,7 +137,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T03:31:34.153Z
-Stopped at: Completed 24-03-PLAN.md
+Last session: 2026-03-12T17:19:49.044Z
+Stopped at: Completed Phase 29 Plan 01 - intent classifier + ChatEvent mission events
 Resume file: None
 Next: Plan 20-02 (design cleanup)
