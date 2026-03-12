@@ -1,17 +1,28 @@
 'use client';
 
+/**
+ * ExecutionLogs — collapsible list of mission step logs.
+ *
+ * Renders a timeline of execution log entries with colour-coded status dots.
+ * Collapsed by default; expands with an animated accordion on click.
+ * Used inside MissionDetail to show per-step progress to the user.
+ */
+
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown } from 'lucide-react';
 import { slideInFromBottom } from '@/lib/animations';
 import type { ExecutionLog, ExecutionLogStatus } from '@/lib/concierge-types';
 
+/** Maps each log status to a Tailwind background colour for the timeline dot. */
 const LOG_STATUS_COLORS: Record<ExecutionLogStatus, string> = {
   success: 'bg-green-500',
   pending: 'bg-amber-500',
   error: 'bg-red-500',
+  running: 'bg-blue-500',
 };
 
+/** Formats an ISO timestamp to HH:MM:SS local time for display in the log list. */
 function formatLogTime(timestamp: string): string {
   return new Date(timestamp).toLocaleTimeString([], {
     hour: '2-digit',
@@ -24,6 +35,7 @@ interface ExecutionLogsProps {
   readonly logs: readonly ExecutionLog[];
 }
 
+/** Collapsible accordion that renders the full mission execution log timeline. */
 export function ExecutionLogs({ logs }: ExecutionLogsProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -63,9 +75,11 @@ export function ExecutionLogs({ logs }: ExecutionLogsProps) {
                   className="flex gap-3"
                 >
                   <div className="flex flex-col items-center pt-1.5">
+                    {/* Coloured dot indicating step status */}
                     <span
                       className={`size-2 rounded-full flex-shrink-0 ${LOG_STATUS_COLORS[log.status]}`}
                     />
+                    {/* Vertical connector line between entries — omitted for last item */}
                     {index < logs.length - 1 && (
                       <div className="mt-1 w-px flex-1 bg-border" />
                     )}
