@@ -403,27 +403,29 @@ describe('ExecutionLogs (AGENT-03)', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('SteeringBar (AGENT-04)', () => {
+  const defaultProps = { missionId: 'test-mission-id' };
+
   it('renders the text input with placeholder', () => {
-    render(<SteeringBar />);
+    render(<SteeringBar {...defaultProps} />);
     const input = screen.getByTestId('input');
     expect(input).toBeInTheDocument();
     expect(input).toHaveAttribute('placeholder', 'Tell the agent what to do next...');
   });
 
   it('renders the send button', () => {
-    render(<SteeringBar />);
+    render(<SteeringBar {...defaultProps} />);
     const button = screen.getByRole('button');
     expect(button).toBeInTheDocument();
   });
 
   it('send button is disabled when input is empty', () => {
-    render(<SteeringBar />);
+    render(<SteeringBar {...defaultProps} />);
     const button = screen.getByRole('button');
     expect(button).toBeDisabled();
   });
 
   it('send button is enabled when input has non-whitespace text', () => {
-    render(<SteeringBar />);
+    render(<SteeringBar {...defaultProps} />);
     const input = screen.getByTestId('input');
     fireEvent.change(input, { target: { value: 'Focus on 2BR apartments only' } });
     const button = screen.getByRole('button');
@@ -431,7 +433,7 @@ describe('SteeringBar (AGENT-04)', () => {
   });
 
   it('send button remains disabled when input contains only whitespace', () => {
-    render(<SteeringBar />);
+    render(<SteeringBar {...defaultProps} />);
     const input = screen.getByTestId('input');
     fireEvent.change(input, { target: { value: '   ' } });
     const button = screen.getByRole('button');
@@ -441,7 +443,7 @@ describe('SteeringBar (AGENT-04)', () => {
   it('the send button is a submit-type button inside a form', () => {
     // Structural contract: SteeringBar renders a <form> with a submit button,
     // so the browser's native form submission (Enter key) is supported.
-    const { container } = render(<SteeringBar />);
+    const { container } = render(<SteeringBar {...defaultProps} />);
     const form = container.querySelector('form');
     expect(form).toBeInTheDocument();
 
