@@ -185,7 +185,7 @@ Plans:
   2. No duplicate token values exist between design-tokens.ts and globals.css (single source of truth)
   3. ChatProvider derives campusSlug from user profile or route context (not hardcoded)
   4. CribAI chat sends correct campus context for the authenticated user's campus
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 22-01-PLAN.md — Delete design-tokens.ts and verify build passes
 - [ ] 22-02-PLAN.md — Make ChatProvider campus-aware via campusSlug prop injection from campus layout
@@ -216,4 +216,4 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 18 �
 | 19. Auth Flow + Route Protection | 2/2 | Complete    | 2026-03-11 | - |
 | 20. Concierge Mount + Design Cleanup | 2/2 | Complete    | 2026-03-11 | - |
 | 21. App Navigation + Auth State | v1.1 | 0/2 | Not started | - |
-| 22. Token Cleanup + Chat Multi-Campus | 1/2 | In Progress|  | - |
+| 22. Token Cleanup + Chat Multi-Campus | 2/2 | Complete   | 2026-03-12 | - |

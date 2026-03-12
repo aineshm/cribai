@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: UI/UX Upgrade
 status: completed
-stopped_at: Completed 22-01-PLAN.md
-last_updated: "2026-03-12T01:08:45.161Z"
+stopped_at: Completed 22-02-PLAN.md
+last_updated: "2026-03-12T01:12:57.857Z"
 last_activity: 2026-03-11 -- Completed 20-01 (main)/layout.tsx with ConciergeShell + ConciergeNavButton
 progress:
   total_phases: 11
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 10
-  completed_plans: 7
+  completed_plans: 8
   percent: 50
 ---
 
@@ -57,6 +57,7 @@ Progress: [█████░░░░░] 50%  (v1.2: 4/8 plans)
 | Phase 18 P01 | 8 | 2 tasks | 7 files |
 | Phase 18-explore-page-wiring P02 | 12 | 3 tasks | 9 files |
 | Phase 22-token-cleanup-chat-multi-campus P01 | 1 | 2 tasks | 1 files |
+| Phase 22-token-cleanup-chat-multi-campus P02 | 2min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -96,6 +97,8 @@ Recent decisions affecting v1.2 work:
 - [Phase 18-02]: Pre-existing test failures in freshness-badge, map-block, ProfilePage are out of scope for plan 18-02
 - [Phase 22-01]: Deleted design-tokens.ts without replacement — globals.css @theme inline is the sole design token source (DESIGN-05)
 - [Phase 22-01]: No TypeScript bridge needed — Tailwind utility classes generated from @theme inline block at build time
+- [Phase 22]: ChatProvider uses explicit campusSlug prop (not useCampus hook) — hook throws outside campus route tree
+- [Phase 22]: Campus layout mounts inner ChatProvider with real slug; root layout ChatProvider with empty string covers explore page (innermost-wins pattern)
 
 ### Pending Todos
 
@@ -110,7 +113,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T01:08:45.158Z
-Stopped at: Completed 22-01-PLAN.md
+Last session: 2026-03-12T01:12:57.855Z
+Stopped at: Completed 22-02-PLAN.md
 Resume file: None
 Next: Plan 20-02 (design cleanup)
