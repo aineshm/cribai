@@ -1,10 +1,11 @@
 ---
 phase: 23
 slug: chat-campus-context-profile-persistence
-status: draft
+status: audited
 nyquist_compliant: true
 wave_0_complete: true
 created: 2026-03-12
+audited: 2026-03-12
 ---
 
 # Phase 23 — Validation Strategy
@@ -38,10 +39,10 @@ created: 2026-03-12
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 23-01-01 | 01 | 1 | EXPL-04, DETAIL-05 | unit | `pnpm --filter web test --run -- components/chat/__tests__/ChatProvider` | ✅ existing | ⬜ pending |
-| 23-01-02 | 01 | 1 | EXPL-04, DETAIL-05 | unit | `pnpm --filter web test --run -- app/__tests__/main-layout` | ✅ existing | ⬜ pending |
-| 23-02-01 | 02 | 2 | AUTH-05 | unit | `pnpm --filter web test --run -- components/auth/__tests__/AuthForm` | ✅ existing | ⬜ pending |
-| 23-02-02 | 02 | 2 | AUTH-05 | unit | `pnpm --filter web test --run -- components/auth/__tests__/AuthForm.persist` | ❌ W0 | ⬜ pending |
+| 23-01-01 | 01 | 1 | EXPL-04, DETAIL-05 | unit | `pnpm --filter web test -- components/chat/__tests__/ChatProvider` | ✅ existing | ✅ green |
+| 23-01-02 | 01 | 1 | EXPL-04, DETAIL-05 | unit | `pnpm --filter web test -- app/__tests__/main-layout` | ✅ existing | ✅ green |
+| 23-02-01 | 02 | 2 | AUTH-05 | unit | `pnpm --filter web test -- components/auth/__tests__/AuthForm` | ✅ existing | ✅ green |
+| 23-02-02 | 02 | 2 | AUTH-05 | unit | `pnpm --filter web test -- components/auth/__tests__/AuthForm.persist` | ✅ created | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -49,9 +50,9 @@ created: 2026-03-12
 
 ## Wave 0 Requirements
 
-- [ ] `apps/web/components/auth/__tests__/AuthForm.persist.test.tsx` — stubs for AUTH-05 profile persistence
+- [x] `apps/web/components/auth/__tests__/AuthForm.persist.test.tsx` — 4 tests covering AUTH-05 profile persistence (✅ green)
 
-*Existing infrastructure covers all other phase requirements.*
+*All phase requirements covered.*
 
 ---
 
@@ -75,3 +76,15 @@ created: 2026-03-12
 - [x] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** approved 2026-03-12
+
+---
+
+## Validation Audit 2026-03-12
+
+| Metric | Count |
+|--------|-------|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+
+All 4 tasks verified green. Wave 0 file (`AuthForm.persist.test.tsx`) created and passing (4/4). `main-layout.test.tsx` mock updated for `supabase.from()` + `ChatProvider`. No gaps remain.
