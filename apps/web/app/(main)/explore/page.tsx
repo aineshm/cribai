@@ -20,11 +20,15 @@ export default async function ExplorePage() {
   const { supabase } = await getCurrentUser();
 
   // Look up default campus (UW-Madison)
-  const { data: campus } = await supabase
+  const { data: campus, error: campusError } = await supabase
     .from('campus_configs')
     .select('id, name')
     .eq('slug', 'uw-madison')
     .single();
+
+  if (campusError) {
+    console.error('Failed to fetch campus config:', campusError);
+  }
 
   const campusId = campus?.id;
   const campusName = campus?.name ?? 'UW-Madison';
@@ -32,7 +36,7 @@ export default async function ExplorePage() {
   let listings: readonly Listing[] = [];
 
   if (campusId) {
-    const { data: rows } = await supabase
+    const { data: rows, error: listingsError } = await supabase
       .from('listings')
       .select(
         'id, address, rent_monthly, bedrooms, bathrooms, sqft, fairness_score, amenities, photo_urls, is_active'
@@ -40,6 +44,10 @@ export default async function ExplorePage() {
       .eq('campus_id', campusId)
       .eq('is_active', true)
       .order('rent_monthly', { ascending: true });
+
+    if (listingsError) {
+      console.error('Failed to fetch listings:', listingsError);
+    }
 
     listings = (rows ?? []).map((row, i): Listing => {
       const beds = row.bedrooms ?? 0;

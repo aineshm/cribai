@@ -66,10 +66,13 @@ export default async function ProfilePage() {
       bedrooms: number | null;
       photo_urls: string[] | null;
     } | null;
-    const beds = listing?.bedrooms ?? 0;
-    const title = beds === 0
-      ? `Studio at ${listing?.address ?? 'Unknown'}`
-      : `${beds}BR at ${listing?.address ?? 'Unknown'}`;
+    const beds = listing?.bedrooms;
+    const addr = listing?.address ?? 'Unknown';
+    const title = beds === null || beds === undefined
+      ? `Listing at ${addr}`
+      : beds === 0
+        ? `Studio at ${addr}`
+        : `${beds}BR at ${addr}`;
     const photoUrls = listing?.photo_urls ?? [];
     return {
       id: listing?.id ?? row.listing_id,

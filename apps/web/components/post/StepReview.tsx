@@ -56,6 +56,9 @@ export function StepReview({ formData, userEmail }: StepReviewProps) {
     setSubmitting(true);
 
     try {
+      // Note: propertyType, furnished, parking, floorLevel, and photos
+      // are not yet in the listingSubmissionSchema or DB columns.
+      // Photos will need a separate upload flow (Supabase Storage).
       const body = {
         address: formData.address,
         rent_monthly: Number(formData.monthlyRent),
