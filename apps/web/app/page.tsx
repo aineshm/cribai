@@ -1,6 +1,6 @@
-'use client';
-
 import Link from 'next/link';
+import { cookies, headers } from 'next/headers';
+import { createServerComponentClient } from '@campusnest/supabase/server';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Hero } from '@/components/landing/Hero';
@@ -11,7 +11,23 @@ import { FooterCTA } from '@/components/landing/FooterCTA';
 import { Footer } from '@/components/landing/Footer';
 import { MobileStickyBar } from '@/components/landing/MobileStickyBar';
 
-export default function HomePage() {
+export default async function HomePage() {
+  const cookieStore = await cookies();
+  const supabase = createServerComponentClient(cookieStore);
+  const { data: { user } } = await supabase.auth.getUser();
+
+  let resolvedUser = user;
+  if (!resolvedUser) {
+    const headersList = await headers();
+    const devJson = headersList.get('x-dev-user-json');
+    resolvedUser = devJson ? (JSON.parse(devJson) as typeof user) : null;
+  }
+
+  const isAuthenticated = !!resolvedUser;
+
+  const navHref = isAuthenticated ? '/explore' : '/login';
+  const navText = isAuthenticated ? 'Dashboard' : 'Sign In';
+
   return (
     <div className="min-h-[100dvh] flex flex-col">
       {/* Nav */}
@@ -21,28 +37,28 @@ export default function HomePage() {
             CampusNest
           </span>
           <Link
-            href="/login"
+            href={navHref}
             className={cn(
               buttonVariants({ variant: 'default', size: 'sm' }),
               'rounded-full bg-[var(--primary-600)] text-white hover:bg-[var(--primary-700)]'
             )}
           >
-            Sign In
+            {navText}
           </Link>
         </div>
       </nav>
 
       {/* Main content */}
       <main className="flex-1">
-        <Hero />
+        <Hero isAuthenticated={isAuthenticated} />
         <SocialProof />
         <Features />
         <HowItWorks />
-        <FooterCTA />
+        <FooterCTA isAuthenticated={isAuthenticated} />
       </main>
 
       <Footer />
-      <MobileStickyBar />
+      <MobileStickyBar isAuthenticated={isAuthenticated} />
     </div>
   );
 }

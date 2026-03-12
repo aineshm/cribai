@@ -6,7 +6,14 @@ import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { staggerContainer, staggerItem } from '@/lib/animations';
 
-export function Hero() {
+interface HeroProps {
+  readonly isAuthenticated?: boolean;
+}
+
+export function Hero({ isAuthenticated = false }: HeroProps) {
+  const ctaHref = isAuthenticated ? '/explore' : '/login';
+  const ctaText = isAuthenticated ? 'Go to Dashboard' : 'Get Started Free';
+
   return (
     <section className="hero-gradient relative overflow-hidden">
       <motion.div
@@ -40,13 +47,13 @@ export function Hero() {
           id="hero-cta"
         >
           <Link
-            href="/login"
+            href={ctaHref}
             className={cn(
               buttonVariants({ variant: 'default', size: 'lg' }),
               'h-12 px-8 text-base rounded-full bg-[var(--primary-600)] text-white hover:bg-[var(--primary-700)] shadow-lg shadow-[var(--primary-600)]/20'
             )}
           >
-            Get Started Free
+            {ctaText}
           </Link>
           <Link
             href="#how-it-works"

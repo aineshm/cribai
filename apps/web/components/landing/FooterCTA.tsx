@@ -6,7 +6,14 @@ import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { fadeIn } from '@/lib/animations';
 
-export function FooterCTA() {
+interface FooterCTAProps {
+  readonly isAuthenticated?: boolean;
+}
+
+export function FooterCTA({ isAuthenticated = false }: FooterCTAProps) {
+  const ctaHref = isAuthenticated ? '/explore' : '/login';
+  const ctaText = isAuthenticated ? 'Go to Dashboard' : 'Get Started Free';
+
   return (
     <motion.section
       variants={fadeIn}
@@ -24,13 +31,13 @@ export function FooterCTA() {
           transparent housing.
         </p>
         <Link
-          href="/login"
+          href={ctaHref}
           className={cn(
             buttonVariants({ variant: 'default', size: 'lg' }),
             'mt-8 h-12 px-10 text-base rounded-full bg-white text-[var(--primary-700)] hover:bg-[var(--surface-100)] shadow-lg'
           )}
         >
-          Get Started Free
+          {ctaText}
         </Link>
       </div>
     </motion.section>
