@@ -1,3 +1,12 @@
+/**
+ * mission-types.test.ts — Zod schema validation tests for the mission type system.
+ *
+ * Verifies that all enum schemas accept valid values and reject invalid ones,
+ * that table schemas parse valid DB rows, reject extra/missing fields,
+ * and that nullable fields behave correctly. Uses strict() schemas so
+ * any unrecognised fields (e.g. mock-only camelCase fields) cause failures.
+ */
+
 import { describe, it, expect } from 'vitest';
 import {
   missionStatusSchema,
@@ -25,6 +34,8 @@ import type {
 
 describe('missionStatusSchema', () => {
   const ALL_STATUSES: readonly MissionStatus[] = [
+    'pending',
+    'running',
     'active',
     'paused',
     'waiting_approval',
@@ -34,23 +45,23 @@ describe('missionStatusSchema', () => {
     'expired',
   ];
 
-  it('accepts all 7 valid statuses', () => {
+  it('accepts all 9 valid statuses', () => {
     for (const status of ALL_STATUSES) {
       expect(missionStatusSchema.parse(status)).toBe(status);
     }
   });
 
-  it('includes paused and expired (not in mock types)', () => {
-    expect(missionStatusSchema.parse('paused')).toBe('paused');
-    expect(missionStatusSchema.parse('expired')).toBe('expired');
+  it('includes executor statuses (pending, running)', () => {
+    expect(missionStatusSchema.parse('pending')).toBe('pending');
+    expect(missionStatusSchema.parse('running')).toBe('running');
   });
 
   it('rejects invalid status', () => {
     expect(() => missionStatusSchema.parse('unknown')).toThrow();
   });
 
-  it('has exactly 7 members', () => {
-    expect(missionStatusSchema.options).toHaveLength(7);
+  it('has exactly 9 members', () => {
+    expect(missionStatusSchema.options).toHaveLength(9);
   });
 });
 
@@ -63,16 +74,18 @@ describe('missionTypeSchema', () => {
     'landlord_outreach',
     'price_negotiation',
     'listing_comparison',
+    'housing_search',
+    'tour_outreach',
   ];
 
-  it('accepts all 5 valid types', () => {
+  it('accepts all 7 valid types', () => {
     for (const type of ALL_TYPES) {
       expect(missionTypeSchema.parse(type)).toBe(type);
     }
   });
 
-  it('has exactly 5 members', () => {
-    expect(missionTypeSchema.options).toHaveLength(5);
+  it('has exactly 7 members', () => {
+    expect(missionTypeSchema.options).toHaveLength(7);
   });
 
   it('rejects invalid type', () => {
@@ -87,16 +100,17 @@ describe('draftTypeSchema', () => {
     'tour_schedule',
     'email_draft',
     'negotiation_offer',
+    'search_report',
   ];
 
-  it('accepts all 3 valid draft types', () => {
+  it('accepts all 4 valid draft types', () => {
     for (const dt of ALL_DRAFT_TYPES) {
       expect(draftTypeSchema.parse(dt)).toBe(dt);
     }
   });
 
-  it('has exactly 3 members', () => {
-    expect(draftTypeSchema.options).toHaveLength(3);
+  it('has exactly 4 members', () => {
+    expect(draftTypeSchema.options).toHaveLength(4);
   });
 });
 
@@ -132,6 +146,11 @@ describe('missionSchema', () => {
     goal: 'Schedule a tour for next week',
     listing_id: '33333333-3333-3333-3333-333333333333',
     idempotency_key: 'key-123',
+    input: { preferred_date: '2026-03-14' },
+    state: {},
+    result: null,
+    current_step_index: 0,
+    campus_id: '44444444-4444-4444-4444-444444444444',
     expires_at: '2026-03-11T09:00:00Z',
     created_at: '2026-03-10T09:00:00Z',
     updated_at: '2026-03-10T09:00:00Z',
@@ -152,10 +171,14 @@ describe('missionSchema', () => {
       ...validMission,
       listing_id: null,
       idempotency_key: null,
+      result: null,
+      campus_id: null,
       expires_at: null,
     });
     expect(result.listing_id).toBeNull();
     expect(result.idempotency_key).toBeNull();
+    expect(result.result).toBeNull();
+    expect(result.campus_id).toBeNull();
     expect(result.expires_at).toBeNull();
   });
 
@@ -305,9 +328,10 @@ describe('missionSteeringSchema', () => {
 // ─── ExecutionLogStatus enum ──────────────────────────────────────────
 
 describe('executionLogStatusSchema', () => {
-  it('accepts success, pending, error', () => {
+  it('accepts success, pending, error, running', () => {
     expect(executionLogStatusSchema.parse('success')).toBe('success');
     expect(executionLogStatusSchema.parse('pending')).toBe('pending');
     expect(executionLogStatusSchema.parse('error')).toBe('error');
+    expect(executionLogStatusSchema.parse('running')).toBe('running');
   });
 });

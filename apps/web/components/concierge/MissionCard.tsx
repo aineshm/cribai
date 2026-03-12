@@ -1,5 +1,13 @@
 'use client';
 
+/**
+ * MissionCard — compact card for a single mission in the concierge list.
+ *
+ * Renders a mission's icon (by type), status dot (by status), title, listing
+ * context, and relative updated-at time. Clicking triggers the onBack callback
+ * to open the full MissionDetail view.
+ */
+
 import { motion } from 'framer-motion';
 import {
   Calendar,
@@ -7,13 +15,18 @@ import {
   MessageSquare,
   DollarSign,
   GitCompare,
+  Search,
+  Mail,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { staggerItem, scaleOnHover } from '@/lib/animations';
 import type { LegacyMission } from '@/lib/concierge-types';
 import type { MissionStatus, MissionType } from '@/lib/concierge-types';
 
+/** Tailwind background colour for the status dot overlaid on the icon badge. */
 const STATUS_COLORS: Record<MissionStatus, string> = {
+  pending: 'bg-slate-400',
+  running: 'bg-blue-500',
   active: 'bg-green-500',
   paused: 'bg-yellow-500',
   waiting_approval: 'bg-amber-500',
@@ -23,14 +36,21 @@ const STATUS_COLORS: Record<MissionStatus, string> = {
   expired: 'bg-gray-300',
 };
 
+/** Maps each mission type to a Lucide icon component for the card badge. */
 const TYPE_ICONS: Record<MissionType, React.ComponentType<{ className?: string }>> = {
   tour_booking: Calendar,
   lease_review: FileText,
   landlord_outreach: MessageSquare,
   price_negotiation: DollarSign,
   listing_comparison: GitCompare,
+  housing_search: Search,
+  tour_outreach: Mail,
 };
 
+/**
+ * Converts an ISO date string to a human-readable relative time label.
+ * Returns "Just now", "Xm ago", "Xh ago", "Xd ago", or a locale date string.
+ */
 function getRelativeTime(dateStr: string): string {
   const now = new Date();
   const date = new Date(dateStr);
@@ -54,6 +74,7 @@ interface MissionCardProps {
   readonly onClick: () => void;
 }
 
+/** Animated mission list card — click opens the full mission detail view. */
 export function MissionCard({ mission, onClick }: MissionCardProps) {
   const Icon = TYPE_ICONS[mission.type];
   const statusColor = STATUS_COLORS[mission.status];

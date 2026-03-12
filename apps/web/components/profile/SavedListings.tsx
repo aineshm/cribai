@@ -18,30 +18,8 @@ interface SavedListingsProps {
   readonly listings?: ReadonlyArray<SavedListing>;
 }
 
-// Demo data for UI display
-const DEMO_LISTINGS: ReadonlyArray<SavedListing> = [
-  {
-    id: '1',
-    title: 'Cozy Studio near Campus',
-    address: '123 College Ave',
-    price: 950,
-  },
-  {
-    id: '2',
-    title: 'Spacious 2BR Apartment',
-    address: '456 University Blvd',
-    price: 1400,
-  },
-  {
-    id: '3',
-    title: 'Modern Room in Shared House',
-    address: '789 Oak St',
-    price: 750,
-  },
-];
-
 export function SavedListings({ listings }: SavedListingsProps) {
-  const items = listings ?? DEMO_LISTINGS;
+  const items = listings ?? [];
 
   if (items.length === 0) {
     return (

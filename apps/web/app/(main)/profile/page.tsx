@@ -52,6 +52,37 @@ export default async function ProfilePage() {
       ? !!resolvedUser.email_confirmed_at
       : true;
 
+  // Fetch saved listings from DB
+  const { data: savedRows } = await supabase
+    .from('saved_listings')
+    .select('listing_id, listings(id, address, rent_monthly, bedrooms, photo_urls)')
+    .eq('user_id', resolvedUser.id);
+
+  const savedListings = (savedRows ?? []).map((row) => {
+    const listing = row.listings as unknown as {
+      id: string;
+      address: string;
+      rent_monthly: number;
+      bedrooms: number | null;
+      photo_urls: string[] | null;
+    } | null;
+    const beds = listing?.bedrooms;
+    const addr = listing?.address ?? 'Unknown';
+    const title = beds === null || beds === undefined
+      ? `Listing at ${addr}`
+      : beds === 0
+        ? `Studio at ${addr}`
+        : `${beds}BR at ${addr}`;
+    const photoUrls = listing?.photo_urls ?? [];
+    return {
+      id: listing?.id ?? row.listing_id,
+      title,
+      address: listing?.address ?? '',
+      price: Number(listing?.rent_monthly ?? 0),
+      imageUrl: photoUrls[0] ?? undefined,
+    };
+  });
+
   return (
     <ProfilePageClient
       name={name}
@@ -60,6 +91,7 @@ export default async function ProfilePage() {
       graduationYear={graduationYear}
       memberSince={memberSince}
       isVerified={isVerified}
+      savedListings={savedListings}
     />
   );
 }

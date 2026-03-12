@@ -52,4 +52,12 @@ export {
   type MissionLog,
   type MissionDraft,
   type MissionSteering,
+  housingSearchInputSchema,
+  researchedListingSchema,
+  shortlistItemSchema,
+  shortlistReportSchema,
+  type HousingSearchInput,
+  type ResearchedListing,
+  type ShortlistItem,
+  type ShortlistReport,
 } from './mission';

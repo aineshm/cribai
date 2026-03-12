@@ -1,5 +1,13 @@
 'use client';
 
+/**
+ * MissionDetail — full detail view for a selected mission.
+ *
+ * Displays the mission header (title + status badge), agent summary,
+ * optional action card (for HITL drafts), execution logs, and a steering
+ * input bar for active/waiting missions. Animates in from the right.
+ */
+
 import { motion } from 'framer-motion';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,7 +19,10 @@ import { SteeringBar } from '@/components/concierge/SteeringBar';
 import { slideInFromRight } from '@/lib/animations';
 import type { LegacyMission, MissionStatus } from '@/lib/concierge-types';
 
+/** Human-readable label for each mission status, shown in the header badge. */
 const STATUS_LABELS: Record<MissionStatus, string> = {
+  pending: 'Pending',
+  running: 'Running',
   active: 'Active',
   paused: 'Paused',
   waiting_approval: 'Waiting Approval',
@@ -21,7 +32,10 @@ const STATUS_LABELS: Record<MissionStatus, string> = {
   expired: 'Expired',
 };
 
+/** Badge variant per status — maps to shadcn/ui Badge colour styles. */
 const STATUS_BADGE_VARIANT: Record<MissionStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  pending: 'secondary',
+  running: 'default',
   active: 'default',
   paused: 'secondary',
   waiting_approval: 'secondary',
@@ -36,7 +50,9 @@ interface MissionDetailProps {
   readonly onBack: () => void;
 }
 
+/** Full mission detail panel with header, summary, logs, and steering bar. */
 export function MissionDetail({ mission, onBack }: MissionDetailProps) {
+  // Only show the steering input bar when the user can still influence execution
   const isActiveOrWaiting =
     mission.status === 'active' || mission.status === 'waiting_approval';
 

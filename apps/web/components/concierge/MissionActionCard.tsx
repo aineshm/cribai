@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Calendar,
@@ -80,41 +81,107 @@ function TourScheduledCard({ data }: { readonly data: Record<string, unknown> })
   );
 }
 
+interface EmailPreview {
+  readonly subject: string;
+  readonly text: string;
+}
+
 function DraftReadyCard({ data }: { readonly data: Record<string, unknown> }) {
+  const [sending, setSending] = useState(false);
+
   const preview = String(data.preview ?? '');
   const subject = String(data.subject ?? '');
+  const missionId = data.missionId as string | undefined;
+  const draftId = data.draftId as string | undefined;
+  const emails = data.emails as EmailPreview[] | undefined;
+  const count = typeof data.count === 'number' ? data.count : 1;
+  const hasRealData = !!missionId && !!draftId;
+
+  const handleApprove = async () => {
+    if (!hasRealData) {
+      showMockToast('Draft approved and sent');
+      return;
+    }
+    setSending(true);
+    try {
+      const res = await fetch(
+        `/api/missions/${missionId}/drafts/${draftId}/approve`,
+        { method: 'POST' },
+      );
+      if (res.ok) {
+        toast.success(count > 1 ? `${count} emails sent!` : 'Email sent!');
+      } else {
+        toast.error('Failed to send emails. Please try again.');
+      }
+    } catch {
+      toast.error('Network error. Please try again.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!hasRealData) {
+      showMockToast('Opening draft editor');
+      return;
+    }
+    const res = await fetch(
+      `/api/missions/${missionId}/drafts/${draftId}/reject`,
+      { method: 'POST' },
+    );
+    if (res.ok) {
+      toast.success('Tour outreach cancelled.');
+    } else {
+      toast.error('Failed to cancel.');
+    }
+  };
 
   return (
     <Card className="border-none bg-amber-50 ring-1 ring-amber-200">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-sm text-amber-900">
           <Edit3 className="size-4" />
-          Draft Ready for Review
+          {count > 1 ? `${count} Drafts Ready for Review` : 'Draft Ready for Review'}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div>
-          <p className="text-xs font-medium text-amber-700">{subject}</p>
-          <p className="mt-1 text-xs text-amber-800 leading-relaxed line-clamp-3">
-            {preview}
-          </p>
-        </div>
+        {emails ? (
+          <div className="space-y-2">
+            {emails.map((email, i) => (
+              <div key={i} className="rounded bg-amber-100/50 px-2 py-1.5">
+                <p className="text-xs font-medium text-amber-700">{email.subject}</p>
+                <p className="mt-0.5 line-clamp-2 text-xs text-amber-800 leading-relaxed">
+                  {email.text}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div>
+            <p className="text-xs font-medium text-amber-700">{subject}</p>
+            <p className="mt-1 text-xs text-amber-800 leading-relaxed line-clamp-3">
+              {preview}
+            </p>
+          </div>
+        )}
         <div className="flex gap-2">
           <Button
             size="sm"
             className="bg-amber-600 text-white hover:bg-amber-700"
-            onClick={() => showMockToast('Draft approved and sent')}
+            onClick={handleApprove}
+            disabled={sending}
           >
             <Send className="size-3.5" />
-            Approve & Send
+            {sending ? 'Sending…' : 'Approve & Send'}
           </Button>
           <Button
             size="sm"
             variant="outline"
-            onClick={() => showMockToast('Opening draft editor')}
+            onClick={handleCancel}
+            disabled={sending}
           >
-            <Edit3 className="size-3.5" />
-            Edit Draft
+            <X className="size-3.5" />
+            Cancel
           </Button>
         </div>
       </CardContent>

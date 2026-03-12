@@ -16,6 +16,7 @@
     "@google/genai": "^1.43.0",
     "@supabase/supabase-js": "^2.47.0",
     "@tavily/core": "^0.7.2",
+    "resend": "^4.0.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
