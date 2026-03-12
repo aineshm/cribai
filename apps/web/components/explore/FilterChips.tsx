@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   DollarSign,
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { springConfig } from '@/lib/animations';
+import type { ActiveFilters } from '@/lib/filter-listings';
 
 interface FilterDef {
   readonly id: string;
@@ -32,27 +33,28 @@ const filters: readonly FilterDef[] = [
 interface FilterChipsProps {
   readonly resultCount: number;
   readonly campusName?: string;
+  readonly activeFilters: ActiveFilters;
+  readonly onFiltersChange: (filters: ActiveFilters) => void;
 }
 
 export function FilterChips({
   resultCount,
   campusName = 'UW-Madison',
+  activeFilters,
+  onFiltersChange,
 }: FilterChipsProps) {
-  const [activeFilters, setActiveFilters] = useState<ReadonlySet<string>>(
-    new Set()
-  );
-
-  const toggleFilter = useCallback((filterId: string) => {
-    setActiveFilters((prev) => {
-      const next = new Set(prev);
+  const toggleFilter = useCallback(
+    (filterId: string) => {
+      const next = new Set(activeFilters);
       if (next.has(filterId)) {
         next.delete(filterId);
       } else {
         next.add(filterId);
       }
-      return next;
-    });
-  }, []);
+      onFiltersChange(next);
+    },
+    [activeFilters, onFiltersChange]
+  );
 
   return (
     <div className="space-y-3">
