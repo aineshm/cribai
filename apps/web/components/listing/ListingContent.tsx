@@ -94,7 +94,7 @@ export function ListingContent({ listing }: ListingContentProps) {
       {/* Lease Summary */}
       <div className="space-y-3">
         <SectionHeading>Lease Details</SectionHeading>
-        <LeaseSummary leaseSummary={listing.leaseSummary} />
+        <LeaseSummary leaseSummary={listing.leaseSummary} aiSummary={listing.aiSummary} />
       </div>
 
       <Separator />

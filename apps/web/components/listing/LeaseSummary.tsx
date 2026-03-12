@@ -8,9 +8,10 @@ import type { LeaseSummary as LeaseSummaryType } from '@/lib/mock-listing-detail
 
 interface LeaseSummaryProps {
   readonly leaseSummary: LeaseSummaryType;
+  readonly aiSummary?: string;
 }
 
-export function LeaseSummary({ leaseSummary }: LeaseSummaryProps) {
+export function LeaseSummary({ leaseSummary, aiSummary }: LeaseSummaryProps) {
   return (
     <motion.div variants={staggerItem}>
       <Card className="border-[var(--primary-200)] bg-[var(--primary-50)]/30">
@@ -21,6 +22,11 @@ export function LeaseSummary({ leaseSummary }: LeaseSummaryProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {aiSummary && (
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {aiSummary}
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <DetailItem label="Lease Length" value={leaseSummary.length} />
             <DetailItem
