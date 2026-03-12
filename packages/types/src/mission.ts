@@ -127,3 +127,58 @@ export const missionSteeringSchema = z.object({
 }).strict();
 
 export type MissionSteering = z.infer<typeof missionSteeringSchema>;
+
+// ─── Housing Search Mission ───────────────────────────────────────────────────
+
+export const housingSearchInputSchema = z.object({
+  bedrooms: z.number().int().min(0).optional(),
+  maxRent: z.number().positive().optional(),
+  moveInDate: z.string().optional(),           // YYYY-MM-DD
+  dealbreakers: z.array(z.string()).optional(),
+  preferences: z.string().optional(),          // free text e.g. 'quiet, natural light'
+  topN: z.number().int().min(1).max(10).default(5),
+});
+
+export type HousingSearchInput = z.infer<typeof housingSearchInputSchema>;
+
+export const researchedListingSchema = z.object({
+  id: z.string().uuid(),
+  address: z.string(),
+  rentMonthly: z.number(),
+  bedrooms: z.number().nullable(),
+  bathrooms: z.number().nullable(),
+  sqft: z.number().nullable(),
+  amenities: z.array(z.string()),
+  photoUrls: z.array(z.string()),
+  fairnessScore: z.number().nullable(),        // 1-10 from DB
+  reviewRating: z.number().nullable(),         // 1-5 from Google Places
+  reviewSnippet: z.string().nullable(),
+  walkScore: z.number().nullable(),            // 0-100 from Walk Score
+  preferenceScore: z.number().nullable(),      // 0-10 from Gemini scoring
+});
+
+export type ResearchedListing = z.infer<typeof researchedListingSchema>;
+
+export const shortlistItemSchema = z.object({
+  rank: z.number().int().min(1),
+  listingId: z.string().uuid(),
+  address: z.string(),
+  rentMonthly: z.number(),
+  compositeScore: z.number().min(0).max(1),   // 0-1 weighted composite
+  fairnessScore: z.number().nullable(),
+  reviewRating: z.number().nullable(),
+  walkScore: z.number().nullable(),
+  preferenceScore: z.number().nullable(),
+  reasoning: z.string(),
+});
+
+export type ShortlistItem = z.infer<typeof shortlistItemSchema>;
+
+export const shortlistReportSchema = z.object({
+  missionId: z.string().uuid(),
+  generatedAt: z.string(),                    // ISO timestamp
+  totalSearched: z.number().int(),
+  items: z.array(shortlistItemSchema),
+});
+
+export type ShortlistReport = z.infer<typeof shortlistReportSchema>;

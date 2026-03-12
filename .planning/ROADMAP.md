@@ -47,9 +47,13 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 
 </details>
 
-### v1.2 (Planned)
+### v2.0 Agent Platform (In Progress)
 
-Next milestone — define requirements with `/gsd:new-milestone`.
+- [ ] Phase 25: Wire Real Data + Tech Debt Clearance (5 plans)
+- [ ] Phase 26: MissionExecutor Core + API Routes
+- [ ] Phase 27: Housing Search Mission (4 plans) ← PLANNED
+- [ ] Phase 28: Tour Outreach Mission
+- [ ] Phase 29: Chat-to-Mission Bridge + Concierge UI Wiring
 
 ## Progress
 
