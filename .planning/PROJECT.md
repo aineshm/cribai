@@ -28,28 +28,35 @@ Students can find off-campus housing through conversational AI search that under
 - ✓ Responsive mobile design with hamburger nav — v1.0
 - ✓ Stale listing detection and archival lifecycle — v1.0
 - ✓ Nightly GitHub Actions pipeline (scrape → embed → PageIndex rebuild) — v1.0
+- ✓ Design system: Space Grotesk + DM Sans fonts, shadcn/ui, Lucide icons, framer-motion — v1.1
+- ✓ Marketing landing page with hero, social proof, features, how-it-works, CTA + auth-aware state — v1.1
+- ✓ Auth page redesign: branded split-panel + animated multi-step OTP flow with profile persistence — v1.1
+- ✓ Explore page: split view (listings 60% + map 40%), filter chips, campus-scoped floating CribAI panel — v1.1
+- ✓ Listing detail: photo gallery with lightbox, sticky 2-col CTA, AI lease summary, commute section, mobile bar — v1.1
+- ✓ Post sublease: multi-step wizard with sidebar progress tracker — v1.1 (no API submit — tech debt)
+- ✓ Profile/saved: combined tabbed page with auth-session header + saved listings with navigation — v1.1
+- ✓ AI Concierge UI: mission sidebar, action cards, HITL draft approval, steering bar, proactive empty state — v1.1
+- ✓ Walk Score + Google Places tool integrations for real neighborhood data — v1.1
+- ✓ Campus-aware ChatProvider with campusSlug from user profile — v1.1
 
 ### Active
 
-- [ ] Design system migration: Space Grotesk + DM Sans fonts, shadcn/ui primitives, Lucide icons, framer-motion
-- [ ] Marketing landing page with hero, social proof, features, how-it-works, CTA
-- [ ] Auth page redesign: split layout with branded panel + animated multi-step flow
-- [ ] Explore page: unified split view (listings 60% + map 40%) with filter chips + floating AI chat panel
-- [ ] Listing detail redesign: photo gallery grid, 2-column layout, sticky CTA, AI lease summary, commute section
-- [ ] Post sublease redesign: multi-step wizard with sidebar progress tracker
-- [ ] Profile/saved redesign: combined page with profile header + tabbed saved/settings
-- [ ] AI Concierge (Messages page): task-based agent missions with status pipeline, draft approval (HITL), steering bar, agent summaries
-
-### Future
-
-- [ ] Real review integration (Reddit, Google Maps, Yelp) — replacing placeholder tools
-- [ ] Real PM contact integration — replacing placeholder tool
-- [ ] Real neighborhood info (Walk Score API, crime data) — replacing placeholder tool
+- [ ] Real review integration (Google Maps) — replace placeholder reviews tool
+- [ ] Real PM contact integration — replace placeholder tool
+- [ ] Crime data neighborhood integration — deferred from v1.1
 - [ ] On-demand embedding trigger for manual listing submissions
 - [ ] Basic roommate matching (profile + preferences)
 - [ ] Expand to 2-3 additional campuses
 - [ ] Full agent-first backend: state machines (LangGraph/Inngest), intent parsing, generative UI
+- [ ] AI Concierge backend: missions table, executor, Realtime, HITL persistence
+- [ ] StepReview API submit — wire /api/submit-listing (v1.1 tech debt)
+- [ ] campusSlug in ChatContextValue — fix block link slug in AIChatPanel (v1.1 tech debt)
+
+### Future
+
 - [ ] Agentic search: NL query → LLM extraction → auto-populate filter chips → mission creation on no results
+- [ ] Generative UI (AI returns component JSON) — v2+
+- [ ] Nationwide coverage beyond initial campuses
 
 ### Out of Scope
 
@@ -67,27 +74,20 @@ Students can find off-campus housing through conversational AI search that under
 
 ## Context
 
-**Shipped:** v1.0 MVP on 2026-03-10 (7 days, 263 commits, ~23,800 LOC TypeScript)
-**Tech stack:** Next.js 15 (App Router) + Supabase (PostGIS, RLS, Realtime, Edge Functions) + Gemini 2.5 Flash + Tavily + Mapbox + Crawlee/Playwright
+**Shipped:** v1.1 UI/UX Upgrade on 2026-03-12 (2 days, 164 commits, +15,124 LOC TypeScript)
+**Cumulative:** v1.0 (23,800 LOC) + v1.1 additions — ~38,000 LOC TypeScript total
+**Tech stack:** Next.js 15 (App Router) + Supabase (PostGIS, RLS, Realtime, Edge Functions) + Gemini 2.5 Flash + Tavily + Mapbox + Crawlee/Playwright + shadcn/ui + framer-motion
 **Deployment:** Vercel (web) + Supabase (DB/auth) + GitHub Actions (scraper pipeline)
 
-**Known tech debt:**
-- 3 placeholder tools (reviews, PM contact, neighborhood) return "coming soon" stubs
+**Known tech debt (v1.1):**
+- StepReview.tsx: toast only, no /api/submit-listing fetch — wizard data discarded at submit
+- campusSlug not in ChatContextValue — AIChatPanel block card links use empty slug (non-breaking)
+- auth/confirm reads ?next=, middleware writes ?returnTo= — both default to /explore (non-breaking)
+- Crime data deferred — Walk Score + Google Places only, no crime API
+
+**Carried from v1.0:**
 - Manual listings don't appear in semantic search until nightly embed cycle
 - submit-listing API lacks dev auth bypass (production unaffected)
-- Orphaned 07-scraper-fix/ planning directory
-
-## Current Milestone: v1.1 UI/UX Upgrade
-
-**Goal:** Migrate the entire frontend to the new Figma design system (Space Grotesk + DM Sans, shadcn/ui, Lucide, framer-motion) and introduce the AI Concierge missions page — shifting from chat-first to agent-first UX.
-
-**Target features:**
-- Design system overhaul (fonts, colors, components, icons, animations)
-- New marketing landing page
-- Redesigned auth, explore (split list+map), listing detail, post sublease, profile/saved pages
-- AI Concierge page with task-based missions, HITL draft approval, and steering bar
-
-**What's next (future):** Real tool integrations (reviews, neighborhood data), additional campuses, roommate matching, full agentic backend with state machines.
 
 ## Key Decisions
 
@@ -102,11 +102,13 @@ Students can find off-campus housing through conversational AI search that under
 | Placeholder tools for v1 breadth | Demonstrates agent capabilities, real integrations in v2 | ✓ Good — UX communicates "coming soon" |
 | DB conversations + sessionStorage fallback | Auth users get persistence, guests get tab-scoped chat | ✓ Good |
 | Free for students in v1 | Remove friction, validate usage, monetize via PM side later | — Pending |
-| shadcn/ui for v1.1 | Full component library, Tailwind-native, accessible, widely adopted | — Pending |
-| framer-motion for animations | Spring physics, layout animations, presence/exit — industry standard | — Pending |
-| Space Grotesk + DM Sans fonts | Modern geometric sans-serif pair from Figma design — youthful, clean | — Pending |
-| Lucide icons over Heroicons | Tree-shakeable, better DX, matches shadcn/ui ecosystem | — Pending |
-| Simple mission table over state machines | v1.1 MVP — mission status column + polling, defer LangGraph to v2 | — Pending |
+| shadcn/ui for v1.1 | Full component library, Tailwind-native, accessible, widely adopted | ✓ Good — clean token bridge via @theme inline |
+| framer-motion for animations | Spring physics, layout animations, presence/exit — industry standard | ✓ Good — stagger patterns established |
+| Space Grotesk + DM Sans fonts | Modern geometric sans-serif pair from Figma design — youthful, clean | ✓ Good — consistent across all pages |
+| Lucide icons over Heroicons | Tree-shakeable, better DX, matches shadcn/ui ecosystem | ✓ Good — all inline SVGs migrated |
+| Simple mission table over state machines | v1.1 MVP — mission status column + polling, defer LangGraph to v2 | ✓ Good — UI ships without blocking backend |
+| campusSlug from user_metadata with fallback chain | user_metadata.campus_slug → first campus_configs row → 'uw-madison' literal | ✓ Good — unblocks EXPL-04/DETAIL-05 without over-engineering |
+| innermost-wins ChatProvider pattern | Root layout ChatProvider (empty slug) + campus layout inner ChatProvider (real slug) | ✓ Good — no hook-outside-provider errors |
 
 ## Constraints
 
@@ -118,4 +120,4 @@ Students can find off-campus housing through conversational AI search that under
 - **Data**: Listings must be real and current — stale data kills trust
 
 ---
-*Last updated: 2026-03-10 after v1.1 milestone start*
+*Last updated: 2026-03-12 after v1.1 milestone completion*

@@ -1,5 +1,32 @@
 # Milestones
 
+## v1.1 UI/UX Upgrade (Shipped: 2026-03-12)
+
+**Phases completed:** 13 phases (10-24), 17 GSD plans
+**Timeline:** 2 days (Mar 10-12, 2026) | 164 commits | 161 files | +15,124/-740 LOC TypeScript
+**Git range:** v1.0-mvp..294b90b
+**Audit:** tech_debt — 34/34 requirements satisfied, 4 non-blocking items
+
+**Key accomplishments:**
+1. Design system migration: Space Grotesk + DM Sans fonts, shadcn/ui primitives, Lucide icons, framer-motion — unblocking all UI phases
+2. Marketing landing page with hero, social proof, features, how-it-works, CTA + auth-aware returning user state
+3. Auth page redesign: split layout with branded panel + animated multi-step OTP flow with profile persistence to Supabase
+4. Explore page: unified split view (listings 60% + map 40%) with filter chips + campus-scoped floating CribAI chat panel
+5. Listing detail redesign: photo gallery grid with lightbox, sticky 2-column CTA sidebar, AI lease summary prose, commute section, mobile sticky bar
+6. Post sublease wizard with sidebar progress + combined profile/saved/settings tabbed page
+7. AI Concierge UI: mission-based sidebar, action cards, HITL draft approval, steering bar, proactive empty state (mock data)
+8. Walk Score + Google Places tool integrations replacing placeholder stubs for real neighborhood data
+9. Full cross-phase wiring: auth-gated routes, campus-aware ChatProvider, ConciergeShell in (main) layout, ListingCard navigation
+10. Retroactive verification sweep: VERIFICATION.md + Nyquist validation for all 13 phases, 34/34 requirements documented
+
+**Tech debt accepted:**
+- campusSlug not exposed in ChatContextValue — AIChatPanel block links use empty slug (non-breaking)
+- StepReview.tsx: toast only, no /api/submit-listing fetch — wizard data not persisted
+- auth/confirm reads ?next=, middleware writes ?returnTo= — both default to /explore (non-breaking)
+- Crime data deferred to v1.2 — Walk Score + Google Places only per original scope
+
+---
+
 ## v1.0 CampusNest MVP (Shipped: 2026-03-10)
 
 **Phases completed:** 10 phases, 30 plans, 5 tasks
@@ -20,28 +47,6 @@
 - submit-listing API lacks dev auth bypass (production unaffected)
 - Manual listings not in semantic search until nightly embedding cycle
 - Orphaned 07-scraper-fix/ directory (never executed)
-
----
-
-## v1.1 UI/UX Upgrade (Shipped: 2026-03-10)
-
-**Phases completed:** 6 phases (10-15)
-
-**Timeline:** 2026-03-10 | 6 commits
-**Git range:** 2a6ed8e..f345552
-
-**Key accomplishments:**
-1. Design system migration: Space Grotesk + DM Sans fonts, shadcn/ui primitives, Lucide icons, Framer Motion
-2. Marketing landing page with hero, social proof, features, how-it-works, CTA
-3. Auth page redesign: split layout with branded panel + animated multi-step OTP flow
-4. Explore page: unified split view (listings 60% + map 40%) with filter chips + floating AI chat panel
-5. Listing detail redesign: photo gallery grid, lightbox, 2-column layout, sticky CTA, AI lease summary
-6. Post sublease wizard with sidebar progress tracker + combined profile/saved/settings tabbed page
-7. AI Concierge UI: mission sidebar, action cards, execution logs, steering bar, proactive suggestions (mock data)
-
-**Tech debt accepted:**
-- AI Concierge is UI-only with mock data — real backend deferred to v1.2
-- STATE.md not updated during execution (phases committed outside GSD workflow)
 
 ---
 
