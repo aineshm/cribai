@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { createSecretClient } from '@campusnest/supabase/server';
-import { CribAI } from '@campusnest/ai';
+import { CribAI, classifyIntent, shouldClassify } from '@campusnest/ai';
 import type { ChatEvent } from '@campusnest/ai';
 import type { PageIndexNode } from '@campusnest/types';
 import { isDevAuthEnabled, getDevUserById, DEFAULT_DEV_USER, DEV_USER_COOKIE } from '../../../../lib/dev-auth';
@@ -222,11 +222,35 @@ export async function POST(request: NextRequest) {
       toolContext,
     });
 
+    // --- Classify intent (before stream, non-blocking on error) -------------
+    let intentProposal: { intent: string; confidence: number; extractedFields: Record<string, unknown> } | null = null;
+    if (shouldClassify(query)) {
+      const intentResult = await classifyIntent(query);
+      if (intentResult.confidence > 0.75 && intentResult.intent !== 'general_chat') {
+        intentProposal = {
+          intent: intentResult.intent,
+          confidence: intentResult.confidence,
+          extractedFields: intentResult.extracted_fields,
+        };
+      }
+    }
+
     // --- Stream response with structured SSE events -------------------------
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         try {
+          // Emit mission_proposal before the main chat loop if intent was detected
+          if (intentProposal) {
+            const proposalEvent: ChatEvent = {
+              type: 'mission_proposal',
+              intent: intentProposal.intent,
+              confidence: intentProposal.confidence,
+              extractedFields: intentProposal.extractedFields,
+            };
+            controller.enqueue(encoder.encode(sseEncode(proposalEvent)));
+          }
+
           const chatArgs = { query, tree, conversationHistory };
           let seenDone = false;
           for await (const chunk of cribai.chat(chatArgs)) {

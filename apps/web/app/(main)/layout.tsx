@@ -3,7 +3,7 @@ import { cookies, headers } from 'next/headers';
 import { createServerComponentClient } from '@campusnest/supabase/server';
 import { ConciergeShell } from '@/components/concierge/ConciergeShell';
 import { ConciergeNavButton } from '@/components/concierge/ConciergeNavButton';
-import { ChatProvider } from '@/components/chat/ChatProvider';
+import { MainLayoutClient } from '@/components/layout/MainLayoutClient';
 
 async function getDefaultCampusSlug(
   supabase: ReturnType<typeof createServerComponentClient>
@@ -39,8 +39,10 @@ export default async function MainLayout({
   const campusSlug = campusSlugFromMeta ?? await getDefaultCampusSlug(supabase);
 
   return (
-    <ChatProvider campusSlug={campusSlug}>
-      <ConciergeShell>
+    // ConciergeShell provides ConciergeContext — must be the outer wrapper so
+    // MainLayoutClient (inside) can call useConcierge() to get openToMission.
+    <ConciergeShell>
+      <MainLayoutClient campusSlug={campusSlug}>
         <div className="min-h-[100dvh]">
           <nav className="sticky top-0 z-50 border-b border-[var(--surface-200)] bg-white/80 backdrop-blur-sm px-6 py-4">
             <div className="mx-auto flex max-w-6xl items-center justify-between">
@@ -73,7 +75,7 @@ export default async function MainLayout({
           </nav>
           {children}
         </div>
-      </ConciergeShell>
-    </ChatProvider>
+      </MainLayoutClient>
+    </ConciergeShell>
   );
 }

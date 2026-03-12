@@ -101,7 +101,7 @@ export function MissionDetail({ mission, onBack }: MissionDetailProps) {
       </div>
 
       {/* Steering bar for active missions */}
-      {isActiveOrWaiting && <SteeringBar />}
+      {isActiveOrWaiting && <SteeringBar missionId={mission.id} />}
     </motion.div>
   );
 }

@@ -4,7 +4,7 @@
 
 - ✅ **v1.0 CampusNest MVP** — Phases 1-9 (shipped 2026-03-10)
 - ✅ **v1.1 UI/UX Upgrade** — Phases 10-24 (shipped 2026-03-12)
-- 📋 **v1.2** — planned
+- 🚧 **v2.0 Agent Platform** — Phases 25-29 (in progress, target Spring 2026)
 
 ## Phases
 

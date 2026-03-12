@@ -8,6 +8,8 @@
  * These aliases are deprecated and will be removed in Phase 20.
  */
 
+import type { Mission, MissionLog, MissionDraft, MissionStatus, MissionType } from '@campusnest/types';
+
 // ─── DB-aligned types (Phase 16+) ──────────────────────────────────────────
 
 export type {
@@ -21,6 +23,17 @@ export type {
   DraftType,
   UserDecision,
 } from '@campusnest/types';
+
+// ─── Primary UI type for Phase 29+ ───────────────────────────────────────────
+
+/**
+ * Enriched mission shape for Concierge UI components.
+ * Combines DB Mission with its related logs and current draft.
+ */
+export interface MissionWithDetails extends Mission {
+  readonly logs: readonly MissionLog[];
+  readonly currentDraft: MissionDraft | null;
+}
 
 // ─── Deprecated aliases for existing mock-backed components ──────────────────
 // These will be removed in Phase 20 when components migrate to DB-backed data.
@@ -71,5 +84,3 @@ export interface LegacyMission {
   readonly actionCard?: ActionCard;
 }
 
-// Re-import MissionStatus and MissionType for use in LegacyMission
-import type { MissionStatus, MissionType } from '@campusnest/types';
