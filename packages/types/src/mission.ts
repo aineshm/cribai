@@ -3,6 +3,8 @@ import { z } from 'zod';
 // ─── Enum schemas ──────────────────────────────────────────
 
 export const missionStatusSchema = z.enum([
+  'pending',
+  'running',
   'active',
   'paused',
   'waiting_approval',
@@ -20,6 +22,8 @@ export const missionTypeSchema = z.enum([
   'landlord_outreach',
   'price_negotiation',
   'listing_comparison',
+  'housing_search',
+  'tour_outreach',
 ]);
 
 export type MissionType = z.infer<typeof missionTypeSchema>;
@@ -28,6 +32,7 @@ export const executionLogStatusSchema = z.enum([
   'success',
   'pending',
   'error',
+  'running',
 ]);
 
 export type ExecutionLogStatus = z.infer<typeof executionLogStatusSchema>;
@@ -36,6 +41,7 @@ export const draftTypeSchema = z.enum([
   'tour_schedule',
   'email_draft',
   'negotiation_offer',
+  'search_report',
 ]);
 
 export type DraftType = z.infer<typeof draftTypeSchema>;
@@ -59,6 +65,11 @@ export const missionSchema = z.object({
   goal: z.string(),
   listing_id: z.string().uuid().nullable(),
   idempotency_key: z.string().nullable(),
+  input: z.record(z.unknown()),
+  state: z.record(z.unknown()),
+  result: z.record(z.unknown()).nullable(),
+  current_step_index: z.number().int(),
+  campus_id: z.string().uuid().nullable(),
   expires_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),

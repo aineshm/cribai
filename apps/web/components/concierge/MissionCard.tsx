@@ -7,6 +7,8 @@ import {
   MessageSquare,
   DollarSign,
   GitCompare,
+  Search,
+  Mail,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { staggerItem, scaleOnHover } from '@/lib/animations';
@@ -14,6 +16,8 @@ import type { LegacyMission } from '@/lib/concierge-types';
 import type { MissionStatus, MissionType } from '@/lib/concierge-types';
 
 const STATUS_COLORS: Record<MissionStatus, string> = {
+  pending: 'bg-slate-400',
+  running: 'bg-blue-500',
   active: 'bg-green-500',
   paused: 'bg-yellow-500',
   waiting_approval: 'bg-amber-500',
@@ -29,6 +33,8 @@ const TYPE_ICONS: Record<MissionType, React.ComponentType<{ className?: string }
   landlord_outreach: MessageSquare,
   price_negotiation: DollarSign,
   listing_comparison: GitCompare,
+  housing_search: Search,
+  tour_outreach: Mail,
 };
 
 function getRelativeTime(dateStr: string): string {
