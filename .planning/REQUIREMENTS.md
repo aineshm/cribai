@@ -7,22 +7,22 @@
 
 ### Design System
 
-- [ ] **DESIGN-01**: User sees Space Grotesk display font and DM Sans body font across all pages
-- [ ] **DESIGN-02**: All pages use shadcn/ui component primitives (Button, Card, Sheet, Dialog, Input, etc.)
+- [x] **DESIGN-01**: User sees Space Grotesk display font and DM Sans body font across all pages
+- [x] **DESIGN-02**: All pages use shadcn/ui component primitives (Button, Card, Sheet, Dialog, Input, etc.)
 - [x] **DESIGN-03**: All pages use Lucide icons instead of inline Heroicon SVGs
-- [ ] **DESIGN-04**: Page transitions and interactive elements use framer-motion spring animations
+- [x] **DESIGN-04**: Page transitions and interactive elements use framer-motion spring animations
 - [x] **DESIGN-05**: Design tokens bridge existing CSS variables with shadcn/ui token system without breaking build
 
 ### Landing Page
 
 - [x] **LAND-01**: User sees a marketing landing page with hero section, AI value prop, and "Get Started" CTA
-- [ ] **LAND-02**: Landing page shows social proof bar with university logos and feature cards
-- [ ] **LAND-03**: Landing page has "How It Works" section and footer CTA banner
+- [x] **LAND-02**: Landing page shows social proof bar with university logos and feature cards
+- [x] **LAND-03**: Landing page has "How It Works" section and footer CTA banner
 - [x] **LAND-04**: Mobile users see sticky "Get Started" CTA at bottom of landing page
 
 ### Auth Redesign
 
-- [ ] **AUTH-05**: Auth page uses split layout with branded left panel (desktop) and animated multi-step form
+- [x] **AUTH-05**: Auth page uses split layout with branded left panel (desktop) and animated multi-step form
 - [x] **AUTH-06**: Auth form transitions between email, OTP, and profile steps with slide animations
 
 ### Explore Page
@@ -35,10 +35,10 @@
 
 ### Listing Detail
 
-- [ ] **DETAIL-01**: User sees photo gallery grid (2/3 hero + 1/3 side grid) with lightbox expansion
-- [ ] **DETAIL-02**: Two-column layout with content (left) and sticky CTA card with Book Tour and Ask AI (right)
+- [x] **DETAIL-01**: User sees photo gallery grid (2/3 hero + 1/3 side grid) with lightbox expansion
+- [x] **DETAIL-02**: Two-column layout with content (left) and sticky CTA card with Book Tour and Ask AI (right)
 - [ ] **DETAIL-03**: Listing detail shows landlord info card, amenities grid, and AI lease summary section
-- [ ] **DETAIL-04**: Commute section shows map with distance/time to campus buildings
+- [x] **DETAIL-04**: Commute section shows map with distance/time to campus buildings
 - [x] **DETAIL-05**: Mobile users see sticky bottom bar with price, Book Tour, and Chat with AI buttons
 
 ### Post Sublease
@@ -64,7 +64,7 @@
 
 ### Compatibility
 
-- [ ] **COMPAT-01**: Git tag `v1.0-mvp` marks revert point; v1.0 features are integrated into v1.1 where applicable
+- [x] **COMPAT-01**: Git tag `v1.0-mvp` marks revert point; v1.0 features are integrated into v1.1 where applicable
 
 ## Future Requirements
 
