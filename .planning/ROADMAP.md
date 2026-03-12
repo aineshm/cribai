@@ -47,6 +47,36 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 
 </details>
 
+### v2.0 Agent Platform (Phases 25-29)
+
+**Goal:** Transform CribAI from a chatbot into a genuine housing lifecycle agent.
+
+- [ ] Phase 25: Wire Real Data + Tech Debt Clearance — Kill all mocks, fix typecheck baseline, provision API keys
+- [ ] Phase 26: MissionExecutor Core + API Routes — Async sequential workflow runner + full missions API
+- [ ] Phase 27: Housing Search Mission — search → research → rank → shortlist pipeline
+- [ ] Phase 28: Tour Outreach Mission — fetch PM contacts → draft emails → HITL approval → Resend send
+- [ ] Phase 29: Chat-to-Mission Bridge + Concierge UI Wiring — intent detection, real DB wiring, Realtime subscriptions
+
+### Phase 25: Wire Real Data + Tech Debt Clearance
+
+**Goal:** Kill all mocks, fix typecheck baseline, and provision API keys so Phase 26+ build on real data from day one.
+
+### Phase 26: MissionExecutor Core + API Routes
+
+**Goal:** Build the MissionExecutor (async sequential workflow runner with DB-first state) and all missions API routes so individual missions can plug in.
+
+### Phase 27: Housing Search Mission
+
+**Goal:** Implement the HousingSearchMission — search → deduplicate → research top N → rank by composite score → generate structured shortlist report.
+
+### Phase 28: Tour Outreach Mission
+
+**Goal:** Implement the TourOutreachMission — fetch PM contacts from selected listings, generate personalized tour request email drafts via Gemini, gate on HITL approval in Concierge UI, then send via Resend API.
+
+### Phase 29: Chat-to-Mission Bridge + Concierge UI Wiring
+
+**Goal:** Wire CribAI intent detection to mission creation, replace mock data in ConciergeProvider with real DB queries, and connect Supabase Realtime for live mission status updates.
+
 ### v1.2 (Planned)
 
 Next milestone — define requirements with `/gsd:new-milestone`.
@@ -57,3 +87,4 @@ Next milestone — define requirements with `/gsd:new-milestone`.
 |-------|-----------|-------|--------|-----------|
 | 1-9 (9 phases) | v1.0 | 29/29 | Complete | 2026-03-10 |
 | 10-24 (13 phases) | v1.1 | 17/17 GSD plans | Complete | 2026-03-12 |
+| 25-29 (5 phases) | v2.0 | 0/0 | Planned | — |
