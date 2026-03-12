@@ -1,3 +1,10 @@
+/**
+ * registry.test.ts — Unit tests for the mission registry singleton.
+ *
+ * Verifies registration, retrieval, duplicate-type enforcement,
+ * type listing, and clearRegistry (used between tests to prevent pollution).
+ */
+
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   registerMission,
@@ -7,6 +14,7 @@ import {
 } from '../registry';
 import type { MissionDefinition, StepContext, StepResult } from '../types';
 
+/** Creates a minimal no-op step for use in test mission definitions. */
 const makeStep = (id: string) => ({
   id,
   label: `Step ${id}`,
@@ -21,6 +29,7 @@ const testDefinition: MissionDefinition = {
 };
 
 describe('mission registry', () => {
+  // Clear the in-memory registry before each test to ensure isolation
   beforeEach(() => {
     clearRegistry();
   });

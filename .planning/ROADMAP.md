@@ -47,13 +47,13 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 
 </details>
 
-### v2.0 Agent Platform (Phases 25-29)
+### v2.0 Agent Platform (In Progress)
 
 **Goal:** Transform CribAI from a chatbot into a genuine housing lifecycle agent.
 
-- [ ] Phase 25: Wire Real Data + Tech Debt Clearance — Kill all mocks, fix typecheck baseline, provision API keys
-- [ ] Phase 26: MissionExecutor Core + API Routes — Async sequential workflow runner + full missions API
-- [ ] Phase 27: Housing Search Mission — search → research → rank → shortlist pipeline
+- [ ] Phase 25: Wire Real Data + Tech Debt Clearance (5 plans)
+- [ ] Phase 26: MissionExecutor Core + API Routes
+- [ ] Phase 27: Housing Search Mission (4 plans)
 - [ ] Phase 28: Tour Outreach Mission — fetch PM contacts → draft emails → HITL approval → Resend send
 - [ ] Phase 29: Chat-to-Mission Bridge + Concierge UI Wiring — intent detection, real DB wiring, Realtime subscriptions
 
@@ -76,10 +76,6 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 ### Phase 29: Chat-to-Mission Bridge + Concierge UI Wiring
 
 **Goal:** Wire CribAI intent detection to mission creation, replace mock data in ConciergeProvider with real DB queries, and connect Supabase Realtime for live mission status updates.
-
-### v1.2 (Planned)
-
-Next milestone — define requirements with `/gsd:new-milestone`.
 
 ## Progress
 

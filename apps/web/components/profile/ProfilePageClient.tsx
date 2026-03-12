@@ -8,6 +8,14 @@ import { motion } from 'framer-motion';
 import { pageTransition } from '@/lib/animations';
 import { Heart, Settings } from 'lucide-react';
 
+interface SavedListingItem {
+  readonly id: string;
+  readonly title: string;
+  readonly address: string;
+  readonly price: number;
+  readonly imageUrl?: string;
+}
+
 interface ProfilePageClientProps {
   readonly name: string;
   readonly email: string;
@@ -15,6 +23,7 @@ interface ProfilePageClientProps {
   readonly graduationYear: string;
   readonly memberSince: string;
   readonly isVerified: boolean;
+  readonly savedListings?: ReadonlyArray<SavedListingItem>;
 }
 
 export function ProfilePageClient({
@@ -24,6 +33,7 @@ export function ProfilePageClient({
   graduationYear,
   memberSince,
   isVerified,
+  savedListings,
 }: ProfilePageClientProps) {
   return (
     <motion.div
@@ -58,7 +68,7 @@ export function ProfilePageClient({
           </TabsList>
 
           <TabsContent value="saved">
-            <SavedListings />
+            <SavedListings listings={savedListings} />
           </TabsContent>
 
           <TabsContent value="settings">

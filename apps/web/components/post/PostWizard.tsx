@@ -81,7 +81,11 @@ const slideVariants = {
   }),
 };
 
-export function PostWizard() {
+interface PostWizardProps {
+  readonly userEmail?: string;
+}
+
+export function PostWizard({ userEmail }: PostWizardProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<WizardFormData>(INITIAL_FORM_DATA);
   const [completedSteps, setCompletedSteps] = useState<ReadonlyArray<number>>([]);
@@ -133,7 +137,7 @@ export function PostWizard() {
       case 4:
         return <StepDescription key="description" {...stepProps} />;
       case 5:
-        return <StepReview key="review" formData={formData} />;
+        return <StepReview key="review" formData={formData} userEmail={userEmail} />;
       default:
         return null;
     }

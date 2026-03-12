@@ -1,9 +1,9 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock child components before importing ExploreLayout
-const mockListingGrid = vi.fn(() => <div data-testid="listing-grid" />);
-const mockMapPanel = vi.fn(() => <div data-testid="map-panel" />);
+const mockListingGrid = vi.fn((_props?: unknown) => <div data-testid="listing-grid" />);
+const mockMapPanel = vi.fn((_props?: unknown) => <div data-testid="map-panel" />);
 const mockViewToggle = vi.fn(({ activeView, onViewChange }: { activeView: string; onViewChange: (v: string) => void }) => (
   <div data-testid="view-toggle">
     <button onClick={() => onViewChange('map')}>Map</button>
@@ -12,10 +12,10 @@ const mockViewToggle = vi.fn(({ activeView, onViewChange }: { activeView: string
   </div>
 ));
 
-vi.mock('../ListingGrid', () => ({ ListingGrid: (props: any) => mockListingGrid(props) }));
-vi.mock('../MapPanel', () => ({ MapPanel: (props: any) => mockMapPanel(props) }));
+vi.mock('../ListingGrid', () => ({ ListingGrid: (props: unknown) => mockListingGrid(props) }));
+vi.mock('../MapPanel', () => ({ MapPanel: (props: unknown) => mockMapPanel(props) }));
 vi.mock('../ViewToggle', () => ({
-  ViewToggle: (props: any) => mockViewToggle(props),
+  ViewToggle: (props: unknown) => mockViewToggle(props as { activeView: string; onViewChange: (v: string) => void }),
 }));
 
 import { ExploreLayout } from '../ExploreLayout';
