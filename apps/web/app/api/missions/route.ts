@@ -62,7 +62,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
-  const rawBody: unknown = await request.json();
+  let rawBody: unknown;
+  try {
+    rawBody = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
   const parsed = createBodySchema.safeParse(rawBody);
 
   if (!parsed.success) {
@@ -90,6 +95,19 @@ export async function POST(request: NextRequest) {
   // Dev mode bypasses RLS — use service-role client for writes
   const writeClient = isDevAuthEnabled() ? createSecretClient() as any : supabase;
 
+  // Idempotency check — return existing mission if key already used by this user
+  if (idempotencyKey) {
+    const { data: existing } = await writeClient
+      .from('missions')
+      .select('id, status')
+      .eq('idempotency_key', idempotencyKey)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (existing) {
+      return NextResponse.json({ id: existing.id, status: existing.status }, { status: 200 });
+    }
+  }
+
   const { data, error } = await writeClient
     .from('missions')
     .insert({
@@ -113,7 +131,13 @@ export async function POST(request: NextRequest) {
 
   // Fire executor asynchronously via Next.js after() — runs post-response
   // so the client gets an immediate 201 while the pipeline runs in background
-  after(() => executeMission({ missionId: data.id as string }));
+  after(async () => {
+    try {
+      await executeMission({ missionId: data.id as string });
+    } catch (err) {
+      console.error('[missions] executeMission failed for id', data.id, err);
+    }
+  });
 
   return NextResponse.json({ id: data.id, status: data.status }, { status: 201 });
 }

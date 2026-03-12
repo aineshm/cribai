@@ -74,20 +74,32 @@ export function ConciergeProvider({
 
   // ─── Fetch missions on mount ────────────────────────────────────────────────
   useEffect(() => {
+    const controller = new AbortController();
     const supabase = createClient();
-    void supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) return;
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (controller.signal.aborted || !session) return;
       setUserId(session.user.id);
-      void fetch('/api/missions', {
+      fetch('/api/missions', {
         headers: { Authorization: `Bearer ${session.access_token}` },
+        signal: controller.signal,
       })
-        .then(r => (r.ok ? r.json() : null))
-        .then((data: { missions: DbMission[] } | null) => {
-          if (data?.missions) {
+        .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .then((data: { missions: DbMission[] }) => {
+          if (!controller.signal.aborted) {
             setMissions(data.missions.map(dbMissionToLegacy));
           }
+        })
+        .catch((err: unknown) => {
+          if ((err as { name?: string }).name !== 'AbortError') {
+            console.error('[ConciergeProvider] Failed to fetch missions:', err);
+          }
         });
+    }).catch((err: unknown) => {
+      console.error('[ConciergeProvider] getSession failed:', err);
     });
+
+    return () => controller.abort();
   }, []);
 
   // ─── Realtime handler ───────────────────────────────────────────────────────
