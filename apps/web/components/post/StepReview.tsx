@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
@@ -16,11 +18,13 @@ import {
   Car,
   ImageIcon,
   Send,
+  Loader2,
 } from 'lucide-react';
 import type { WizardFormData } from './PostWizard';
 
 interface StepReviewProps {
   readonly formData: WizardFormData;
+  readonly userEmail?: string;
 }
 
 function ReviewRow({
@@ -43,11 +47,47 @@ function ReviewRow({
   );
 }
 
-export function StepReview({ formData }: StepReviewProps) {
-  const handlePublish = () => {
-    toast.success('Sublease published!', {
-      description: 'Your listing is now live and visible to students.',
-    });
+export function StepReview({ formData, userEmail }: StepReviewProps) {
+  const router = useRouter();
+  const [submitting, setSubmitting] = useState(false);
+
+  const handlePublish = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+
+    try {
+      const body = {
+        address: formData.address,
+        rent_monthly: Number(formData.monthlyRent),
+        bedrooms: formData.bedrooms,
+        bathrooms: formData.bathrooms,
+        sqft: formData.sqft ? Number(formData.sqft) : undefined,
+        amenities: [...formData.amenities],
+        available_date: formData.leaseStart || undefined,
+        description: formData.description || undefined,
+        contact_email: userEmail ?? '',
+      };
+
+      const res = await fetch('/api/submit-listing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Submission failed' }));
+        throw new Error(data.error ?? 'Failed to submit listing');
+      }
+
+      const { listing } = await res.json() as { listing: { id: string } };
+      toast.success('Sublease published!', {
+        description: 'Your listing is now live and visible to students.',
+      });
+      router.push(`/listing/${listing.id}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -182,9 +222,14 @@ export function StepReview({ formData }: StepReviewProps) {
         size="lg"
         className="w-full gap-2"
         onClick={handlePublish}
+        disabled={submitting}
       >
-        <Send className="size-4" />
-        Publish Sublease
+        {submitting ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Send className="size-4" />
+        )}
+        {submitting ? 'Publishing…' : 'Publish Sublease'}
       </Button>
     </div>
   );

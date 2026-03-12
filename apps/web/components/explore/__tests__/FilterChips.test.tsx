@@ -81,7 +81,7 @@ describe('FilterChips', () => {
     );
     fireEvent.click(screen.getByText('Beds').closest('button')!);
     expect(onFiltersChange).toHaveBeenCalledOnce();
-    const result: Set<string> = onFiltersChange.mock.calls[0][0];
+    const result: Set<string> = onFiltersChange.mock.calls[0]![0];
     expect(result.has('beds')).toBe(true);
   });
 
@@ -97,7 +97,7 @@ describe('FilterChips', () => {
     );
     fireEvent.click(screen.getByText('Price').closest('button')!);
     expect(onFiltersChange).toHaveBeenCalledOnce();
-    const result: Set<string> = onFiltersChange.mock.calls[0][0];
+    const result: Set<string> = onFiltersChange.mock.calls[0]![0];
     expect(result.has('price')).toBe(false);
     expect(result.has('beds')).toBe(true);
   });
@@ -112,7 +112,7 @@ describe('FilterChips', () => {
       />
     );
     fireEvent.click(screen.getByText('Furnished').closest('button')!);
-    const result: Set<string> = onFiltersChange.mock.calls[0][0];
+    const result: Set<string> = onFiltersChange.mock.calls[0]![0];
     expect(result.has('furnished')).toBe(true);
   });
 });

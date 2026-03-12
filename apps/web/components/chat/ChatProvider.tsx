@@ -18,6 +18,7 @@ interface ChatContextValue {
   readonly open: boolean;
   readonly messages: readonly ChatMessage[];
   readonly loading: boolean;
+  readonly campusSlug: string;
   readonly setOpen: (open: boolean) => void;
   readonly sendMessage: (text: string) => Promise<void>;
 }
@@ -124,7 +125,7 @@ export function ChatProvider({ children, campusSlug = '' }: ChatProviderProps) {
   }, [campusSlug]);
 
   return (
-    <ChatContext.Provider value={{ open, messages, loading, setOpen, sendMessage }}>
+    <ChatContext.Provider value={{ open, messages, loading, campusSlug, setOpen, sendMessage }}>
       {children}
     </ChatContext.Provider>
   );

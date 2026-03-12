@@ -66,7 +66,7 @@ describe('ChatProvider', () => {
     });
 
     const userMessages = screen.getAllByTestId('msg-user');
-    expect(userMessages[0].textContent).toBe('test query');
+    expect(userMessages[0]!.textContent).toBe('test query');
   });
 
   it('sendMessage POSTs to /api/ai/cribai with correct body', async () => {
@@ -94,7 +94,7 @@ describe('ChatProvider', () => {
         body: expect.stringContaining('"query":"test query"'),
       })
     );
-    const callBody = JSON.parse(mockFetch.mock.calls[0][1]!.body as string);
+    const callBody = JSON.parse(mockFetch.mock.calls[0]![1]!.body as string);
     expect(callBody.campusSlug).toBe('test-campus');
   });
 
@@ -115,7 +115,7 @@ describe('ChatProvider', () => {
       fireEvent.click(screen.getByText('Send'));
     });
 
-    const callBody = JSON.parse(mockFetch.mock.calls[0][1]!.body as string);
+    const callBody = JSON.parse(mockFetch.mock.calls[0]![1]!.body as string);
     expect(callBody.campusSlug).toBe('');
   });
 
@@ -165,7 +165,7 @@ describe('ChatProvider', () => {
     await waitFor(() => {
       const assistantMsgs = screen.getAllByTestId('msg-assistant');
       const lastMsg = assistantMsgs[assistantMsgs.length - 1];
-      expect(lastMsg.textContent).toBe('Hello');
+      expect(lastMsg!.textContent).toBe('Hello');
     });
   });
 
@@ -190,7 +190,7 @@ describe('ChatProvider', () => {
 
     await waitFor(() => {
       const assistantMsgs = screen.getAllByTestId('msg-assistant');
-      expect(assistantMsgs[assistantMsgs.length - 1].textContent).toBe('Something went wrong');
+      expect(assistantMsgs[assistantMsgs.length - 1]!.textContent).toBe('Something went wrong');
     });
   });
 
@@ -209,7 +209,7 @@ describe('ChatProvider', () => {
 
     await waitFor(() => {
       const assistantMsgs = screen.getAllByTestId('msg-assistant');
-      expect(assistantMsgs[assistantMsgs.length - 1].textContent).toBe('Network error');
+      expect(assistantMsgs[assistantMsgs.length - 1]!.textContent).toBe('Network error');
     });
   });
 
@@ -234,7 +234,7 @@ describe('ChatProvider', () => {
       fireEvent.click(screen.getByText('Send'));
     });
 
-    const callBody = JSON.parse(mockFetch.mock.calls[0][1]!.body as string);
+    const callBody = JSON.parse(mockFetch.mock.calls[0]![1]!.body as string);
     expect(callBody.campusSlug).toBe('uw-madison');
   });
 
