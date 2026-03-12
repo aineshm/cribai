@@ -1,8 +1,18 @@
+/**
+ * executor.test.ts — Unit tests for the MissionExecutor step pipeline.
+ *
+ * All Supabase and registry dependencies are mocked so tests run in isolation.
+ * Covers: happy-path completion, immutable state accumulation, step failure,
+ * HITL draft pausing, resume from step index, early-completion via done=true,
+ * campus slug resolution, and guard clauses for non-runnable statuses.
+ */
+
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Mission } from '@campusnest/types';
 import type { MissionStep, StepContext, StepResult } from '../types';
 
 // ── Mock modules before imports ──────────────────────────────
+// Vitest requires mocks to be declared before the modules that use them
 
 vi.mock('@campusnest/supabase/server', () => ({
   createSecretClient: () => ({}),
@@ -34,7 +44,8 @@ import {
 } from '../mission-repository';
 import { getMissionDefinition } from '../registry';
 
-// ── Helpers ──────────────────────────────────────────────────
+// ── Typed mock references ─────────────────────────────────────
+// Gives us strongly-typed .mockResolvedValue / .mockReturnValue calls
 
 const mockGetMission = vi.mocked(getMission);
 const mockUpdateStatus = vi.mocked(updateMissionStatus);
@@ -45,6 +56,7 @@ const mockInsertDraft = vi.mocked(insertMissionDraft);
 const mockGetCampusSlug = vi.mocked(getCampusSlug);
 const mockGetDefinition = vi.mocked(getMissionDefinition);
 
+/** Returns a minimal valid Mission object with optional field overrides. */
 function baseMission(overrides: Partial<Mission> = {}): Mission {
   return {
     id: 'mission-1',
@@ -67,6 +79,11 @@ function baseMission(overrides: Partial<Mission> = {}): Mission {
   };
 }
 
+/**
+ * Creates a MissionStep stub with a given ID.
+ * If runFn is provided it replaces the default no-op run implementation.
+ * Default output is `{ [id]_done: true }` to make state assertions easy.
+ */
 function makeStep(id: string, runFn?: (ctx: StepContext) => Promise<StepResult>): MissionStep {
   return {
     id,
@@ -81,6 +98,7 @@ function makeStep(id: string, runFn?: (ctx: StepContext) => Promise<StepResult>)
 // ── Tests ────────────────────────────────────────────────────
 
 describe('executeMission', () => {
+  // Reset all mocks before each test to prevent cross-test contamination
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetCampusSlug.mockResolvedValue('uw-madison');

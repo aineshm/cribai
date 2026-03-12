@@ -1,3 +1,12 @@
+/**
+ * mission-types.test.ts — Zod schema validation tests for the mission type system.
+ *
+ * Verifies that all enum schemas accept valid values and reject invalid ones,
+ * that table schemas parse valid DB rows, reject extra/missing fields,
+ * and that nullable fields behave correctly. Uses strict() schemas so
+ * any unrecognised fields (e.g. mock-only camelCase fields) cause failures.
+ */
+
 import { describe, it, expect } from 'vitest';
 import {
   missionStatusSchema,
