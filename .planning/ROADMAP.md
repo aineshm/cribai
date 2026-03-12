@@ -201,7 +201,10 @@ Plans:
   3. ProfileSetup handleProfileComplete persists firstName, university, and graduationYear to Supabase user metadata
   4. After onboarding, /profile page displays the persisted name and university (not email-derived defaults)
   5. Unit tests cover campusSlug derivation and profile persistence
-**Plans:** TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 23-01-PLAN.md — Derive campusSlug in (main)/layout.tsx and inject into inner ChatProvider
+- [ ] 23-02-PLAN.md — Fix AuthForm.handleProfileComplete to persist profile data via supabase.auth.updateUser
 
 ### Phase 24: Listing AI Summary + Verification Sweep
 **Goal**: Add the missing AI-generated lease summary section to the listing detail page, run formal verification for phases 10-15 and 18 to close the 23-requirement verification gap, and update REQUIREMENTS.md traceability table to reflect current state.
@@ -220,9 +223,6 @@ Plans:
 
 **Execution Order:**
 Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 18 → 19 → 20 → 21 → 22 → 23 → 24
-
-**Execution Order:**
-Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 18 → 19 → 20 → 21 → 22
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -246,5 +246,5 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 18 �
 | 20. Concierge Mount + Design Cleanup | 2/2 | Complete    | 2026-03-11 | - |
 | 21. App Navigation + Auth State | 2/2 | Complete    | 2026-03-12 | - |
 | 22. Token Cleanup + Chat Multi-Campus | 2/2 | Complete    | 2026-03-12 | - |
-| 23. Chat Campus Context + Profile Persistence | 0/TBD | Not started | - | - |
+| 23. Chat Campus Context + Profile Persistence | 0/2 | Not started | - | - |
 | 24. Listing AI Summary + Verification Sweep | 0/TBD | Not started | - | - |
