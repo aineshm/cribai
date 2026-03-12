@@ -170,7 +170,10 @@ Plans:
   3. Mobile sticky CTA on landing adapts to auth state (authenticated → /explore, unauthenticated → /login)
   4. "Post sublease from within app" E2E flow completes (nav link → /post → wizard)
   5. "Returning auth'd user at landing" E2E flow completes (landing → /explore shortcut)
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 21-01-PLAN.md — Add auth-gated nav links to (main) layout + make landing page auth-aware with unit tests
+- [ ] 21-02-PLAN.md — Update E2E test infrastructure and add navigation flow E2E tests
 
 ### Phase 22: Token Cleanup + Chat Multi-Campus
 **Goal**: Resolve the orphaned design-tokens.ts file (either delete or integrate into component imports) and make ChatProvider campus-aware by deriving campusSlug from user context instead of hardcoding 'uw-madison'.
@@ -212,5 +215,5 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 18 �
 | 18. Explore Page Wiring + Verification | 2/2 | Complete   | 2026-03-11 | - |
 | 19. Auth Flow + Route Protection | 2/2 | Complete    | 2026-03-11 | - |
 | 20. Concierge Mount + Design Cleanup | 2/2 | Complete    | 2026-03-11 | - |
-| 21. App Navigation + Auth State | v1.1 | 0/TBD | Not started | - |
+| 21. App Navigation + Auth State | v1.1 | 0/2 | Not started | - |
 | 22. Token Cleanup + Chat Multi-Campus | v1.1 | 0/2 | Not started | - |
