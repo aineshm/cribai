@@ -68,8 +68,8 @@ describe('getSavedListings', () => {
 
     // Sorting is done client-side — PostgREST cannot order on joined foreign-table columns
     const listings = (result.clientBlock as { listings: { rentMonthly: number | null }[] }).listings;
-    expect(listings[0].rentMonthly).toBe(1200);
-    expect(listings[1].rentMonthly).toBe(1400);
+    expect(listings[0]!.rentMonthly).toBe(1200);
+    expect(listings[1]!.rentMonthly).toBe(1400);
   });
 
   it('rejects limit above 20 via zod validation', async () => {
