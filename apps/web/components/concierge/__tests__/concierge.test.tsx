@@ -96,7 +96,6 @@ vi.mock('lucide-react', () => {
     ArrowLeftRight: Icon,
     Clock: Icon,
     MapPin: Icon,
-    MessageSquare: Icon,
   };
 });
 
