@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: UI/UX Upgrade
 status: completed
-stopped_at: Completed 21-02-PLAN.md
-last_updated: "2026-03-12T01:24:47.177Z"
+stopped_at: Completed 23-01-PLAN.md
+last_updated: "2026-03-12T03:17:17.587Z"
 last_activity: 2026-03-11 -- Completed 20-01 (main)/layout.tsx with ConciergeShell + ConciergeNavButton
 progress:
-  total_phases: 11
+  total_phases: 13
   completed_phases: 5
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 15
+  completed_plans: 11
   percent: 50
 ---
 
@@ -60,6 +60,7 @@ Progress: [█████░░░░░] 50%  (v1.2: 4/8 plans)
 | Phase 22-token-cleanup-chat-multi-campus P02 | 2min | 2 tasks | 3 files |
 | Phase 21-app-navigation-auth-state P01 | 3 | 2 tasks | 8 files |
 | Phase 21-app-navigation-auth-state P02 | 4min | 2 tasks | 3 files |
+| Phase 23-chat-campus-context-profile-persistence P01 | 2min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -105,6 +106,7 @@ Recent decisions affecting v1.2 work:
 - [Phase 21-app-navigation-auth-state]: Server Component page.tsx can import 'use client' child components — valid Next.js 15 pattern
 - [Phase 21-02]: Inline Tailwind classes in page.tsx nav link — buttonVariants cannot be called from Server Components (was causing 500 error)
 - [Phase 21-02]: Authenticated E2E state not tested — requires Supabase session cookies; unit tests in Plan 01 cover conditional rendering
+- [Phase 23-01]: (main)/layout.tsx derives campusSlug from user_metadata.campus_slug, falls back to first campus_configs row, then 'uw-madison' literal — unblocking EXPL-04 and DETAIL-05
 
 ### Pending Todos
 
@@ -119,7 +121,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T01:20:49.382Z
-Stopped at: Completed 21-02-PLAN.md
+Last session: 2026-03-12T03:17:17.582Z
+Stopped at: Completed 23-01-PLAN.md
 Resume file: None
 Next: Plan 20-02 (design cleanup)
