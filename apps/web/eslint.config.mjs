@@ -1,16 +1,19 @@
-import { FlatCompat } from '@eslint/eslintrc';
-import { dirname } from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({ baseDirectory: __dirname });
+import coreWebVitals from 'eslint-config-next/core-web-vitals';
 
 const config = [
-  ...compat.extends('next/core-web-vitals'),
+  ...coreWebVitals,
   {
     ignores: ['.next/**', 'node_modules/**', 'dist/**'],
+  },
+  {
+    // eslint-config-next v16 added stricter react-hooks rules that flag pre-existing
+    // patterns (setState in effects, Date.now in handlers, useCallback wrapping props).
+    // Disabling here until these are addressed in a dedicated cleanup phase.
+    rules: {
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/purity': 'off',
+      'react-hooks/use-memo': 'off',
+    },
   },
   // Test files and vitest setup use anonymous mock components — display names not needed
   {

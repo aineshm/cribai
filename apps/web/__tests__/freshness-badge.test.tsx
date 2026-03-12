@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { getFreshnessLevel, getFreshnessLabel } from '../components/freshness-badge';
 
 function daysAgo(days: number): string {
-  const date = new Date();
-  date.setDate(date.getDate() - days);
+  // Subtract an extra minute so boundary tests never land exactly on the threshold
+  const date = new Date(Date.now() - days * 24 * 60 * 60 * 1000 - 60 * 1000);
   return date.toISOString();
 }
 
