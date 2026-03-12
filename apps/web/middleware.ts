@@ -42,9 +42,8 @@ export async function middleware(request: NextRequest) {
 
     // Redirect /login to CribAI in dev mode — auth is bypassed
     if (pathname === '/login') {
-      const lastCampus = request.cookies.get('last_campus')?.value ?? 'uw-madison';
       const redirectUrl = request.nextUrl.clone();
-      redirectUrl.pathname = `/${lastCampus}/cribai`;
+      redirectUrl.pathname = '/explore';
       return NextResponse.redirect(redirectUrl);
     }
 
@@ -103,6 +102,15 @@ export async function middleware(request: NextRequest) {
     });
   }
 
+  // Protect flat v1.1 routes
+  const protectedFlatRoutes = ['/post', '/profile'];
+  if (protectedFlatRoutes.some((route) => pathname.startsWith(route)) && !user) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = '/login';
+    loginUrl.searchParams.set('returnTo', pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
   // Protected campus routes — redirect to login if not authenticated
   const protectedRouteMatch = pathname.match(
     /^\/([^/]+)\/(cribai|dashboard|saved|notifications|submit-listing)/
@@ -110,7 +118,7 @@ export async function middleware(request: NextRequest) {
   if (protectedRouteMatch && !user) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = '/login';
-    loginUrl.searchParams.set('next', pathname);
+    loginUrl.searchParams.set('returnTo', pathname);
     return NextResponse.redirect(loginUrl);
   }
 

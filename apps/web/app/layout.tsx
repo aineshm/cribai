@@ -4,6 +4,7 @@ import { Toaster } from 'sonner';
 import './globals.css';
 import { cn } from '@/lib/utils';
 import { displayFont, bodyFont } from '@/lib/fonts';
+import { ChatProvider } from '@/components/chat/ChatProvider';
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-sans' });
 
@@ -29,7 +30,9 @@ export default function RootLayout({
       )}
     >
       <body className="min-h-screen bg-[var(--surface-50)] text-[var(--surface-900)] antialiased">
-        {children}
+        <ChatProvider>
+          {children}
+        </ChatProvider>
         <Toaster position="top-center" richColors duration={2000} />
       </body>
     </html>

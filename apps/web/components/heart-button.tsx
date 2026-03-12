@@ -4,6 +4,8 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { createClient } from '@campusnest/supabase/client';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { Heart } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface HeartButtonProps {
   readonly listingId: string;
@@ -95,19 +97,15 @@ export function HeartButton({
       className={`${variant === 'overlay' ? 'absolute top-3 right-3 z-10 bg-black/20 backdrop-blur-sm hover:bg-black/30' : 'bg-[var(--surface-100)] hover:bg-[var(--surface-200)]'} ${padding} rounded-full transition-colors`}
       aria-label={saved ? 'Remove from favorites' : 'Save to favorites'}
     >
-      <svg
-        className={`${iconSize} transition-transform duration-200 ${animating ? 'animate-heart-pop' : ''}`}
-        fill={saved ? '#ef4444' : 'none'}
-        stroke={saved ? '#ef4444' : variant === 'overlay' ? 'white' : 'currentColor'}
+      <Heart
+        className={cn(
+          iconSize,
+          'transition-transform duration-200',
+          animating && 'animate-heart-pop',
+          saved ? 'fill-red-500 stroke-red-500' : variant === 'overlay' ? 'stroke-white' : 'stroke-current'
+        )}
         strokeWidth={2}
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
-        />
-      </svg>
+      />
     </button>
   );
 }

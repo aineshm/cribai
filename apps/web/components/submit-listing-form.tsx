@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { Check } from 'lucide-react';
 import { listingSubmissionSchema } from '@campusnest/types';
 
 type FieldErrors = Partial<Record<string, string[]>>;
@@ -101,9 +102,7 @@ export function SubmitListingForm({ campusSlug }: SubmitListingFormProps) {
     return (
       <div className="flex flex-col items-center justify-center rounded-xl border border-[var(--surface-200)] bg-white p-10 text-center shadow-sm animate-fade-in">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--primary-50)]">
-          <svg className="h-8 w-8 text-[var(--primary-600)]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
+          <Check className="h-8 w-8 text-[var(--primary-600)]" strokeWidth={2} />
         </div>
         <h2 className="mt-4 font-[family-name:var(--font-display)] text-xl text-[var(--surface-900)]">
           Listing submitted!

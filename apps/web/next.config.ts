@@ -9,6 +9,20 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'cdngeneral.rentcafe.com' },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: '/listings',
+        destination: '/explore',
+        permanent: true,
+      },
+      {
+        source: '/cribai',
+        destination: '/explore',
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {

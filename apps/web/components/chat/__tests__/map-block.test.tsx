@@ -128,9 +128,9 @@ describe('ChatMapBlock', () => {
   it('displays price labels on markers', () => {
     render(<ChatMapBlock block={mockBlock} campusSlug="uw-madison" />);
     const markers = screen.getAllByTestId('marker');
-    expect(markers[0].textContent).toContain('$1,200');
-    expect(markers[1].textContent).toContain('$950');
-    expect(markers[2].textContent).toContain('$1,500');
+    expect(markers[0]!.textContent).toContain('$1,200');
+    expect(markers[1]!.textContent).toContain('$950');
+    expect(markers[2]!.textContent).toContain('$1,500');
   });
 
   it('opens popup when marker is clicked', () => {
@@ -138,7 +138,7 @@ describe('ChatMapBlock', () => {
     expect(screen.queryByTestId('popup')).not.toBeInTheDocument();
 
     const markers = screen.getAllByTestId('marker');
-    fireEvent.click(markers[0]);
+    fireEvent.click(markers[0]!);
 
     expect(screen.getByTestId('popup')).toBeInTheDocument();
     expect(screen.getByText('123 State St')).toBeInTheDocument();
@@ -147,7 +147,7 @@ describe('ChatMapBlock', () => {
   it('highlights selected marker pin', () => {
     render(<ChatMapBlock block={mockBlock} campusSlug="uw-madison" />);
     const markers = screen.getAllByTestId('marker');
-    fireEvent.click(markers[0]);
+    fireEvent.click(markers[0]!);
 
     // The selected pin should have blue bg class
     const priceLabels = screen.getAllByText('$1,200');
@@ -181,7 +181,7 @@ describe('ChatMapBlock', () => {
 describe('ChatMapPopup', () => {
   it('shows address, rent, and beds/baths', () => {
     render(
-      <ChatMapPopup listing={mockListings[0]} campusSlug="uw-madison" />
+      <ChatMapPopup listing={mockListings[0]!} campusSlug="uw-madison" />
     );
     expect(screen.getByText('123 State St')).toBeInTheDocument();
     expect(screen.getByText(/\$1,200\/mo/)).toBeInTheDocument();
@@ -191,7 +191,7 @@ describe('ChatMapPopup', () => {
 
   it('renders photo when photoUrl is provided', () => {
     render(
-      <ChatMapPopup listing={mockListings[0]} campusSlug="uw-madison" />
+      <ChatMapPopup listing={mockListings[0]!} campusSlug="uw-madison" />
     );
     const img = screen.getByRole('img');
     expect(img).toHaveAttribute('src', 'https://example.com/photo1.jpg');
@@ -199,14 +199,14 @@ describe('ChatMapPopup', () => {
 
   it('skips photo when photoUrl is null', () => {
     render(
-      <ChatMapPopup listing={mockListings[1]} campusSlug="uw-madison" />
+      <ChatMapPopup listing={mockListings[1]!} campusSlug="uw-madison" />
     );
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
   });
 
   it('renders View details link with correct URL', () => {
     render(
-      <ChatMapPopup listing={mockListings[0]} campusSlug="uw-madison" />
+      <ChatMapPopup listing={mockListings[0]!} campusSlug="uw-madison" />
     );
     const link = screen.getByText('View details');
     expect(link.closest('a')).toHaveAttribute(

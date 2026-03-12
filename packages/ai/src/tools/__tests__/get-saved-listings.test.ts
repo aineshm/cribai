@@ -56,14 +56,20 @@ describe('getSavedListings', () => {
     expect((result.clientBlock as { listings: unknown[] }).listings).toHaveLength(2);
   });
 
-  it('passes sort parameter correctly', async () => {
-    const builder = createMockQueryBuilder([makeSavedRow(SAMPLE_LISTING_ROW)]);
+  it('sorts results by price ascending when sort=price_asc', async () => {
+    // SAMPLE_LISTING_ROW_2 (1400) placed first, SAMPLE_LISTING_ROW (1200) second
+    // After price_asc sort the cheaper listing must come first
+    const rows = [makeSavedRow(SAMPLE_LISTING_ROW_2), makeSavedRow(SAMPLE_LISTING_ROW)];
+    const builder = createMockQueryBuilder(rows);
     const context = createMockContext();
     vi.mocked(context.supabase.from).mockReturnValue(builder as never);
 
-    await getSavedListings({ sort: 'price_asc' }, context);
+    const result = await getSavedListings({ sort: 'price_asc' }, context);
 
-    expect(builder.order).toHaveBeenCalledWith('listings.rent_monthly', { ascending: true });
+    // Sorting is done client-side — PostgREST cannot order on joined foreign-table columns
+    const listings = (result.clientBlock as { listings: { rentMonthly: number | null }[] }).listings;
+    expect(listings[0]!.rentMonthly).toBe(1200);
+    expect(listings[1]!.rentMonthly).toBe(1400);
   });
 
   it('rejects limit above 20 via zod validation', async () => {

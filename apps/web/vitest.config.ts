@@ -10,6 +10,7 @@ export default defineConfig({
       'lib/__tests__/**/*.test.{ts,tsx}',
       '__tests__/**/*.test.{ts,tsx}',
       'components/**/__tests__/**/*.test.{ts,tsx}',
+      'hooks/__tests__/**/*.test.{ts,tsx}',
     ],
     environment: 'happy-dom',
     setupFiles: ['./vitest.setup.ts'],

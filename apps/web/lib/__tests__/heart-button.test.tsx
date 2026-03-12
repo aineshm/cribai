@@ -19,11 +19,6 @@ vi.mock('sonner', () => ({
 
 // Mock Supabase client
 const mockInsert = vi.fn().mockResolvedValue({ error: null });
-const mockDelete = vi.fn().mockReturnValue({
-  eq: vi.fn().mockReturnValue({
-    eq: vi.fn().mockResolvedValue({ error: null }),
-  }),
-});
 const mockGetUser = vi.fn().mockResolvedValue({
   data: { user: { id: 'user-123' } },
 });
@@ -65,8 +60,10 @@ describe('HeartButton', () => {
     expect(button).toBeInTheDocument();
 
     const svg = button.querySelector('svg');
-    expect(svg).toHaveAttribute('fill', 'none');
-    expect(svg).toHaveAttribute('stroke', 'white');
+    expect(svg).toBeInTheDocument();
+    // Unsaved overlay variant: stroke-white class applied via Tailwind
+    expect(svg?.className).toContain('stroke-white');
+    expect(svg?.className).not.toContain('fill-red-500');
   });
 
   it('renders filled heart when saved', () => {
@@ -84,8 +81,10 @@ describe('HeartButton', () => {
     expect(button).toBeInTheDocument();
 
     const svg = button.querySelector('svg');
-    expect(svg).toHaveAttribute('fill', '#ef4444');
-    expect(svg).toHaveAttribute('stroke', '#ef4444');
+    expect(svg).toBeInTheDocument();
+    // Saved state: fill and stroke applied via Tailwind classes
+    expect(svg?.className).toContain('fill-red-500');
+    expect(svg?.className).toContain('stroke-red-500');
   });
 
   it('calls e.stopPropagation on click', () => {
