@@ -11,8 +11,8 @@
  */
 
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { ConciergeProvider } from '../ConciergeProvider';
 import { ConciergeNavButton } from '../ConciergeNavButton';
 import { MissionCard } from '../MissionCard';
@@ -321,59 +321,6 @@ const sampleLogs: readonly ExecutionLog[] = [
   },
 ];
 
-// ── Helper to render with ConciergeProvider ───────────────────────────────────
-
-function renderWithProvider(
-  ui: React.ReactNode,
-  initialMissions: readonly LegacyMission[] = []
-) {
-  // Override the mock missions by rendering with a provider that has no state from mock-missions.ts
-  // We achieve this by wrapping with a custom provider wrapper
-  return render(
-    <MockConciergeProvider initialMissions={initialMissions}>
-      {ui}
-    </MockConciergeProvider>
-  );
-}
-
-// Custom provider that accepts initial missions without loading from mock-missions.ts
-// This avoids coupling tests to the module-level mock data
-function MockConciergeProvider({
-  children,
-  initialMissions,
-}: {
-  children: React.ReactNode;
-  initialMissions: readonly LegacyMission[];
-}) {
-  const [missions, setMissions] = React.useState<readonly LegacyMission[]>(initialMissions);
-  const [selectedMission, setSelectedMission] = React.useState<LegacyMission | null>(null);
-  const [isOpen, setIsOpen] = React.useState(false);
-
-  const value = React.useMemo(
-    () => ({
-      missions,
-      selectedMission,
-      isOpen,
-      openSidebar: () => setIsOpen(true),
-      closeSidebar: () => { setIsOpen(false); setSelectedMission(null); },
-      selectMission: (m: LegacyMission | null) => setSelectedMission(m),
-      addMission: (m: LegacyMission) => setMissions((prev) => [m, ...prev]),
-    }),
-    [missions, selectedMission, isOpen]
-  );
-
-  // Expose context via same context key by importing and using the real context
-  // Instead, render via a thin wrapper that provides our state to ConciergeProvider children
-  // Since ConciergeProvider uses its own useState seeded from mockMissions,
-  // we use a different approach: mock the mock-missions module
-  void value; // suppress unused warning
-
-  return (
-    <ConciergeProvider>
-      {children}
-    </ConciergeProvider>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AGENT-03: AgentSummary
@@ -795,7 +742,7 @@ describe('MissionSuggestions (AGENT-05)', () => {
     const countBefore = Number(badgeBefore?.textContent ?? '0');
 
     // Click the first suggestion card
-    const firstCard = screen.getAllByTestId('card')[0];
+    const firstCard = screen.getAllByTestId('card')[0]!;
     fireEvent.click(firstCard);
 
     // Badge count should have increased by 1 (new mission is 'active')

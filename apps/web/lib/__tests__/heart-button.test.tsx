@@ -19,11 +19,6 @@ vi.mock('sonner', () => ({
 
 // Mock Supabase client
 const mockInsert = vi.fn().mockResolvedValue({ error: null });
-const mockDelete = vi.fn().mockReturnValue({
-  eq: vi.fn().mockReturnValue({
-    eq: vi.fn().mockResolvedValue({ error: null }),
-  }),
-});
 const mockGetUser = vi.fn().mockResolvedValue({
   data: { user: { id: 'user-123' } },
 });

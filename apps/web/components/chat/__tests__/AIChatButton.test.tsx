@@ -1,6 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { createContext, useContext } from 'react';
 import { AIChatButton } from '../AIChatButton';
 
 // We need to mock ChatProvider's useChatContext to provide controlled values
