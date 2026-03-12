@@ -43,13 +43,13 @@
 
 ### Post Sublease
 
-- [x] **POST-01**: User completes sublease posting via multi-step wizard (Basics, Details, Amenities, Photos, Description, Review)
+- [ ] **POST-01**: User completes sublease posting via multi-step wizard (Basics, Details, Amenities, Photos, Description, Review)
 - [ ] **POST-02**: Desktop shows sidebar progress tracker with step indicators
 - [ ] **POST-03**: Mobile shows progress bar with step count and percentage
 
 ### Profile and Saved
 
-- [x] **PROF-01**: User sees profile header card with avatar, name, university, verification badge
+- [ ] **PROF-01**: User sees profile header card with avatar, name, university, verification badge
 - [x] **PROF-02**: Tabbed navigation between Saved Listings and Account Settings
 - [ ] **PROF-03**: Settings section has navigation items for Personal Info, Notifications, and Log Out
 
@@ -107,7 +107,7 @@
 | DESIGN-02 | Phase 10 | — | Satisfied |
 | DESIGN-03 | Phase 10 | Phase 20 | Partial |
 | DESIGN-04 | Phase 10 | — | Satisfied |
-| DESIGN-05 | Phase 10 | — | Satisfied |
+| DESIGN-05 | Phase 10 | Phase 22 | Pending |
 | COMPAT-01 | Phase 10 | — | Satisfied |
 | LAND-01 | Phase 11 | — | Satisfied |
 | LAND-02 | Phase 11 | — | Satisfied |
@@ -125,10 +125,10 @@
 | DETAIL-03 | Phase 13 | — | Satisfied |
 | DETAIL-04 | Phase 13 | — | Satisfied |
 | DETAIL-05 | Phase 13 | Phase 19 | Partial |
-| POST-01 | Phase 14 | Phase 19 | Partial |
+| POST-01 | Phase 14 | Phase 21 | Pending |
 | POST-02 | Phase 14 | — | Satisfied |
 | POST-03 | Phase 14 | — | Satisfied |
-| PROF-01 | Phase 14 | Phase 19 | Partial |
+| PROF-01 | Phase 14 | Phase 21 | Pending |
 | PROF-02 | Phase 14 | Phase 19 | Partial |
 | PROF-03 | Phase 14 | — | Satisfied |
 | AGENT-01 | Phase 15 | Phase 20 | Partial |
@@ -141,10 +141,11 @@
 **Coverage:**
 - v1.1 requirements: 34 total
 - Satisfied: 22
-- Partial (gap closure assigned): 10
+- Partial (gap closure assigned): 7
+- Pending (gap closure Phase 21-22): 3
 - Unverified (gap closure assigned): 3
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-10*
-*Last updated: 2026-03-11 — gap closure phases 18-20 added from milestone audit*
+*Last updated: 2026-03-11 — gap closure phases 21-22 added from milestone audit*

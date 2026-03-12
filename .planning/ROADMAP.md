@@ -3,7 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0 CampusNest MVP** — Phases 1-9 (shipped 2026-03-10)
-- 🚧 **v1.1 UI/UX Upgrade** — Phases 10-20 (in progress)
+- 🚧 **v1.1 UI/UX Upgrade** — Phases 10-22 (in progress)
 
 ## Phases
 
@@ -159,10 +159,35 @@ Plans:
 - [ ] 20-01-PLAN.md — Mount ConciergeShell + ConciergeNavButton in (main)/layout.tsx with unit test
 - [ ] 20-02-PLAN.md — Replace 14 inline SVGs across 10 component files with Lucide icon imports
 
+### Phase 21: App Navigation + Auth State
+**Goal**: Make /post and /profile discoverable from the main app navigation and add auth-aware behavior to the landing page — so returning authenticated users see a shortcut to /explore instead of being funneled through login again.
+**Depends on**: Phase 14, Phase 19, Phase 11
+**Requirements**: POST-01, PROF-01, LAND-01, LAND-04
+**Gap Closure**: Closes gaps from v1.1 milestone audit
+**Success Criteria** (what must be TRUE):
+  1. (main)/layout.tsx navigation includes links to /post and /profile (visible to authenticated users)
+  2. Landing page detects authenticated session and shows "Go to Dashboard" CTA instead of "Sign In"
+  3. Mobile sticky CTA on landing adapts to auth state (authenticated → /explore, unauthenticated → /login)
+  4. "Post sublease from within app" E2E flow completes (nav link → /post → wizard)
+  5. "Returning auth'd user at landing" E2E flow completes (landing → /explore shortcut)
+**Plans**: TBD
+
+### Phase 22: Token Cleanup + Chat Multi-Campus
+**Goal**: Resolve the orphaned design-tokens.ts file (either delete or integrate into component imports) and make ChatProvider campus-aware by deriving campusSlug from user context instead of hardcoding 'uw-madison'.
+**Depends on**: Phase 10, Phase 18
+**Requirements**: DESIGN-05, EXPL-04
+**Gap Closure**: Closes gaps from v1.1 milestone audit
+**Success Criteria** (what must be TRUE):
+  1. design-tokens.ts is either deleted (if CSS custom properties are the sole token source) or imported by at least one component
+  2. No duplicate token values exist between design-tokens.ts and globals.css (single source of truth)
+  3. ChatProvider derives campusSlug from user profile or route context (not hardcoded)
+  4. CribAI chat sends correct campus context for the authenticated user's campus
+**Plans**: TBD
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 18 → 19 → 20
+Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 18 → 19 → 20 → 21 → 22
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -184,3 +209,5 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 18 �
 | 18. Explore Page Wiring + Verification | 2/2 | Complete   | 2026-03-11 | - |
 | 19. Auth Flow + Route Protection | 2/2 | Complete    | 2026-03-11 | - |
 | 20. Concierge Mount + Design Cleanup | 2/2 | Complete    | 2026-03-11 | - |
+| 21. App Navigation + Auth State | v1.1 | 0/TBD | Not started | - |
+| 22. Token Cleanup + Chat Multi-Campus | v1.1 | 0/TBD | Not started | - |
