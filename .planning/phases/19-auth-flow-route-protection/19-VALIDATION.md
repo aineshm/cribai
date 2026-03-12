@@ -1,9 +1,9 @@
 ---
 phase: 19
 slug: auth-flow-route-protection
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: approved
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-03-11
 ---
 
@@ -38,11 +38,11 @@ created: 2026-03-11
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 19-01-01 | 01 | 1 | AUTH-06 | unit | `cd apps/web && pnpm vitest run components/auth/__tests__/AuthForm.redirect.test.tsx` | ❌ W0 | ⬜ pending |
-| 19-01-02 | 01 | 1 | POST-01 | unit | `cd apps/web && pnpm vitest run lib/__tests__/middleware.test.ts` | ❌ W0 | ⬜ pending |
-| 19-01-03 | 01 | 1 | PROF-01 | unit | `cd apps/web && pnpm vitest run components/profile/__tests__/ProfileHeader.test.tsx` | ✅ (extend) | ⬜ pending |
-| 19-01-04 | 01 | 1 | PROF-02 | unit | `cd apps/web && pnpm vitest run components/profile/__tests__/SavedListings.test.tsx` | ❌ W0 | ⬜ pending |
-| 19-01-05 | 01 | 1 | DETAIL-05 | unit | `cd apps/web && pnpm vitest run components/listing/__tests__/MobileBottomBar.test.tsx` | ❌ W0 | ⬜ pending |
+| 19-01-01 | 01 | 1 | AUTH-06 | unit | `cd apps/web && pnpm vitest run components/auth/__tests__/AuthForm.redirect.test.tsx` | ✅ | ✅ green |
+| 19-01-02 | 01 | 1 | POST-01 | unit | `cd apps/web && pnpm vitest run lib/__tests__/middleware.test.ts` | ✅ | ✅ green |
+| 19-01-03 | 01 | 1 | PROF-01 | unit | `cd apps/web && pnpm vitest run components/profile/__tests__/ProfileHeader.test.tsx` | ✅ | ✅ green |
+| 19-01-04 | 01 | 1 | PROF-02 | unit | `cd apps/web && pnpm vitest run components/profile/__tests__/SavedListings.test.tsx` | ✅ | ✅ green |
+| 19-01-05 | 01 | 1 | DETAIL-05 | unit | `cd apps/web && pnpm vitest run components/listing/__tests__/MobileBottomBar.test.tsx` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -50,11 +50,11 @@ created: 2026-03-11
 
 ## Wave 0 Requirements
 
-- [ ] `apps/web/components/auth/__tests__/AuthForm.redirect.test.tsx` — stubs for AUTH-06 redirect behavior
-- [ ] `apps/web/lib/__tests__/middleware.test.ts` — stubs for POST-01 and /profile route guard
-- [ ] `apps/web/components/profile/__tests__/SavedListings.test.tsx` — stubs for PROF-02 Link navigation
-- [ ] `apps/web/components/listing/__tests__/MobileBottomBar.test.tsx` — stubs for DETAIL-05 Chat button
-- [ ] Extend `apps/web/components/profile/__tests__/ProfileHeader.test.tsx` — add dynamic session data tests
+- [x] `apps/web/components/auth/__tests__/AuthForm.redirect.test.tsx` — 3 tests (AUTH-06)
+- [x] `apps/web/lib/__tests__/middleware.test.ts` — 5 tests (POST-01, /profile guard)
+- [x] `apps/web/components/profile/__tests__/SavedListings.test.tsx` — 3 tests (PROF-02)
+- [x] `apps/web/components/listing/__tests__/MobileBottomBar.test.tsx` — 2 tests (DETAIL-05)
+- [x] `apps/web/components/profile/__tests__/ProfileHeader.test.tsx` — 10 tests (+2 PROF-01)
 
 ---
 
@@ -69,11 +69,23 @@ created: 2026-03-11
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 15s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 15s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved 2026-03-11
+
+---
+
+## Validation Audit 2026-03-11
+
+| Metric | Count |
+|--------|-------|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+
+All 5 Wave 0 test files were created during plan execution (19-01, 19-02). 23 tests across 5 files all pass green. No gaps to fill.
