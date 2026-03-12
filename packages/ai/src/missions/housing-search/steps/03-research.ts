@@ -63,15 +63,17 @@ export const researchListingsStep: MissionStep = {
         const reviewResult = await getReviews({ listing_id: listing.id }, toolCtx);
         reviewRating = extractReviewRating(reviewResult.modelContext);
         reviewSnippet = extractReviewSnippet(reviewResult.modelContext);
-      } catch {
+      } catch (err) {
         // Graceful degradation — API key absent or Places lookup failed
+        console.warn(`[research] get_reviews failed for ${listing.id}:`, err);
       }
 
       try {
         const nbResult = await getNeighborhoodInfo({ listing_id: listing.id }, toolCtx);
         walkScore = extractWalkScore(nbResult.modelContext);
-      } catch {
+      } catch (err) {
         // Graceful degradation — Walk Score API key absent
+        console.warn(`[research] get_neighborhood_info failed for ${listing.id}:`, err);
       }
 
       researchedListings.push({

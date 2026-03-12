@@ -16,6 +16,7 @@ export function normalizeScore(dim: ScoreDimension, value: number | null): numbe
     case 'reviews':     return Math.min(1, Math.max(0, (value - 1) / 4));   // 1-5  → 0-1
     case 'walkability': return Math.min(1, Math.max(0, value / 100));        // 0-100 → 0-1
     case 'preference':  return Math.min(1, Math.max(0, value / 10));         // 0-10 → 0-1
+    default: (dim satisfies never); return 0.5;
   }
 }
 

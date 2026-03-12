@@ -9,7 +9,8 @@ import type { ListingSummary } from '@campusnest/types';
 export function deduplicateListings(listings: ListingSummary[]): ListingSummary[] {
   const seen = new Map<string, ListingSummary>();
   for (const listing of listings) {
-    const key = listing.address.toLowerCase().trim();
+    const key = (listing.address ?? '').toLowerCase().trim();
+    if (!key) continue;
     const existing = seen.get(key);
     if (!existing) {
       seen.set(key, listing);
