@@ -12,3 +12,5 @@ export { logTokenUsage } from './cost-logger';
 export type { TokenUsage } from './cost-logger';
 export { executeMission, registerMission, getMissionDefinition, getRegisteredTypes } from './missions';
 export type { MissionStep, StepContext, StepResult, MissionDefinition, ExecuteOptions } from './missions';
+export { classifyIntent, shouldClassify } from './intent-classifier';
+export type { IntentResult } from './intent-classifier';

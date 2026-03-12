@@ -23,6 +23,8 @@ export type ChatEvent =
   | { readonly type: 'text'; readonly content: string }
   | { readonly type: 'tool_call'; readonly name: string; readonly args: Record<string, unknown> }
   | { readonly type: 'tool_result'; readonly name: string; readonly block: ChatBlock }
+  | { readonly type: 'mission_proposal'; readonly intent: string; readonly confidence: number; readonly extractedFields: Record<string, unknown> }
+  | { readonly type: 'mission_created'; readonly missionId: string }
   | { readonly type: 'done' };
 
 const MAX_TOOL_CALLS = 5;
