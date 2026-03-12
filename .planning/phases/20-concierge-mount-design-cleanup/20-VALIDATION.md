@@ -1,10 +1,11 @@
 ---
 phase: 20
 slug: concierge-mount-design-cleanup
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: complete
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-03-11
+audited: 2026-03-11
 ---
 
 # Phase 20 — Validation Strategy
@@ -38,9 +39,9 @@ created: 2026-03-11
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 20-01-01 | 01 | 1 | AGENT-01 | unit | `pnpm --filter web vitest run app/__tests__` | ❌ W0 | ⬜ pending |
-| 20-01-02 | 01 | 1 | AGENT-01 | unit | `pnpm --filter web vitest run components/concierge` | ✅ | ⬜ pending |
-| 20-02-01 | 02 | 1 | DESIGN-03 | grep | `grep -rn "<svg" apps/web/components/ --include="*.tsx" \| grep -v "__tests__"` | N/A | ⬜ pending |
+| 20-01-01 | 01 | 1 | AGENT-01 | unit | `pnpm vitest run __tests__/main-layout` | ✅ | ✅ green |
+| 20-01-02 | 01 | 1 | AGENT-01 | unit | `pnpm vitest run components/concierge` | ✅ | ✅ green |
+| 20-02-01 | 02 | 1 | DESIGN-03 | grep | `grep -rn "<svg" apps/web/components/ --include="*.tsx" \| grep -v "__tests__"` | N/A | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -48,8 +49,8 @@ created: 2026-03-11
 
 ## Wave 0 Requirements
 
-- [ ] `apps/web/__tests__/main-layout.test.tsx` — stubs for AGENT-01 (ConciergeShell + ConciergeNavButton render in (main) layout)
-- [ ] Existing vitest config already includes `__tests__/**/*.test.{ts,tsx}` — no config change needed
+- [x] `apps/web/__tests__/main-layout.test.tsx` — stubs for AGENT-01 (ConciergeShell + ConciergeNavButton render in (main) layout)
+- [x] Existing vitest config already includes `__tests__/**/*.test.{ts,tsx}` — no config change needed
 
 *Existing infrastructure covers DESIGN-03 verification (grep-based smoke test).*
 
@@ -67,11 +68,26 @@ created: 2026-03-11
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 5s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 5s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** ✅ COMPLIANT (audited 2026-03-11)
+
+---
+
+## Validation Audit 2026-03-11
+| Metric | Count |
+|--------|-------|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+| Total requirements | 3 |
+| COVERED | 3 |
+| PARTIAL | 0 |
+| MISSING | 0 |
+
+All 3 requirements verified green. No test generation required.
