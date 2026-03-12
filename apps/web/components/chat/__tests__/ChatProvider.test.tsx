@@ -213,6 +213,31 @@ describe('ChatProvider', () => {
     });
   });
 
+  it('innermost ChatProvider campusSlug wins over outer empty-slug provider', async () => {
+    const stream = makeMockStream(['data: {"type":"done"}\n\n']);
+    const mockFetch = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      body: stream,
+    } as Response);
+
+    // Outer provider (simulates root layout — no slug)
+    // Inner provider (simulates (main)/layout.tsx — derived slug)
+    render(
+      <ChatProvider>
+        <ChatProvider campusSlug="uw-madison">
+          <TestConsumer />
+        </ChatProvider>
+      </ChatProvider>
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Send'));
+    });
+
+    const callBody = JSON.parse(mockFetch.mock.calls[0][1]!.body as string);
+    expect(callBody.campusSlug).toBe('uw-madison');
+  });
+
   it('ignores empty string sendMessage calls', async () => {
     function EmptyConsumer() {
       const { messages, sendMessage } = useChatContext();
