@@ -1,3 +1,11 @@
+/**
+ * Mission type definitions — contracts for the executor pipeline.
+ *
+ * Defines the interfaces for steps, context, results, drafts, and
+ * mission definitions that mission implementations must satisfy.
+ * All interfaces use readonly properties for immutability.
+ */
+
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // ─── Mission Step Definitions ──────────────────────────────────────

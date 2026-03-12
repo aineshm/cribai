@@ -1,5 +1,14 @@
+/**
+ * MissionRegistry — singleton map of mission type → definition.
+ *
+ * Mission implementations (e.g. housing_search, tour_outreach) call
+ * `registerMission()` at module load time to make themselves available
+ * to the executor. The registry enforces one definition per type.
+ */
+
 import type { MissionDefinition } from './types';
 
+/** In-memory map keyed by mission type string (e.g. 'housing_search'). */
 const MISSION_REGISTRY: Map<string, MissionDefinition> = new Map();
 
 /**

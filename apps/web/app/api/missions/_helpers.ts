@@ -1,3 +1,11 @@
+/**
+ * Mission API helpers — shared auth resolution and ownership verification.
+ *
+ * Handles both production (Supabase Auth) and dev mode (cookie-based
+ * fake users) authentication. Provides a query client abstraction that
+ * uses service-role in dev mode to bypass RLS.
+ */
+
 import { cookies } from 'next/headers';
 import { createServerComponentClient, createSecretClient } from '@campusnest/supabase/server';
 import { isDevAuthEnabled, getDevUserById, DEFAULT_DEV_USER, DEV_USER_COOKIE } from '../../../lib/dev-auth';
@@ -10,6 +18,7 @@ export async function resolveMissionAuth(): Promise<{
   const cookieStore = await cookies();
   const supabase = createServerComponentClient(cookieStore);
 
+  // In dev mode, resolve user from a cookie-based fake user system (no real auth)
   if (isDevAuthEnabled()) {
     const selectedId = cookieStore.get(DEV_USER_COOKIE)?.value;
     const devUser = selectedId ? getDevUserById(selectedId) : DEFAULT_DEV_USER;

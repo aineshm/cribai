@@ -1,3 +1,12 @@
+/**
+ * MissionExecutor — sequential step pipeline runner.
+ *
+ * Runs inside Next.js `after()` so it executes asynchronously after the
+ * HTTP response is sent. Uses a service-role Supabase client (no cookie
+ * context) to persist state after each step. Supports HITL (human-in-the-loop)
+ * pausing via draft creation and resume via current_step_index.
+ */
+
 import { createSecretClient } from '@campusnest/supabase/server';
 import type { ExecuteOptions, StepContext } from './types';
 import { getMissionDefinition } from './registry';
@@ -63,7 +72,9 @@ export async function executeMission(options: ExecuteOptions): Promise<void> {
     : 'unknown';
 
   // ── Execute steps ──────────────────────────────────────
+  // Resume from explicit step or persisted index (supports HITL resume after approval)
   const startIndex = options.startFromStep ?? mission.current_step_index;
+  // Spread to create a mutable copy — each step's output is merged immutably
   let state: Readonly<Record<string, unknown>> = { ...mission.state };
 
   for (let i = startIndex; i < definition.steps.length; i++) {
@@ -107,7 +118,8 @@ export async function executeMission(options: ExecuteOptions): Promise<void> {
         tool_output: result.output as Record<string, unknown>,
       });
 
-      // HITL pause: save draft and wait for approval
+      // HITL pause: save draft and wait for user approval.
+      // Execution stops here — the approve endpoint resumes from current_step_index.
       if (result.draft) {
         await insertMissionDraft(supabase, {
           mission_id: options.missionId,

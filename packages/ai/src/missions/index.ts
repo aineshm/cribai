@@ -1,3 +1,10 @@
+/**
+ * Missions barrel export — public API for the mission executor engine.
+ *
+ * Re-exports the executor, registry, repository functions, and type
+ * definitions for use by API routes and mission implementations.
+ */
+
 export { executeMission } from './executor';
 export { registerMission, getMissionDefinition, getRegisteredTypes, clearRegistry } from './registry';
 export type {

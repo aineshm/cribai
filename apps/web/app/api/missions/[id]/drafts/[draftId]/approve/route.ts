@@ -1,3 +1,10 @@
+/**
+ * Draft approval route — POST /api/missions/[id]/drafts/[draftId]/approve.
+ *
+ * Marks the HITL draft as approved, sets the mission back to 'running',
+ * and resumes the executor from the saved step index via Next.js `after()`.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { after } from 'next/server';
 import { createSecretClient } from '@campusnest/supabase/server';
@@ -57,7 +64,7 @@ export async function POST(
     return NextResponse.json({ error: 'Failed to resume mission' }, { status: 500 });
   }
 
-  // Resume executor from the saved step index
+  // Resume executor from the saved step index — picks up where HITL pause left off
   const stepIndex = mission.current_step_index as number;
   after(() => executeMission({ missionId, startFromStep: stepIndex }));
 

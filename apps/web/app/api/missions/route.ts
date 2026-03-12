@@ -1,3 +1,11 @@
+/**
+ * Missions collection routes — POST (create) and GET (list).
+ *
+ * POST creates a new mission row and fires the executor asynchronously
+ * via Next.js `after()`. GET returns the authenticated user's missions
+ * ordered by most recently updated.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { after } from 'next/server';
 import { z } from 'zod';
@@ -36,6 +44,7 @@ export async function POST(request: NextRequest) {
 
   const { type, title, goal, campusId, input, listingId, idempotencyKey } = parsed.data;
 
+  // Dev mode bypasses RLS — use service-role client for writes
   const writeClient = isDevAuthEnabled() ? createSecretClient() as any : supabase;
 
   const { data, error } = await writeClient
@@ -59,7 +68,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create mission' }, { status: 500 });
   }
 
-  // Fire executor asynchronously — don't block the response
+  // Fire executor asynchronously via Next.js after() — runs post-response
+  // so the client gets an immediate 201 while the pipeline runs in background
   after(() => executeMission({ missionId: data.id as string }));
 
   return NextResponse.json({ id: data.id, status: data.status }, { status: 201 });

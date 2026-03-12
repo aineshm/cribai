@@ -1,3 +1,11 @@
+/**
+ * Mission steering route — POST /api/missions/[id]/steer.
+ *
+ * Allows the user to submit a natural-language correction while a
+ * mission is running. The steering is stored and picked up by the
+ * executor on the next step via Gemini function-calling intent parsing.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createSecretClient } from '@campusnest/supabase/server';

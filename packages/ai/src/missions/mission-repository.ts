@@ -1,3 +1,11 @@
+/**
+ * MissionRepository — data access layer for missions and related tables.
+ *
+ * Encapsulates all Supabase queries for missions, mission_logs,
+ * mission_drafts, mission_steerings, and campus_configs. Each function
+ * takes a SupabaseClient so callers control auth scope (user vs service-role).
+ */
+
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Mission, MissionLog, MissionDraft, MissionSteering } from '@campusnest/types';
 
@@ -214,7 +222,7 @@ export async function getLatestSteering(
     .from('mission_steerings')
     .select('*')
     .eq('mission_id', missionId)
-    .is('applied_at', null)
+    .is('applied_at', null) // only unapplied steerings — applied ones are already consumed
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();

@@ -1,3 +1,10 @@
+/**
+ * Mission detail route — GET /api/missions/[id].
+ *
+ * Returns the full mission object along with its execution logs
+ * and the current HITL draft (if any), fetched in parallel.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveMissionAuth, verifyMissionOwnership, getQueryClient } from '../_helpers';
 

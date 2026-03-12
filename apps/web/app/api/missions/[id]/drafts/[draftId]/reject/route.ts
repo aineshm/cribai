@@ -1,3 +1,10 @@
+/**
+ * Draft rejection route — POST /api/missions/[id]/drafts/[draftId]/reject.
+ *
+ * Marks the HITL draft as rejected and fails the mission. The user
+ * would need to create a new mission to retry with different parameters.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createSecretClient } from '@campusnest/supabase/server';
 import { isDevAuthEnabled } from '../../../../../../../lib/dev-auth';
@@ -44,7 +51,7 @@ export async function POST(
     return NextResponse.json({ error: 'Failed to reject draft' }, { status: 500 });
   }
 
-  // Mark mission as failed
+  // Rejection terminates the mission — user must create a new one to retry
   const { error: statusError } = await writeClient
     .from('missions')
     .update({ status: 'failed' })
