@@ -33,11 +33,24 @@ vi.mock('next/headers', () => ({
   headers: vi.fn(() => Promise.resolve({ get: mockGet })),
 }));
 
+// Mock ChatProvider — layout now wraps children with it
+vi.mock('@/components/chat/ChatProvider', () => ({
+  ChatProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+const mockFrom = vi.fn(() => ({
+  select: vi.fn().mockReturnThis(),
+  order: vi.fn().mockReturnThis(),
+  limit: vi.fn().mockReturnThis(),
+  single: vi.fn().mockResolvedValue({ data: { slug: 'uw-madison' } }),
+}));
+
 vi.mock('@campusnest/supabase/server', () => ({
   createServerComponentClient: vi.fn(() => ({
     auth: {
       getUser: mockGetUser,
     },
+    from: mockFrom,
   })),
 }));
 
