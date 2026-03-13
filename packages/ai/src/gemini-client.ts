@@ -18,12 +18,23 @@ function ensureVertexCredentials(): void {
   // Already have a file path configured
   if (process.env.GOOGLE_APPLICATION_CREDENTIALS) return;
 
-  // Support inline JSON credentials for serverless environments (Vercel, etc.)
+  // Support credentials for serverless environments (Vercel, etc.)
+  // Stored as base64 to avoid newline corruption during env var storage
   const inlineJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
   if (!inlineJson) return;
 
+  // Decode base64 if needed, otherwise use as-is (plain JSON fallback)
+  let json: string;
+  try {
+    const decoded = Buffer.from(inlineJson.trim(), 'base64').toString('utf8');
+    JSON.parse(decoded); // validate it's real JSON
+    json = decoded;
+  } catch {
+    json = inlineJson; // already plain JSON
+  }
+
   const credFile = path.join(os.tmpdir(), 'gcp-sa-key.json');
-  fs.writeFileSync(credFile, inlineJson, { mode: 0o600 });
+  fs.writeFileSync(credFile, json, { mode: 0o600 });
   process.env.GOOGLE_APPLICATION_CREDENTIALS = credFile;
 }
 
