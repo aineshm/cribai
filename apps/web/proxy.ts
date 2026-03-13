@@ -17,7 +17,7 @@ function resolveDevUser(request: NextRequest) {
   return devUser ?? DEFAULT_DEV_USER;
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const response = NextResponse.next({
     request: { headers: request.headers },
   });

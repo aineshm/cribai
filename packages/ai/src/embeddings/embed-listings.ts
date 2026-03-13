@@ -17,6 +17,7 @@ export interface EmbedMetrics {
 
 interface ListingRow {
   readonly id: string;
+  readonly source: string;
   readonly address: string;
   readonly rent_monthly: number | null;
   readonly bedrooms: number | null;
@@ -24,6 +25,7 @@ interface ListingRow {
   readonly sqft: number | null;
   readonly amenities: readonly string[] | string[];
   readonly photo_urls: readonly string[] | string[];
+  readonly raw_data: Record<string, unknown> | null;
   readonly last_embedded_at: string | null;
   readonly updated_at: string | null;
 }
@@ -39,7 +41,7 @@ export async function embedChangedListings(
   // PostgREST can't do cross-column comparisons, so we fetch all active and filter in JS
   const { data: allListings, error: fetchError } = await supabase
     .from('listings')
-    .select('id, address, rent_monthly, bedrooms, bathrooms, sqft, amenities, photo_urls, last_embedded_at, updated_at')
+    .select('id, source, address, rent_monthly, bedrooms, bathrooms, sqft, amenities, photo_urls, raw_data, last_embedded_at, updated_at')
     .eq('is_active', true);
 
   const listings = (allListings ?? []).filter((l: ListingRow) =>
@@ -91,6 +93,12 @@ export async function embedChangedListings(
         ? listing.photo_urls as string[]
         : [];
 
+      // For sources with sparse structured fields (e.g. Craigslist), include
+      // the raw listing title which often contains the key details.
+      const rawTitle = typeof listing.raw_data?.['title'] === 'string'
+        ? listing.raw_data['title']
+        : undefined;
+
       const text = synthesizeListingText({
         address: listing.address,
         rentMonthly: listing.rent_monthly,
@@ -99,6 +107,7 @@ export async function embedChangedListings(
         sqft: listing.sqft,
         amenities,
         photoCount: photoUrls.length,
+        rawTitle,
       });
 
       let embedding: readonly number[] | null = null;

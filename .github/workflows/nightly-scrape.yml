@@ -3,7 +3,16 @@ name: Nightly Scrape
 on:
   schedule:
     - cron: '0 8 * * *'  # 2am CT = 8am UTC
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      skip_scrape:
+        description: 'Skip Apify scrape and go straight to embeddings (use when data is already fresh)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 jobs:
   scrape:
@@ -17,10 +26,46 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: 'pnpm'
 
       - run: pnpm install --frozen-lockfile
+
+      - name: Build workspace packages
+        run: pnpm --filter @campusnest/types --filter @campusnest/utils build
+
+      - name: Check last Zillow scrape age
+        id: check_scrape_age
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          MANUAL_SKIP: ${{ github.event.inputs.skip_scrape }}
+        run: |
+          if [ "$MANUAL_SKIP" = "true" ]; then
+            echo "Manual override — skipping Apify scrape"
+            echo "skip_scrape=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          LAST_SEEN=$(curl -sf \
+            "${SUPABASE_URL}/rest/v1/listings?source=eq.zillow&select=last_seen_at&order=last_seen_at.desc&limit=1" \
+            -H "apikey: ${SUPABASE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_KEY}" | jq -r '.[0].last_seen_at // empty')
+          if [ -z "$LAST_SEEN" ]; then
+            echo "No Zillow listings found — will run scraper"
+            echo "skip_scrape=false" >> "$GITHUB_OUTPUT"
+          else
+            NOW=$(date -u +%s)
+            LAST_SEEN_S=$(date -u -d "$LAST_SEEN" +%s)
+            AGE=$(( NOW - LAST_SEEN_S ))
+            echo "Last Zillow scrape: $LAST_SEEN (${AGE}s ago)"
+            if [ "$AGE" -lt 86400 ]; then
+              echo "Data is fresh (< 24h) — skipping Apify scrape, proceeding to embeddings"
+              echo "skip_scrape=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "Data is stale (>= 24h) — will run scraper"
+              echo "skip_scrape=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
 
       - name: Install Playwright browsers
         if: env.ENABLE_APARTMENTS_COM == 'true'
@@ -28,6 +73,7 @@ jobs:
 
       - name: Run scraper
         id: scrape
+        if: steps.check_scrape_age.outputs.skip_scrape != 'true'
         run: |
           OUTPUT=$(pnpm --filter @campusnest/scraper start -- --limit 500 2>&1) || EXIT_CODE=$?
           echo "$OUTPUT"
@@ -62,6 +108,8 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           if [ "$SCRAPE_OUTCOME" = "failure" ]; then
             echo "> **FAILED** -- Check logs for details" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$SCRAPE_OUTCOME" = "skipped" ]; then
+            echo "> **SKIPPED** (Zillow data is fresh, < 24h old — proceeding to embeddings)" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "> **SUCCESS**" >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -85,7 +133,7 @@ jobs:
           fi
 
       - name: Trigger fairness recalculation
-        if: success()
+        if: success() && steps.scrape.outcome == 'success'
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
@@ -100,7 +148,7 @@ jobs:
         id: embed
         env:
           GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}

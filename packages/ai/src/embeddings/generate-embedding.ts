@@ -1,8 +1,15 @@
 /**
  * Gemini embedding wrapper for listing and query embeddings.
- * Uses embedding-001 model with asymmetric task types:
+ * Uses gemini-embedding-001 with asymmetric task types:
  * - RETRIEVAL_DOCUMENT for listing text (what is being indexed)
  * - RETRIEVAL_QUERY for search queries (what the user is looking for)
+ *
+ * gemini-embedding-001 is the current GA recommended Vertex AI embedding model
+ * (released 2025-05-20, up to 3072 dimensions). The @google/genai SDK v1.42.0+
+ * correctly routes it to the Vertex AI :predict endpoint with instances-wrapped
+ * request body. text-embedding-004 is the older gecko-lineage model retiring
+ * April 2027. We use outputDimensionality: 768 to stay compatible with the
+ * existing pgvector column and Pinecone index dimensions.
  */
 
 import { createGeminiClient } from '../gemini-client';

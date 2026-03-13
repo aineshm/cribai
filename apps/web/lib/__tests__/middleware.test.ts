@@ -43,9 +43,9 @@ function makeRequest(pathname: string): NextRequest {
 // ---------------------------------------------------------------------------
 // We use a dynamic import inside each test so module-level mocks are applied.
 async function runMiddleware(pathname: string) {
-  const { middleware } = await import('../../middleware');
+  const { proxy } = await import('../../proxy');
   const req = makeRequest(pathname);
-  return middleware(req);
+  return proxy(req);
 }
 
 // ---------------------------------------------------------------------------

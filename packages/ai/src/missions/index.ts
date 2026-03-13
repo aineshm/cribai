@@ -26,7 +26,12 @@ export {
   updateDraftDecision,
   insertMissionSteering,
   getLatestSteering,
+  getAllUnappliedSteerings,
+  markSteeringApplied,
+  updateMissionInput,
   getCampusSlug,
 } from './mission-repository';
 export type { InsertLogParams, InsertDraftParams, InsertSteeringParams } from './mission-repository';
 export { tourOutreachDefinition } from './tour-outreach-mission';
+export { parseSteeringIntent } from './steering-parser';
+export type { SteeringUpdate } from './steering-parser';

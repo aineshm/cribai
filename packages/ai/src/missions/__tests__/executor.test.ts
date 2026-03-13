@@ -26,6 +26,13 @@ vi.mock('../mission-repository', () => ({
   insertMissionLog: vi.fn(),
   insertMissionDraft: vi.fn(),
   getCampusSlug: vi.fn(),
+  getAllUnappliedSteerings: vi.fn(),
+  markSteeringApplied: vi.fn(),
+  updateMissionInput: vi.fn(),
+}));
+
+vi.mock('../steering-parser', () => ({
+  parseSteeringIntent: vi.fn(),
 }));
 
 vi.mock('../registry', () => ({
@@ -41,8 +48,12 @@ import {
   insertMissionLog,
   insertMissionDraft,
   getCampusSlug,
+  getAllUnappliedSteerings,
+  markSteeringApplied,
+  updateMissionInput,
 } from '../mission-repository';
 import { getMissionDefinition } from '../registry';
+import { parseSteeringIntent } from '../steering-parser';
 
 // ── Typed mock references ─────────────────────────────────────
 // Gives us strongly-typed .mockResolvedValue / .mockReturnValue calls
@@ -55,6 +66,10 @@ const mockInsertLog = vi.mocked(insertMissionLog);
 const mockInsertDraft = vi.mocked(insertMissionDraft);
 const mockGetCampusSlug = vi.mocked(getCampusSlug);
 const mockGetDefinition = vi.mocked(getMissionDefinition);
+const mockGetAllUnappliedSteerings = vi.mocked(getAllUnappliedSteerings);
+const mockMarkSteeringApplied = vi.mocked(markSteeringApplied);
+const mockUpdateMissionInput = vi.mocked(updateMissionInput);
+const mockParseSteeringIntent = vi.mocked(parseSteeringIntent);
 
 /** Returns a minimal valid Mission object with optional field overrides. */
 function baseMission(overrides: Partial<Mission> = {}): Mission {
@@ -107,6 +122,11 @@ describe('executeMission', () => {
     mockSetResult.mockResolvedValue(undefined);
     mockInsertLog.mockResolvedValue({} as any);
     mockInsertDraft.mockResolvedValue({} as any);
+    // Default: no pending steerings — tests that need one override this
+    mockGetAllUnappliedSteerings.mockResolvedValue([]);
+    mockMarkSteeringApplied.mockResolvedValue(undefined);
+    mockUpdateMissionInput.mockResolvedValue(undefined);
+    mockParseSteeringIntent.mockResolvedValue(null);
   });
 
   it('runs all steps and completes the mission', async () => {
@@ -326,5 +346,289 @@ describe('executeMission', () => {
     await executeMission({ missionId: 'mission-1' });
 
     expect(mockGetCampusSlug).not.toHaveBeenCalled();
+  });
+
+  // ── Steering tests ───────────────────────────────────────────
+
+  it('applies steering between steps: updates input, marks applied, logs action', async () => {
+    const steering = {
+      id: 'steering-1',
+      mission_id: 'mission-1',
+      raw_input: 'lower budget to $1100',
+      parsed_intent: null,
+      applied_at: null,
+      created_at: '2026-03-12T00:00:00Z',
+    } as any;
+
+    mockGetMission.mockResolvedValue(baseMission());
+    mockGetDefinition.mockReturnValue({
+      type: 'housing_search',
+      steps: [makeStep('search'), makeStep('rank')],
+    });
+    // Return steering after step 1 (not the last step), empty after step 2
+    mockGetAllUnappliedSteerings
+      .mockResolvedValueOnce([steering])
+      .mockResolvedValueOnce([]);
+    mockParseSteeringIntent.mockResolvedValueOnce({ maxRent: 1100 });
+
+    await executeMission({ missionId: 'mission-1' });
+
+    expect(mockUpdateMissionInput).toHaveBeenCalledWith(
+      expect.anything(),
+      'mission-1',
+      expect.objectContaining({ maxRent: 1100 }),
+    );
+    expect(mockMarkSteeringApplied).toHaveBeenCalledWith(expect.anything(), 'steering-1');
+
+    const steeringLog = mockInsertLog.mock.calls.find(
+      (call) => (call[1] as any).action === 'steering_applied',
+    );
+    expect(steeringLog).toBeDefined();
+    expect((steeringLog![1] as any).detail).toContain('lower budget to $1100');
+  });
+
+  it('step after steering sees updated ctx.input', async () => {
+    const capturedInputs: Record<string, unknown>[] = [];
+    const steering = {
+      id: 'steering-1',
+      mission_id: 'mission-1',
+      raw_input: 'lower to $1100',
+      parsed_intent: null,
+      applied_at: null,
+      created_at: '2026-03-12T00:00:00Z',
+    } as any;
+
+    mockGetMission.mockResolvedValue(baseMission({ input: { bedrooms: 2, maxRent: 1500 } }));
+    mockGetDefinition.mockReturnValue({
+      type: 'housing_search',
+      steps: [
+        makeStep('step1'),
+        makeStep('step2', async (ctx) => {
+          capturedInputs.push({ ...ctx.input });
+          return { output: {} };
+        }),
+      ],
+    });
+    mockGetAllUnappliedSteerings
+      .mockResolvedValueOnce([steering])
+      .mockResolvedValueOnce([]);
+    mockParseSteeringIntent.mockResolvedValueOnce({ maxRent: 1100 });
+
+    await executeMission({ missionId: 'mission-1' });
+
+    expect(capturedInputs[0]).toMatchObject({ bedrooms: 2, maxRent: 1100 });
+  });
+
+  it('marks steering applied but skips updateMissionInput when parse returns {}', async () => {
+    // Two steps so step1 is not the last step — steering can still be consumed.
+    const steering = {
+      id: 'steering-2',
+      mission_id: 'mission-1',
+      raw_input: 'never mind',
+      parsed_intent: null,
+      applied_at: null,
+      created_at: '2026-03-12T00:00:00Z',
+    } as any;
+
+    mockGetMission.mockResolvedValue(baseMission());
+    mockGetDefinition.mockReturnValue({
+      type: 'housing_search',
+      steps: [makeStep('step1'), makeStep('step2')],
+    });
+    mockGetAllUnappliedSteerings
+      .mockResolvedValueOnce([steering])
+      .mockResolvedValueOnce([]);
+    mockParseSteeringIntent.mockResolvedValueOnce({});
+
+    await executeMission({ missionId: 'mission-1' });
+
+    expect(mockMarkSteeringApplied).toHaveBeenCalledWith(expect.anything(), 'steering-2');
+    expect(mockUpdateMissionInput).not.toHaveBeenCalled();
+  });
+
+  it('does not mark steering applied when parse returns null (retry on next step)', async () => {
+    // Two steps: parse fails after step1, steering stays unapplied for retry on step2.
+    const steering = {
+      id: 'steering-3',
+      mission_id: 'mission-1',
+      raw_input: 'gibberish',
+      parsed_intent: null,
+      applied_at: null,
+      created_at: '2026-03-12T00:00:00Z',
+    } as any;
+
+    mockGetMission.mockResolvedValue(baseMission());
+    mockGetDefinition.mockReturnValue({
+      type: 'housing_search',
+      steps: [makeStep('step1'), makeStep('step2')],
+    });
+    mockGetAllUnappliedSteerings.mockResolvedValue([steering]);
+    mockParseSteeringIntent.mockResolvedValue(null);
+
+    await executeMission({ missionId: 'mission-1' });
+
+    expect(mockMarkSteeringApplied).not.toHaveBeenCalled();
+    // Mission still completes normally
+    expect(mockUpdateStatus).toHaveBeenCalledWith(expect.anything(), 'mission-1', 'completed');
+  });
+
+  it('does not kill mission when getAllUnappliedSteerings throws', async () => {
+    mockGetMission.mockResolvedValue(baseMission());
+    mockGetDefinition.mockReturnValue({
+      type: 'housing_search',
+      steps: [makeStep('only')],
+    });
+    mockGetAllUnappliedSteerings.mockRejectedValue(new Error('DB connection lost'));
+
+    await executeMission({ missionId: 'mission-1' });
+
+    // Mission completes despite steering DB error
+    expect(mockUpdateStatus).toHaveBeenCalledWith(expect.anything(), 'mission-1', 'completed');
+    expect(mockUpdateStatus).not.toHaveBeenCalledWith(expect.anything(), 'mission-1', 'failed');
+  });
+
+  it('applies steering only once across multiple steps', async () => {
+    const steering = {
+      id: 'steering-4',
+      mission_id: 'mission-1',
+      raw_input: 'max $1300',
+      parsed_intent: null,
+      applied_at: null,
+      created_at: '2026-03-12T00:00:00Z',
+    } as any;
+
+    mockGetMission.mockResolvedValue(baseMission());
+    mockGetDefinition.mockReturnValue({
+      type: 'housing_search',
+      steps: [makeStep('s1'), makeStep('s2'), makeStep('s3')],
+    });
+    // Steering returned after step 1 (not last), already consumed by then for s2 and s3
+    mockGetAllUnappliedSteerings
+      .mockResolvedValueOnce([steering])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    mockParseSteeringIntent.mockResolvedValueOnce({ maxRent: 1300 });
+
+    await executeMission({ missionId: 'mission-1' });
+
+    expect(mockMarkSteeringApplied).toHaveBeenCalledTimes(1);
+    expect(mockUpdateMissionInput).toHaveBeenCalledTimes(1);
+  });
+
+  // ── Bug regression: reverse-chronological replay (Bug 1) ─────
+
+  it('applies multiple steerings in chronological order so the newest correction wins', async () => {
+    // User sends $1200 then $1000. Executor must fold oldest-first so $1000 wins.
+    const stalesteering = {
+      id: 'steering-old',
+      mission_id: 'mission-1',
+      raw_input: 'max $1200',
+      parsed_intent: null,
+      applied_at: null,
+      created_at: '2026-03-12T00:01:00Z',
+    } as any;
+    const latestSteering = {
+      id: 'steering-new',
+      mission_id: 'mission-1',
+      raw_input: 'actually $1000',
+      parsed_intent: null,
+      applied_at: null,
+      created_at: '2026-03-12T00:02:00Z',
+    } as any;
+
+    mockGetMission.mockResolvedValue(baseMission({ input: { bedrooms: 2, maxRent: 1500 } }));
+    mockGetDefinition.mockReturnValue({
+      type: 'housing_search',
+      steps: [makeStep('step1'), makeStep('step2')],
+    });
+    // Both steerings pending after step 1 (ascending order: stale first, new last)
+    mockGetAllUnappliedSteerings
+      .mockResolvedValueOnce([stalesteering, latestSteering])
+      .mockResolvedValueOnce([]);
+    // stale parses to $1200, latest parses to $1000
+    mockParseSteeringIntent
+      .mockResolvedValueOnce({ maxRent: 1200 })
+      .mockResolvedValueOnce({ maxRent: 1000 });
+
+    await executeMission({ missionId: 'mission-1' });
+
+    // Both steerings must be marked applied
+    expect(mockMarkSteeringApplied).toHaveBeenCalledWith(expect.anything(), 'steering-old');
+    expect(mockMarkSteeringApplied).toHaveBeenCalledWith(expect.anything(), 'steering-new');
+
+    // Input persisted once with the newest value winning ($1000, not $1200)
+    expect(mockUpdateMissionInput).toHaveBeenCalledTimes(1);
+    expect(mockUpdateMissionInput).toHaveBeenCalledWith(
+      expect.anything(),
+      'mission-1',
+      expect.objectContaining({ maxRent: 1000 }),
+    );
+  });
+
+  // ── Bug regression: final-step steering never consumed (Bug 2) ─
+
+  it('does not mark steering applied when it arrives during the final step', async () => {
+    // Steering arrives after the last step completes — no next step will consume it.
+    const lateSteering = {
+      id: 'steering-late',
+      mission_id: 'mission-1',
+      raw_input: 'change to $900',
+      parsed_intent: null,
+      applied_at: null,
+      created_at: '2026-03-12T00:05:00Z',
+    } as any;
+
+    mockGetMission.mockResolvedValue(baseMission());
+    mockGetDefinition.mockReturnValue({
+      type: 'housing_search',
+      steps: [makeStep('final')],
+    });
+    mockGetAllUnappliedSteerings.mockResolvedValueOnce([lateSteering]);
+
+    await executeMission({ missionId: 'mission-1' });
+
+    // Steering must NOT be marked applied — it was never consumed
+    expect(mockMarkSteeringApplied).not.toHaveBeenCalled();
+    expect(mockUpdateMissionInput).not.toHaveBeenCalled();
+
+    // A too_late log must be emitted so the user can see why their correction was ignored
+    const tooLateLog = mockInsertLog.mock.calls.find(
+      (call) => (call[1] as any).action === 'steering_too_late',
+    );
+    expect(tooLateLog).toBeDefined();
+    expect((tooLateLog![1] as any).detail).toContain('change to $900');
+
+    // Mission still completes
+    expect(mockUpdateStatus).toHaveBeenCalledWith(expect.anything(), 'mission-1', 'completed');
+  });
+
+  it('does not mark steering applied when result.done signals early termination', async () => {
+    const lateSteering = {
+      id: 'steering-early-done',
+      mission_id: 'mission-1',
+      raw_input: 'add rooftop',
+      parsed_intent: null,
+      applied_at: null,
+      created_at: '2026-03-12T00:06:00Z',
+    } as any;
+
+    mockGetMission.mockResolvedValue(baseMission());
+    mockGetDefinition.mockReturnValue({
+      type: 'housing_search',
+      // done=true on step1 means no step2 will run — steering on step1 is too late
+      steps: [
+        makeStep('step1', async () => ({ output: { found: true }, done: true })),
+        makeStep('step2'),
+      ],
+    });
+    mockGetAllUnappliedSteerings.mockResolvedValueOnce([lateSteering]);
+
+    await executeMission({ missionId: 'mission-1' });
+
+    expect(mockMarkSteeringApplied).not.toHaveBeenCalled();
+    const tooLateLog = mockInsertLog.mock.calls.find(
+      (call) => (call[1] as any).action === 'steering_too_late',
+    );
+    expect(tooLateLog).toBeDefined();
   });
 });
