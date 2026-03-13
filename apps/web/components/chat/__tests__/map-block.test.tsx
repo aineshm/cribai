@@ -1,15 +1,7 @@
 import React from 'react';
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import type { MapBlock } from '@campusnest/types';
-
-// ChatMapBlock only renders the map when NEXT_PUBLIC_MAPBOX_TOKEN is set
-beforeAll(() => {
-  vi.stubEnv('NEXT_PUBLIC_MAPBOX_TOKEN', 'pk.test-token');
-});
-afterAll(() => {
-  vi.unstubAllEnvs();
-});
 
 // Mock react-map-gl/mapbox
 vi.mock('react-map-gl/mapbox', () => ({
@@ -136,9 +128,9 @@ describe('ChatMapBlock', () => {
   it('displays price labels on markers', () => {
     render(<ChatMapBlock block={mockBlock} campusSlug="uw-madison" />);
     const markers = screen.getAllByTestId('marker');
-    expect(markers[0]!.textContent).toContain('$1,200');
-    expect(markers[1]!.textContent).toContain('$950');
-    expect(markers[2]!.textContent).toContain('$1,500');
+    expect(markers[0]?.textContent).toContain('$1,200');
+    expect(markers[1]?.textContent).toContain('$950');
+    expect(markers[2]?.textContent).toContain('$1,500');
   });
 
   it('opens popup when marker is clicked', () => {
@@ -157,10 +149,10 @@ describe('ChatMapBlock', () => {
     const markers = screen.getAllByTestId('marker');
     fireEvent.click(markers[0]!);
 
-    // The selected pin should have the primary selected bg class (CSS var)
+    // The selected pin should have blue bg class
     const priceLabels = screen.getAllByText('$1,200');
     const selectedLabel = priceLabels.find((el) =>
-      el.className.includes('bg-[var(--primary-600)]')
+      el.className.includes('bg-blue-600')
     );
     expect(selectedLabel).toBeTruthy();
   });

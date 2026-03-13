@@ -11,30 +11,8 @@
  */
 
 import React from 'react';
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-
-// ConciergeProvider fetches /api/missions — stub fetch globally with active missions
-const MOCK_MISSIONS = [
-  { id: 'mission-1', title: 'Housing Search', status: 'active', type: 'housing_search', goal: 'Find housing', current_step_index: 1, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: 'mission-2', title: 'Tour Outreach', status: 'waiting_approval', type: 'tour_outreach', goal: 'Schedule tours', current_step_index: 2, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-];
-
-beforeAll(() => {
-  vi.stubGlobal('fetch', vi.fn((url: string) => {
-    if (String(url).includes('/api/missions')) {
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({ missions: MOCK_MISSIONS }),
-      });
-    }
-    return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
-  }));
-});
-
-afterAll(() => {
-  vi.unstubAllGlobals();
-});
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { ConciergeProvider } from '../ConciergeProvider';
 import { ConciergeNavButton } from '../ConciergeNavButton';
 import { MissionCard } from '../MissionCard';
@@ -85,8 +63,6 @@ vi.mock('lucide-react', () => {
     MessageSquare: Icon,
     DollarSign: Icon,
     GitCompare: Icon,
-    Search: Icon,
-    Mail: Icon,
     ArrowLeft: Icon,
     ChevronDown: Icon,
     Send: Icon,
@@ -98,33 +74,6 @@ vi.mock('lucide-react', () => {
     MapPin: Icon,
   };
 });
-
-// ── Mock @campusnest/supabase/client — ConciergeProvider calls createClient() ──
-vi.mock('@campusnest/supabase/client', () => ({
-  createClient: () => ({
-    auth: {
-      getSession: vi.fn().mockResolvedValue({
-        data: {
-          session: { user: { id: 'test-user-id' }, access_token: 'test-token' },
-        },
-      }),
-      onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
-    },
-    channel: vi.fn().mockReturnValue({
-      on: vi.fn().mockReturnThis(),
-      subscribe: vi.fn(),
-    }),
-    removeChannel: vi.fn(),
-    from: vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ data: [], error: null }),
-        order: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ data: [], error: null }),
-        }),
-      }),
-    }),
-  }),
-}));
 
 // ── Mock @/lib/animations ─────────────────────────────────────────────────────
 vi.mock('@/lib/animations', () => ({
@@ -372,7 +321,6 @@ const sampleLogs: readonly ExecutionLog[] = [
   },
 ];
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // AGENT-03: AgentSummary
 // ─────────────────────────────────────────────────────────────────────────────
@@ -454,29 +402,27 @@ describe('ExecutionLogs (AGENT-03)', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('SteeringBar (AGENT-04)', () => {
-  const defaultProps = { missionId: 'test-mission-id' };
-
   it('renders the text input with placeholder', () => {
-    render(<SteeringBar {...defaultProps} />);
+    render(<SteeringBar />);
     const input = screen.getByTestId('input');
     expect(input).toBeInTheDocument();
     expect(input).toHaveAttribute('placeholder', 'Tell the agent what to do next...');
   });
 
   it('renders the send button', () => {
-    render(<SteeringBar {...defaultProps} />);
+    render(<SteeringBar />);
     const button = screen.getByRole('button');
     expect(button).toBeInTheDocument();
   });
 
   it('send button is disabled when input is empty', () => {
-    render(<SteeringBar {...defaultProps} />);
+    render(<SteeringBar />);
     const button = screen.getByRole('button');
     expect(button).toBeDisabled();
   });
 
   it('send button is enabled when input has non-whitespace text', () => {
-    render(<SteeringBar {...defaultProps} />);
+    render(<SteeringBar />);
     const input = screen.getByTestId('input');
     fireEvent.change(input, { target: { value: 'Focus on 2BR apartments only' } });
     const button = screen.getByRole('button');
@@ -484,7 +430,7 @@ describe('SteeringBar (AGENT-04)', () => {
   });
 
   it('send button remains disabled when input contains only whitespace', () => {
-    render(<SteeringBar {...defaultProps} />);
+    render(<SteeringBar />);
     const input = screen.getByTestId('input');
     fireEvent.change(input, { target: { value: '   ' } });
     const button = screen.getByRole('button');
@@ -494,7 +440,7 @@ describe('SteeringBar (AGENT-04)', () => {
   it('the send button is a submit-type button inside a form', () => {
     // Structural contract: SteeringBar renders a <form> with a submit button,
     // so the browser's native form submission (Enter key) is supported.
-    const { container } = render(<SteeringBar {...defaultProps} />);
+    const { container } = render(<SteeringBar />);
     const form = container.querySelector('form');
     expect(form).toBeInTheDocument();
 
@@ -567,10 +513,10 @@ describe('MissionActionCard — DraftReadyCard (AGENT-02)', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders "Approve & Send" and "Cancel" buttons', () => {
+  it('renders "Approve & Send" and "Edit Draft" buttons', () => {
     render(<MissionActionCard actionCard={draftCard} />);
     expect(screen.getByText('Approve & Send')).toBeInTheDocument();
-    expect(screen.getByText('Cancel')).toBeInTheDocument();
+    expect(screen.getByText('Edit Draft')).toBeInTheDocument();
   });
 });
 
@@ -613,7 +559,7 @@ describe('MissionActionCard — NegotiationUpdateCard (AGENT-02)', () => {
     expect(counterElements.length).toBeGreaterThanOrEqual(1);
     // Verify at least one is a button
     const counterButton = counterElements.find(
-      (el) => el.tagName === 'BUTTON' || el.closest('button') !== null
+      (el: HTMLElement) => el.tagName === 'BUTTON' || el.closest('button') !== null
     );
     expect(counterButton).toBeTruthy();
     expect(screen.getByText('Decline')).toBeInTheDocument();
@@ -717,18 +663,19 @@ describe('ConciergeNavButton (AGENT-01)', () => {
     expect(screen.getByText('Concierge')).toBeInTheDocument();
   });
 
-  it('shows a badge with the active mission count when there are active missions', async () => {
+  it('shows a badge with the active mission count when there are active missions', () => {
+    // ConciergeProvider seeds from mockMissions which has active/scheduled/waiting_approval missions
     render(
       <ConciergeProvider>
         <ConciergeNavButton />
       </ConciergeProvider>
     );
-    // ConciergeProvider loads missions async from /api/missions (mocked via fetch stub)
-    await waitFor(() => {
-      const badge = document.querySelector('[class*="rounded-full"]');
-      expect(badge).toBeInTheDocument();
-      expect(Number(badge?.textContent)).toBeGreaterThan(0);
-    });
+    // mockMissions has mission-3 (active), mission-6 (active), mission-1 (scheduled), mission-2 (waiting_approval) = 4
+    const badge = document.querySelector('[class*="rounded-full"][class*="bg-"]');
+    expect(badge).toBeInTheDocument();
+    // The count should be a positive number
+    const countText = badge?.textContent;
+    expect(Number(countText)).toBeGreaterThan(0);
   });
 
   it('calls openSidebar when the button is clicked', () => {

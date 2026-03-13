@@ -3,10 +3,10 @@
 import { motion } from 'framer-motion';
 import { staggerContainer, staggerItem } from '@/lib/animations';
 import { ListingCard } from './ListingCard';
-import type { Listing } from '@/lib/mock-listings';
+import type { ExploreListing } from '@/lib/listing-types';
 
 interface ListingGridProps {
-  readonly listings: readonly Listing[];
+  readonly listings: readonly ExploreListing[];
 }
 
 export function ListingGrid({ listings }: ListingGridProps) {

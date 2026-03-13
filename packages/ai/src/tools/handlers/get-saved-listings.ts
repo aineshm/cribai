@@ -37,6 +37,21 @@ export async function getSavedListings(
   const parsed = inputSchema.parse(args);
   const limit = Math.min(parsed.limit ?? 10, 20);
 
+  // Map sort parameter to Supabase .order() column and direction
+  const { column, ascending } = (() => {
+    switch (parsed.sort) {
+      case 'price_asc':
+        return { column: 'listings.rent_monthly', ascending: true };
+      case 'price_desc':
+        return { column: 'listings.rent_monthly', ascending: false };
+      case 'fairness':
+        return { column: 'listings.fairness_score', ascending: false };
+      case 'saved_date':
+      default:
+        return { column: 'created_at', ascending: false };
+    }
+  })();
+
   const { data, error } = await context.supabase
     .from('saved_listings')
     .select(`
@@ -48,7 +63,7 @@ export async function getSavedListings(
       )
     `)
     .eq('user_id', context.userId)
-    .order('created_at', { ascending: false })
+    .order(column, { ascending })
     .limit(limit);
 
   if (error) {
@@ -67,7 +82,8 @@ export async function getSavedListings(
     };
   }
 
-  const unsorted: readonly ListingSummary[] = rows.map(row => ({
+  // Rows are already sorted by the Supabase query
+  const listings: readonly ListingSummary[] = rows.map(row => ({
     id: row.listings.id,
     address: row.listings.address,
     rentMonthly: row.listings.rent_monthly != null ? Number(row.listings.rent_monthly) : null,
@@ -79,20 +95,6 @@ export async function getSavedListings(
     amenities: Array.isArray(row.listings.amenities) ? [...row.listings.amenities] : [],
     campusSlug: context.campusSlug,
   }));
-
-  // Sort client-side — PostgREST doesn't support .order() on joined foreign table columns
-  const listings: readonly ListingSummary[] = (() => {
-    switch (parsed.sort) {
-      case 'price_asc':
-        return [...unsorted].sort((a, b) => (a.rentMonthly ?? Infinity) - (b.rentMonthly ?? Infinity));
-      case 'price_desc':
-        return [...unsorted].sort((a, b) => (b.rentMonthly ?? 0) - (a.rentMonthly ?? 0));
-      case 'fairness':
-        return [...unsorted].sort((a, b) => (b.fairnessScore ?? 0) - (a.fairnessScore ?? 0));
-      default:
-        return unsorted;
-    }
-  })();
 
   const modelContext = `User has ${listings.length} saved listing(s):\n${listings
     .map(

@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getMockListingById } from '@/lib/mock-listing-detail';
+import { fetchListingById } from '@/lib/listings-data';
 import { ListingDetailClient } from './ListingDetailClient';
 
 interface ListingDetailPageProps {
@@ -10,7 +10,7 @@ export default async function ListingDetailPage({
   params,
 }: ListingDetailPageProps) {
   const { id } = await params;
-  const listing = getMockListingById(id);
+  const listing = await fetchListingById(id);
 
   if (!listing) {
     notFound();
@@ -18,6 +18,8 @@ export default async function ListingDetailPage({
 
   return <ListingDetailClient listing={listing} />;
 }
+
+export const dynamic = 'force-dynamic';
 
 export function generateMetadata() {
   return {

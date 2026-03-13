@@ -2,8 +2,8 @@ import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock child components before importing ExploreLayout
-const mockListingGrid = vi.fn((_props?: unknown) => <div data-testid="listing-grid" />);
-const mockMapPanel = vi.fn((_props?: unknown) => <div data-testid="map-panel" />);
+const mockListingGrid = vi.fn((_props: Record<string, unknown>) => <div data-testid="listing-grid" />);
+const mockMapPanel = vi.fn((_props: Record<string, unknown>) => <div data-testid="map-panel" />);
 const mockViewToggle = vi.fn(({ activeView, onViewChange }: { activeView: string; onViewChange: (v: string) => void }) => (
   <div data-testid="view-toggle">
     <button onClick={() => onViewChange('map')}>Map</button>
@@ -12,16 +12,16 @@ const mockViewToggle = vi.fn(({ activeView, onViewChange }: { activeView: string
   </div>
 ));
 
-vi.mock('../ListingGrid', () => ({ ListingGrid: (props: unknown) => mockListingGrid(props) }));
-vi.mock('../MapPanel', () => ({ MapPanel: (props: unknown) => mockMapPanel(props) }));
+vi.mock('../ListingGrid', () => ({ ListingGrid: (props: any) => mockListingGrid(props) }));
+vi.mock('../MapPanel', () => ({ MapPanel: (props: any) => mockMapPanel(props) }));
 vi.mock('../ViewToggle', () => ({
-  ViewToggle: (props: unknown) => mockViewToggle(props as { activeView: string; onViewChange: (v: string) => void }),
+  ViewToggle: (props: any) => mockViewToggle(props),
 }));
 
 import { ExploreLayout } from '../ExploreLayout';
-import type { Listing } from '@/lib/mock-listings';
+import type { ExploreListing } from '@/lib/listing-types';
 
-const mockListings: readonly Listing[] = [
+const mockListings: readonly ExploreListing[] = [
   {
     id: '1',
     title: 'Test Apt 1',
@@ -30,14 +30,13 @@ const mockListings: readonly Listing[] = [
     beds: 2,
     baths: 1,
     sqft: 700,
-    distanceToCampus: 0.3,
-    rating: 4.5,
-    photoUrls: [],
-    placeholderGradient: 'from-teal-200 to-emerald-400',
+    photoUrl: null,
     amenities: [],
-    isVerified: false,
-    isSaved: false,
-    landlord: { name: 'Landlord A', rating: 4.0 },
+    source: 'apartments.com',
+    sourceUrl: null,
+    fairnessScore: null,
+    availableDate: null,
+    walkScore: null,
   },
   {
     id: '2',
@@ -47,14 +46,13 @@ const mockListings: readonly Listing[] = [
     beds: 1,
     baths: 1,
     sqft: 550,
-    distanceToCampus: 0.5,
-    rating: 4.0,
-    photoUrls: [],
-    placeholderGradient: 'from-sky-200 to-blue-400',
+    photoUrl: null,
     amenities: ['Pet Friendly'],
-    isVerified: true,
-    isSaved: false,
-    landlord: { name: 'Landlord B', rating: 3.8 },
+    source: 'apartments.com',
+    sourceUrl: null,
+    fairnessScore: null,
+    availableDate: null,
+    walkScore: null,
   },
 ];
 

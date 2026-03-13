@@ -17,7 +17,7 @@ interface PersistWebListingParams {
 
 /**
  * Persists a web search result as a listing in the database. Called for every
- * web search result returned by webSearch(). Uses upsert on (external_id, source)
+ * web search result returned by webSearch(). Uses upsert on (source, source_url)
  * so duplicate URLs are deduplicated. The Phase 3 embedding pipeline will embed
  * new/changed rows on the next nightly run.
  */
@@ -30,7 +30,6 @@ export async function persistWebListing(
       .from('listings')
       .upsert(
         {
-          external_id: params.sourceUrl,
           address: params.address,
           source: 'web_search',
           source_url: params.sourceUrl,
@@ -40,7 +39,7 @@ export async function persistWebListing(
           is_active: true,
           raw_data: { web_content: params.content },
         },
-        { onConflict: 'external_id,source' },
+        { onConflict: 'source,source_url' },
       )
       .select('id')
       .single();
@@ -54,13 +53,11 @@ export async function persistWebListing(
       return null;
     }
 
-    // Upsert sets last_embedded_at: null via the insert payload for new rows.
-    // For existing rows that were updated, reset embedding only if previously embedded.
+    // Reset last_embedded_at so the embedding pipeline re-processes this listing
     const { error: updateError } = await context.supabase
       .from('listings')
       .update({ last_embedded_at: null })
-      .eq('id', data.id)
-      .not('last_embedded_at', 'is', null);
+      .eq('id', data.id);
 
     if (updateError) {
       console.error('persistWebListing embedding reset failed:', updateError.message);

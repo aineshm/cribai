@@ -53,7 +53,7 @@ describe('FilterChips', () => {
         onFiltersChange={vi.fn()}
       />
     );
-    const priceBtn = screen.getByText('Price').closest('button');
+    const priceBtn = screen.getByText('Price').closest('button')!;
     expect(priceBtn).toHaveAttribute('aria-pressed', 'false');
   });
 
@@ -66,7 +66,7 @@ describe('FilterChips', () => {
         onFiltersChange={vi.fn()}
       />
     );
-    const priceBtn = screen.getByText('Price').closest('button');
+    const priceBtn = screen.getByText('Price').closest('button')!;
     expect(priceBtn).toHaveAttribute('aria-pressed', 'true');
   });
 
@@ -81,7 +81,7 @@ describe('FilterChips', () => {
     );
     fireEvent.click(screen.getByText('Beds').closest('button')!);
     expect(onFiltersChange).toHaveBeenCalledOnce();
-    const result: Set<string> = onFiltersChange.mock.calls[0]![0];
+    const result = onFiltersChange.mock.calls[0]![0] as Set<string>;
     expect(result.has('beds')).toBe(true);
   });
 
@@ -97,7 +97,7 @@ describe('FilterChips', () => {
     );
     fireEvent.click(screen.getByText('Price').closest('button')!);
     expect(onFiltersChange).toHaveBeenCalledOnce();
-    const result: Set<string> = onFiltersChange.mock.calls[0]![0];
+    const result = onFiltersChange.mock.calls[0]![0] as Set<string>;
     expect(result.has('price')).toBe(false);
     expect(result.has('beds')).toBe(true);
   });
@@ -112,7 +112,7 @@ describe('FilterChips', () => {
       />
     );
     fireEvent.click(screen.getByText('Furnished').closest('button')!);
-    const result: Set<string> = onFiltersChange.mock.calls[0]![0];
+    const result = onFiltersChange.mock.calls[0]![0] as Set<string>;
     expect(result.has('furnished')).toBe(true);
   });
 });
