@@ -143,20 +143,20 @@ jobs:
             -H "Authorization: Bearer ${SUPABASE_KEY}" \
             -H "Content-Type: application/json"
 
-      - name: Write GCP service account key
+      - name: Write GCP service account credentials
         if: success()
         env:
-          GCP_SA_KEY: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+          GCP_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
         run: |
-          echo "$GCP_SA_KEY" > /tmp/gcp-sa-key.json
-          echo "GCP_CREDENTIALS_FILE=/tmp/gcp-sa-key.json" >> "$GITHUB_ENV"
+          echo "$GCP_CREDENTIALS_JSON" > /tmp/gcp-sa-key.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-sa-key.json" >> "$GITHUB_ENV"
 
       - name: Generate embeddings for changed listings
         if: success()
         id: embed
         env:
           GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GCP_CREDENTIALS_FILE }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
         run: |

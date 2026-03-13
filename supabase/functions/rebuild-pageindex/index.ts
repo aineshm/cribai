@@ -3,14 +3,15 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 Deno.serve(async (req) => {
   try {
     const authHeader = req.headers.get('Authorization');
-    const serviceKey = Deno.env.get('SUPABASE_SECRET_KEY');
-    if (!authHeader?.includes(serviceKey ?? '')) {
+    // SUPABASE_SERVICE_ROLE_KEY is auto-injected by Supabase into all edge functions
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!serviceKey || !authHeader?.includes(serviceKey)) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      serviceKey!,
+      serviceKey,
     );
 
     const { data: campuses } = await supabase
