@@ -8,10 +8,10 @@ import { PhotoGallery } from '@/components/listing/PhotoGallery';
 import { ListingContent } from '@/components/listing/ListingContent';
 import { CTASidebar } from '@/components/listing/CTASidebar';
 import { MobileBottomBar } from '@/components/listing/MobileBottomBar';
-import type { DetailedListing } from '@/lib/mock-listing-detail';
+import type { ListingDetail } from '@/lib/listing-types';
 
 interface ListingDetailClientProps {
-  readonly listing: DetailedListing;
+  readonly listing: ListingDetail;
 }
 
 export function ListingDetailClient({ listing }: ListingDetailClientProps) {
@@ -42,7 +42,16 @@ export function ListingDetailClient({ listing }: ListingDetailClientProps) {
 
       <div className="max-w-6xl mx-auto px-4 py-6">
         {/* Photo Gallery */}
-        <PhotoGallery photos={listing.photos} />
+        {listing.photoUrls.length > 0 && (
+          <PhotoGallery
+            photos={listing.photoUrls.map((url, i) => ({
+              id: `photo-${i}`,
+              gradient: '',
+              alt: `${listing.title} photo ${i + 1}`,
+              url,
+            }))}
+          />
+        )}
 
         {/* Two-Column Layout */}
         <div className="mt-8 grid grid-cols-1 md:grid-cols-[1fr_340px] lg:grid-cols-[1fr_380px] gap-8">

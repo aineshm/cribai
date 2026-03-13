@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { scaleIn, fadeIn } from '@/lib/animations';
-import type { PhotoItem } from '@/lib/mock-listing-detail';
+import type { PhotoItem } from './PhotoGallery';
 
 interface LightboxProps {
   readonly photos: readonly PhotoItem[];
@@ -122,12 +123,24 @@ export function Lightbox({
             </div>
 
             {/* Photo display */}
-            <div
-              className={`w-full aspect-[16/10] rounded-xl bg-gradient-to-br ${currentPhoto?.gradient ?? 'from-primary-200 to-primary-400'} flex items-center justify-center`}
-            >
-              <span className="text-white/70 text-lg">
-                {currentPhoto?.alt}
-              </span>
+            <div className="w-full aspect-[16/10] rounded-xl overflow-hidden relative">
+              {currentPhoto?.url ? (
+                <Image
+                  src={currentPhoto.url}
+                  alt={currentPhoto.alt}
+                  fill
+                  className="object-contain bg-black"
+                  sizes="(max-width: 1024px) 100vw, 896px"
+                />
+              ) : (
+                <div
+                  className={`w-full h-full bg-gradient-to-br ${currentPhoto?.gradient ?? 'from-primary-200 to-primary-400'} flex items-center justify-center`}
+                >
+                  <span className="text-white/70 text-lg">
+                    {currentPhoto?.alt}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Navigation */}
@@ -149,23 +162,33 @@ export function Lightbox({
             </button>
           </motion.div>
 
-          {/* Thumbnail strip */}
+          {/* Thumbnail strip (max 10) */}
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
-            {photos.map((photo, i) => (
+            {photos.slice(0, 10).map((photo, i) => (
               <button
                 key={photo.id}
                 type="button"
                 onClick={() => onIndexChange(i)}
-                className={`w-12 h-8 rounded-md overflow-hidden border-2 transition-all ${
+                className={`w-12 h-8 rounded-md overflow-hidden border-2 transition-all relative ${
                   i === activeIndex
                     ? 'border-white scale-110'
                     : 'border-transparent opacity-60 hover:opacity-80'
                 }`}
                 aria-label={`View photo ${i + 1}`}
               >
-                <div
-                  className={`w-full h-full bg-gradient-to-br ${photo.gradient}`}
-                />
+                {photo.url ? (
+                  <Image
+                    src={photo.url}
+                    alt={photo.alt}
+                    fill
+                    className="object-cover"
+                    sizes="48px"
+                  />
+                ) : (
+                  <div
+                    className={`w-full h-full bg-gradient-to-br ${photo.gradient}`}
+                  />
+                )}
               </button>
             ))}
           </div>

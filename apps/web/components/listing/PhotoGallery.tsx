@@ -1,15 +1,60 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { Camera, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { staggerContainer, staggerItem } from '@/lib/animations';
 import { Lightbox } from './Lightbox';
-import type { PhotoItem } from '@/lib/mock-listing-detail';
+
+/** Photo item supporting real URLs with gradient fallback */
+export interface PhotoItem {
+  readonly id: string;
+  readonly gradient: string;
+  readonly alt: string;
+  readonly url?: string;
+}
 
 interface PhotoGalleryProps {
   readonly photos: readonly PhotoItem[];
+}
+
+/** Renders either a real image or a gradient placeholder */
+function PhotoDisplay({
+  photo,
+  className = '',
+  sizes,
+  children,
+}: {
+  readonly photo: PhotoItem;
+  readonly className?: string;
+  readonly sizes?: string;
+  readonly children?: React.ReactNode;
+}) {
+  if (photo.url) {
+    return (
+      <div className={`relative ${className}`}>
+        <Image
+          src={photo.url}
+          alt={photo.alt}
+          fill
+          className="object-cover"
+          sizes={sizes ?? '(max-width: 768px) 100vw, 66vw'}
+        />
+        {children}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`bg-gradient-to-br ${photo.gradient || 'from-primary-200 to-primary-400'} flex items-center justify-center ${className}`}
+    >
+      <span className="text-sm text-white/70 font-medium">{photo.alt}</span>
+      {children}
+    </div>
+  );
 }
 
 export function PhotoGallery({ photos }: PhotoGalleryProps) {
@@ -49,19 +94,19 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
       >
         {/* Hero Image (2/3 width) */}
         <motion.button
-          className="col-span-2 relative cursor-pointer"
+          className="col-span-2 relative cursor-pointer overflow-hidden"
           variants={staggerItem}
           onClick={() => openLightbox(0)}
           type="button"
           aria-label={heroPhoto?.alt ?? 'Main photo'}
         >
-          <div
-            className={`w-full h-full bg-gradient-to-br ${heroPhoto?.gradient ?? 'from-primary-200 to-primary-400'} flex items-center justify-center`}
-          >
-            <span className="text-sm text-white/70 font-medium">
-              {heroPhoto?.alt}
-            </span>
-          </div>
+          {heroPhoto && (
+            <PhotoDisplay
+              photo={heroPhoto}
+              className="w-full h-full"
+              sizes="66vw"
+            />
+          )}
         </motion.button>
 
         {/* Side Thumbnails (1/3 width, 2x2 grid) */}
@@ -75,11 +120,11 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
               type="button"
               aria-label={photo.alt}
             >
-              <div
-                className={`w-full h-full bg-gradient-to-br ${photo.gradient} flex items-center justify-center`}
-              >
-                <span className="text-xs text-white/60">{i + 2}</span>
-              </div>
+              <PhotoDisplay
+                photo={photo}
+                className="w-full h-full"
+                sizes="17vw"
+              />
             </motion.button>
           ))}
         </div>
@@ -103,12 +148,16 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
         <button
           type="button"
           onClick={() => openLightbox(mobileIndex)}
-          className={`w-full h-full bg-gradient-to-br ${photos[mobileIndex]?.gradient ?? 'from-primary-200 to-primary-400'} flex items-center justify-center transition-all duration-300 cursor-pointer`}
+          className="w-full h-full cursor-pointer relative"
           aria-label={`View ${photos[mobileIndex]?.alt ?? 'photo'} in fullscreen`}
         >
-          <span className="text-sm text-white/70">
-            {photos[mobileIndex]?.alt}
-          </span>
+          {photos[mobileIndex] && (
+            <PhotoDisplay
+              photo={photos[mobileIndex]}
+              className="w-full h-full"
+              sizes="100vw"
+            />
+          )}
         </button>
 
         {/* Navigation Arrows */}
@@ -129,9 +178,9 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
           <ChevronRight className="size-5 text-foreground" />
         </button>
 
-        {/* Dots indicator */}
+        {/* Dots indicator (max 8) */}
         <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-          {photos.map((photo, i) => (
+          {photos.slice(0, 8).map((photo, i) => (
             <button
               key={photo.id}
               type="button"

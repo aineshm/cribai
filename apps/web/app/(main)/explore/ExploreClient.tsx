@@ -8,19 +8,18 @@ import { pageTransition } from '@/lib/animations';
 import { filterListings, type ActiveFilters } from '@/lib/filter-listings';
 import { AIChatButton } from '@/components/chat/AIChatButton';
 import { AIChatPanel } from '@/components/chat/AIChatPanel';
-import type { Listing } from '@/lib/mock-listings';
+import type { ExploreListing } from '@/lib/listing-types';
 
 interface ExploreClientProps {
-  readonly initialListings: readonly Listing[];
-  readonly campusName: string;
+  readonly listings: readonly ExploreListing[];
 }
 
-export function ExploreClient({ initialListings, campusName }: ExploreClientProps) {
+export function ExploreClient({ listings }: ExploreClientProps) {
   const [activeFilters, setActiveFilters] = useState<ActiveFilters>(new Set());
 
   const filteredListings = useMemo(
-    () => filterListings(initialListings, activeFilters),
-    [initialListings, activeFilters]
+    () => filterListings(listings, activeFilters),
+    [listings, activeFilters]
   );
 
   return (
@@ -44,7 +43,6 @@ export function ExploreClient({ initialListings, campusName }: ExploreClientProp
         {/* Filters */}
         <FilterChips
           resultCount={filteredListings.length}
-          campusName={campusName}
           activeFilters={activeFilters}
           onFiltersChange={setActiveFilters}
         />

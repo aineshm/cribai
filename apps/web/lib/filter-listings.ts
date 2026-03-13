@@ -1,21 +1,18 @@
-import type { Listing } from './mock-listings';
+import type { ExploreListing } from './listing-types';
 
 export type ActiveFilters = ReadonlySet<string>;
 
 /** Price threshold for "budget-friendly" filtering */
 const PRICE_THRESHOLD = 1500;
 
-/** Distance threshold in miles */
-const DISTANCE_THRESHOLD = 0.5;
-
 /**
  * Filter listings based on active filter chip selections.
  * Each active filter narrows the result set (AND logic).
  */
 export function filterListings(
-  listings: readonly Listing[],
+  listings: readonly ExploreListing[],
   activeFilters: ActiveFilters
-): readonly Listing[] {
+): readonly ExploreListing[] {
   if (activeFilters.size === 0) return listings;
 
   return listings.filter((listing) => {
@@ -26,21 +23,24 @@ export function filterListings(
   });
 }
 
-function matchesFilter(listing: Listing, filterId: string): boolean {
+function matchesFilter(listing: ExploreListing, filterId: string): boolean {
   switch (filterId) {
     case 'price':
       return listing.price <= PRICE_THRESHOLD;
     case 'beds':
-      return listing.beds >= 2;
+      return (listing.beds ?? 0) >= 2;
     case 'distance':
-      return listing.distanceToCampus <= DISTANCE_THRESHOLD;
+      // Walk Score ≥ 80 is a proxy for "close to campus"
+      return (listing.walkScore ?? 0) >= 80;
     case 'move-in':
-      // All mock listings are available — passes by default
-      return true;
+      // Has an available date set
+      return listing.availableDate !== null;
     case 'pets':
-      return listing.amenities.includes('Pet Friendly');
+      return listing.amenities.some(
+        (a) => a.toLowerCase().includes('cat') || a.toLowerCase().includes('dog') || a.toLowerCase().includes('pet')
+      );
     case 'furnished':
-      return listing.amenities.includes('Furnished');
+      return listing.amenities.some((a) => a.toLowerCase().includes('furnished'));
     default:
       return true;
   }
