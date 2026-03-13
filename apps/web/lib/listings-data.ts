@@ -197,7 +197,7 @@ export async function fetchExploreListings(): Promise<readonly ExploreListing[]>
     .select(EXPLORE_SELECT)
     .eq('is_active', true)
     .order('last_seen_at', { ascending: false })
-    .limit(100);
+    .limit(500);
 
   if (error) {
     console.error('[listings-data] fetchExploreListings error:', error);
