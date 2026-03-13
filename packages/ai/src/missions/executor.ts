@@ -18,7 +18,7 @@ import {
   insertMissionLog,
   insertMissionDraft,
   getCampusSlug,
-  getLatestSteering,
+  getAllUnappliedSteerings,
   markSteeringApplied,
   updateMissionInput,
 } from './mission-repository';
@@ -122,39 +122,65 @@ export async function executeMission(options: ExecuteOptions): Promise<void> {
         tool_output: result.output as Record<string, unknown>,
       });
 
-      // ── Steering check: apply any pending mid-mission correction ────────────
-      // Runs after each completed step so corrections take effect on the next
-      // iteration. Never throws — failures are warned and skipped to avoid
-      // killing the mission. Returns {} (nothing to change) vs null (parse error).
+      // ── Steering check: apply all pending mid-mission corrections ───────────
+      // Fetches every unapplied steering in chronological order so the newest
+      // correction wins when multiple arrive between steps (Bug: reverse-replay).
+      // On the final step (result.done or last index) steerings are left unapplied
+      // and logged as too-late — no subsequent step exists to consume the change.
+      // Never throws — failures are warned and skipped to keep the mission alive.
       try {
-        const steering = await getLatestSteering(supabase, options.missionId);
-        if (steering) {
-          const parsed = await parseSteeringIntent(
-            steering.raw_input,
-            mission.type,
-            mission.input,
-          );
-          if (parsed !== null) {
-            if (Object.keys(parsed).length > 0) {
-              // Immutably replace mission.input — next iteration's ctx.input reflects this
-              mission = { ...mission, input: { ...mission.input, ...parsed } };
+        const pendingSteerings = await getAllUnappliedSteerings(supabase, options.missionId);
+        if (pendingSteerings.length > 0) {
+          const isLastStep = result.done === true || i === definition.steps.length - 1;
+
+          if (isLastStep) {
+            // No subsequent step will run — updating input would have no effect.
+            // Leave steerings unapplied so they remain visible in the audit trail.
+            for (const steering of pendingSteerings) {
+              await insertMissionLog(supabase, {
+                mission_id: options.missionId,
+                action: 'steering_too_late',
+                detail: `Steering arrived after final step and was not applied: "${steering.raw_input}"`,
+                status: 'error',
+                tool_output: null,
+              });
+            }
+          } else {
+            // Apply all pending steerings oldest-first so the newest correction wins.
+            let inputUpdated = false;
+            for (const steering of pendingSteerings) {
+              const parsed = await parseSteeringIntent(
+                steering.raw_input,
+                mission.type,
+                mission.input,
+              );
+              if (parsed !== null) {
+                if (Object.keys(parsed).length > 0) {
+                  // Immutably fold into mission.input — later steerings overwrite earlier ones
+                  mission = { ...mission, input: { ...mission.input, ...parsed } };
+                  inputUpdated = true;
+                }
+                await markSteeringApplied(supabase, steering.id);
+                await insertMissionLog(supabase, {
+                  mission_id: options.missionId,
+                  action: 'steering_applied',
+                  detail: `Steering applied: "${steering.raw_input}"`,
+                  status: 'success',
+                  tool_output: Object.keys(parsed).length > 0
+                    ? (parsed as Record<string, unknown>)
+                    : null,
+                });
+              } else {
+                // Parse failed — leave unapplied so it is retried on the next step
+                console.warn(
+                  `[executor] Steering parse failed for mission ${options.missionId}, steering ${steering.id}`,
+                );
+              }
+            }
+            // Persist the final merged input once after all steerings are processed
+            if (inputUpdated) {
               await updateMissionInput(supabase, options.missionId, mission.input);
             }
-            await markSteeringApplied(supabase, steering.id);
-            await insertMissionLog(supabase, {
-              mission_id: options.missionId,
-              action: 'steering_applied',
-              detail: `Steering applied: "${steering.raw_input}"`,
-              status: 'success',
-              tool_output: Object.keys(parsed).length > 0
-                ? (parsed as Record<string, unknown>)
-                : null,
-            });
-          } else {
-            // Parse failed — leave steering unapplied so it is retried on next step
-            console.warn(
-              `[executor] Steering parse failed for mission ${options.missionId}, steering ${steering.id}`,
-            );
           }
         }
       } catch (steeringErr) {
