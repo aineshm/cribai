@@ -1,13 +1,19 @@
 /**
  * Gemini embedding wrapper for listing and query embeddings.
- * Uses embedding-001 model with asymmetric task types:
+ * Uses text-embedding-004 with asymmetric task types:
  * - RETRIEVAL_DOCUMENT for listing text (what is being indexed)
  * - RETRIEVAL_QUERY for search queries (what the user is looking for)
+ *
+ * NOTE: gemini-embedding-001 was tried but the @google/genai SDK routes it to
+ * the Vertex AI :predict endpoint (tIsVertexEmbedContentModel returns false for
+ * that model), which does not support the predict request format and returns a
+ * non-JSON error response for every call. text-embedding-004 uses the same
+ * :predict path and is the stable, proven Vertex AI embedding model.
  */
 
 import { createGeminiClient } from '../gemini-client';
 
-const MODEL = 'gemini-embedding-001';
+const MODEL = 'text-embedding-004';
 const DIMENSIONS = 768;
 
 /**
