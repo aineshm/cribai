@@ -20,6 +20,7 @@ import {
   Send,
   Loader2,
 } from 'lucide-react';
+import { trackEvent } from '@/lib/track-event';
 import type { WizardFormData } from './PostWizard';
 
 interface StepReviewProps {
@@ -69,6 +70,12 @@ export function StepReview({ formData, userEmail }: StepReviewProps) {
         available_date: formData.leaseStart || undefined,
         description: formData.description || undefined,
         contact_email: userEmail ?? '',
+        // Sublease-specific fields stored in raw_data by the API
+        lease_end: formData.leaseEnd || undefined,
+        furnished: formData.furnished,
+        parking: formData.parking,
+        property_type: formData.propertyType,
+        floor_level: formData.floorLevel || undefined,
       };
 
       const res = await fetch('/api/submit-listing', {
@@ -83,6 +90,7 @@ export function StepReview({ formData, userEmail }: StepReviewProps) {
       }
 
       const { listing } = await res.json() as { listing: { id: string } };
+      trackEvent('listing_posted', { listing_id: listing.id, source: 'sublease' });
       toast.success('Sublease published!', {
         description: 'Your listing is now live and visible to students.',
       });

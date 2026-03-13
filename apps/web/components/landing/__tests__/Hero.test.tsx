@@ -24,9 +24,10 @@ describe('Hero', () => {
     expect(cta).toHaveAttribute('href', '/login');
   });
 
-  it('renders "See How It Works" link regardless of auth state', () => {
+  it('renders "Post Your Sublease" link regardless of auth state', () => {
     render(<Hero isAuthenticated={true} />);
-    const link = screen.getByRole('link', { name: 'See How It Works' });
+    const link = screen.getByRole('link', { name: 'Post Your Sublease' });
     expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute('href', '/post');
   });
 });

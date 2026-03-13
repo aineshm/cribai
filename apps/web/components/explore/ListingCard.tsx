@@ -55,14 +55,20 @@ export function ListingCard({ listing }: ListingCardProps) {
                 className="object-cover"
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
               />
-              {listing.source && (
+              {listing.source === 'sublease' ? (
+                <Badge
+                  className="absolute bottom-2 left-2 bg-[var(--primary-600)] text-white text-xs border-none"
+                >
+                  Student Sublease
+                </Badge>
+              ) : listing.source ? (
                 <Badge
                   variant="outline"
                   className="absolute bottom-2 left-2 bg-white/90 backdrop-blur-sm text-xs capitalize"
                 >
                   {listing.source}
                 </Badge>
-              )}
+              ) : null}
             </div>
           ) : (
             <div

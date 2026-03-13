@@ -8,7 +8,10 @@
     "test": "turbo test",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
-    "clean": "turbo clean"
+    "clean": "turbo clean",
+    "review": "codex review --base main",
+    "review:staged": "codex review --uncommitted",
+    "prepare": "husky"
   },
   "pnpm": {
     "overrides": {
@@ -17,6 +20,7 @@
     }
   },
   "devDependencies": {
+    "husky": "^9.1.7",
     "tsx": "^4.19.0",
     "turbo": "^2.3.0",
     "typescript": "^5.7.0"

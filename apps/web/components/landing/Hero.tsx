@@ -56,13 +56,13 @@ export function Hero({ isAuthenticated = false }: HeroProps) {
             {ctaText}
           </Link>
           <Link
-            href="#how-it-works"
+            href="/post"
             className={cn(
               buttonVariants({ variant: 'outline', size: 'lg' }),
               'h-12 px-8 text-base rounded-full'
             )}
           >
-            See How It Works
+            Post Your Sublease
           </Link>
         </motion.div>
       </motion.div>

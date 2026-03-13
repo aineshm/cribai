@@ -46,6 +46,9 @@ vi.mock('react-map-gl/mapbox', () => ({
 // Mock mapbox-gl CSS
 vi.mock('mapbox-gl/dist/mapbox-gl.css', () => ({}));
 
+// Stub the Mapbox token so the component renders the map instead of the fallback
+vi.stubEnv('NEXT_PUBLIC_MAPBOX_TOKEN', 'test-token');
+
 // Mock next/link
 vi.mock('next/link', () => ({
   default: ({
@@ -149,10 +152,10 @@ describe('ChatMapBlock', () => {
     const markers = screen.getAllByTestId('marker');
     fireEvent.click(markers[0]!);
 
-    // The selected pin should have blue bg class
+    // The selected pin should have the primary bg class (design system token)
     const priceLabels = screen.getAllByText('$1,200');
     const selectedLabel = priceLabels.find((el) =>
-      el.className.includes('bg-blue-600')
+      el.className.includes('bg-[var(--primary-600)]')
     );
     expect(selectedLabel).toBeTruthy();
   });

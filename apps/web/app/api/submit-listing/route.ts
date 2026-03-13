@@ -80,13 +80,21 @@ export async function POST(request: NextRequest) {
       amenities,
       available_date: available_date ?? null,
       description: description ?? null,
-      source: 'manual',
+      source: 'sublease',
       source_url: source_url || null,
       contact_email: contact_email ?? null,
       is_active: true,
       last_embedded_at: null,
-      external_id: `manual-${user.id}-${Date.now()}`,
-      raw_data: { submitted_by: user.id },
+      external_id: `sublease-${user.id}-${Date.now()}`,
+      raw_data: {
+        submitted_by: user.id,
+        is_sublease: true,
+        lease_end: (rawBody as Record<string, unknown>)?.lease_end ?? null,
+        furnished: (rawBody as Record<string, unknown>)?.furnished ?? null,
+        parking: (rawBody as Record<string, unknown>)?.parking ?? null,
+        property_type: (rawBody as Record<string, unknown>)?.property_type ?? null,
+        floor_level: (rawBody as Record<string, unknown>)?.floor_level ?? null,
+      },
     })
     .select('id, address')
     .single();

@@ -79,6 +79,17 @@ describe('filterListings', () => {
     expect(result.map((l) => l.id)).toEqual(['1']);
   });
 
+  it('sublease filter returns only sublease listings', () => {
+    const withSublease: readonly ExploreListing[] = [
+      ...listings,
+      makeListing({ id: '5', source: 'sublease', price: 900 }),
+      makeListing({ id: '6', source: 'sublease', price: 1100 }),
+    ];
+    const result = filterListings(withSublease, new Set(['sublease']));
+    expect(result.map((l) => l.id)).toEqual(['5', '6']);
+    result.forEach((l) => expect(l.source).toBe('sublease'));
+  });
+
   it('unknown filter id passes all listings through', () => {
     const result = filterListings(listings, new Set(['unknown-filter']));
     expect(result).toHaveLength(4);

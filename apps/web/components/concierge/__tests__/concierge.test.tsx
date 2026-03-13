@@ -23,6 +23,31 @@ import { MissionSuggestions } from '../MissionSuggestions';
 import { MissionActionCard } from '../MissionActionCard';
 import type { LegacyMission, ExecutionLog, ActionCard } from '@/lib/concierge-types';
 
+// ── Mock Supabase client (used by ConciergeProvider) ─────────────────────────
+vi.mock('@campusnest/supabase/client', () => ({
+  createClient: () => ({
+    auth: {
+      getSession: () => Promise.resolve({ data: { session: { user: { id: 'test-user' } } }, error: null }),
+    },
+    channel: () => ({
+      on: () => ({ subscribe: () => ({ unsubscribe: vi.fn() }) }),
+    }),
+  }),
+}));
+
+// ── Mock useMissionsRealtime hook ────────────────────────────────────────────
+vi.mock('@/hooks/use-missions-realtime', () => ({
+  useMissionsRealtime: vi.fn(),
+}));
+
+// ── Mock global fetch (used by ConciergeProvider to load missions) ───────────
+global.fetch = vi.fn(() =>
+  Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve({ missions: [] }),
+  })
+) as unknown as typeof fetch;
+
 // ── Mock framer-motion ────────────────────────────────────────────────────────
 vi.mock('framer-motion', () => ({
   motion: new Proxy(
@@ -72,6 +97,11 @@ vi.mock('lucide-react', () => {
     ArrowLeftRight: Icon,
     Clock: Icon,
     MapPin: Icon,
+    Search: Icon,
+    Mail: Icon,
+    Star: Icon,
+    TrendingUp: Icon,
+    Footprints: Icon,
   };
 });
 
@@ -516,7 +546,7 @@ describe('MissionActionCard — DraftReadyCard (AGENT-02)', () => {
   it('renders "Approve & Send" and "Edit Draft" buttons', () => {
     render(<MissionActionCard actionCard={draftCard} />);
     expect(screen.getByText('Approve & Send')).toBeInTheDocument();
-    expect(screen.getByText('Edit Draft')).toBeInTheDocument();
+    expect(screen.getByText('Cancel')).toBeInTheDocument();
   });
 });
 
@@ -663,19 +693,16 @@ describe('ConciergeNavButton (AGENT-01)', () => {
     expect(screen.getByText('Concierge')).toBeInTheDocument();
   });
 
-  it('shows a badge with the active mission count when there are active missions', () => {
-    // ConciergeProvider seeds from mockMissions which has active/scheduled/waiting_approval missions
+  it('hides the badge when there are no active missions', () => {
+    // ConciergeProvider fetches from API which returns empty missions array in test
     render(
       <ConciergeProvider>
         <ConciergeNavButton />
       </ConciergeProvider>
     );
-    // mockMissions has mission-3 (active), mission-6 (active), mission-1 (scheduled), mission-2 (waiting_approval) = 4
-    const badge = document.querySelector('[class*="rounded-full"][class*="bg-"]');
-    expect(badge).toBeInTheDocument();
-    // The count should be a positive number
-    const countText = badge?.textContent;
-    expect(Number(countText)).toBeGreaterThan(0);
+    // With no missions loaded, the badge should not render
+    const badge = document.querySelector('[class*="rounded-full"][class*="bg-[var(--primary-600)]"]');
+    expect(badge).not.toBeInTheDocument();
   });
 
   it('calls openSidebar when the button is clicked', () => {

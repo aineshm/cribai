@@ -5,7 +5,7 @@ import { FilterChips } from '../FilterChips';
 const emptyFilters = new Set<string>();
 
 describe('FilterChips', () => {
-  it('renders all 6 filter chip buttons', () => {
+  it('renders all 7 filter chip buttons', () => {
     render(
       <FilterChips
         resultCount={10}
@@ -13,6 +13,7 @@ describe('FilterChips', () => {
         onFiltersChange={vi.fn()}
       />
     );
+    expect(screen.getByText('Subleases')).toBeInTheDocument();
     expect(screen.getByText('Price')).toBeInTheDocument();
     expect(screen.getByText('Beds')).toBeInTheDocument();
     expect(screen.getByText('Distance')).toBeInTheDocument();

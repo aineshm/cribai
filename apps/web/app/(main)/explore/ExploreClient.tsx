@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
+import { Send } from 'lucide-react';
 import { ExploreLayout } from '@/components/explore/ExploreLayout';
 import { FilterChips } from '@/components/explore/FilterChips';
 import { pageTransition } from '@/lib/animations';
@@ -39,6 +41,18 @@ export function ExploreClient({ listings }: ExploreClientProps) {
             Find your perfect off-campus home
           </p>
         </div>
+
+        {/* Sublease CTA banner */}
+        <Link
+          href="/post"
+          className="flex items-center gap-2 rounded-lg bg-[var(--primary-50)] border border-[var(--primary-200)] px-4 py-3 text-sm text-[var(--primary-700)] hover:bg-[var(--primary-100)] transition-colors"
+        >
+          <Send className="size-4" />
+          <span>
+            <span className="font-medium">Have a summer sublease?</span>{' '}
+            Post it free and reach verified students.
+          </span>
+        </Link>
 
         {/* Filters */}
         <FilterChips

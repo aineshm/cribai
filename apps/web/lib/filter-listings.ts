@@ -25,6 +25,8 @@ export function filterListings(
 
 function matchesFilter(listing: ExploreListing, filterId: string): boolean {
   switch (filterId) {
+    case 'sublease':
+      return listing.source === 'sublease';
     case 'price':
       return listing.price <= PRICE_THRESHOLD;
     case 'beds':

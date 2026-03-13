@@ -9,6 +9,7 @@ import {
   Calendar,
   PawPrint,
   Sofa,
+  Repeat,
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,7 @@ interface FilterDef {
 }
 
 const filters: readonly FilterDef[] = [
+  { id: 'sublease', label: 'Subleases', icon: Repeat },
   { id: 'price', label: 'Price', icon: DollarSign },
   { id: 'beds', label: 'Beds', icon: Bed },
   { id: 'distance', label: 'Distance', icon: MapPin },
