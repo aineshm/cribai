@@ -22,6 +22,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Build internal packages
+        run: pnpm --filter @campusnest/utils --filter @campusnest/types build
+
       - name: Install Playwright browsers
         if: env.ENABLE_APARTMENTS_COM == 'true'
         run: pnpm --filter @campusnest/scraper exec playwright install chromium --with-deps
