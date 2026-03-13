@@ -1,9 +1,9 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
 import { ListingCard } from '../ListingCard';
-import type { Listing } from '@/lib/mock-listings';
+import type { ExploreListing } from '@/lib/listing-types';
 
-const baseListing: Listing = {
+const baseListing: ExploreListing = {
   id: 'apt-42',
   title: 'Modern Studio on State St',
   address: '432 State St, Madison, WI',
@@ -11,20 +11,18 @@ const baseListing: Listing = {
   beds: 0,
   baths: 1,
   sqft: 475,
-  distanceToCampus: 0.4,
-  rating: 4.7,
-  photoUrls: [],
-  placeholderGradient: 'from-teal-200 to-emerald-400',
+  photoUrl: null,
   amenities: ['Laundry', 'Gym'],
-  isVerified: true,
-  isSaved: false,
-  landlord: { name: 'Capitol Properties', rating: 4.5 },
+  source: 'zillow',
+  sourceUrl: null,
+  fairnessScore: null,
+  availableDate: null,
+  walkScore: 92,
 };
 
-const unverifiedListing: Listing = {
+const twoBedroomListing: ExploreListing = {
   ...baseListing,
   id: 'apt-99',
-  isVerified: false,
   beds: 2,
   price: 1800,
 };
@@ -42,7 +40,7 @@ describe('ListingCard', () => {
   });
 
   it('renders bed count for non-zero beds', () => {
-    render(<ListingCard listing={unverifiedListing} />);
+    render(<ListingCard listing={twoBedroomListing} />);
     expect(screen.getByText('2 bd')).toBeInTheDocument();
   });
 
@@ -51,14 +49,9 @@ describe('ListingCard', () => {
     expect(screen.getByText('1 ba')).toBeInTheDocument();
   });
 
-  it('renders distance to campus', () => {
+  it('renders walk score when available', () => {
     render(<ListingCard listing={baseListing} />);
-    expect(screen.getByText(/0\.4 mi to campus/)).toBeInTheDocument();
-  });
-
-  it('renders rating', () => {
-    render(<ListingCard listing={baseListing} />);
-    expect(screen.getByText('4.7')).toBeInTheDocument();
+    expect(screen.getByText('92')).toBeInTheDocument();
   });
 
   it('renders listing title', () => {
@@ -72,33 +65,17 @@ describe('ListingCard', () => {
     expect(link).toHaveAttribute('href', '/listing/apt-42');
   });
 
-  it('renders AI Verified badge when isVerified is true', () => {
-    render(<ListingCard listing={baseListing} />);
-    expect(screen.getByText('AI Verified')).toBeInTheDocument();
+  it('renders source badge when listing has a photo', () => {
+    const withPhoto: ExploreListing = {
+      ...baseListing,
+      photoUrl: 'https://example.com/photo.jpg',
+    };
+    render(<ListingCard listing={withPhoto} />);
+    expect(screen.getByText('zillow')).toBeInTheDocument();
   });
 
-  it('does NOT render AI Verified badge when isVerified is false', () => {
-    render(<ListingCard listing={unverifiedListing} />);
-    expect(screen.queryByText('AI Verified')).not.toBeInTheDocument();
-  });
-
-  it('save button has aria-label "Save listing" initially', () => {
+  it('renders address', () => {
     render(<ListingCard listing={baseListing} />);
-    expect(screen.getByLabelText('Save listing')).toBeInTheDocument();
-  });
-
-  it('save button toggles aria-pressed on click', () => {
-    render(<ListingCard listing={baseListing} />);
-    const saveBtn = screen.getByRole('button', { name: /save listing/i });
-    expect(saveBtn).toHaveAttribute('aria-pressed', 'false');
-    fireEvent.click(saveBtn);
-    expect(screen.getByLabelText('Unsave listing')).toBeInTheDocument();
-  });
-
-  it('save button click does not navigate (stopPropagation)', () => {
-    render(<ListingCard listing={baseListing} />);
-    const saveBtn = screen.getByRole('button', { name: /save listing/i });
-    // Clicking save should not throw — stopPropagation prevents link navigation
-    expect(() => fireEvent.click(saveBtn)).not.toThrow();
+    expect(screen.getByText('432 State St, Madison, WI')).toBeInTheDocument();
   });
 });

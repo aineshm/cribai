@@ -6,10 +6,10 @@ import { ListingGrid } from './ListingGrid';
 import { MapPanel } from './MapPanel';
 import { ViewToggle, type ViewMode } from './ViewToggle';
 import { fadeIn } from '@/lib/animations';
-import type { Listing } from '@/lib/mock-listings';
+import type { ExploreListing } from '@/lib/listing-types';
 
 interface ExploreLayoutProps {
-  readonly listings: readonly Listing[];
+  readonly listings: readonly ExploreListing[];
 }
 
 export function ExploreLayout({ listings }: ExploreLayoutProps) {

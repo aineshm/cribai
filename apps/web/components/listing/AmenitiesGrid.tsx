@@ -14,28 +14,50 @@ import {
   AirVent,
   Utensils,
   WashingMachine,
+  Sofa,
+  Snowflake,
   type LucideIcon,
 } from 'lucide-react';
 import { staggerContainer, staggerItem } from '@/lib/animations';
-import type { AmenityItem } from '@/lib/mock-listing-detail';
 
-const ICON_MAP: Record<string, LucideIcon> = {
-  WashingMachine,
-  AirVent,
-  Utensils,
-  Wifi,
-  Dumbbell,
-  Waves,
-  PawPrint,
-  Car,
-  BookOpen,
-  Package,
-  Bike,
-  Zap,
-};
+/** Maps amenity keywords to icons for display */
+const KEYWORD_ICON_MAP: ReadonlyArray<readonly [string, LucideIcon]> = [
+  ['laundry', WashingMachine],
+  ['washer', WashingMachine],
+  ['dryer', WashingMachine],
+  ['ac', AirVent],
+  ['air conditioning', AirVent],
+  ['heating', Snowflake],
+  ['dishwasher', Utensils],
+  ['wifi', Wifi],
+  ['internet', Wifi],
+  ['gym', Dumbbell],
+  ['fitness', Dumbbell],
+  ['pool', Waves],
+  ['cat', PawPrint],
+  ['dog', PawPrint],
+  ['pet', PawPrint],
+  ['parking', Car],
+  ['garage', Car],
+  ['study', BookOpen],
+  ['lounge', BookOpen],
+  ['package', Package],
+  ['locker', Package],
+  ['bike', Bike],
+  ['ev', Zap],
+  ['furnished', Sofa],
+] as const;
+
+function iconForAmenity(name: string): LucideIcon | null {
+  const lower = name.toLowerCase();
+  for (const [keyword, icon] of KEYWORD_ICON_MAP) {
+    if (lower.includes(keyword)) return icon;
+  }
+  return null;
+}
 
 interface AmenitiesGridProps {
-  readonly amenities: readonly AmenityItem[];
+  readonly amenities: readonly string[];
 }
 
 export function AmenitiesGrid({ amenities }: AmenitiesGridProps) {
@@ -47,11 +69,11 @@ export function AmenitiesGrid({ amenities }: AmenitiesGridProps) {
       whileInView="animate"
       viewport={{ once: true, margin: '-50px' }}
     >
-      {amenities.map((amenity) => {
-        const Icon = ICON_MAP[amenity.icon];
+      {amenities.map((name) => {
+        const Icon = iconForAmenity(name);
         return (
           <motion.div
-            key={amenity.name}
+            key={name}
             className="flex items-center gap-3 p-3 rounded-lg bg-[var(--surface-50)] border border-[var(--surface-200)]"
             variants={staggerItem}
           >
@@ -60,7 +82,7 @@ export function AmenitiesGrid({ amenities }: AmenitiesGridProps) {
             ) : (
               <div className="size-5 rounded bg-[var(--primary-100)] shrink-0" />
             )}
-            <span className="text-sm text-foreground">{amenity.name}</span>
+            <span className="text-sm text-foreground capitalize">{name}</span>
           </motion.div>
         );
       })}

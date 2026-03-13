@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Send, X } from 'lucide-react';
 import {
@@ -12,7 +12,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { staggerContainer, staggerItem, springConfig } from '@/lib/animations';
-import { useChatContext } from './ChatProvider';
+import { useChatContext, type ChatMessage } from './ChatProvider';
+import { ChatBlockRenderer } from './chat-block-renderer';
 import { MissionProposalCard } from './MissionProposalCard';
 
 const suggestedPrompts = [
@@ -23,8 +24,16 @@ const suggestedPrompts = [
 ] as const;
 
 export function AIChatPanel() {
-  const { open, messages, loading, setOpen, sendMessage } = useChatContext();
+  const { open, messages, loading, campusSlug, setOpen, sendMessage } = useChatContext();
   const [inputValue, setInputValue] = useState('');
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
 
   const handleSend = useCallback(
     (text?: string) => {
@@ -76,7 +85,7 @@ export function AIChatPanel() {
         </SheetHeader>
 
         {/* Chat area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
           {!hasMessages ? (
             /* Empty state */
             <motion.div
@@ -116,33 +125,36 @@ export function AIChatPanel() {
               </motion.div>
             </motion.div>
           ) : (
-            /* Messages + mission proposal */
+            /* Messages + mission proposal + typing indicator */
             <>
               <AnimatePresence>
                 {messages.map((message) => (
-                  <motion.div
+                  <MessageBubble
                     key={message.id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={springConfig.gentle}
-                    className={`flex ${
-                      message.role === 'user' ? 'justify-end' : 'justify-start'
-                    }`}
-                  >
-                    <div
-                      className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${
-                        message.role === 'user'
-                          ? 'bg-[var(--primary-700)] text-white rounded-br-md'
-                          : 'bg-[var(--surface-100)] text-foreground rounded-bl-md'
-                      }`}
-                    >
-                      {message.content}
-                    </div>
-                  </motion.div>
+                    message={message}
+                    campusSlug={campusSlug}
+                  />
                 ))}
               </AnimatePresence>
               {/* Mission proposal card — rendered after message list */}
               <MissionProposalCard />
+              {/* Typing indicator */}
+              {loading && messages.length > 0 && (
+                <motion.div
+                  key="typing"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex justify-start"
+                >
+                  <div className="bg-[var(--surface-100)] rounded-2xl rounded-bl-md px-4 py-2.5">
+                    <div className="flex gap-1">
+                      <span className="w-2 h-2 rounded-full bg-[var(--surface-400)] animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-2 h-2 rounded-full bg-[var(--surface-400)] animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-2 h-2 rounded-full bg-[var(--surface-400)] animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
             </>
           )}
         </div>
@@ -170,5 +182,55 @@ export function AIChatPanel() {
         </div>
       </SheetContent>
     </Sheet>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  MessageBubble — renders a single chat message with blocks          */
+/* ------------------------------------------------------------------ */
+
+function MessageBubble({
+  message,
+  campusSlug,
+}: {
+  readonly message: ChatMessage;
+  readonly campusSlug: string;
+}) {
+  const isUser = message.role === 'user';
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={springConfig.gentle}
+      className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
+    >
+      <div
+        className={`max-w-[85%] space-y-2 ${
+          isUser
+            ? 'rounded-2xl rounded-br-md bg-[var(--primary-700)] text-white px-4 py-2.5'
+            : ''
+        }`}
+      >
+        {message.blocks.map((block, i) => (
+          <div
+            key={`${message.id}-block-${i}`}
+            className={
+              !isUser && block.type === 'text'
+                ? 'rounded-2xl rounded-bl-md bg-[var(--surface-100)] text-foreground px-4 py-2.5'
+                : ''
+            }
+          >
+            <ChatBlockRenderer block={block} campusSlug={campusSlug} />
+          </div>
+        ))}
+        {/* Show empty state while streaming hasn't produced blocks yet */}
+        {message.blocks.length === 0 && !isUser && (
+          <div className="rounded-2xl rounded-bl-md bg-[var(--surface-100)] text-foreground px-4 py-2.5">
+            <span className="text-sm text-muted-foreground">Thinking...</span>
+          </div>
+        )}
+      </div>
+    </motion.div>
   );
 }

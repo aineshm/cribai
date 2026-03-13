@@ -3,7 +3,7 @@ import coreWebVitals from 'eslint-config-next/core-web-vitals';
 const config = [
   ...coreWebVitals,
   {
-    ignores: ['.next/**', 'node_modules/**', 'dist/**'],
+    ignores: ['.next/**', 'node_modules/**', 'dist/**', 'playwright-report/**', 'test-results/**'],
   },
   {
     // eslint-config-next v16 added stricter react-hooks rules that flag pre-existing

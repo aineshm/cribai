@@ -3,13 +3,13 @@
 import { motion } from 'framer-motion';
 import { MapPin } from 'lucide-react';
 import { fadeIn } from '@/lib/animations';
-import type { Listing } from '@/lib/mock-listings';
+import type { ExploreListing } from '@/lib/listing-types';
 
 interface MapPanelProps {
-  readonly listings: readonly Listing[];
+  readonly listings: readonly ExploreListing[];
 }
 
-/** Predefined positions for mock price markers (percentage-based) */
+/** Predefined positions for price markers (percentage-based) */
 const markerPositions = [
   { top: '18%', left: '25%' },
   { top: '32%', left: '62%' },
@@ -44,7 +44,7 @@ export function MapPanel({ listings }: MapPanelProps) {
       {/* Map placeholder label */}
       <div className="absolute top-4 left-4 flex items-center gap-2 text-sm text-muted-foreground bg-white/80 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-[var(--surface-200)]">
         <MapPin className="size-4 text-[var(--primary-700)]" />
-        <span>Map integration coming in v1.2</span>
+        <span>Map integration coming soon</span>
       </div>
 
       {/* Price marker pins */}
