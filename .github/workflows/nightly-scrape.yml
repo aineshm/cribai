@@ -39,7 +39,6 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-        env:
           MANUAL_SKIP: ${{ github.event.inputs.skip_scrape }}
         run: |
           if [ "$MANUAL_SKIP" = "true" ]; then
