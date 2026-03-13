@@ -3,7 +3,16 @@ name: Nightly Scrape
 on:
   schedule:
     - cron: '0 8 * * *'  # 2am CT = 8am UTC
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      skip_scrape:
+        description: 'Skip Apify scrape and go straight to embeddings (use when data is already fresh)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 jobs:
   scrape:
@@ -30,7 +39,14 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        env:
+          MANUAL_SKIP: ${{ github.event.inputs.skip_scrape }}
         run: |
+          if [ "$MANUAL_SKIP" = "true" ]; then
+            echo "Manual override — skipping Apify scrape"
+            echo "skip_scrape=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           LAST_SEEN=$(curl -sf \
             "${SUPABASE_URL}/rest/v1/listings?source=eq.zillow&select=last_seen_at&order=last_seen_at.desc&limit=1" \
             -H "apikey: ${SUPABASE_KEY}" \
