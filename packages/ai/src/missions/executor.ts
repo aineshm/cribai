@@ -147,7 +147,14 @@ export async function executeMission(options: ExecuteOptions): Promise<void> {
             }
           } else {
             // Apply all pending steerings oldest-first so the newest correction wins.
+            // Collect parse results first so we can persist input before marking applied.
+            type SteeringResult = {
+              steering: typeof pendingSteerings[number];
+              parsed: Record<string, unknown>;
+            };
+            const applied: SteeringResult[] = [];
             let inputUpdated = false;
+
             for (const steering of pendingSteerings) {
               const parsed = await parseSteeringIntent(
                 steering.raw_input,
@@ -160,16 +167,7 @@ export async function executeMission(options: ExecuteOptions): Promise<void> {
                   mission = { ...mission, input: { ...mission.input, ...parsed } };
                   inputUpdated = true;
                 }
-                await markSteeringApplied(supabase, steering.id);
-                await insertMissionLog(supabase, {
-                  mission_id: options.missionId,
-                  action: 'steering_applied',
-                  detail: `Steering applied: "${steering.raw_input}"`,
-                  status: 'success',
-                  tool_output: Object.keys(parsed).length > 0
-                    ? (parsed as Record<string, unknown>)
-                    : null,
-                });
+                applied.push({ steering, parsed });
               } else {
                 // Parse failed — leave unapplied so it is retried on the next step
                 console.warn(
@@ -177,9 +175,26 @@ export async function executeMission(options: ExecuteOptions): Promise<void> {
                 );
               }
             }
-            // Persist the final merged input once after all steerings are processed
+
+            // Persist the final merged input BEFORE marking steerings applied.
+            // If the DB write fails, steerings remain unapplied and will be retried
+            // on the next step rather than being silently lost.
             if (inputUpdated) {
               await updateMissionInput(supabase, options.missionId, mission.input);
+            }
+
+            // Only mark steerings applied (and log them) after input is durably persisted
+            for (const { steering, parsed } of applied) {
+              await markSteeringApplied(supabase, steering.id);
+              await insertMissionLog(supabase, {
+                mission_id: options.missionId,
+                action: 'steering_applied',
+                detail: `Steering applied: "${steering.raw_input}"`,
+                status: 'success',
+                tool_output: Object.keys(parsed).length > 0
+                  ? (parsed as Record<string, unknown>)
+                  : null,
+              });
             }
           }
         }

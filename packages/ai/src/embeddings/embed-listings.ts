@@ -25,7 +25,7 @@ interface ListingRow {
   readonly sqft: number | null;
   readonly amenities: readonly string[] | string[];
   readonly photo_urls: readonly string[] | string[];
-  readonly raw_data: Record<string, unknown> | null;
+  readonly raw_title: string | null; // generated column from raw_data->>'title'
   readonly last_embedded_at: string | null;
   readonly updated_at: string | null;
 }
@@ -39,9 +39,12 @@ export async function embedChangedListings(
 ): Promise<EmbedMetrics> {
   // Fetch listings needing embedding
   // PostgREST can't do cross-column comparisons, so we fetch all active and filter in JS
+  // Select the generated raw_title column instead of the full raw_data JSONB blob
+  // to avoid pulling large payloads for every listing on each embedding run.
+  // raw_title is a generated column: raw_data->>'title' (see migration 017).
   const { data: allListings, error: fetchError } = await supabase
     .from('listings')
-    .select('id, source, address, rent_monthly, bedrooms, bathrooms, sqft, amenities, photo_urls, raw_data, last_embedded_at, updated_at')
+    .select('id, source, address, rent_monthly, bedrooms, bathrooms, sqft, amenities, photo_urls, raw_title, last_embedded_at, updated_at')
     .eq('is_active', true);
 
   const listings = (allListings ?? []).filter((l: ListingRow) =>
@@ -95,9 +98,7 @@ export async function embedChangedListings(
 
       // For sources with sparse structured fields (e.g. Craigslist), include
       // the raw listing title which often contains the key details.
-      const rawTitle = typeof listing.raw_data?.['title'] === 'string'
-        ? listing.raw_data['title']
-        : undefined;
+      const rawTitle = listing.raw_title ?? undefined;
 
       const text = synthesizeListingText({
         address: listing.address,

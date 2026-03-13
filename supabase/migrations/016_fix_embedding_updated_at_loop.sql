@@ -31,8 +31,10 @@ BEGIN
     NEW.true_cost_total   IS NOT DISTINCT FROM OLD.true_cost_total   AND
     NEW.fairness_score    IS NOT DISTINCT FROM OLD.fairness_score    AND
     NEW.fairness_data     IS NOT DISTINCT FROM OLD.fairness_data     AND
-    NEW.raw_data          IS NOT DISTINCT FROM OLD.raw_data          AND
-    NEW.last_seen_at      IS NOT DISTINCT FROM OLD.last_seen_at
+    NEW.raw_data          IS NOT DISTINCT FROM OLD.raw_data
+    -- last_seen_at is intentionally excluded: scrapers update it on every run,
+    -- so including it would bump updated_at and re-trigger embeddings even when
+    -- listing content hasn't changed.
   ) THEN
     RETURN NEW;
   END IF;
