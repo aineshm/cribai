@@ -12,6 +12,8 @@ export interface SynthesizeInput {
   readonly sqft: number | null;
   readonly amenities: readonly string[];
   readonly photoCount: number;
+  /** Raw listing title (e.g. from Craigslist) when structured fields are sparse */
+  readonly rawTitle?: string;
 }
 
 /** Known Madison neighborhood keywords and their descriptors */
@@ -102,6 +104,11 @@ export function synthesizeListingText(input: SynthesizeInput): string {
   const vibes = deriveVibes(input.amenities);
   if (vibes.length > 0) {
     parts.push(`Features: ${vibes.join('; ')}.`);
+  }
+
+  // Raw title (used when structured fields are sparse, e.g. Craigslist)
+  if (input.rawTitle) {
+    parts.push(`Listing title: "${input.rawTitle}".`);
   }
 
   // Photo indicator
