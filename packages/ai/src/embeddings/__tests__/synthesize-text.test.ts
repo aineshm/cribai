@@ -74,6 +74,23 @@ describe('synthesizeListingText', () => {
     expect(stateStListing.toLowerCase()).toContain('downtown');
   });
 
+  it('includes rawTitle when structured fields are sparse (Craigslist)', () => {
+    const text = synthesizeListingText({
+      address: 'Craigslist listing',
+      rentMonthly: 950,
+      bedrooms: null,
+      bathrooms: null,
+      sqft: null,
+      amenities: [],
+      photoCount: 0,
+      rawTitle: '2BR near UW campus, parking included, no pets',
+    });
+
+    expect(text).toContain('2BR near UW campus');
+    expect(text).toContain('parking included');
+    expect(text).not.toContain('undefined');
+  });
+
   it('returns a string (not undefined)', () => {
     const result = synthesizeListingText({
       address: '100 Test Dr',
