@@ -3,7 +3,17 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "env": ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SECRET_KEY", "GEMINI_API_KEY"],
+      "env": [
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+        "SUPABASE_SECRET_KEY",
+        "GEMINI_API_KEY",
+        "GOOGLE_CLOUD_PROJECT",
+        "GOOGLE_PLACES_API_KEY",
+        "RESEND_API_KEY",
+        "TAVILY_API_KEY",
+        "WALKSCORE_API_KEY"
+      ],
       "outputs": [".next/**", "dist/**"]
     },
     "dev": {
