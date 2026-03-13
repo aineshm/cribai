@@ -34,7 +34,13 @@ export function createMockQueryBuilder(resolvedData: unknown = [], error: unknow
   builder.gte.mockReturnValue(builder);
   builder.lte.mockReturnValue(builder);
   builder.in.mockReturnValue(builder);
-  builder.order.mockReturnValue(builder);
+  // order() can be terminal (saved-listings) or chain to limit()
+  // Support both: return builder synchronously AND make it thenable
+  const orderResult = Object.assign(
+    { ...builder },
+    { then: (resolve: (v: unknown) => void) => resolve({ data: resolvedData, error }) }
+  );
+  builder.order.mockReturnValue(orderResult);
   builder.limit.mockResolvedValue({ data: resolvedData, error });
   builder.single.mockResolvedValue({
     data: Array.isArray(resolvedData) ? resolvedData[0] : resolvedData,

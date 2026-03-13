@@ -37,21 +37,9 @@ export async function getSavedListings(
   const parsed = inputSchema.parse(args);
   const limit = Math.min(parsed.limit ?? 10, 20);
 
-  // Map sort parameter to Supabase .order() column and direction
-  const { column, ascending } = (() => {
-    switch (parsed.sort) {
-      case 'price_asc':
-        return { column: 'listings.rent_monthly', ascending: true };
-      case 'price_desc':
-        return { column: 'listings.rent_monthly', ascending: false };
-      case 'fairness':
-        return { column: 'listings.fairness_score', ascending: false };
-      case 'saved_date':
-      default:
-        return { column: 'created_at', ascending: false };
-    }
-  })();
-
+  // Fetch saved listings — sort by saved_date at DB level (always works),
+  // then sort client-side for joined-table columns (PostgREST doesn't support
+  // dotted column names like 'listings.rent_monthly' in .order()).
   const { data, error } = await context.supabase
     .from('saved_listings')
     .select(`
@@ -63,8 +51,7 @@ export async function getSavedListings(
       )
     `)
     .eq('user_id', context.userId)
-    .order(column, { ascending })
-    .limit(limit);
+    .order('created_at', { ascending: false });
 
   if (error) {
     return {
@@ -73,7 +60,25 @@ export async function getSavedListings(
     };
   }
 
-  const rows = (data ?? []) as unknown as readonly SavedListingRow[];
+  const allRows = (data ?? []) as unknown as readonly SavedListingRow[];
+
+  // Client-side sort for joined-table columns
+  const sorted = [...allRows].sort((a, b) => {
+    switch (parsed.sort) {
+      case 'price_asc':
+        return (a.listings.rent_monthly ?? Infinity) - (b.listings.rent_monthly ?? Infinity);
+      case 'price_desc':
+        return (b.listings.rent_monthly ?? 0) - (a.listings.rent_monthly ?? 0);
+      case 'fairness':
+        return (b.listings.fairness_score ?? 0) - (a.listings.fairness_score ?? 0);
+      case 'saved_date':
+      default:
+        // Already sorted by created_at desc from DB
+        return 0;
+    }
+  });
+
+  const rows = sorted.slice(0, limit);
 
   if (rows.length === 0) {
     return {

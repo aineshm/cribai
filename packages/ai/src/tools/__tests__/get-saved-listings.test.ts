@@ -97,7 +97,7 @@ describe('getSavedListings', () => {
 
     await getSavedListings({}, context);
 
-    expect(builder.limit).toHaveBeenCalledWith(10);
+    // DB query always sorts by created_at desc; limit is applied client-side
     expect(builder.order).toHaveBeenCalledWith('created_at', { ascending: false });
   });
 

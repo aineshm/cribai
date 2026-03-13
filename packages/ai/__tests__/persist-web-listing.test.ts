@@ -13,8 +13,7 @@ function createMockSupabase() {
   const singleFn = vi.fn();
   const selectFn = vi.fn().mockReturnValue({ single: singleFn });
   const upsertFn = vi.fn().mockReturnValue({ select: selectFn });
-  const notFn = vi.fn().mockResolvedValue({ error: null });
-  const eqFn = vi.fn().mockReturnValue({ not: notFn });
+  const eqFn = vi.fn().mockResolvedValue({ error: null });
   const updateFn = vi.fn().mockReturnValue({ eq: eqFn });
   const fromFn = vi.fn().mockImplementation((table: string) => {
     if (table === 'listings') {
@@ -33,7 +32,6 @@ function createMockSupabase() {
     singleFn,
     updateFn,
     eqFn,
-    notFn,
   };
 }
 
@@ -93,7 +91,6 @@ describe('persistWebListing', () => {
 
     expect(mock.updateFn).toHaveBeenCalledWith({ last_embedded_at: null });
     expect(mock.eqFn).toHaveBeenCalledWith('id', 'new-listing-uuid');
-    expect(mock.notFn).toHaveBeenCalledWith('last_embedded_at', 'is', null);
   });
 
   it('returns null and does not throw when upsert fails', async () => {
