@@ -78,7 +78,12 @@ export async function POST(request: NextRequest) {
 
   const writeClient = isDevAuthEnabled() ? createSecretClient() : supabase;
 
-  const rawBody: unknown = await request.json();
+  let rawBody: unknown;
+  try {
+    rawBody = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
   const parsed = createBodySchema.safeParse(rawBody);
 
   if (!parsed.success) {

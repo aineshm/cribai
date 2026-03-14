@@ -33,7 +33,12 @@ export async function POST(
     return NextResponse.json({ error: 'Mission not found' }, { status: 404 });
   }
 
-  const rawBody: unknown = await request.json();
+  let rawBody: unknown;
+  try {
+    rawBody = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
   const parsed = steerBodySchema.safeParse(rawBody);
 
   if (!parsed.success) {

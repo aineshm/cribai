@@ -39,18 +39,23 @@ export async function POST(
   const writeClient = isDevAuthEnabled() ? createSecretClient() as any : supabase;
 
   // Update draft decision
-  const { error: draftError } = await writeClient
+  const { data: draftData, error: draftError } = await writeClient
     .from('mission_drafts')
     .update({
       user_decision: 'approved',
       decided_at: new Date().toISOString(),
     })
     .eq('id', draftId)
-    .eq('mission_id', missionId);
+    .eq('mission_id', missionId)
+    .select();
 
   if (draftError) {
     console.error('[missions] Draft approve error:', draftError);
     return NextResponse.json({ error: 'Failed to approve draft' }, { status: 500 });
+  }
+
+  if (!draftData || draftData.length === 0) {
+    return NextResponse.json({ error: 'Draft not found' }, { status: 404 });
   }
 
   // Set mission back to running

@@ -37,11 +37,16 @@ export async function POST(request: NextRequest) {
 
   // Insert via service-role client (bypasses RLS for unauthenticated events)
   const serviceClient = createSecretClient();
-  await serviceClient.from('analytics_events').insert({
+  const { error } = await serviceClient.from('analytics_events').insert({
     event,
     metadata: metadata ?? {},
     user_id: userId,
   });
+
+  if (error) {
+    console.error('[events] Analytics insert error:', error);
+    return NextResponse.json({ error: 'Failed to record event' }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true }, { status: 201 });
 }

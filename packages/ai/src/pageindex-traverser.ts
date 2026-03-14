@@ -59,14 +59,29 @@ export class PageIndexTraverser {
     }
   }
 
+  /**
+   * Strips instruction-like patterns from node labels/summaries to prevent
+   * prompt injection via crafted PageIndex data. These values are system-generated
+   * (from rebuild-pageindex edge function) so risk is low, but defense-in-depth.
+   */
+  private sanitizeNodeText(text: string): string {
+    return text
+      .replace(/^(SYSTEM|IGNORE|INSTRUCTION|OVERRIDE|ADMIN|PROMPT|EXECUTE|RUN|COMMAND):.*/gim, '')
+      .replace(/```[\s\S]*?```/g, '')
+      .trim();
+  }
+
   private async selectBranches(node: PageIndexNode, query: string): Promise<readonly number[]> {
     const childDescriptions = node.children.map((child, i) =>
-      `[${i}] ${child.label}: ${child.summary}`
+      `[${i}] ${this.sanitizeNodeText(child.label)}: ${this.sanitizeNodeText(child.summary)}`
     ).join('\n');
+
+    const sanitizedLabel = this.sanitizeNodeText(node.label);
+    const sanitizedSummary = this.sanitizeNodeText(node.summary);
 
     const prompt = `You are navigating a housing data index to answer a student's question.
 
-Current node: ${node.label} — ${node.summary}
+Current node: ${sanitizedLabel} — ${sanitizedSummary}
 
 Available sections:
 ${childDescriptions}

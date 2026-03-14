@@ -45,7 +45,7 @@ export function normalizeListing(raw: RawListing): NormalizedListing {
     source: raw.source,
     address: raw.address.trim(),
     rentMonthly: raw.rentMonthly !== null
-      ? Math.round(raw.rentMonthly * 100) / 100
+      ? (raw.rentMonthly <= 0 || raw.rentMonthly > 50000 ? null : Math.round(raw.rentMonthly * 100) / 100)
       : null,
     bedrooms: raw.bedrooms,
     bathrooms: raw.bathrooms,

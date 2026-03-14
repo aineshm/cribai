@@ -12,7 +12,8 @@
         "GOOGLE_PLACES_API_KEY",
         "RESEND_API_KEY",
         "TAVILY_API_KEY",
-        "WALKSCORE_API_KEY"
+        "WALKSCORE_API_KEY",
+        "NEXT_PUBLIC_MAPBOX_TOKEN"
       ],
       "outputs": [".next/**", "dist/**"]
     },

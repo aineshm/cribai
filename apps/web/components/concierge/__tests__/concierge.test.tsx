@@ -433,26 +433,26 @@ describe('ExecutionLogs (AGENT-03)', () => {
 
 describe('SteeringBar (AGENT-04)', () => {
   it('renders the text input with placeholder', () => {
-    render(<SteeringBar />);
+    render(<SteeringBar missionId="test-mission-id" />);
     const input = screen.getByTestId('input');
     expect(input).toBeInTheDocument();
     expect(input).toHaveAttribute('placeholder', 'Tell the agent what to do next...');
   });
 
   it('renders the send button', () => {
-    render(<SteeringBar />);
+    render(<SteeringBar missionId="test-mission-id" />);
     const button = screen.getByRole('button');
     expect(button).toBeInTheDocument();
   });
 
   it('send button is disabled when input is empty', () => {
-    render(<SteeringBar />);
+    render(<SteeringBar missionId="test-mission-id" />);
     const button = screen.getByRole('button');
     expect(button).toBeDisabled();
   });
 
   it('send button is enabled when input has non-whitespace text', () => {
-    render(<SteeringBar />);
+    render(<SteeringBar missionId="test-mission-id" />);
     const input = screen.getByTestId('input');
     fireEvent.change(input, { target: { value: 'Focus on 2BR apartments only' } });
     const button = screen.getByRole('button');
@@ -460,7 +460,7 @@ describe('SteeringBar (AGENT-04)', () => {
   });
 
   it('send button remains disabled when input contains only whitespace', () => {
-    render(<SteeringBar />);
+    render(<SteeringBar missionId="test-mission-id" />);
     const input = screen.getByTestId('input');
     fireEvent.change(input, { target: { value: '   ' } });
     const button = screen.getByRole('button');

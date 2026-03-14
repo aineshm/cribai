@@ -157,7 +157,8 @@ async function main() {
     console.log(`\n=== Scraping ${campus.name} (${campus.slug}) ===`);
 
     const scrapers = buildScrapers(config, source, limit);
-    let campusHadFailure = false;
+    const succeededSources = new Set<string>();
+    const failedSources = new Set<string>();
 
     for (const scraper of scrapers) {
       const scraperStart = Date.now();
@@ -222,7 +223,7 @@ async function main() {
 
             if (upsertError) {
               console.error(`[${scraper.source}] Upsert error (chunk ${Math.floor(c / CHUNK_SIZE) + 1}): ${upsertError.message}`);
-              chunkErrors++;
+              chunkErrors += chunk.length;
             } else {
               scraperUpserted += chunk.length;
             }
@@ -230,8 +231,8 @@ async function main() {
 
           if (chunkErrors > 0) {
             metrics.errors += chunkErrors;
-            scraperError = `Upsert failed: ${chunkErrors} chunk(s) errored`;
-            campusHadFailure = true;
+            scraperError = `Upsert failed: ${chunkErrors} listing(s) in failed chunks`;
+            failedSources.add(scraper.source);
           }
 
           if (scraperUpserted > 0) {
@@ -255,7 +256,7 @@ async function main() {
         console.error(`[${scraper.source}] Scraper failed:`, err);
         metrics.errors += 1;
         scraperError = errMsg;
-        campusHadFailure = true;
+        failedSources.add(scraper.source);
       }
 
       // Record diagnostic for this scraper
@@ -273,26 +274,37 @@ async function main() {
         upserted: prev.upserted + scraperUpserted,
         errors: prev.errors + (scraperError ? 1 : 0),
       };
+
+      if (!scraperError) {
+        succeededSources.add(scraper.source);
+      }
     }
 
     // Mark stale listings as inactive (not seen in 7 days)
-    // Only run lifecycle cleanup when all sources ran successfully
-    if (!dryRun && supabase && source === 'all' && !campusHadFailure) {
+    // Run per-source: only clean up sources that succeeded this run
+    if (!dryRun && supabase && succeededSources.size > 0) {
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      const { data: staleData } = await supabase
-        .from('listings')
-        .update({ is_active: false })
-        .eq('campus_id', config.campusId)
-        .eq('is_active', true)
-        .lt('last_seen_at', sevenDaysAgo)
-        .select('id');
 
-      metrics.staleMarked += staleData?.length ?? 0;
+      for (const successSource of succeededSources) {
+        const { data: staleData } = await supabase
+          .from('listings')
+          .update({ is_active: false })
+          .eq('campus_id', config.campusId)
+          .eq('source', successSource)
+          .eq('is_active', true)
+          .lt('last_seen_at', sevenDaysAgo)
+          .select('id');
 
-      // Archive and delete listings inactive for 30+ days
-      const archiveResult = await archiveStaleListings(supabase, config.campusId);
-      metrics.archived += archiveResult.archived;
-      metrics.deleted += archiveResult.deleted;
+        metrics.staleMarked += staleData?.length ?? 0;
+      }
+
+      // Archive and delete listings inactive for 30+ days (source-agnostic)
+      // Only run if no sources failed, to avoid archiving listings from failed scrapers
+      if (failedSources.size === 0) {
+        const archiveResult = await archiveStaleListings(supabase, config.campusId);
+        metrics.archived += archiveResult.archived;
+        metrics.deleted += archiveResult.deleted;
+      }
     }
   }
 

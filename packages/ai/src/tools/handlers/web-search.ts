@@ -16,15 +16,44 @@ interface PersistWebListingParams {
 }
 
 /**
+ * Returns true if the web search result has enough structured data to be
+ * stored as a listing. Prevents garbage titles (e.g. "Top 10 apartments …")
+ * from polluting the listings table.
+ */
+function hasMinimumListingFields(params: PersistWebListingParams): boolean {
+  const address = params.address.trim();
+
+  // Must have a non-empty address that looks like a real address
+  // (contains at least one digit — street number)
+  if (!address || !/\d/.test(address)) return false;
+
+  // Must have a source URL
+  if (!params.sourceUrl) return false;
+
+  // Reject addresses that are clearly article titles (> 120 chars)
+  if (address.length > 120) return false;
+
+  return true;
+}
+
+/**
  * Persists a web search result as a listing in the database. Called for every
  * web search result returned by webSearch(). Uses upsert on (source, source_url)
  * so duplicate URLs are deduplicated. The Phase 3 embedding pipeline will embed
  * new/changed rows on the next nightly run.
+ *
+ * Returns null without persisting if the result lacks minimum required fields
+ * (parseable address, source URL). Results are still returned to the AI as
+ * search context even when not persisted.
  */
 export async function persistWebListing(
   params: PersistWebListingParams,
   context: ToolContext,
 ): Promise<string | null> {
+  if (!hasMinimumListingFields(params)) {
+    return null;
+  }
+
   try {
     const { data, error } = await context.supabase
       .from('listings')

@@ -362,7 +362,7 @@ export function ChatProvider({
               setMessages((prev) =>
                 replaceMessage(prev, assistantId, (msg) => {
                   // Remove the most recent tool_loading block for this tool
-                  const blocks = [...msg.blocks];
+                  const blocks = msg.blocks;
                   let loadingIdx = -1;
                   for (let j = blocks.length - 1; j >= 0; j--) {
                     if (blocks[j]?.type === 'tool_loading') {
@@ -370,12 +370,10 @@ export function ChatProvider({
                       break;
                     }
                   }
-                  if (loadingIdx >= 0) {
-                    blocks.splice(loadingIdx, 1, resultBlock);
-                  } else {
-                    blocks.push(resultBlock);
-                  }
-                  return { ...msg, blocks };
+                  const newBlocks = loadingIdx >= 0
+                    ? [...blocks.slice(0, loadingIdx), resultBlock, ...blocks.slice(loadingIdx + 1)]
+                    : [...blocks, resultBlock];
+                  return { ...msg, blocks: newBlocks };
                 })
               );
               break;
