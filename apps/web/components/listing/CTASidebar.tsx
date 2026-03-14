@@ -1,8 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Heart, Share2, Calendar, MessageCircle } from 'lucide-react';
+import { createClient } from '@campusnest/supabase/client';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { slideInFromRight } from '@/lib/animations';
@@ -14,12 +17,112 @@ interface CTASidebarProps {
   readonly price: number;
   readonly listingTitle: string;
   readonly listingId: string;
+  readonly campusSlug?: string;
 }
 
-export function CTASidebar({ price, listingTitle, listingId }: CTASidebarProps) {
+export function CTASidebar({
+  price,
+  listingTitle,
+  listingId,
+  campusSlug,
+}: CTASidebarProps) {
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [tourModalOpen, setTourModalOpen] = useState(false);
   const { setOpen: openChat } = useChatContext();
+  const router = useRouter();
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadSavedState() {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user || !active) {
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('saved_listings')
+        .select('listing_id')
+        .eq('listing_id', listingId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (!active || error) {
+        return;
+      }
+
+      setSaved(Boolean(data));
+    }
+
+    void loadSavedState();
+
+    return () => {
+      active = false;
+    };
+  }, [listingId]);
+
+  async function handleSaveToggle() {
+    if (saving) {
+      return;
+    }
+
+    setSaving(true);
+
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      const returnTo = campusSlug
+        ? `/listing/${listingId}?campus=${encodeURIComponent(campusSlug)}`
+        : `/listing/${listingId}`;
+      router.push(`/login?returnTo=${encodeURIComponent(returnTo)}`);
+      setSaving(false);
+      return;
+    }
+
+    const nextSaved = !saved;
+    setSaved(nextSaved);
+
+    if (nextSaved) {
+      const { error } = await supabase
+        .from('saved_listings')
+        .insert({ listing_id: listingId, user_id: user.id });
+
+      if (error) {
+        setSaved(false);
+        toast.error('Could not save listing');
+        setSaving(false);
+        return;
+      }
+
+      toast.success('Added to Saved');
+      setSaving(false);
+      return;
+    }
+
+    const { error } = await supabase
+      .from('saved_listings')
+      .delete()
+      .eq('listing_id', listingId)
+      .eq('user_id', user.id);
+
+    if (error) {
+      setSaved(true);
+      toast.error('Could not remove from favorites');
+      setSaving(false);
+      return;
+    }
+
+    toast.success('Removed from Saved');
+    setSaving(false);
+  }
 
   return (
     <>
@@ -68,7 +171,8 @@ export function CTASidebar({ price, listingTitle, listingId }: CTASidebarProps) 
               <Button
                 variant="outline"
                 className="flex-1"
-                onClick={() => setSaved((prev) => !prev)}
+                onClick={() => void handleSaveToggle()}
+                disabled={saving}
               >
                 <Heart
                   className={`size-4 ${

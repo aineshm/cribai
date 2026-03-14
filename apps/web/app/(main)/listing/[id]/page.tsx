@@ -4,19 +4,22 @@ import { ListingDetailClient } from './ListingDetailClient';
 
 interface ListingDetailPageProps {
   readonly params: Promise<{ id: string }>;
+  readonly searchParams: Promise<{ campus?: string }>;
 }
 
 export default async function ListingDetailPage({
   params,
+  searchParams,
 }: ListingDetailPageProps) {
   const { id } = await params;
+  const { campus } = await searchParams;
   const listing = await fetchListingById(id);
 
   if (!listing) {
     notFound();
   }
 
-  return <ListingDetailClient listing={listing} />;
+  return <ListingDetailClient listing={listing} campusSlug={campus} />;
 }
 
 export const dynamic = 'force-dynamic';

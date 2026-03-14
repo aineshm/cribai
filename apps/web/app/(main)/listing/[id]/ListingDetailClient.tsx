@@ -12,9 +12,13 @@ import type { ListingDetail } from '@/lib/listing-types';
 
 interface ListingDetailClientProps {
   readonly listing: ListingDetail;
+  readonly campusSlug?: string;
 }
 
-export function ListingDetailClient({ listing }: ListingDetailClientProps) {
+export function ListingDetailClient({
+  listing,
+  campusSlug,
+}: ListingDetailClientProps) {
   return (
     <motion.div
       className="min-h-screen bg-background"
@@ -60,7 +64,12 @@ export function ListingDetailClient({ listing }: ListingDetailClientProps) {
 
           {/* Right Column — CTA Sidebar (desktop only) */}
           <div className="hidden md:block">
-            <CTASidebar price={listing.price} listingTitle={listing.title} listingId={listing.id} />
+            <CTASidebar
+              price={listing.price}
+              listingTitle={listing.title}
+              listingId={listing.id}
+              campusSlug={campusSlug}
+            />
           </div>
         </div>
       </div>
