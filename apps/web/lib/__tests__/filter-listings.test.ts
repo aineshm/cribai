@@ -17,6 +17,8 @@ const makeListing = (overrides: Partial<ExploreListing> = {}): ExploreListing =>
   fairnessScore: null,
   availableDate: null,
   walkScore: 90,
+  latitude: null,
+  longitude: null,
   ...overrides,
 });
 

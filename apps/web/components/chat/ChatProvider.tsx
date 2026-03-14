@@ -182,7 +182,15 @@ export function ChatProvider({
     []
   );
 
-  /** On mount, load the most recent conversation's messages (scoped to campus) */
+  // Reset chat state when campus changes so stale refs don't leak across campuses
+  useEffect(() => {
+    conversationIdRef.current = null;
+    campusIdRef.current = null;
+    loadedRef.current = false;
+    setMessages([]);
+  }, [campusSlug]);
+
+  /** On mount (or campus change), load the most recent conversation's messages */
   useEffect(() => {
     if (loadedRef.current) return;
     loadedRef.current = true;
@@ -225,7 +233,7 @@ export function ChatProvider({
     }
 
     void loadRecent();
-  }, []);
+  }, [campusSlug, resolveCampusId]);
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim()) return;
@@ -424,7 +432,7 @@ export function ChatProvider({
       }
     } catch (err) {
       const errorText =
-        err instanceof Error ? err.message : 'Failed to reach CribAI.';
+        err instanceof Error ? err.message : 'Failed to reach AI.';
       setMessages((prev) =>
         replaceMessage(prev, assistantId, (msg) => ({
           ...msg,

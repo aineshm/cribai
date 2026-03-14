@@ -223,10 +223,18 @@ export async function POST(request: NextRequest) {
     });
 
     // --- Classify intent (before stream, non-blocking on error) -------------
+    // Only propose missions for intents that have registered handlers.
+    // lease_analysis can be classified but has no handler — skip it.
+    const REGISTERED_MISSION_INTENTS = new Set(['housing_search', 'tour_outreach']);
+
     let intentProposal: { intent: string; confidence: number; extractedFields: Record<string, unknown> } | null = null;
     if (shouldClassify(query)) {
       const intentResult = await classifyIntent(query);
-      if (intentResult.confidence > 0.75 && intentResult.intent !== 'general_chat') {
+      if (
+        intentResult.confidence > 0.75 &&
+        intentResult.intent !== 'general_chat' &&
+        REGISTERED_MISSION_INTENTS.has(intentResult.intent)
+      ) {
         intentProposal = {
           intent: intentResult.intent,
           confidence: intentResult.confidence,
@@ -240,17 +248,6 @@ export async function POST(request: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          // Emit mission_proposal before the main chat loop if intent was detected
-          if (intentProposal) {
-            const proposalEvent: ChatEvent = {
-              type: 'mission_proposal',
-              intent: intentProposal.intent,
-              confidence: intentProposal.confidence,
-              extractedFields: intentProposal.extractedFields,
-            };
-            controller.enqueue(encoder.encode(sseEncode(proposalEvent)));
-          }
-
           const chatArgs = { query, tree, conversationHistory };
           let seenDone = false;
           for await (const chunk of cribai.chat(chatArgs)) {
@@ -262,6 +259,17 @@ export async function POST(request: NextRequest) {
               // New engine yields ChatEvent objects — pass through
               controller.enqueue(encoder.encode(sseEncode(chunk)));
             }
+          }
+
+          // Emit mission_proposal after streaming completes so text appears first
+          if (intentProposal) {
+            const proposalEvent: ChatEvent = {
+              type: 'mission_proposal',
+              intent: intentProposal.intent,
+              confidence: intentProposal.confidence,
+              extractedFields: intentProposal.extractedFields,
+            };
+            controller.enqueue(encoder.encode(sseEncode(proposalEvent)));
           }
 
           // Only emit done if the upstream didn't already

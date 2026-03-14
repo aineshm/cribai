@@ -13,15 +13,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Webhook not configured' }, { status: 503 });
   }
 
-  // TODO Phase 2: Implement Stripe webhook verification + event handling
-  // 1. Verify webhook signature using stripe.webhooks.constructEvent(body, signature, webhookSecret)
-  // 2. Handle checkout.session.completed → update subscription_tier
-  // 3. Handle customer.subscription.updated/deleted
-  //
-  // SECURITY: Until signature verification is implemented, reject all requests
-  // to prevent processing of spoofed webhook events.
-  return NextResponse.json(
-    { error: 'Webhook signature verification not yet implemented' },
-    { status: 501 },
-  );
+  return NextResponse.json({ error: 'Not implemented' }, { status: 501 });
 }

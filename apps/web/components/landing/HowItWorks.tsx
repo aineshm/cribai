@@ -15,7 +15,7 @@ const steps = [
   {
     number: '02',
     icon: MessageSquare,
-    title: 'Tell CribAI What You Need',
+    title: 'Tell AI What You Need',
     description:
       'Chat naturally about your budget, preferred neighborhoods, move-in date, and must-haves.',
   },

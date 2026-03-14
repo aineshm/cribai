@@ -12,6 +12,11 @@ const searchListings: FunctionDeclaration = {
         description:
           'Natural language description of what the user wants (e.g., "quiet place near campus with natural light"). Set this when the user describes qualitative preferences beyond just beds/price.',
       },
+      address: {
+        type: Type.STRING,
+        description:
+          'Street address or location name to search near (e.g., "456 W Gorham St" or "Langdon Street area"). Leverages semantic search to find listings near the specified location.',
+      },
       bedrooms: {
         type: Type.INTEGER,
         description: 'Number of bedrooms (0 for studio, 1-4+)',

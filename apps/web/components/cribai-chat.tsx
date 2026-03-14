@@ -123,7 +123,7 @@ async function loadConversationMessages(
 export function CribAIChat({
   campusSlug,
   campusId,
-  initialListingId,
+  initialListingId: _initialListingId,
   initialAddress,
   conversationId: externalConversationId,
   isAuthenticated = false,
@@ -400,21 +400,6 @@ export function CribAIChat({
     }
   }, [input, isStreaming, messages, campusSlug, campusId, conversationId, isAuthenticated, onConversationCreated, scrollToBottom]);
 
-  // Auto-send when navigating from a listing detail page
-  const hasSentInitial = useRef(false);
-  useEffect(() => {
-    if (!initialListingId || hasSentInitial.current) return;
-
-    const timer = setTimeout(() => {
-      if (hasSentInitial.current) return;
-      hasSentInitial.current = true;
-      const label = initialAddress ?? initialListingId;
-      sendMessage(`Tell me more about the property at ${label} — what's notable about this place?`);
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, [initialListingId, initialAddress, sendMessage]);
-
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -432,7 +417,7 @@ export function CribAIChat({
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--primary-50)] to-[var(--primary-100)]">
                 <Sparkles className="h-7 w-7 text-[var(--primary-600)]" strokeWidth={1.5} />
               </div>
-              <p className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-700)]">Ask CribAI anything</p>
+              <p className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-700)]">Ask AI anything</p>
               <p className="mt-2 text-sm text-[var(--surface-400)]">I can search listings, compare apartments, explain lease terms, and schedule tours.</p>
               <div className="mt-5 flex flex-wrap justify-center gap-2">
                 {[
@@ -495,7 +480,7 @@ export function CribAIChat({
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about housing, compare apartments, schedule tours..."
+            placeholder={initialAddress ? `Ask about ${initialAddress}...` : "Ask about housing, compare apartments, schedule tours..."}
             className="flex-1 rounded-xl border border-[var(--surface-200)] bg-white px-4 py-2.5 text-sm placeholder:text-[var(--surface-400)] focus:border-[var(--primary-500)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]/20 transition-all duration-200"
             disabled={isStreaming}
             aria-label="Chat message input"

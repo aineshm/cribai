@@ -138,23 +138,6 @@ export function AIChatPanel() {
               </AnimatePresence>
               {/* Mission proposal card — rendered after message list */}
               <MissionProposalCard />
-              {/* Typing indicator */}
-              {loading && messages.length > 0 && (
-                <motion.div
-                  key="typing"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex justify-start"
-                >
-                  <div className="bg-[var(--surface-100)] rounded-2xl rounded-bl-md px-4 py-2.5">
-                    <div className="flex gap-1">
-                      <span className="w-2 h-2 rounded-full bg-[var(--surface-400)] animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-2 h-2 rounded-full bg-[var(--surface-400)] animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-2 h-2 rounded-full bg-[var(--surface-400)] animate-bounce" style={{ animationDelay: '300ms' }} />
-                    </div>
-                  </div>
-                </motion.div>
-              )}
             </>
           )}
         </div>
@@ -163,7 +146,7 @@ export function AIChatPanel() {
         <div className="border-t p-4">
           <div className="flex items-center gap-2">
             <Input
-              placeholder="Ask CribAI anything..."
+              placeholder="Ask AI anything..."
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}

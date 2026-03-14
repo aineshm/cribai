@@ -129,7 +129,7 @@ export function ConversationSidebar({
           {!isLoading && !fetchError && conversations.length === 0 && (
             <div className="px-3 py-8 text-center">
               <p className="text-xs text-[var(--surface-400)]">No conversations yet</p>
-              <p className="mt-1 text-xs text-[var(--surface-300)]">Start chatting with CribAI</p>
+              <p className="mt-1 text-xs text-[var(--surface-300)]">Start chatting with AI</p>
             </div>
           )}
 

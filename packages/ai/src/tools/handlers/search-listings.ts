@@ -5,6 +5,7 @@ import { generateQueryEmbedding } from '../../embeddings/generate-embedding';
 
 const inputSchema = z.object({
   semantic_query: z.string().optional(),
+  address: z.string().optional(),
   bedrooms: z.number().int().min(0).max(10).optional(),
   min_rent: z.number().min(0).optional(),
   max_rent: z.number().min(0).optional(),
@@ -35,7 +36,18 @@ export async function searchListings(
   args: Record<string, unknown>,
   context: ToolContext,
 ): Promise<ToolResult> {
-  const parsed = inputSchema.parse(args);
+  const raw = inputSchema.parse(args);
+
+  // Merge address into semantic_query for vector-based location search.
+  // If both are provided, concatenate them. If only address, use it as semantic_query.
+  const mergedSemanticQuery = raw.address && raw.semantic_query
+    ? `${raw.semantic_query} near ${raw.address}`
+    : raw.address ?? raw.semantic_query;
+
+  const parsed = mergedSemanticQuery !== raw.semantic_query
+    ? { ...raw, semantic_query: mergedSemanticQuery }
+    : raw;
+
   const limit = parsed.limit ?? 5;
 
   // Semantic search path: use vector similarity via RPC

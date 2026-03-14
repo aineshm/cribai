@@ -150,6 +150,22 @@ export function AuthForm() {
       return;
     }
 
+    // Also write to profiles table so layout's isProfileIncomplete check passes
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { error: profileError } = await supabase.from('profiles').update({
+        display_name: profile.firstName,
+        graduation_year: profile.graduationYear ? parseInt(profile.graduationYear) : null,
+        profile_completed_at: new Date().toISOString(),
+      }).eq('id', user.id);
+
+      if (profileError) {
+        setError(profileError.message);
+        setLoading(false);
+        return;
+      }
+    }
+
     trackEvent('signup_completed');
 
     const returnTo = searchParams.get('returnTo');

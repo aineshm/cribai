@@ -18,6 +18,8 @@ const baseListing: ExploreListing = {
   fairnessScore: null,
   availableDate: null,
   walkScore: 92,
+  latitude: null,
+  longitude: null,
 };
 
 const twoBedroomListing: ExploreListing = {

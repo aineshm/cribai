@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { SettingsNav, type SettingsSection } from './SettingsNav';
 import { toast } from 'sonner';
 import { AnimatePresence, motion } from 'framer-motion';
 import { fadeIn } from '@/lib/animations';
+import { createClient } from '@campusnest/supabase/client';
 
 interface PersonalInfo {
   readonly fullName: string;
@@ -28,10 +29,25 @@ export function AccountSettings() {
     useState<SettingsSection>('personal');
 
   const [personalInfo, setPersonalInfo] = useState<PersonalInfo>({
-    fullName: 'Alex Johnson',
-    email: 'alex.johnson@university.edu',
+    fullName: '',
+    email: '',
     phone: '',
   });
+
+  useEffect(() => {
+    async function loadUser() {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setPersonalInfo({
+          fullName: user.user_metadata?.full_name || user.user_metadata?.display_name || '',
+          email: user.email || '',
+          phone: user.user_metadata?.phone || user.phone || '',
+        });
+      }
+    }
+    loadUser();
+  }, []);
 
   const [notifications, setNotifications] = useState<NotificationPrefs>({
     newListings: true,
@@ -48,8 +64,26 @@ export function AccountSettings() {
     setNotifications((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleSave = () => {
-    toast.success('Settings saved!');
+  const handleSave = async () => {
+    const supabase = createClient();
+    const { error: updateError } = await supabase.auth.updateUser({
+      data: { full_name: personalInfo.fullName, phone: personalInfo.phone },
+    });
+
+    if (updateError) {
+      toast.error(updateError.message);
+      return;
+    }
+
+    // Also update profiles table
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from('profiles').update({
+        display_name: personalInfo.fullName,
+      }).eq('id', user.id);
+    }
+
+    toast.success('Profile updated');
   };
 
   const handleLogout = () => {

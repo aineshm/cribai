@@ -37,6 +37,8 @@ const mockListings: readonly ExploreListing[] = [
     fairnessScore: null,
     availableDate: null,
     walkScore: null,
+    latitude: null,
+    longitude: null,
   },
   {
     id: '2',
@@ -53,6 +55,8 @@ const mockListings: readonly ExploreListing[] = [
     fairnessScore: null,
     availableDate: null,
     walkScore: null,
+    latitude: null,
+    longitude: null,
   },
 ];
 

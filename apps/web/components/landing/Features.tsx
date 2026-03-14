@@ -10,7 +10,7 @@ const features = [
     icon: Sparkles,
     title: 'AI-Powered Search',
     description:
-      'Tell CribAI what you need — budget, location, roommates — and get matched with apartments that actually fit your student life.',
+      'Tell our AI what you need — budget, location, roommates — and get matched with apartments that actually fit your student life.',
   },
   {
     icon: ShieldCheck,
@@ -22,7 +22,7 @@ const features = [
     icon: Headphones,
     title: 'End-to-End Support',
     description:
-      'From lease term explanations to tour scheduling, CribAI handles the stressful parts so you can focus on what matters.',
+      'From lease term explanations to tour scheduling, CampusNest AI handles the stressful parts so you can focus on what matters.',
   },
 ] as const;
 

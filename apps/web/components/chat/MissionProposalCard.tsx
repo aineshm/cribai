@@ -30,7 +30,7 @@ export function MissionProposalCard() {
         <span className="text-sm font-medium">Start {label} Mission?</span>
       </div>
       <p className="text-xs text-muted-foreground">
-        CribAI can run this as a background mission and surface results in the
+        CampusNest AI can run this as a background mission and surface results in the
         Concierge panel.
       </p>
       {missionError && (

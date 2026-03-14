@@ -18,20 +18,20 @@ vi.mock('../ChatProvider', () => ({
 describe('AIChatButton', () => {
   it('renders a button with accessible name', () => {
     render(<AIChatButton />);
-    const button = screen.getByRole('button', { name: /open cribai chat/i });
+    const button = screen.getByRole('button', { name: /open ai chat/i });
     expect(button).toBeInTheDocument();
   });
 
-  it('has aria-label containing "chat" or "crib"', () => {
+  it('has aria-label containing "chat" or "ai"', () => {
     render(<AIChatButton />);
-    const button = screen.getByLabelText(/open cribai chat/i);
+    const button = screen.getByLabelText(/open ai chat/i);
     expect(button).toBeInTheDocument();
   });
 
   it('calls setOpen(true) when clicked', () => {
     mockSetOpen.mockClear();
     render(<AIChatButton />);
-    const button = screen.getByRole('button', { name: /open cribai chat/i });
+    const button = screen.getByRole('button', { name: /open ai chat/i });
     fireEvent.click(button);
     expect(mockSetOpen).toHaveBeenCalledWith(true);
     expect(mockSetOpen).toHaveBeenCalledOnce();
