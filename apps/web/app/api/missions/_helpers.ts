@@ -10,8 +10,12 @@ import { cookies } from 'next/headers';
 import { createServerComponentClient, createSecretClient } from '@campusnest/supabase/server';
 import { isDevAuthEnabled, getDevUserById, DEFAULT_DEV_USER, DEV_USER_COOKIE } from '../../../lib/dev-auth';
 
-/** Resolve the authenticated user ID and a Supabase client. */
-export async function resolveMissionAuth(): Promise<{
+/** Resolve the authenticated user ID and a Supabase client.
+ *  Accepts an optional Request to extract a Bearer token from the
+ *  Authorization header — this covers cases where cookies are missing
+ *  but the client sends the token explicitly (e.g. SteeringBar, MissionActionCard).
+ */
+export async function resolveMissionAuth(request?: Request): Promise<{
   readonly userId: string | null;
   readonly supabase: ReturnType<typeof createServerComponentClient>;
 }> {
@@ -25,8 +29,25 @@ export async function resolveMissionAuth(): Promise<{
     return { userId: devUser?.id ?? DEFAULT_DEV_USER.id, supabase };
   }
 
+  // Try cookie-based auth first
   const { data: { user }, error } = await supabase.auth.getUser();
-  return { userId: (!error && user) ? user.id : null, supabase };
+  if (!error && user) {
+    return { userId: user.id, supabase };
+  }
+
+  // Fallback: check Authorization header for Bearer token
+  if (request) {
+    const authHeader = request.headers.get('authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.slice(7);
+      const { data: { user: tokenUser }, error: tokenError } = await supabase.auth.getUser(token);
+      if (!tokenError && tokenUser) {
+        return { userId: tokenUser.id, supabase };
+      }
+    }
+  }
+
+  return { userId: null, supabase };
 }
 
 /**

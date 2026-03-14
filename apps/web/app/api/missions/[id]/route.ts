@@ -10,11 +10,11 @@ import { resolveMissionAuth, verifyMissionOwnership, getQueryClient } from '../_
 
 /** GET /api/missions/[id] — mission detail + logs + current draft. */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: missionId } = await params;
-  const { userId, supabase } = await resolveMissionAuth();
+  const { userId, supabase } = await resolveMissionAuth(request);
 
   if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });

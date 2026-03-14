@@ -14,6 +14,7 @@ import {
   DollarSign,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { createClient } from '@campusnest/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -104,9 +105,15 @@ function DraftReadyCard({ data }: { readonly data: Record<string, unknown> }) {
     }
     setSending(true);
     try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const authHeaders: Record<string, string> = {};
+      if (session?.access_token) {
+        authHeaders['Authorization'] = `Bearer ${session.access_token}`;
+      }
       const res = await fetch(
         `/api/missions/${missionId}/drafts/${draftId}/approve`,
-        { method: 'POST' },
+        { method: 'POST', headers: authHeaders },
       );
       if (res.ok) {
         toast.success(count > 1 ? `${count} emails sent!` : 'Email sent!');
@@ -125,9 +132,15 @@ function DraftReadyCard({ data }: { readonly data: Record<string, unknown> }) {
       showMockToast('Opening draft editor');
       return;
     }
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    const authHeaders: Record<string, string> = {};
+    if (session?.access_token) {
+      authHeaders['Authorization'] = `Bearer ${session.access_token}`;
+    }
     const res = await fetch(
       `/api/missions/${missionId}/drafts/${draftId}/reject`,
-      { method: 'POST' },
+      { method: 'POST', headers: authHeaders },
     );
     if (res.ok) {
       toast.success('Tour outreach cancelled.');

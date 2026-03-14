@@ -56,7 +56,7 @@ async function resolveCampusId(
 
 /** POST /api/missions — create a mission and fire the executor. */
 export async function POST(request: NextRequest) {
-  const { userId, supabase } = await resolveMissionAuth();
+  const { userId, supabase } = await resolveMissionAuth(request);
 
   if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -143,8 +143,8 @@ export async function POST(request: NextRequest) {
 }
 
 /** GET /api/missions — list the user's missions. */
-export async function GET() {
-  const { userId, supabase } = await resolveMissionAuth();
+export async function GET(request: NextRequest) {
+  const { userId, supabase } = await resolveMissionAuth(request);
 
   if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });

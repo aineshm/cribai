@@ -451,9 +451,15 @@ export function ChatProvider({
   const confirmMission = useCallback(async () => {
     if (!pendingProposal) return;
     try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const missionHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.access_token) {
+        missionHeaders['Authorization'] = `Bearer ${session.access_token}`;
+      }
       const res = await fetch('/api/missions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: missionHeaders,
         body: JSON.stringify({
           type: pendingProposal.intent,
           title: pendingProposal.intent.replace(/_/g, ' '),

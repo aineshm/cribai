@@ -12,11 +12,11 @@ import { resolveMissionAuth, verifyMissionOwnership } from '../../../../_helpers
 
 /** POST /api/missions/[id]/drafts/[draftId]/reject — reject a HITL draft. */
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string; draftId: string }> },
 ) {
   const { id: missionId, draftId } = await params;
-  const { userId, supabase } = await resolveMissionAuth();
+  const { userId, supabase } = await resolveMissionAuth(request);
 
   if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });

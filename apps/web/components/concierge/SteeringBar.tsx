@@ -9,6 +9,7 @@ import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Send } from 'lucide-react';
 import { toast } from 'sonner';
+import { createClient } from '@campusnest/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { slideInFromBottom } from '@/lib/animations';
@@ -28,9 +29,15 @@ export function SteeringBar({ missionId }: SteeringBarProps) {
 
       setSubmitting(true);
       try {
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
         const res = await fetch(`/api/missions/${missionId}/steer`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ input: message.trim() }),
         });
 

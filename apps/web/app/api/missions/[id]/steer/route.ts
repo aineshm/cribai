@@ -22,7 +22,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: missionId } = await params;
-  const { userId, supabase } = await resolveMissionAuth();
+  const { userId, supabase } = await resolveMissionAuth(request);
 
   if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
