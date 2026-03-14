@@ -182,14 +182,19 @@ export function ChatProvider({
     []
   );
 
-  /** On mount, load the most recent conversation's messages */
+  /** On mount, load the most recent conversation's messages (scoped to campus) */
   useEffect(() => {
     if (loadedRef.current) return;
     loadedRef.current = true;
 
     async function loadRecent() {
       try {
-        const res = await fetch('/api/conversations');
+        // Resolve campus ID first so we can filter conversations by campus
+        const campusId = await resolveCampusId();
+        const url = campusId
+          ? `/api/conversations?campus_id=${encodeURIComponent(campusId)}`
+          : '/api/conversations';
+        const res = await fetch(url);
         if (!res.ok) return;
         const data = await res.json() as {
           conversations: readonly { id: string; title: string }[];
@@ -243,6 +248,9 @@ export function ChatProvider({
       blocks: [],
     };
     setMessages((prev) => [...prev, placeholder]);
+
+    // Track assistant blocks locally to avoid React state race on persist
+    const localNonTextBlocks: ChatBlock[] = [];
 
     try {
       // --- Get auth token (best-effort) ----------------------------------
@@ -342,6 +350,7 @@ export function ChatProvider({
               // Replace the tool_loading block with the actual result block
               if (!event.block) break;
               const resultBlock = event.block;
+              localNonTextBlocks.push(resultBlock);
               setMessages((prev) =>
                 replaceMessage(prev, assistantId, (msg) => {
                   // Remove the most recent tool_loading block for this tool
@@ -401,13 +410,16 @@ export function ChatProvider({
       }
 
       // --- Persist messages (fire-and-forget) ---
+      // Build final blocks from local variables (not React state) to avoid race condition
+      const finalBlocks: ChatBlock[] = [
+        ...localNonTextBlocks,
+        ...(accumulatedText ? [{ type: 'text' as const, content: accumulatedText }] : []),
+      ];
       const convId = await ensureConversation(text.trim().slice(0, 80));
       if (convId) {
         saveMessage(convId, 'user', userMessage.blocks);
-        // Get the final assistant blocks from current state
-        const finalAssistant = messagesRef.current.find((m) => m.id === assistantId);
-        if (finalAssistant && finalAssistant.blocks.length > 0) {
-          saveMessage(convId, 'assistant', finalAssistant.blocks);
+        if (finalBlocks.length > 0) {
+          saveMessage(convId, 'assistant', finalBlocks);
         }
       }
     } catch (err) {

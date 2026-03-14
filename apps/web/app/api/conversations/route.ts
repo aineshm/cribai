@@ -25,7 +25,7 @@ async function resolveUserId(): Promise<{ userId: string | null; supabase: Retur
 }
 
 /** GET /api/conversations — list user's conversations (most recent first, limit 20) */
-export async function GET() {
+export async function GET(request: NextRequest) {
   const { userId, supabase } = await resolveUserId();
 
   if (!userId) {
@@ -36,12 +36,21 @@ export async function GET() {
   const queryClient = isDevAuthEnabled() ? createSecretClient() : supabase;
   const user = { id: userId };
 
-  const { data, error } = await queryClient
+  // Optional campus_id filter to scope conversations to a specific campus
+  const campusId = new URL(request.url).searchParams.get('campus_id');
+
+  let query = queryClient
     .from('conversations')
     .select('id, title, last_message_preview, created_at, updated_at')
     .eq('user_id', user.id)
     .order('updated_at', { ascending: false })
     .limit(20);
+
+  if (campusId) {
+    query = query.eq('campus_id', campusId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('[conversations] List error:', error);
