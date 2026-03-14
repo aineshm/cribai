@@ -11,3 +11,5 @@ dist/
 coverage/
 .claude/
 .mcp.json
+gen-lang-client-*.json
+.playwright-mcp/
