@@ -16,9 +16,9 @@ const footerLinks = {
     { label: 'Careers', href: '#' },
   ],
   Legal: [
-    { label: 'Terms of Service', href: '#' },
-    { label: 'Privacy Policy', href: '#' },
-    { label: 'Cookie Policy', href: '#' },
+    { label: 'Terms of Service', href: '/terms' },
+    { label: 'Privacy Policy', href: '/privacy' },
+    { label: 'Cookie Policy', href: '/privacy#cookies' },
   ],
 } as const;
 

@@ -60,13 +60,13 @@ export function ListingDetailClient({ listing }: ListingDetailClientProps) {
 
           {/* Right Column — CTA Sidebar (desktop only) */}
           <div className="hidden md:block">
-            <CTASidebar price={listing.price} listingTitle={listing.title} />
+            <CTASidebar price={listing.price} listingTitle={listing.title} listingId={listing.id} />
           </div>
         </div>
       </div>
 
       {/* Mobile Bottom Bar */}
-      <MobileBottomBar price={listing.price} listingTitle={listing.title} />
+      <MobileBottomBar price={listing.price} listingTitle={listing.title} listingId={listing.id} />
     </motion.div>
   );
 }

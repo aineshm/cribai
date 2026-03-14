@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { staggerContainer, staggerItem } from '@/lib/animations';
+import { trackEvent } from '@/lib/track-event';
 
 interface HeroProps {
   readonly isAuthenticated?: boolean;
@@ -48,6 +49,7 @@ export function Hero({ isAuthenticated = false }: HeroProps) {
         >
           <Link
             href={ctaHref}
+            onClick={() => trackEvent('cta_clicked', { cta: 'hero_get_started' })}
             className={cn(
               buttonVariants({ variant: 'default', size: 'lg' }),
               'h-12 px-8 text-base rounded-full bg-[var(--primary-600)] text-white hover:bg-[var(--primary-700)] shadow-lg shadow-[var(--primary-600)]/20'
@@ -57,6 +59,7 @@ export function Hero({ isAuthenticated = false }: HeroProps) {
           </Link>
           <Link
             href="/post"
+            onClick={() => trackEvent('cta_clicked', { cta: 'hero_post_sublease' })}
             className={cn(
               buttonVariants({ variant: 'outline', size: 'lg' }),
               'h-12 px-8 text-base rounded-full'

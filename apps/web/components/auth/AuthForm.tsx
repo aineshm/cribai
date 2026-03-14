@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Mail, ArrowLeft } from 'lucide-react';
 import { OTPInput } from './OTPInput';
 import { ProfileSetup } from './ProfileSetup';
+import { trackEvent } from '@/lib/track-event';
 
 type AuthStep = 'email' | 'otp' | 'profile';
 
@@ -148,6 +149,8 @@ export function AuthForm() {
       setLoading(false);
       return;
     }
+
+    trackEvent('signup_completed');
 
     const returnTo = searchParams.get('returnTo');
     const destination =

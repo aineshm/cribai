@@ -6,14 +6,16 @@ import { Heart, Share2, Calendar, MessageCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { slideInFromRight } from '@/lib/animations';
+import { trackEvent } from '@/lib/track-event';
 import { BookTourModal } from './BookTourModal';
 
 interface CTASidebarProps {
   readonly price: number;
   readonly listingTitle: string;
+  readonly listingId: string;
 }
 
-export function CTASidebar({ price, listingTitle }: CTASidebarProps) {
+export function CTASidebar({ price, listingTitle, listingId }: CTASidebarProps) {
   const [saved, setSaved] = useState(false);
   const [tourModalOpen, setTourModalOpen] = useState(false);
 
@@ -40,7 +42,10 @@ export function CTASidebar({ price, listingTitle }: CTASidebarProps) {
             {/* Primary CTA */}
             <Button
               className="w-full h-10"
-              onClick={() => setTourModalOpen(true)}
+              onClick={() => {
+                trackEvent('contact_clicked', { listing_id: listingId });
+                setTourModalOpen(true);
+              }}
             >
               <Calendar className="size-4" />
               Book a Tour

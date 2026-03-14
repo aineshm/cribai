@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
     description,
     source_url,
     contact_email,
+    photo_urls,
   } = parsed.data;
 
   // Use service-role client for the insert (bypasses RLS)
@@ -78,6 +79,7 @@ export async function POST(request: NextRequest) {
       bathrooms: bathrooms ?? null,
       sqft: sqft ?? null,
       amenities,
+      photo_urls: photo_urls ?? [],
       available_date: available_date ?? null,
       description: description ?? null,
       source: 'sublease',

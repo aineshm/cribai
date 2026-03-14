@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { springConfig } from '@/lib/animations';
+import { trackEvent } from '@/lib/track-event';
 import type { ActiveFilters } from '@/lib/filter-listings';
 
 interface FilterDef {
@@ -47,8 +48,10 @@ export function FilterChips({
 }: FilterChipsProps) {
   const toggleFilter = useCallback(
     (filterId: string) => {
+      const isCurrentlyActive = activeFilters.has(filterId);
+      trackEvent('filter_applied', { filter: filterId, active: !isCurrentlyActive });
       const next = new Set(activeFilters);
-      if (next.has(filterId)) {
+      if (isCurrentlyActive) {
         next.delete(filterId);
       } else {
         next.add(filterId);

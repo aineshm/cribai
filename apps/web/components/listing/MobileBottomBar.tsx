@@ -5,15 +5,17 @@ import { motion } from 'framer-motion';
 import { Calendar, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { slideInFromBottom } from '@/lib/animations';
+import { trackEvent } from '@/lib/track-event';
 import { BookTourModal } from './BookTourModal';
 import { useChatContext } from '@/components/chat/ChatProvider';
 
 interface MobileBottomBarProps {
   readonly price: number;
   readonly listingTitle: string;
+  readonly listingId: string;
 }
 
-export function MobileBottomBar({ price, listingTitle }: MobileBottomBarProps) {
+export function MobileBottomBar({ price, listingTitle, listingId }: MobileBottomBarProps) {
   const [tourModalOpen, setTourModalOpen] = useState(false);
   const { setOpen: openChat } = useChatContext();
 
@@ -37,7 +39,10 @@ export function MobileBottomBar({ price, listingTitle }: MobileBottomBarProps) {
           {/* Action Buttons */}
           <Button
             size="sm"
-            onClick={() => setTourModalOpen(true)}
+            onClick={() => {
+              trackEvent('contact_clicked', { listing_id: listingId });
+              setTourModalOpen(true);
+            }}
           >
             <Calendar className="size-4" />
             Book Tour

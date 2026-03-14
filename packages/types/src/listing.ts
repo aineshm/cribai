@@ -60,6 +60,7 @@ export const listingSubmissionSchema = z.object({
   bathrooms: z.number().min(0).max(10).optional(),
   sqft: z.number().positive().optional(),
   amenities: z.array(z.string()).default([]),
+  photo_urls: z.array(z.string().url('Invalid photo URL')).default([]),
   available_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').optional(),
   description: z.string().max(2000).optional(),
   contact_email: z.string().email('Invalid email address'),

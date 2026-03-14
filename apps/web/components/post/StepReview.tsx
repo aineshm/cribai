@@ -21,6 +21,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { trackEvent } from '@/lib/track-event';
+import { uploadListingPhotos } from '@/lib/upload-photos';
 import type { WizardFormData } from './PostWizard';
 
 interface StepReviewProps {
@@ -51,15 +52,42 @@ function ReviewRow({
 export function StepReview({ formData, userEmail }: StepReviewProps) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
 
   const handlePublish = async () => {
     if (submitting) return;
     setSubmitting(true);
 
     try {
-      // Note: propertyType, furnished, parking, floorLevel, and photos
-      // are not yet in the listingSubmissionSchema or DB columns.
-      // Photos will need a separate upload flow (Supabase Storage).
+      // Step 1: Upload photos to Supabase Storage
+      let photoUrls: readonly string[] = [];
+
+      if (formData.photos.length > 0) {
+        setUploadProgress(`Uploading ${formData.photos.length} photo${formData.photos.length === 1 ? '' : 's'}...`);
+
+        // Get the current user ID for the storage path
+        const { createClient } = await import('@campusnest/supabase/client');
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (!user) {
+          throw new Error('You must be logged in to upload photos.');
+        }
+
+        const uploadResult = await uploadListingPhotos(formData.photos, user.id);
+        photoUrls = uploadResult.urls;
+
+        if (uploadResult.errors.length > 0) {
+          const failCount = uploadResult.errors.length;
+          toast.warning(`${failCount} photo${failCount === 1 ? '' : 's'} failed to upload`, {
+            description: 'Your listing will be published with the photos that uploaded successfully.',
+          });
+        }
+
+        setUploadProgress(null);
+      }
+
+      // Step 2: Submit the listing with photo URLs
       const body = {
         address: formData.address,
         rent_monthly: Number(formData.monthlyRent),
@@ -70,6 +98,7 @@ export function StepReview({ formData, userEmail }: StepReviewProps) {
         available_date: formData.leaseStart || undefined,
         description: formData.description || undefined,
         contact_email: userEmail ?? '',
+        photo_urls: [...photoUrls],
         // Sublease-specific fields stored in raw_data by the API
         lease_end: formData.leaseEnd || undefined,
         furnished: formData.furnished,
@@ -90,7 +119,11 @@ export function StepReview({ formData, userEmail }: StepReviewProps) {
       }
 
       const { listing } = await res.json() as { listing: { id: string } };
-      trackEvent('listing_posted', { listing_id: listing.id, source: 'sublease' });
+      trackEvent('listing_published', {
+        listing_id: listing.id,
+        source: 'sublease',
+        photo_count: photoUrls.length,
+      });
       toast.success('Sublease published!', {
         description: 'Your listing is now live and visible to students.',
       });
@@ -98,6 +131,7 @@ export function StepReview({ formData, userEmail }: StepReviewProps) {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
       setSubmitting(false);
+      setUploadProgress(null);
     }
   };
 
@@ -240,7 +274,7 @@ export function StepReview({ formData, userEmail }: StepReviewProps) {
         ) : (
           <Send className="size-4" />
         )}
-        {submitting ? 'Publishing…' : 'Publish Sublease'}
+        {uploadProgress ?? (submitting ? 'Publishing...' : 'Publish Sublease')}
       </Button>
     </div>
   );
