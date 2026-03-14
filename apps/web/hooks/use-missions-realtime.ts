@@ -4,6 +4,10 @@
  * Subscribes to a single channel per user watching missions, mission_logs,
  * and mission_drafts tables. Uses {config: {private: true}} to enforce RLS.
  * One channel per user (not per mission) — respects 200 concurrent limit.
+ *
+ * After the subscription is established, fires `onResubscribe` so the caller
+ * can re-fetch current state — this closes the gap between unmount (old
+ * subscription torn down) and remount (new subscription established).
  */
 'use client';
 
@@ -17,10 +21,12 @@ export type RealtimeChangeHandler = (
 
 export function useMissionsRealtime(
   userId: string | null,
-  onChange: RealtimeChangeHandler
+  onChange: RealtimeChangeHandler,
+  onResubscribe?: () => void,
 ): void {
   // onChange must be stable — caller should wrap with useCallback
   const stableOnChange = useCallback(onChange, [onChange]);
+  const stableOnResubscribe = useCallback(onResubscribe ?? (() => {}), [onResubscribe]);
 
   useEffect(() => {
     if (!userId) return;
@@ -43,10 +49,16 @@ export function useMissionsRealtime(
         { event: '*', schema: 'public', table: 'mission_drafts' },
         stableOnChange
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          // Channel is live — fetch current state to close the gap
+          // between the old subscription teardown and this new one.
+          stableOnResubscribe();
+        }
+      });
 
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [userId, stableOnChange]);
+  }, [userId, stableOnChange, stableOnResubscribe]);
 }

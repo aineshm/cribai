@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { slideInFromRight } from '@/lib/animations';
 import { trackEvent } from '@/lib/track-event';
 import { BookTourModal } from './BookTourModal';
+import { useChatContext } from '@/components/chat/ChatProvider';
 
 interface CTASidebarProps {
   readonly price: number;
@@ -18,6 +19,7 @@ interface CTASidebarProps {
 export function CTASidebar({ price, listingTitle, listingId }: CTASidebarProps) {
   const [saved, setSaved] = useState(false);
   const [tourModalOpen, setTourModalOpen] = useState(false);
+  const { setOpen: openChat } = useChatContext();
 
   return (
     <>
@@ -55,8 +57,7 @@ export function CTASidebar({ price, listingTitle, listingId }: CTASidebarProps) 
             <Button
               variant="outline"
               className="w-full h-10"
-              disabled
-              title="Coming soon"
+              onClick={() => openChat(true)}
             >
               <MessageCircle className="size-4" />
               Ask AI About This Listing

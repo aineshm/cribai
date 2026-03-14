@@ -2,6 +2,8 @@
 
 import { memo } from 'react';
 import dynamic from 'next/dynamic';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { ChatBlock } from '@campusnest/types';
 import { ChatListingCard } from './chat-listing-card';
 import { ChatComparisonTable } from './chat-comparison-table';
@@ -33,7 +35,11 @@ export const ChatBlockRenderer = memo(function ChatBlockRenderer({ block, campus
   switch (block.type) {
     case 'text':
       return (
-        <p className="whitespace-pre-wrap text-sm">{block.content || '...'}</p>
+        <div className="prose prose-sm max-w-none text-sm [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0.5">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {block.content || '...'}
+          </ReactMarkdown>
+        </div>
       );
 
     case 'listing_card':

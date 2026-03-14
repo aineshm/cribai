@@ -2,10 +2,6 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   transpilePackages: ['@campusnest/types', '@campusnest/utils', '@campusnest/supabase'],
-  eslint: {
-    // Lint is run as a separate CI step via `pnpm run lint`
-    ignoreDuringBuilds: true,
-  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**.apartments.com' },
@@ -49,7 +45,7 @@ const nextConfig: NextConfig = {
               "default-src 'self'",
               "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://api.mapbox.com",
               "style-src 'self' 'unsafe-inline' https://api.mapbox.com",
-              "img-src 'self' data: blob: https://*.apartments.com https://images1.apartments.com https://cdngeneral.rentcafe.com https://*.zillowstatic.com https://api.mapbox.com",
+              "img-src 'self' data: blob: https://*.apartments.com https://images1.apartments.com https://cdngeneral.rentcafe.com https://*.zillowstatic.com https://api.mapbox.com https://*.tiles.mapbox.com",
               "font-src 'self' https://fonts.gstatic.com",
               "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.mapbox.com https://events.mapbox.com",
               "worker-src 'self' blob:",

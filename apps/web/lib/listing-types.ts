@@ -19,6 +19,8 @@ export interface ExploreListing {
   readonly fairnessScore: number | null;
   readonly availableDate: string | null;
   readonly walkScore: number | null;
+  readonly latitude: number | null;
+  readonly longitude: number | null;
 }
 
 /** Full listing data for the detail page */
