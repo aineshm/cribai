@@ -10,18 +10,24 @@ import { Footer } from '@/components/landing/Footer';
 import { MobileStickyBar } from '@/components/landing/MobileStickyBar';
 
 export default async function HomePage() {
-  const cookieStore = await cookies();
-  const supabase = createServerComponentClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
+  let isAuthenticated = false;
 
-  let resolvedUser = user;
-  if (!resolvedUser) {
-    const headersList = await headers();
-    const devJson = headersList.get('x-dev-user-json');
-    resolvedUser = devJson ? (JSON.parse(devJson) as typeof user) : null;
+  try {
+    const cookieStore = await cookies();
+    const supabase = createServerComponentClient(cookieStore);
+    const { data: { user } } = await supabase.auth.getUser();
+
+    let resolvedUser = user;
+    if (!resolvedUser) {
+      const headersList = await headers();
+      const devJson = headersList.get('x-dev-user-json');
+      resolvedUser = devJson ? (JSON.parse(devJson) as typeof user) : null;
+    }
+
+    isAuthenticated = !!resolvedUser;
+  } catch (error) {
+    console.error('[HomePage] Auth check failed, rendering as unauthenticated:', error);
   }
-
-  const isAuthenticated = !!resolvedUser;
 
   const navHref = isAuthenticated ? '/explore' : '/login';
   const navText = isAuthenticated ? 'Dashboard' : 'Sign In';

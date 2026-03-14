@@ -14,6 +14,7 @@ import {
   useState,
   useCallback,
   useRef,
+  useEffect,
   type ReactNode,
 } from 'react';
 import { createClient } from '@campusnest/supabase/client';
@@ -118,6 +119,108 @@ export function ChatProvider({
   // Ref to access latest messages inside the streaming loop without stale closures
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
+
+  // --- Conversation persistence ---
+  const conversationIdRef = useRef<string | null>(null);
+  const loadedRef = useRef(false);
+
+  /** Resolve campus UUID from slug (cached in ref) */
+  const campusIdRef = useRef<string | null>(null);
+  const resolveCampusId = useCallback(async (): Promise<string | null> => {
+    if (campusIdRef.current) return campusIdRef.current;
+    if (!campusSlug) return null;
+    try {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('campus_configs')
+        .select('id')
+        .eq('slug', campusSlug)
+        .single();
+      if (data?.id) {
+        campusIdRef.current = data.id as string;
+        return campusIdRef.current;
+      }
+    } catch {
+      // Non-critical — persistence won't work without campus ID
+    }
+    return null;
+  }, [campusSlug]);
+
+  /** Create a new conversation and store its ID */
+  const ensureConversation = useCallback(async (title: string): Promise<string | null> => {
+    if (conversationIdRef.current) return conversationIdRef.current;
+    const campusId = await resolveCampusId();
+    if (!campusId) return null;
+    try {
+      const res = await fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campusId, title }),
+      });
+      if (res.ok) {
+        const data = await res.json() as { id: string };
+        conversationIdRef.current = data.id;
+        return data.id;
+      }
+    } catch {
+      // Non-critical — chat still works without persistence
+    }
+    return null;
+  }, [resolveCampusId]);
+
+  /** Fire-and-forget save of a message to the conversation */
+  const saveMessage = useCallback(
+    (convId: string, role: 'user' | 'assistant', blocks: readonly ChatBlock[]) => {
+      fetch(`/api/conversations/${convId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role, blocks }),
+      }).catch(() => {
+        // Non-critical — silent failure, chat still works
+      });
+    },
+    []
+  );
+
+  /** On mount, load the most recent conversation's messages */
+  useEffect(() => {
+    if (loadedRef.current) return;
+    loadedRef.current = true;
+
+    async function loadRecent() {
+      try {
+        const res = await fetch('/api/conversations');
+        if (!res.ok) return;
+        const data = await res.json() as {
+          conversations: readonly { id: string; title: string }[];
+        };
+        if (!data.conversations || data.conversations.length === 0) return;
+
+        const mostRecent = data.conversations[0];
+        if (!mostRecent) return;
+        conversationIdRef.current = mostRecent.id;
+
+        // Fetch messages for this conversation
+        const msgRes = await fetch(`/api/conversations/${mostRecent.id}`);
+        if (!msgRes.ok) return;
+        const msgData = await msgRes.json() as {
+          messages?: readonly { id: string; role: 'user' | 'assistant'; blocks: ChatBlock[] }[];
+        };
+        if (!msgData.messages || msgData.messages.length === 0) return;
+
+        const loadedMessages: ChatMessage[] = msgData.messages.map((m) => ({
+          id: m.id,
+          role: m.role,
+          blocks: m.blocks,
+        }));
+        setMessages(loadedMessages);
+      } catch {
+        // Non-critical — start with empty chat
+      }
+    }
+
+    void loadRecent();
+  }, []);
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim()) return;
@@ -296,6 +399,17 @@ export function ChatProvider({
           }
         }
       }
+
+      // --- Persist messages (fire-and-forget) ---
+      const convId = await ensureConversation(text.trim().slice(0, 80));
+      if (convId) {
+        saveMessage(convId, 'user', userMessage.blocks);
+        // Get the final assistant blocks from current state
+        const finalAssistant = messagesRef.current.find((m) => m.id === assistantId);
+        if (finalAssistant && finalAssistant.blocks.length > 0) {
+          saveMessage(convId, 'assistant', finalAssistant.blocks);
+        }
+      }
     } catch (err) {
       const errorText =
         err instanceof Error ? err.message : 'Failed to reach CribAI.';
@@ -308,7 +422,7 @@ export function ChatProvider({
     } finally {
       setLoading(false);
     }
-  }, [campusSlug, onMissionCreated]);
+  }, [campusSlug, onMissionCreated, ensureConversation, saveMessage]);
 
   /**
    * confirmMission — POST to /api/missions to create the proposed mission.

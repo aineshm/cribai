@@ -5,6 +5,7 @@
  */
 
 import { createSecretClient } from '@campusnest/supabase/server';
+import { parseWkbPoint } from '@campusnest/utils';
 import type { ExploreListing, ListingDetail } from './listing-types';
 
 /* ------------------------------------------------------------------ */
@@ -25,6 +26,7 @@ interface ListingRow {
   readonly fairness_score: number | null;
   readonly available_date: string | null;
   readonly raw_data: Record<string, unknown> | null;
+  readonly location: string | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -122,6 +124,7 @@ function buildDescription(row: ListingRow): string {
 /* ------------------------------------------------------------------ */
 
 function toExploreListing(row: ListingRow): ExploreListing {
+  const coords = parseWkbPoint(row.location);
   return {
     id: row.id,
     title: deriveTitle(row),
@@ -137,6 +140,8 @@ function toExploreListing(row: ListingRow): ExploreListing {
     fairnessScore: row.fairness_score ? Number(row.fairness_score) : null,
     availableDate: row.available_date,
     walkScore: extractScore(row.raw_data, 'walkScore'),
+    latitude: coords?.latitude ?? null,
+    longitude: coords?.longitude ?? null,
   };
 }
 
@@ -186,6 +191,7 @@ const EXPLORE_SELECT = [
   'fairness_score',
   'available_date',
   'raw_data',
+  'location',
 ].join(', ');
 
 /** Fetch active listings for the explore page (public, bypasses RLS) */

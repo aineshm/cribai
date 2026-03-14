@@ -6,12 +6,25 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import type { LegacyMission } from '@/lib/concierge-types';
 import { createClient } from '@campusnest/supabase/client';
 import { useMissionsRealtime } from '@/hooks/use-missions-realtime';
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+/** Polling interval (ms) when active missions exist. */
+const ACTIVE_POLL_INTERVAL_MS = 12_000;
+
+/** Mission statuses that indicate work is still in progress. */
+const ACTIVE_STATUSES: ReadonlySet<string> = new Set([
+  'pending',
+  'running',
+  'waiting_approval',
+]);
 
 // ─── DB mission shape returned by GET /api/missions ──────────────────────────
 // Mirrors the fields selected by the API route (snake_case).
@@ -72,35 +85,65 @@ export function ConciergeProvider({
   const [isOpen, setIsOpen] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
 
-  // ─── Fetch missions on mount ────────────────────────────────────────────────
-  useEffect(() => {
-    const controller = new AbortController();
-    const supabase = createClient();
+  // Track mount count so we always fetch on every mount, not just the first
+  const mountCountRef = useRef(0);
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (controller.signal.aborted || !session) return;
+  // ─── Reusable fetch function ────────────────────────────────────────────────
+  const fetchMissions = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (signal?.aborted || !session) return;
+
       setUserId(session.user.id);
-      fetch('/api/missions', {
+      const res = await fetch('/api/missions', {
         headers: { Authorization: `Bearer ${session.access_token}` },
-        signal: controller.signal,
-      })
-        .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-        .then((data: { missions: DbMission[] }) => {
-          if (!controller.signal.aborted) {
-            setMissions(data.missions.map(dbMissionToLegacy));
-          }
-        })
-        .catch((err: unknown) => {
-          if ((err as { name?: string }).name !== 'AbortError') {
-            console.error('[ConciergeProvider] Failed to fetch missions:', err);
-          }
-        });
-    }).catch((err: unknown) => {
-      console.error('[ConciergeProvider] getSession failed:', err);
-    });
-
-    return () => controller.abort();
+        signal,
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const body = (await res.json()) as { missions: DbMission[] };
+      if (!signal?.aborted) {
+        setMissions(body.missions.map(dbMissionToLegacy));
+      }
+    } catch (err: unknown) {
+      if ((err as { name?: string }).name !== 'AbortError') {
+        console.error('[ConciergeProvider] Failed to fetch missions:', err);
+      }
+    }
   }, []);
+
+  // ─── Fetch missions on every mount ──────────────────────────────────────────
+  useEffect(() => {
+    mountCountRef.current += 1;
+    const controller = new AbortController();
+    void fetchMissions(controller.signal);
+    return () => controller.abort();
+  }, [fetchMissions]);
+
+  // ─── Re-fetch when tab becomes visible (handles background navigation) ─────
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void fetchMissions();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [fetchMissions]);
+
+  // ─── Polling fallback for active missions ──────────────────────────────────
+  // When any mission is pending/running/waiting_approval, poll periodically
+  // to catch updates that Realtime may have missed.
+  useEffect(() => {
+    const hasActiveMissions = missions.some(m => ACTIVE_STATUSES.has(m.status));
+    if (!hasActiveMissions) return;
+
+    const intervalId = setInterval(() => {
+      void fetchMissions();
+    }, ACTIVE_POLL_INTERVAL_MS);
+
+    return () => clearInterval(intervalId);
+  }, [missions, fetchMissions]);
 
   // ─── Realtime handler ───────────────────────────────────────────────────────
   const handleRealtimeChange = useCallback(
@@ -123,7 +166,13 @@ export function ConciergeProvider({
     []
   );
 
-  useMissionsRealtime(userId, handleRealtimeChange);
+  // Re-fetch when Realtime re-subscribes to close the gap between teardown
+  // of the old subscription and establishment of the new one.
+  const handleResubscribe = useCallback(() => {
+    void fetchMissions();
+  }, [fetchMissions]);
+
+  useMissionsRealtime(userId, handleRealtimeChange, handleResubscribe);
 
   // ─── Sidebar controls ───────────────────────────────────────────────────────
   const openSidebar = useCallback(() => setIsOpen(true), []);
