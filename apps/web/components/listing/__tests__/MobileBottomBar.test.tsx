@@ -29,7 +29,7 @@ function renderWithChat(ui: React.ReactElement) {
 }
 
 describe('MobileBottomBar', () => {
-  const defaultProps = { price: 1200, listingTitle: 'Test Apartment' };
+  const defaultProps = { price: 1200, listingTitle: 'Test Apartment', listingId: 'test-listing-id' };
 
   // DETAIL-05: Chat button must be enabled
   it('renders the Chat button without a disabled attribute', () => {
