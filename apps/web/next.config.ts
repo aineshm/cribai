@@ -2,10 +2,6 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   transpilePackages: ['@campusnest/types', '@campusnest/utils', '@campusnest/supabase'],
-  eslint: {
-    // Lint is run as a separate CI step via `pnpm run lint`
-    ignoreDuringBuilds: true,
-  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**.apartments.com' },
