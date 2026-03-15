@@ -20,6 +20,8 @@ interface CribAIChatProps {
   readonly conversationId?: string | null;
   readonly isAuthenticated?: boolean;
   readonly onConversationCreated?: (id: string) => void;
+  /** Optional CSS class for the outermost container (e.g. `h-full` when rendered inside a Sheet). */
+  readonly className?: string;
 }
 
 const CHAT_STORAGE_KEY = 'cribai-chat-messages';
@@ -128,6 +130,7 @@ export function CribAIChat({
   conversationId: externalConversationId,
   isAuthenticated = false,
   onConversationCreated,
+  className,
 }: CribAIChatProps) {
   const [messages, setMessages] = useState<readonly Message[]>([]);
   const [input, setInput] = useState('');
@@ -408,7 +411,7 @@ export function CribAIChat({
   }, [sendMessage]);
 
   return (
-    <div className="flex h-[calc(100dvh-220px)] md:h-[600px] flex-col rounded-2xl border border-[var(--surface-200)]/60 bg-white/90 backdrop-blur-sm shadow-[var(--shadow-card-hover)]">
+    <div className={className ?? "flex h-[calc(100dvh-220px)] md:h-[600px] flex-col rounded-2xl border border-[var(--surface-200)]/60 bg-white/90 backdrop-blur-sm shadow-[var(--shadow-card-hover)]"}>
       {/* Messages */}
       <div className="flex-1 space-y-4 overflow-y-auto p-5 scroll-smooth">
         {messages.length === 0 && (

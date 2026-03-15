@@ -8,10 +8,13 @@ const mockSetOpen = vi.fn();
 vi.mock('../ChatProvider', () => ({
   useChatContext: () => ({
     open: false,
-    messages: [],
-    loading: false,
+    campusSlug: '',
+    pendingProposal: null,
+    missionError: null,
     setOpen: mockSetOpen,
-    sendMessage: vi.fn(),
+    confirmMission: vi.fn(),
+    dismissProposal: vi.fn(),
+    setPendingProposal: vi.fn(),
   }),
 }));
 
