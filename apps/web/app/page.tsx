@@ -9,6 +9,9 @@ import { FooterCTA } from '@/components/landing/FooterCTA';
 import { Footer } from '@/components/landing/Footer';
 import { MobileStickyBar } from '@/components/landing/MobileStickyBar';
 
+/** Force dynamic rendering — page checks auth via cookies. */
+export const dynamic = 'force-dynamic';
+
 export default async function HomePage() {
   let isAuthenticated = false;
 
