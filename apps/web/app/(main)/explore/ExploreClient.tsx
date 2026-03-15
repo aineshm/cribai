@@ -7,7 +7,7 @@ import { Send } from 'lucide-react';
 import { ExploreLayout } from '@/components/explore/ExploreLayout';
 import { FilterChips } from '@/components/explore/FilterChips';
 import { pageTransition } from '@/lib/animations';
-import { filterListings, type ActiveFilters } from '@/lib/filter-listings';
+import { filterListings, DEFAULT_FILTERS, type FilterValues } from '@/lib/filter-listings';
 import { AIChatButton } from '@/components/chat/AIChatButton';
 import { AIChatPanel } from '@/components/chat/AIChatPanel';
 import type { ExploreListing } from '@/lib/listing-types';
@@ -17,11 +17,11 @@ interface ExploreClientProps {
 }
 
 export function ExploreClient({ listings }: ExploreClientProps) {
-  const [activeFilters, setActiveFilters] = useState<ActiveFilters>(new Set());
+  const [filters, setFilters] = useState<FilterValues>(DEFAULT_FILTERS);
 
   const filteredListings = useMemo(
-    () => filterListings(listings, activeFilters),
-    [listings, activeFilters]
+    () => filterListings(listings, filters),
+    [listings, filters]
   );
 
   return (
@@ -57,8 +57,8 @@ export function ExploreClient({ listings }: ExploreClientProps) {
         {/* Filters */}
         <FilterChips
           resultCount={filteredListings.length}
-          activeFilters={activeFilters}
-          onFiltersChange={setActiveFilters}
+          filters={filters}
+          onFiltersChange={setFilters}
         />
 
         {/* Main content: split layout */}

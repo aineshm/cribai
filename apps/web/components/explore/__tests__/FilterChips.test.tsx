@@ -1,23 +1,20 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { FilterChips } from '../FilterChips';
-
-const emptyFilters = new Set<string>();
+import { DEFAULT_FILTERS, type FilterValues } from '@/lib/filter-listings';
 
 describe('FilterChips', () => {
-  it('renders all 7 filter chip buttons', () => {
+  it('renders all 5 filter controls', () => {
     render(
       <FilterChips
         resultCount={10}
-        activeFilters={emptyFilters}
+        filters={DEFAULT_FILTERS}
         onFiltersChange={vi.fn()}
       />
     );
     expect(screen.getByText('Subleases')).toBeInTheDocument();
     expect(screen.getByText('Price')).toBeInTheDocument();
     expect(screen.getByText('Beds')).toBeInTheDocument();
-    expect(screen.getByText('Distance')).toBeInTheDocument();
-    expect(screen.getByText('Move-in Date')).toBeInTheDocument();
     expect(screen.getByText('Pet Friendly')).toBeInTheDocument();
     expect(screen.getByText('Furnished')).toBeInTheDocument();
   });
@@ -27,7 +24,7 @@ describe('FilterChips', () => {
       <FilterChips
         resultCount={42}
         campusName="UW-Madison"
-        activeFilters={emptyFilters}
+        filters={DEFAULT_FILTERS}
         onFiltersChange={vi.fn()}
       />
     );
@@ -39,81 +36,76 @@ describe('FilterChips', () => {
     render(
       <FilterChips
         resultCount={5}
-        activeFilters={emptyFilters}
+        filters={DEFAULT_FILTERS}
         onFiltersChange={vi.fn()}
       />
     );
     expect(screen.getByText(/apartments near UW-Madison/)).toBeInTheDocument();
   });
 
-  it('inactive chip has aria-pressed="false"', () => {
+  it('inactive toggle chip has aria-pressed="false"', () => {
     render(
       <FilterChips
         resultCount={10}
-        activeFilters={emptyFilters}
+        filters={DEFAULT_FILTERS}
         onFiltersChange={vi.fn()}
       />
     );
-    const priceBtn = screen.getByText('Price').closest('button')!;
-    expect(priceBtn).toHaveAttribute('aria-pressed', 'false');
+    const subleaseBtn = screen.getByText('Subleases').closest('button')!;
+    expect(subleaseBtn).toHaveAttribute('aria-pressed', 'false');
   });
 
-  it('active chip has aria-pressed="true"', () => {
-    const activeFilters = new Set(['price']);
+  it('active toggle chip has aria-pressed="true"', () => {
+    const activeFilters: FilterValues = { ...DEFAULT_FILTERS, sublease: true };
     render(
       <FilterChips
         resultCount={10}
-        activeFilters={activeFilters}
+        filters={activeFilters}
         onFiltersChange={vi.fn()}
       />
     );
-    const priceBtn = screen.getByText('Price').closest('button')!;
-    expect(priceBtn).toHaveAttribute('aria-pressed', 'true');
+    const subleaseBtn = screen.getByText('Subleases').closest('button')!;
+    expect(subleaseBtn).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('clicking an inactive chip calls onFiltersChange with chip id added', () => {
+  it('clicking Subleases toggle calls onFiltersChange with sublease: true', () => {
     const onFiltersChange = vi.fn();
     render(
       <FilterChips
         resultCount={10}
-        activeFilters={emptyFilters}
+        filters={DEFAULT_FILTERS}
         onFiltersChange={onFiltersChange}
       />
     );
-    fireEvent.click(screen.getByText('Beds').closest('button')!);
+    fireEvent.click(screen.getByText('Subleases').closest('button')!);
     expect(onFiltersChange).toHaveBeenCalledOnce();
-    const result = onFiltersChange.mock.calls[0]![0] as Set<string>;
-    expect(result.has('beds')).toBe(true);
+    const result = onFiltersChange.mock.calls[0]![0] as FilterValues;
+    expect(result.sublease).toBe(true);
   });
 
-  it('clicking an active chip calls onFiltersChange with chip id removed', () => {
-    const onFiltersChange = vi.fn();
-    const activeFilters = new Set(['price', 'beds']);
-    render(
-      <FilterChips
-        resultCount={10}
-        activeFilters={activeFilters}
-        onFiltersChange={onFiltersChange}
-      />
-    );
-    fireEvent.click(screen.getByText('Price').closest('button')!);
-    expect(onFiltersChange).toHaveBeenCalledOnce();
-    const result = onFiltersChange.mock.calls[0]![0] as Set<string>;
-    expect(result.has('price')).toBe(false);
-    expect(result.has('beds')).toBe(true);
-  });
-
-  it('clicking Furnished chip adds "furnished" to filters', () => {
+  it('clicking Furnished toggle calls onFiltersChange with furnished: true', () => {
     const onFiltersChange = vi.fn();
     render(
       <FilterChips
         resultCount={10}
-        activeFilters={emptyFilters}
+        filters={DEFAULT_FILTERS}
         onFiltersChange={onFiltersChange}
       />
     );
     fireEvent.click(screen.getByText('Furnished').closest('button')!);
-    const result = onFiltersChange.mock.calls[0]![0] as Set<string>;
-    expect(result.has('furnished')).toBe(true);
+    const result = onFiltersChange.mock.calls[0]![0] as FilterValues;
+    expect(result.furnished).toBe(true);
+  });
+
+  it('shows Clear button when filters are active', () => {
+    const activeFilters: FilterValues = { ...DEFAULT_FILTERS, petFriendly: true };
+    render(
+      <FilterChips
+        resultCount={10}
+        filters={activeFilters}
+        onFiltersChange={vi.fn()}
+      />
+    );
+    expect(screen.getByText(/Clear/)).toBeInTheDocument();
   });
 });
