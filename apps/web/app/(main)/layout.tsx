@@ -38,11 +38,30 @@ export default async function MainLayout({
   const campusSlugFromMeta = resolvedUser?.user_metadata?.campus_slug as string | undefined;
   const campusSlug = campusSlugFromMeta ?? await getDefaultCampusSlug(supabase);
 
+  // Resolve campusId for ChatProvider → AIChatPanel → CribAIChat
+  let campusId: string | undefined;
+  if (isAuthenticated && resolvedUser) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('campus_id')
+      .eq('id', resolvedUser.id)
+      .single();
+    campusId = (profile?.campus_id as string) ?? undefined;
+  }
+  if (!campusId) {
+    const { data: campus } = await supabase
+      .from('campus_configs')
+      .select('id')
+      .eq('slug', campusSlug)
+      .single();
+    campusId = campus?.id ?? undefined;
+  }
+
   return (
     // ConciergeShell provides ConciergeContext — must be the outer wrapper so
     // MainLayoutClient (inside) can call useConcierge() to get openToMission.
     <ConciergeShell>
-      <MainLayoutClient campusSlug={campusSlug}>
+      <MainLayoutClient campusSlug={campusSlug} campusId={campusId} isAuthenticated={isAuthenticated}>
         <div className="min-h-[100dvh]">
           <nav className="sticky top-0 z-50 border-b border-[var(--surface-200)] bg-white/80 backdrop-blur-sm px-6 py-4">
             <div className="mx-auto flex max-w-6xl items-center justify-between">

@@ -15,13 +15,20 @@ import { ChatProvider } from '@/components/chat/ChatProvider';
 interface MainLayoutClientProps {
   readonly children: React.ReactNode;
   readonly campusSlug: string;
+  readonly campusId?: string;
+  readonly isAuthenticated?: boolean;
 }
 
-export function MainLayoutClient({ children, campusSlug }: MainLayoutClientProps) {
+export function MainLayoutClient({ children, campusSlug, campusId, isAuthenticated }: MainLayoutClientProps) {
   const { openToMission } = useConcierge();
 
   return (
-    <ChatProvider campusSlug={campusSlug} onMissionCreated={openToMission}>
+    <ChatProvider
+      campusSlug={campusSlug}
+      campusId={campusId}
+      isAuthenticated={isAuthenticated}
+      onMissionCreated={openToMission}
+    >
       {children}
     </ChatProvider>
   );

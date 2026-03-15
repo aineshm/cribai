@@ -1,5 +1,6 @@
 'use client';
 
+import { useCallback } from 'react';
 import { Sparkles, X } from 'lucide-react';
 import {
   Sheet,
@@ -9,6 +10,7 @@ import {
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { useChatContext } from './ChatProvider';
+import { MissionProposalCard } from './MissionProposalCard';
 import { CribAIChat } from '../cribai-chat';
 
 /**
@@ -16,10 +18,26 @@ import { CribAIChat } from '../cribai-chat';
  *
  * All message rendering, streaming, input handling, and conversation
  * persistence live inside CribAIChat. This component only manages
- * the Sheet open/close state via ChatProvider.
+ * the Sheet open/close state via ChatProvider and wires mission
+ * proposals from CribAIChat's SSE back to ChatProvider.
  */
 export function AIChatPanel() {
-  const { open, setOpen, campusSlug } = useChatContext();
+  const {
+    open,
+    setOpen,
+    campusSlug,
+    campusId,
+    isAuthenticated,
+    pendingProposal,
+    setPendingProposal,
+  } = useChatContext();
+
+  const handleMissionProposal = useCallback(
+    (proposal: { intent: string; confidence: number; extractedFields: Record<string, unknown> }) => {
+      setPendingProposal(proposal);
+    },
+    [setPendingProposal],
+  );
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -48,10 +66,20 @@ export function AIChatPanel() {
           </Button>
         </SheetHeader>
 
+        {/* Mission proposal card (if any) */}
+        {pendingProposal && (
+          <div className="border-b px-4 py-3">
+            <MissionProposalCard />
+          </div>
+        )}
+
         {/* CribAIChat fills the remaining space */}
         <div className="flex-1 overflow-hidden">
           <CribAIChat
             campusSlug={campusSlug || 'uw-madison'}
+            campusId={campusId}
+            isAuthenticated={isAuthenticated}
+            onMissionProposal={handleMissionProposal}
             className="flex h-full flex-col bg-white"
           />
         </div>

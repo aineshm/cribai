@@ -86,7 +86,7 @@ vi.mock('../ProfileSetup', () => ({
   ),
 }));
 
-// Supabase client mock — OTP sign-in and verify succeed
+// Supabase client mock — OTP sign-in and verify succeed, includes getUser + from for profile persistence
 const mockVerifyOtp = vi.fn().mockResolvedValue({ error: null });
 const mockSignInWithOtp = vi.fn().mockResolvedValue({ error: null });
 
@@ -96,7 +96,15 @@ vi.mock('@campusnest/supabase/client', () => ({
       signInWithOtp: mockSignInWithOtp,
       verifyOtp: mockVerifyOtp,
       updateUser: vi.fn().mockResolvedValue({ error: null }),
+      getUser: vi.fn().mockResolvedValue({
+        data: { user: { id: 'user-1', email: 'student@wisc.edu' } },
+      }),
     },
+    from: () => ({
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      }),
+    }),
   }),
 }));
 

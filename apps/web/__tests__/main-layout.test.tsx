@@ -8,14 +8,7 @@ vi.mock('@/components/concierge/ConciergeShell', () => ({
   ),
 }));
 
-// Mock ConciergeNavButton to render a testable button
-vi.mock('@/components/concierge/ConciergeNavButton', () => ({
-  ConciergeNavButton: () => (
-    <button data-testid="concierge-nav-button" type="button">
-      Concierge
-    </button>
-  ),
-}));
+// ConciergeNavButton was removed — nav now uses a plain Chat link
 
 // Mock next/link
 vi.mock('next/link', () => ({
@@ -46,9 +39,10 @@ vi.mock('@/components/layout/MainLayoutClient', () => ({
 
 const mockFrom = vi.fn(() => ({
   select: vi.fn().mockReturnThis(),
+  eq: vi.fn().mockReturnThis(),
   order: vi.fn().mockReturnThis(),
   limit: vi.fn().mockReturnThis(),
-  single: vi.fn().mockResolvedValue({ data: { slug: 'uw-madison' } }),
+  single: vi.fn().mockResolvedValue({ data: { slug: 'uw-madison', id: 'campus-1', campus_id: 'campus-1' } }),
 }));
 
 vi.mock('@campusnest/supabase/server', () => ({
@@ -75,13 +69,14 @@ describe('MainLayout', () => {
     expect(screen.getByTestId('concierge-shell')).toBeInTheDocument();
   });
 
-  it('renders ConciergeNavButton inside the nav', async () => {
+  it('renders Chat nav link inside the nav when authenticated', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
     const layout = await MainLayout({ children: <>test content</> });
     render(layout);
-    const navButton = screen.getByTestId('concierge-nav-button');
-    expect(navButton).toBeInTheDocument();
-    const nav = navButton.closest('nav');
+    const chatLink = screen.getByRole('link', { name: /chat/i });
+    expect(chatLink).toBeInTheDocument();
+    expect(chatLink).toHaveAttribute('href', '/chat');
+    const nav = chatLink.closest('nav');
     expect(nav).not.toBeNull();
   });
 

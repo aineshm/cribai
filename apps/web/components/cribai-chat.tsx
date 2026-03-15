@@ -12,6 +12,13 @@ interface Message {
   readonly blocks: readonly ChatBlock[];
 }
 
+/** Mission proposal received via SSE from the AI route. */
+interface MissionProposal {
+  readonly intent: string;
+  readonly confidence: number;
+  readonly extractedFields: Record<string, unknown>;
+}
+
 interface CribAIChatProps {
   readonly campusSlug: string;
   readonly campusId?: string;
@@ -20,6 +27,8 @@ interface CribAIChatProps {
   readonly conversationId?: string | null;
   readonly isAuthenticated?: boolean;
   readonly onConversationCreated?: (id: string) => void;
+  /** Called when the AI proposes a mission via SSE. */
+  readonly onMissionProposal?: (proposal: MissionProposal) => void;
   /** Optional CSS class for the outermost container (e.g. `h-full` when rendered inside a Sheet). */
   readonly className?: string;
 }
@@ -50,6 +59,10 @@ interface SSEEvent {
   readonly message?: string;
   readonly text?: string;
   readonly error?: string;
+  // mission_proposal fields
+  readonly intent?: string;
+  readonly confidence?: number;
+  readonly extractedFields?: Record<string, unknown>;
 }
 
 function parseSSEEvent(data: string): SSEEvent | null {
@@ -130,6 +143,7 @@ export function CribAIChat({
   conversationId: externalConversationId,
   isAuthenticated = false,
   onConversationCreated,
+  onMissionProposal,
   className,
 }: CribAIChatProps) {
   const [messages, setMessages] = useState<readonly Message[]>([]);
@@ -141,53 +155,37 @@ export function CribAIChat({
   const abortRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const supabaseRef = useRef(createClient());
-  const hasInitialized = useRef(false);
 
-  // Load initial messages based on auth state and conversationId
+  // Load messages when auth state or conversation changes.
+  // Also aborts any in-flight SSE stream to prevent stale chunks from
+  // leaking into the newly selected conversation.
   useEffect(() => {
-    if (hasInitialized.current) return;
-    hasInitialized.current = true;
-
     let cancelled = false;
+
+    // Abort any active stream so old chunks don't corrupt the new conversation
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setIsStreaming(false);
+
+    // Sync internal conversationId with external prop
+    setConversationId(externalConversationId ?? null);
 
     if (isAuthenticated && externalConversationId) {
       // Load from DB
+      setMessages([]); // clear stale content while loading
       loadConversationMessages(externalConversationId).then(msgs => {
         if (!cancelled) setMessages(msgs);
       });
+    } else if (isAuthenticated && !externalConversationId) {
+      // New authenticated chat — start empty
+      setMessages([]);
     } else if (!isAuthenticated) {
       // Fallback to sessionStorage for unauthenticated users
       setMessages(loadSessionMessages());
     }
-    // New authenticated chat with no conversationId starts empty
 
     return () => { cancelled = true; };
   }, [isAuthenticated, externalConversationId]);
-
-  // When external conversationId changes (user selects different conversation)
-  useEffect(() => {
-    if (externalConversationId === undefined) return;
-    setConversationId(externalConversationId ?? null);
-    hasInitialized.current = false;
-  }, [externalConversationId]);
-
-  // Re-trigger load when conversationId changes via external prop
-  useEffect(() => {
-    let cancelled = false;
-
-    if (!hasInitialized.current && externalConversationId !== undefined) {
-      hasInitialized.current = true;
-      if (isAuthenticated && externalConversationId) {
-        loadConversationMessages(externalConversationId).then(msgs => {
-          if (!cancelled) setMessages(msgs);
-        });
-      } else if (isAuthenticated && !externalConversationId) {
-        setMessages([]);
-      }
-    }
-
-    return () => { cancelled = true; };
-  }, [externalConversationId, isAuthenticated]);
 
   useEffect(() => {
     return () => {
@@ -224,11 +222,19 @@ export function CribAIChat({
     setMessages(updatedMessages);
     setIsStreaming(true);
 
+    // Create abort controller early so conversation switches can cancel
+    // both the conversation creation and the SSE stream.
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     // For authenticated users: create conversation on first message
     let activeConvId = conversationId;
     if (isAuthenticated && !activeConvId && campusId) {
       const title = query.length > 50 ? `${query.slice(0, 47)}...` : query;
       activeConvId = await createConversation(campusId, title);
+      // If aborted during conversation creation (user switched away), bail out
+      if (controller.signal.aborted) return;
       if (activeConvId) {
         setConversationId(activeConvId);
         onConversationCreated?.(activeConvId);
@@ -239,10 +245,6 @@ export function CribAIChat({
     if (isAuthenticated && activeConvId) {
       persistMessage(activeConvId, 'user', userMessage.blocks);
     }
-
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
 
     try {
       const history = updatedMessages.slice(-10).map(m => ({
@@ -374,6 +376,17 @@ export function CribAIChat({
               break;
             }
 
+            case 'mission_proposal': {
+              if (onMissionProposal) {
+                onMissionProposal({
+                  intent: event.intent ?? 'unknown',
+                  confidence: event.confidence ?? 0,
+                  extractedFields: event.extractedFields ?? {},
+                });
+              }
+              break;
+            }
+
             case 'done':
               reader.cancel();
               break;
@@ -401,7 +414,7 @@ export function CribAIChat({
       setIsStreaming(false);
       abortRef.current = null;
     }
-  }, [input, isStreaming, messages, campusSlug, campusId, conversationId, isAuthenticated, onConversationCreated, scrollToBottom]);
+  }, [input, isStreaming, messages, campusSlug, campusId, conversationId, isAuthenticated, onConversationCreated, onMissionProposal, scrollToBottom]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

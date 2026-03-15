@@ -86,10 +86,16 @@ vi.mock('../ProfileSetup', () => ({
   ),
 }));
 
-// Supabase client mock — includes updateUser for profile persistence
+// Supabase client mock — includes updateUser + getUser + from for profile persistence
 const mockUpdateUser = vi.fn().mockResolvedValue({ error: null });
 const mockVerifyOtp = vi.fn().mockResolvedValue({ error: null });
 const mockSignInWithOtp = vi.fn().mockResolvedValue({ error: null });
+const mockGetUser = vi.fn().mockResolvedValue({
+  data: { user: { id: 'user-1', email: 'student@wisc.edu' } },
+});
+const mockProfileUpdate = vi.fn().mockReturnValue({
+  eq: vi.fn().mockResolvedValue({ error: null }),
+});
 
 vi.mock('@campusnest/supabase/client', () => ({
   createClient: () => ({
@@ -97,7 +103,11 @@ vi.mock('@campusnest/supabase/client', () => ({
       signInWithOtp: mockSignInWithOtp,
       verifyOtp: mockVerifyOtp,
       updateUser: mockUpdateUser,
+      getUser: mockGetUser,
     },
+    from: () => ({
+      update: mockProfileUpdate,
+    }),
   }),
 }));
 

@@ -470,7 +470,7 @@ describe('SteeringBar (AGENT-04)', () => {
   it('the send button is a submit-type button inside a form', () => {
     // Structural contract: SteeringBar renders a <form> with a submit button,
     // so the browser's native form submission (Enter key) is supported.
-    const { container } = render(<SteeringBar />);
+    const { container } = render(<SteeringBar missionId="test-mission-id" />);
     const form = container.querySelector('form');
     expect(form).toBeInTheDocument();
 

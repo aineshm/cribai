@@ -13,6 +13,7 @@ import {
   useContext,
   useState,
   useCallback,
+  useRef,
   type ReactNode,
 } from 'react';
 import { createClient } from '@campusnest/supabase/client';
@@ -31,6 +32,8 @@ interface PendingProposal {
 interface ChatContextValue {
   readonly open: boolean;
   readonly campusSlug: string;
+  readonly campusId: string | undefined;
+  readonly isAuthenticated: boolean;
   readonly pendingProposal: PendingProposal | null;
   readonly missionError: string | null;
   readonly setOpen: (open: boolean) => void;
@@ -48,31 +51,41 @@ const ChatContext = createContext<ChatContextValue | null>(null);
 interface ChatProviderProps {
   readonly children: ReactNode;
   readonly campusSlug?: string;
+  readonly campusId?: string;
+  readonly isAuthenticated?: boolean;
   readonly onMissionCreated?: (missionId: string) => void;
 }
 
 export function ChatProvider({
   children,
   campusSlug = '',
+  campusId,
+  isAuthenticated = false,
   onMissionCreated,
 }: ChatProviderProps) {
   const [open, setOpen] = useState(false);
   const [pendingProposal, setPendingProposal] = useState<PendingProposal | null>(null);
   const [missionError, setMissionError] = useState<string | null>(null);
+  const isConfirmingRef = useRef(false);
 
   /**
    * confirmMission — POST to /api/missions to create the proposed mission.
    * On success, notifies parent via onMissionCreated and clears the proposal.
    */
   const confirmMission = useCallback(async () => {
-    if (!pendingProposal) return;
+    if (!pendingProposal || isConfirmingRef.current) return;
+    isConfirmingRef.current = true;
     try {
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
-      const missionHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (session?.access_token) {
-        missionHeaders['Authorization'] = `Bearer ${session.access_token}`;
+      if (!session?.access_token) {
+        setMissionError('You must be signed in to start a mission.');
+        return;
       }
+      const missionHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      };
       const res = await fetch('/api/missions', {
         method: 'POST',
         headers: missionHeaders,
@@ -96,6 +109,8 @@ export function ChatProvider({
     } catch (err) {
       console.error('[ChatProvider] confirmMission failed:', err);
       setMissionError('Failed to start mission. Please try again.');
+    } finally {
+      isConfirmingRef.current = false;
     }
   }, [pendingProposal, campusSlug, onMissionCreated]);
 
@@ -105,17 +120,25 @@ export function ChatProvider({
     setMissionError(null);
   }, []);
 
+  /** Wraps setPendingProposal to also clear stale missionError from previous proposals. */
+  const setProposal = useCallback((proposal: PendingProposal | null) => {
+    setPendingProposal(proposal);
+    setMissionError(null);
+  }, []);
+
   return (
     <ChatContext.Provider
       value={{
         open,
         campusSlug,
+        campusId,
+        isAuthenticated,
         pendingProposal,
         missionError,
         setOpen,
         confirmMission,
         dismissProposal,
-        setPendingProposal,
+        setPendingProposal: setProposal,
       }}
     >
       {children}

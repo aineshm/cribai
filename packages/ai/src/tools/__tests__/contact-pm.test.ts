@@ -114,9 +114,10 @@ describe('contactPm', () => {
       context,
     );
 
-    // The user's message should be passed to Gemini prompt
-    const callArgs = mockGenerate.mock.calls[0]?.[0] as { contents: string };
-    expect(callArgs.contents).toContain('Is this still available?');
+    // The user's message should be passed as a separate content part (prompt injection fix)
+    const callArgs = mockGenerate.mock.calls[0]?.[0] as { contents: Array<{ text: string }> };
+    const allText = callArgs.contents.map(p => p.text).join('\n');
+    expect(allText).toContain('Is this still available?');
   });
 
   it('returns contact info without draft when Gemini unavailable', async () => {
