@@ -14,18 +14,18 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: missionId } = await params;
-  const { userId, supabase } = await resolveMissionAuth(request);
+  const { userId, supabase, authViaBearerToken } = await resolveMissionAuth(request);
 
   if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
-  const mission = await verifyMissionOwnership(supabase, missionId, userId);
+  const mission = await verifyMissionOwnership(supabase, missionId, userId, authViaBearerToken);
   if (!mission) {
     return NextResponse.json({ error: 'Mission not found' }, { status: 404 });
   }
 
-  const queryClient = getQueryClient(supabase);
+  const queryClient = getQueryClient(supabase, authViaBearerToken);
 
   // Fetch logs and current draft in parallel
   const [logsResult, draftResult] = await Promise.all([

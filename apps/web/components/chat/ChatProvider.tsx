@@ -86,6 +86,13 @@ export function ChatProvider({
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`,
       };
+      // Prefer campusId (UUID) over campus_slug — the API accepts either
+      const campusPayload = campusId
+        ? { campusId }
+        : campusSlug
+          ? { campus_slug: campusSlug }
+          : { campus_slug: 'uw-madison' };
+
       const res = await fetch('/api/missions', {
         method: 'POST',
         headers: missionHeaders,
@@ -94,7 +101,7 @@ export function ChatProvider({
           title: pendingProposal.intent.replace(/_/g, ' '),
           goal: `${pendingProposal.intent.replace(/_/g, ' ')} mission`,
           input: pendingProposal.extractedFields,
-          campus_slug: campusSlug,
+          ...campusPayload,
         }),
       });
       if (res.ok) {

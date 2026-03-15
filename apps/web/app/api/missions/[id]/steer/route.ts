@@ -22,13 +22,13 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: missionId } = await params;
-  const { userId, supabase } = await resolveMissionAuth(request);
+  const { userId, supabase, authViaBearerToken } = await resolveMissionAuth(request);
 
   if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
-  const mission = await verifyMissionOwnership(supabase, missionId, userId);
+  const mission = await verifyMissionOwnership(supabase, missionId, userId, authViaBearerToken);
   if (!mission) {
     return NextResponse.json({ error: 'Mission not found' }, { status: 404 });
   }
@@ -48,7 +48,7 @@ export async function POST(
     );
   }
 
-  const writeClient = isDevAuthEnabled() ? createSecretClient() as any : supabase;
+  const writeClient = (isDevAuthEnabled() || authViaBearerToken) ? createSecretClient() as any : supabase;
 
   const { data, error } = await writeClient
     .from('mission_steerings')

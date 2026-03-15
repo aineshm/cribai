@@ -13,8 +13,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { after } from 'next/server';
 import { z } from 'zod';
-import { createSecretClient } from '@campusnest/supabase/server';
-import { isDevAuthEnabled } from '../../../lib/dev-auth';
 import { executeMission } from '@campusnest/ai';
 import { resolveMissionAuth, getQueryClient } from './_helpers';
 
@@ -42,8 +40,9 @@ const createBodySchema = z.object({
 async function resolveCampusId(
   supabase: ReturnType<typeof import('@campusnest/supabase/server').createServerComponentClient>,
   slug: string,
+  authViaBearerToken = false,
 ): Promise<string | null> {
-  const queryClient = getQueryClient(supabase);
+  const queryClient = getQueryClient(supabase, authViaBearerToken);
   const { data, error } = await queryClient
     .from('campus_configs')
     .select('id')
@@ -56,7 +55,7 @@ async function resolveCampusId(
 
 /** POST /api/missions — create a mission and fire the executor. */
 export async function POST(request: NextRequest) {
-  const { userId, supabase } = await resolveMissionAuth(request);
+  const { userId, supabase, authViaBearerToken } = await resolveMissionAuth(request);
 
   if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -82,7 +81,7 @@ export async function POST(request: NextRequest) {
   // Resolve campus UUID — prefer explicit campusId, fall back to slug lookup
   let resolvedCampusId = campusId;
   if (!resolvedCampusId && campus_slug) {
-    const lookedUp = await resolveCampusId(supabase, campus_slug);
+    const lookedUp = await resolveCampusId(supabase, campus_slug, authViaBearerToken);
     if (!lookedUp) {
       return NextResponse.json(
         { error: `Campus not found for slug: ${campus_slug}` },
@@ -92,8 +91,8 @@ export async function POST(request: NextRequest) {
     resolvedCampusId = lookedUp;
   }
 
-  // Dev mode bypasses RLS — use service-role client for writes
-  const writeClient = isDevAuthEnabled() ? createSecretClient() as any : supabase;
+  // Use service-role client when dev mode OR Bearer token auth (cookie client has no session → RLS blocks)
+  const writeClient = getQueryClient(supabase, authViaBearerToken);
 
   // Idempotency check — return existing mission if key already used by this user
   if (idempotencyKey) {
@@ -144,13 +143,13 @@ export async function POST(request: NextRequest) {
 
 /** GET /api/missions — list the user's missions. */
 export async function GET(request: NextRequest) {
-  const { userId, supabase } = await resolveMissionAuth(request);
+  const { userId, supabase, authViaBearerToken } = await resolveMissionAuth(request);
 
   if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
-  const queryClient = getQueryClient(supabase);
+  const queryClient = getQueryClient(supabase, authViaBearerToken);
 
   const { data, error } = await queryClient
     .from('missions')

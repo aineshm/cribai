@@ -18,13 +18,13 @@ export async function POST(
   { params }: { params: Promise<{ id: string; draftId: string }> },
 ) {
   const { id: missionId, draftId } = await params;
-  const { userId, supabase } = await resolveMissionAuth(request);
+  const { userId, supabase, authViaBearerToken } = await resolveMissionAuth(request);
 
   if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
-  const mission = await verifyMissionOwnership(supabase, missionId, userId);
+  const mission = await verifyMissionOwnership(supabase, missionId, userId, authViaBearerToken);
   if (!mission) {
     return NextResponse.json({ error: 'Mission not found' }, { status: 404 });
   }
@@ -36,7 +36,7 @@ export async function POST(
     );
   }
 
-  const writeClient = isDevAuthEnabled() ? createSecretClient() as any : supabase;
+  const writeClient = (isDevAuthEnabled() || authViaBearerToken) ? createSecretClient() as any : supabase;
 
   // Update draft decision
   const { data: draftData, error: draftError } = await writeClient
