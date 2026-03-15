@@ -20,8 +20,13 @@ const nextConfig: NextConfig = {
       },
       {
         source: '/cribai',
-        destination: '/explore',
+        destination: '/chat',
         permanent: true,
+      },
+      {
+        source: '/:campusSlug/cribai',
+        destination: '/chat',
+        permanent: false,
       },
       {
         source: '/subleases',

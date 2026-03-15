@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { cookies, headers } from 'next/headers';
 import { createServerComponentClient } from '@campusnest/supabase/server';
+import { Sparkles } from 'lucide-react';
 import { ConciergeShell } from '@/components/concierge/ConciergeShell';
-import { ConciergeNavButton } from '@/components/concierge/ConciergeNavButton';
 import { MainLayoutClient } from '@/components/layout/MainLayoutClient';
 
 async function getDefaultCampusSlug(
@@ -69,7 +69,13 @@ export default async function MainLayout({
                     </Link>
                   </>
                 )}
-                <ConciergeNavButton />
+                <Link
+                  href="/chat"
+                  className="flex items-center gap-1.5 text-sm font-medium text-[var(--surface-500)] hover:text-[var(--surface-800)] transition-colors"
+                >
+                  <Sparkles className="size-4" />
+                  Chat
+                </Link>
               </div>
             </div>
           </nav>
