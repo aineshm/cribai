@@ -249,19 +249,20 @@ export async function POST(request: NextRequest) {
       async start(controller) {
         try {
           const chatArgs = { query, tree, conversationHistory };
-          let seenDone = false;
           for await (const chunk of cribai.chat(chatArgs)) {
             if (typeof chunk === 'string') {
               // Old engine yields plain strings — wrap as TextEvent
               controller.enqueue(encoder.encode(sseEncode({ type: 'text', content: chunk })));
             } else if (isStructuredEvent(chunk)) {
-              if (chunk.type === 'done') seenDone = true;
+              // Suppress engine's done — we emit our own after mission_proposal
+              if (chunk.type === 'done') continue;
               // New engine yields ChatEvent objects — pass through
               controller.enqueue(encoder.encode(sseEncode(chunk)));
             }
           }
 
-          // Emit mission_proposal after streaming completes so text appears first
+          // Emit mission_proposal before done so the client sees it
+          // (the client cancels the reader on 'done')
           if (intentProposal) {
             const proposalEvent: ChatEvent = {
               type: 'mission_proposal',
@@ -272,10 +273,9 @@ export async function POST(request: NextRequest) {
             controller.enqueue(encoder.encode(sseEncode(proposalEvent)));
           }
 
-          // Only emit done if the upstream didn't already
-          if (!seenDone) {
-            controller.enqueue(encoder.encode(sseEncode({ type: 'done' })));
-          }
+          // Emit done last — client uses this as the signal to stop reading.
+          // Always emit since we suppress the engine's done above.
+          controller.enqueue(encoder.encode(sseEncode({ type: 'done' })));
           controller.close();
 
           // --- Log the query (fire-and-forget) ------------------------------
