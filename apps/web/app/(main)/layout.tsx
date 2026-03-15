@@ -67,15 +67,15 @@ export default async function MainLayout({
                     >
                       Profile
                     </Link>
+                    <Link
+                      href="/chat"
+                      className="flex items-center gap-1.5 text-sm font-medium text-[var(--surface-500)] hover:text-[var(--surface-800)] transition-colors"
+                    >
+                      <Sparkles className="size-4" />
+                      Chat
+                    </Link>
                   </>
                 )}
-                <Link
-                  href="/chat"
-                  className="flex items-center gap-1.5 text-sm font-medium text-[var(--surface-500)] hover:text-[var(--surface-800)] transition-colors"
-                >
-                  <Sparkles className="size-4" />
-                  Chat
-                </Link>
               </div>
             </div>
           </nav>
