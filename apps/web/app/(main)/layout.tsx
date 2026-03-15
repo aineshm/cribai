@@ -75,6 +75,12 @@ export default async function MainLayout({
                 {isAuthenticated && (
                   <>
                     <Link
+                      href="/explore"
+                      className="text-sm text-[var(--surface-600)] hover:text-[var(--surface-900)] transition-colors"
+                    >
+                      Explore
+                    </Link>
+                    <Link
                       href="/post"
                       className="text-sm text-[var(--surface-600)] hover:text-[var(--surface-900)] transition-colors"
                     >

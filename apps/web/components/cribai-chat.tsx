@@ -462,10 +462,10 @@ export function CribAIChat({
             className={`flex animate-slide-up ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[80%] space-y-2 px-4 py-3 ${
+              className={`space-y-2 px-4 py-3 ${
                 msg.role === 'user'
-                  ? 'rounded-2xl rounded-br-md bg-gradient-to-br from-[var(--primary-600)] to-[var(--primary-700)] text-white shadow-md shadow-[var(--primary-600)]/10'
-                  : 'rounded-2xl rounded-bl-md bg-[var(--surface-100)]/80 text-[var(--surface-800)]'
+                  ? 'max-w-[80%] rounded-2xl rounded-br-md bg-gradient-to-br from-[var(--primary-600)] to-[var(--primary-700)] text-white shadow-md shadow-[var(--primary-600)]/10'
+                  : 'max-w-[75%] lg:max-w-[65%] rounded-2xl rounded-bl-md bg-[var(--surface-100)]/80 text-[var(--surface-800)]'
               }`}
             >
               {msg.blocks.map((block, j) => (

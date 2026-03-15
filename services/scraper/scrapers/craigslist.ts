@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import { BaseScraper, type RawListing } from './base-scraper';
+import { enrichListings } from './craigslist-enrichment';
 
 const USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
@@ -132,10 +133,19 @@ export class CraigslistScraper extends BaseScraper {
 
     if (allListings.length === 0) {
       console.warn(`[${this.source}] No listings found from any category`);
-    } else {
-      console.log(`[${this.source}] Total: ${allListings.length} listings from ${CATEGORIES.length} categories`);
+      return allListings;
     }
 
-    return allListings;
+    console.log(`[${this.source}] Total: ${allListings.length} listings from ${CATEGORIES.length} categories`);
+
+    // Enrich listings with detail page data + LLM extraction
+    // Skip enrichment in test environments or when explicitly disabled
+    if (process.env.SKIP_DETAIL_ENRICHMENT === '1' || process.env.NODE_ENV === 'test') {
+      console.log(`[${this.source}] Skipping detail page enrichment (test/disabled)`);
+      return allListings;
+    }
+
+    const enriched = await enrichListings(allListings);
+    return enriched;
   }
 }

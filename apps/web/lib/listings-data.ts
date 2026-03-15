@@ -202,6 +202,7 @@ export async function fetchExploreListings(): Promise<readonly ExploreListing[]>
     .from('listings')
     .select(EXPLORE_SELECT)
     .eq('is_active', true)
+    .order('fairness_score', { ascending: false, nullsFirst: false })
     .order('last_seen_at', { ascending: false })
     .limit(500);
 

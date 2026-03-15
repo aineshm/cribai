@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Bed, Bath, MapPin, Footprints } from 'lucide-react';
+import { Bed, Bath, MapPin, Footprints, Home } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { scaleOnHover } from '@/lib/animations';
@@ -72,9 +72,24 @@ export function ListingCard({ listing }: ListingCardProps) {
             </div>
           ) : (
             <div
-              className={`relative aspect-[4/3] bg-gradient-to-br ${gradientForId(listing.id)} flex items-center justify-center`}
+              className={`relative aspect-[3/1] bg-gradient-to-br ${gradientForId(listing.id)} flex items-center justify-center gap-2`}
             >
-              <span className="text-white/60 text-sm">No photo</span>
+              <Home className="size-4 text-white/60" />
+              <span className="text-white/60 text-sm">No photos yet</span>
+              {listing.source === 'sublease' ? (
+                <Badge
+                  className="absolute bottom-2 left-2 bg-[var(--primary-600)] text-white text-xs border-none"
+                >
+                  Student Sublease
+                </Badge>
+              ) : listing.source ? (
+                <Badge
+                  variant="outline"
+                  className="absolute bottom-2 left-2 bg-white/90 backdrop-blur-sm text-xs capitalize"
+                >
+                  {listing.source}
+                </Badge>
+              ) : null}
             </div>
           )}
 
