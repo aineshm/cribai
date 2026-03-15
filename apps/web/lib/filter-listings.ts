@@ -62,7 +62,12 @@ export function filterListings(
   return listings.filter((listing) => {
     if (f.sublease && listing.source !== 'sublease') return false;
     if (f.priceMax !== null && listing.price > f.priceMax) return false;
-    if (f.bedsMin !== null && (listing.beds ?? 0) < f.bedsMin) return false;
+    if (f.bedsMin !== null) {
+      // Studio filter (bedsMin=0): only match listings explicitly marked as 0 beds
+      // Other values: exclude listings with unknown bed count
+      if (listing.beds === null) return false;
+      if (listing.beds < f.bedsMin) return false;
+    }
     if (f.petFriendly) {
       const hasPets = listing.amenities.some(
         (a) => a.toLowerCase().includes('cat') || a.toLowerCase().includes('dog') || a.toLowerCase().includes('pet')
