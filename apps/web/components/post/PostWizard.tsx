@@ -166,7 +166,7 @@ export function PostWizard({ userEmail }: PostWizardProps) {
       {/* Step content */}
       <div className="flex-1 px-4 py-6 lg:px-12 lg:py-10">
         <div className="mx-auto max-w-2xl">
-          <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm sm:p-10">
+          <div className="rounded-3xl border border-border bg-card p-6 shadow-sm sm:p-10">
             <AnimatePresence mode="wait" custom={direction}>
               <motion.div
                 key={currentStep}
@@ -181,7 +181,7 @@ export function PostWizard({ userEmail }: PostWizardProps) {
             </AnimatePresence>
 
             {/* Navigation buttons */}
-            <div className="mt-8 flex items-center justify-between border-t border-gray-100 pt-6">
+            <div className="mt-8 flex items-center justify-between border-t border-border pt-6">
               <Button
                 variant="outline"
                 size="lg"
@@ -197,7 +197,7 @@ export function PostWizard({ userEmail }: PostWizardProps) {
                 <Button
                   size="lg"
                   onClick={handleNext}
-                  className="gap-2 rounded-xl bg-teal-800 py-4 font-bold shadow-lg hover:bg-teal-900"
+                  className="gap-2 rounded-xl bg-teal-800 py-4 font-bold text-white shadow-lg hover:bg-teal-900"
                 >
                   Next
                   <ChevronRight className="size-4" />
