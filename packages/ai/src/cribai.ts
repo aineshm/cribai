@@ -3,14 +3,16 @@ import type { ChatBlock, PageIndexNode } from '@campusnest/types';
 import { createGeminiClient } from './gemini-client';
 import { logTokenUsage } from './cost-logger';
 import { PageIndexTraverser } from './pageindex-traverser';
-import { CRIBAI_TOOLS } from './tools/schemas';
+import { getToolDeclarations } from './tools/schemas';
 import { executeTool } from './tools/executor';
-import type { ToolContext } from './tools/types';
+import type { ToolContext, ToolName } from './tools/types';
 
 export interface CribAIConfig {
   readonly geminiApiKey?: string;
   readonly campusName: string;
   readonly toolContext?: ToolContext;
+  readonly allowedTools?: readonly ToolName[];
+  readonly maxToolCalls?: number;
 }
 
 export interface ChatInput {
@@ -27,10 +29,50 @@ export type ChatEvent =
   | { readonly type: 'mission_created'; readonly missionId: string }
   | { readonly type: 'done' };
 
-const MAX_TOOL_CALLS = 5;
+const DEFAULT_MAX_TOOL_CALLS = 5;
 const TOTAL_TIMEOUT_MS = 30_000;
 
-const SYSTEM_PROMPT = `You are CribAI, the AI housing agent for CampusNest — a .edu-verified student housing platform. You are NOT a generic advisor; you are CampusNest's dedicated agent with access to real data and tools.
+const TOOL_SUMMARIES: Record<ToolName, string> = {
+  search_listings:
+    'search_listings — discover apartments by filters or semantic query (e.g., "quiet place with natural light")',
+  get_listing_detail:
+    'get_listing_detail — full details, true cost breakdown, and fairness analysis for a specific listing',
+  compare_listings:
+    'compare_listings — side-by-side comparison of 2-4 listings',
+  schedule_tour:
+    'schedule_tour — book a tour after collecting name, email, and preferred dates',
+  explain_lease_term:
+    'explain_lease_term — explain lease clauses and tenant rights (always include a legal disclaimer)',
+  get_landlord_info:
+    'get_landlord_info — landlord information and review summary for a property',
+  get_saved_listings:
+    'get_saved_listings — retrieve the user’s favorited listings',
+  web_search:
+    'web_search — search the web when local DB results are insufficient',
+  get_reviews:
+    'get_reviews — community feedback and ratings for a property or landlord',
+  contact_pm:
+    'contact_pm — help draft an inquiry to a property manager',
+  get_neighborhood_info:
+    'get_neighborhood_info — walkability, safety, commute times, and local vibe for an area',
+};
+
+function buildSystemPrompt(
+  allowedTools: readonly ToolName[],
+  isGuest: boolean,
+): string {
+  const toolList = allowedTools.map((toolName) => `- ${TOOL_SUMMARIES[toolName]}`).join('\n');
+  const guestGuardrail = isGuest
+    ? `
+
+Guest access limits:
+- This user may be browsing without signing in
+- Do NOT offer or imply account-only actions such as scheduling tours, saved listings, contacting property managers, or web-wide browsing
+- Do NOT propose missions to guests
+- If the user wants to take an action beyond browsing and comparing listings, tell them to sign in first`
+    : '';
+
+  return `You are CribAI, the AI housing agent for CampusNest — a .edu-verified student housing platform. You are NOT a generic advisor; you are CampusNest's dedicated agent with access to real data and tools.
 
 Platform context:
 - CampusNest has 2,500+ real listings near UW-Madison sourced from Zillow, with photos, prices, and fairness scores
@@ -39,15 +81,8 @@ Platform context:
 - Fairness scores (1-10, higher = better value) factor in rent, utilities, parking, and fees into a true cost calculation
 
 Your tools:
-- search_listings — discover apartments by filters or semantic query (e.g., "quiet place with natural light")
-- get_listing_detail — full details, true cost breakdown, and fairness analysis for a specific listing
-- compare_listings — side-by-side comparison of 2-4 listings
-- schedule_tour — book a tour (collect name + email + preferred dates first)
-- explain_lease_term — explain lease clauses and tenant rights (always include a legal disclaimer)
-- get_reviews — community feedback and ratings for a property or landlord
-- web_search — search the web when local DB results are insufficient
-- contact_pm — send an inquiry to a property manager
-- get_neighborhood_info — walkability, safety, commute times, and local vibe for an area
+- Only the tools listed below are actually available in this conversation
+${toolList}
 
 Missions:
 - You can propose housing search missions for comprehensive background searches that run asynchronously
@@ -60,19 +95,33 @@ Guidelines:
 - USE YOUR TOOLS when asked about listings, prices, availability, or neighborhoods
 - IMPORTANT: If a listing is already identified in conversation (by name, address, or prior search), do NOT re-run search_listings. Use the action tool directly (get_listing_detail, schedule_tour, compare_listings, etc.)
 - For lease/legal questions, use explain_lease_term and always include the disclaimer that you are not a lawyer
-- Suggest actionable next steps (e.g., "Want me to search for options?" or "Should I compare these side by side?")`;
+- Suggest actionable next steps (e.g., "Want me to search for options?" or "Should I compare these side by side?")${guestGuardrail}`;
+}
 
 export class CribAI {
   private readonly ai: GoogleGenAI;
   private readonly traverser: PageIndexTraverser;
   private readonly campusName: string;
   private readonly toolContext: ToolContext | undefined;
+  private readonly allowedTools: readonly ToolName[];
+  private readonly maxToolCalls: number;
 
   constructor(config: CribAIConfig) {
     this.ai = createGeminiClient(config.geminiApiKey);
     this.traverser = new PageIndexTraverser({ geminiApiKey: config.geminiApiKey });
     this.campusName = config.campusName;
     this.toolContext = config.toolContext;
+    this.allowedTools =
+      config.allowedTools ??
+      config.toolContext?.allowedToolNames ??
+      (Object.keys(TOOL_SUMMARIES) as ToolName[]);
+    this.maxToolCalls =
+      config.maxToolCalls ??
+      (
+        !config.toolContext?.userId && config.toolContext?.allowedToolNames
+          ? 2
+          : DEFAULT_MAX_TOOL_CALLS
+      );
   }
 
   async *chat(input: ChatInput): AsyncGenerator<ChatEvent> {
@@ -95,13 +144,17 @@ export class CribAI {
     ];
 
     const toolsConfig = this.toolContext
-      ? [{ functionDeclarations: [...CRIBAI_TOOLS] }]
+      ? [{ functionDeclarations: [...getToolDeclarations(this.allowedTools)] }]
       : undefined;
 
     let toolCallCount = 0;
+    const systemPrompt = buildSystemPrompt(
+      this.allowedTools,
+      !this.toolContext?.userId,
+    );
 
     // Agentic loop: Gemini may call tools, requiring re-invocation
-    while (toolCallCount < MAX_TOOL_CALLS) {
+    while (toolCallCount < this.maxToolCalls) {
       const remainingMs = TOTAL_TIMEOUT_MS - (Date.now() - startTime);
       if (remainingMs <= 0) {
         yield { type: 'text', content: '\n\n(Response timed out. Please try a simpler question.)' };
@@ -111,7 +164,7 @@ export class CribAI {
       const response = await this.ai.models.generateContentStream({
         model: 'gemini-2.5-flash',
         config: {
-          systemInstruction: SYSTEM_PROMPT + contextBlock,
+          systemInstruction: systemPrompt + contextBlock,
           tools: toolsConfig,
         },
         contents,
@@ -160,7 +213,7 @@ export class CribAI {
 
       let budgetExhausted = false;
       for (const fc of functionCalls) {
-        if (toolCallCount >= MAX_TOOL_CALLS) {
+        if (toolCallCount >= this.maxToolCalls) {
           yield { type: 'text', content: '\n\n(Reached maximum tool calls. Wrapping up.)' };
           budgetExhausted = true;
           break;

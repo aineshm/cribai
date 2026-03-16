@@ -1,7 +1,7 @@
-# CampusNest Agent Context — v1.1 Rebuild
+# CampusNest Agent Context — v2.0
 
 ## Tech Stack & Versions
-- **Framework**: Next.js 15 (App Router, Turbopack dev)
+- **Framework**: Next.js 16 (App Router, Turbopack, `proxy.ts` replaces `middleware.ts`)
 - **React**: 19.0.0
 - **Tailwind CSS**: v4 (via `@tailwindcss/postcss`, NO tailwind.config file — use `@theme inline` in globals.css)
 - **UI Library**: shadcn/ui (base-nova style, components.json present)
@@ -78,7 +78,7 @@ lib/
   parse-wkb-point.ts             # PostGIS point parsing
   score-colors.ts                # Fairness score color mapping
 
-middleware.ts                    # Auth middleware
+proxy.ts                         # Auth proxy (Next.js 16 — replaces middleware.ts)
 ```
 
 ## Existing CSS Variables (globals.css)
@@ -102,25 +102,34 @@ shadcn tokens (added by init, keep these):
 ## Auth Flow
 - Supabase OTP-based auth: email → signInWithOtp → verifyOtp
 - .edu email validation required
-- Auth middleware in middleware.ts
+- Proxy-based auth gating in `proxy.ts` (replaced `middleware.ts` in Next.js 16)
 - Client: `@campusnest/supabase/client` (createClient)
 - Server: `@campusnest/supabase/server` (createSecretClient)
-- After auth, redirects to `/{campusSlug}/cribai`
+- After auth: returning users with completed profile skip setup → redirect to `returnTo` param or `/explore`
+- New users without profile → profile setup → `/explore`
+- Guest (unauthenticated) users can access CribAI chat with restricted tools (search, detail, compare, explain only)
 
 ## Route Structure
+
+> **Updated 2026-03-15:** Flat routes (`/explore`, `/chat`, `/listing/[id]`, `/post`, `/profile`) are now the primary user-facing routes. Campus-scoped routes (`/{campusSlug}/...`) still exist for legacy/multi-campus support.
+
 | Route | Description |
 |-------|------------|
-| `/` | Landing page (campus selector) |
-| `/login` | Auth flow |
+| `/` | Landing page |
+| `/login` | Auth flow (OTP) |
 | `/verify-edu` | Email verification |
-| `/{campusSlug}/dashboard` | Campus dashboard |
-| `/{campusSlug}/listings` | Listing grid with filters |
-| `/{campusSlug}/listings/[id]` | Listing detail |
-| `/{campusSlug}/saved` | Saved listings |
-| `/{campusSlug}/submit-listing` | Submit sublease |
-| `/{campusSlug}/cribai` | AI chat |
-| `/{campusSlug}/notifications` | Notifications |
+| `/explore` | Listing grid with filters (flat route) |
+| `/listing/[id]` | Listing detail with CTAs (flat route) |
+| `/chat` | Full-page CribAI chat (flat route) |
+| `/post` | PostWizard sublease submission (flat route) |
+| `/profile` | Profile page (flat route) |
+| `/sublease` | Sublease landing page |
+| `/{campusSlug}/dashboard` | Campus dashboard (legacy) |
+| `/{campusSlug}/listings` | Campus listing grid (legacy) |
+| `/{campusSlug}/listings/[id]` | Campus listing detail (legacy) |
+| `/{campusSlug}/cribai` | AI chat (redirects to /chat) |
 | `/settings/profile` | Profile settings |
+| `/api/tours` | Book Tour API (POST — creates tour_requests) |
 
 ## Import Aliases
 - `@/components/*` → `apps/web/components/*`

@@ -36,10 +36,13 @@ interface ChatContextValue {
   readonly isAuthenticated: boolean;
   readonly pendingProposal: PendingProposal | null;
   readonly missionError: string | null;
+  readonly draftPrompt: string | null;
   readonly setOpen: (open: boolean) => void;
   readonly confirmMission: () => Promise<void>;
   readonly dismissProposal: () => void;
   readonly setPendingProposal: (proposal: PendingProposal | null) => void;
+  readonly setDraftPrompt: (prompt: string | null) => void;
+  readonly clearDraftPrompt: () => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -66,6 +69,7 @@ export function ChatProvider({
   const [open, setOpen] = useState(false);
   const [pendingProposal, setPendingProposal] = useState<PendingProposal | null>(null);
   const [missionError, setMissionError] = useState<string | null>(null);
+  const [draftPrompt, setDraftPrompt] = useState<string | null>(null);
   const isConfirmingRef = useRef(false);
 
   /**
@@ -119,7 +123,7 @@ export function ChatProvider({
     } finally {
       isConfirmingRef.current = false;
     }
-  }, [pendingProposal, campusSlug, onMissionCreated]);
+  }, [pendingProposal, campusId, campusSlug, onMissionCreated]);
 
   /** dismissProposal — user declines the mission proposal and clears any error. */
   const dismissProposal = useCallback(() => {
@@ -133,6 +137,10 @@ export function ChatProvider({
     setMissionError(null);
   }, []);
 
+  const clearDraftPrompt = useCallback(() => {
+    setDraftPrompt(null);
+  }, []);
+
   return (
     <ChatContext.Provider
       value={{
@@ -142,10 +150,13 @@ export function ChatProvider({
         isAuthenticated,
         pendingProposal,
         missionError,
+        draftPrompt,
         setOpen,
         confirmMission,
         dismissProposal,
         setPendingProposal: setProposal,
+        setDraftPrompt,
+        clearDraftPrompt,
       }}
     >
       {children}

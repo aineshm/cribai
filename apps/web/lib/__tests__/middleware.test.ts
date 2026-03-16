@@ -101,24 +101,23 @@ describe('middleware — campus route protection', () => {
     mockUser = null;
   });
 
-  it('redirects unauthenticated user from /uw-madison/cribai to /login', async () => {
+  it('allows unauthenticated user through /uw-madison/cribai', async () => {
     mockUser = null;
     const response = await runMiddleware('/uw-madison/cribai');
+
+    expect(response.status).not.toBe(307);
+    expect(response.headers.get('location')).toBeNull();
+  });
+
+  it('uses returnTo (not next) query param for protected campus route redirects', async () => {
+    mockUser = null;
+    const response = await runMiddleware('/uw-madison/dashboard');
 
     expect(response.status).toBe(307);
     const location = response.headers.get('location');
-    expect(location).toBeTruthy();
     const url = new URL(location!);
     expect(url.pathname).toBe('/login');
-  });
-
-  it('uses returnTo (not next) query param for campus route redirects', async () => {
-    mockUser = null;
-    const response = await runMiddleware('/uw-madison/cribai');
-
-    const location = response.headers.get('location');
-    const url = new URL(location!);
-    expect(url.searchParams.get('returnTo')).toBe('/uw-madison/cribai');
+    expect(url.searchParams.get('returnTo')).toBe('/uw-madison/dashboard');
     expect(url.searchParams.get('next')).toBeNull();
   });
 });

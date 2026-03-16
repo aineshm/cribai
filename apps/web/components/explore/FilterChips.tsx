@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState, useRef, useEffect } from 'react';
+import { useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   DollarSign,
@@ -12,6 +12,13 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { springConfig } from '@/lib/animations';
 import { trackEvent } from '@/lib/track-event';
 import type { FilterValues } from '@/lib/filter-listings';
@@ -54,66 +61,60 @@ interface DropdownFilterProps {
 }
 
 function DropdownFilter({ label, icon: Icon, options, value, onChange, formatValue }: DropdownFilterProps) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    if (open) document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [open]);
-
   const isActive = value !== null;
   const displayLabel = isActive && formatValue ? formatValue(value) : label;
+  const menuValue = value === null ? 'any' : String(value);
 
   return (
-    <div ref={ref} className="relative">
-      <Button
-        variant={isActive ? 'default' : 'outline'}
-        size="sm"
-        className={`shrink-0 gap-1.5 rounded-full ${
-          isActive ? 'bg-[var(--primary-700)] text-white hover:bg-[var(--primary-800)]' : ''
-        }`}
-        onClick={() => setOpen(!open)}
-      >
-        <Icon className="size-3.5" />
-        {displayLabel}
-        <ChevronDown className={`size-3 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </Button>
-
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.15 }}
-            className="absolute top-full left-0 z-50 mt-1 min-w-[160px] rounded-lg border border-[var(--surface-200)] bg-white shadow-lg py-1"
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="outline"
+            size="sm"
+            className={`shrink-0 gap-1.5 rounded-full border px-4 py-2 text-sm font-medium shadow-sm transition-colors ${
+              isActive
+                ? 'border-teal-800 bg-teal-800 text-white hover:bg-teal-900 hover:text-white'
+                : 'border-[var(--surface-200)] bg-white text-[var(--surface-700)] hover:bg-[var(--surface-50)]'
+            }`}
           >
-            {options.map((option) => (
-              <button
+            <Icon className="size-3.5" />
+            {displayLabel}
+            <ChevronDown className="size-3" />
+          </Button>
+        }
+      />
+      <DropdownMenuContent
+        sideOffset={8}
+        align="start"
+        className="w-56 rounded-2xl border border-[var(--surface-200)] bg-white p-2 shadow-[0_18px_40px_rgba(0,0,0,0.08)]"
+      >
+        <DropdownMenuRadioGroup
+          value={menuValue}
+          onValueChange={(nextValue) => {
+            const parsedValue = nextValue === 'any' ? null : Number(nextValue);
+            onChange(Number.isNaN(parsedValue) ? null : parsedValue);
+            trackEvent('filter_applied', {
+              filter: label.toLowerCase(),
+              value: String(parsedValue),
+            });
+          }}
+        >
+          {options.map((option) => {
+            const optionValue = option.value === null ? 'any' : String(option.value);
+            return (
+              <DropdownMenuRadioItem
                 key={option.label}
-                type="button"
-                className={`w-full px-3 py-2 text-left text-sm hover:bg-[var(--surface-50)] transition-colors ${
-                  value === option.value
-                    ? 'text-[var(--primary-700)] font-medium bg-[var(--primary-50)]'
-                    : 'text-[var(--surface-700)]'
-                }`}
-                onClick={() => {
-                  onChange(option.value);
-                  setOpen(false);
-                  trackEvent('filter_applied', { filter: label.toLowerCase(), value: String(option.value) });
-                }}
+                value={optionValue}
+                className="rounded-xl px-3 py-2.5 text-sm font-medium text-[var(--surface-700)] data-[highlighted]:bg-teal-50 data-[highlighted]:text-teal-900"
               >
                 {option.label}
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+              </DropdownMenuRadioItem>
+            );
+          })}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

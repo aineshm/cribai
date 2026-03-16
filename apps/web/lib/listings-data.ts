@@ -25,6 +25,7 @@ interface ListingRow {
   readonly source_url: string | null;
   readonly fairness_score: number | null;
   readonly available_date: string | null;
+  readonly description: string | null;
   readonly raw_data: Record<string, unknown> | null;
   readonly location: string | null;
 }
@@ -155,7 +156,7 @@ function toListingDetail(row: ListingRow): ListingDetail {
     baths: row.bathrooms ? Number(row.bathrooms) : null,
     sqft: row.sqft ? Number(row.sqft) : null,
     photoUrls: (row.photo_urls ?? []) as readonly string[],
-    description: buildDescription(row),
+    description: row.description?.trim() || buildDescription(row),
     amenities: normalizeAmenities(row.amenities),
     source: row.source,
     sourceUrl: row.source_url,
@@ -190,6 +191,7 @@ const EXPLORE_SELECT = [
   'source_url',
   'fairness_score',
   'available_date',
+  'description',
   'raw_data',
   'location',
 ].join(', ');

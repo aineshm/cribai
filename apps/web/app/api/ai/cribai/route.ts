@@ -55,6 +55,26 @@ interface HistoryBlock {
   readonly content?: string;
 }
 
+type GuestToolName =
+  | 'search_listings'
+  | 'get_listing_detail'
+  | 'compare_listings'
+  | 'explain_lease_term';
+
+const GUEST_ALLOWED_TOOLS: readonly GuestToolName[] = [
+  'search_listings',
+  'get_listing_detail',
+  'compare_listings',
+  'explain_lease_term',
+] as const;
+
+const GUEST_MAX_QUERY_LENGTH = 220;
+const AUTH_MAX_QUERY_LENGTH = 500;
+const GUEST_MAX_HISTORY_MESSAGES = 4;
+const AUTH_MAX_HISTORY_MESSAGES = 12;
+const GUEST_MAX_HISTORY_CHARS = 240;
+const AUTH_MAX_HISTORY_CHARS = 800;
+
 function parseHistory(
   history: unknown,
 ): ReadonlyArray<{ readonly role: 'user' | 'model'; readonly content: string }> {
@@ -82,6 +102,19 @@ function parseHistory(
 
       return { role, content: '' };
     });
+}
+
+function clampHistory(
+  history: ReadonlyArray<{ readonly role: 'user' | 'model'; readonly content: string }>,
+  isGuest: boolean,
+): ReadonlyArray<{ readonly role: 'user' | 'model'; readonly content: string }> {
+  const maxMessages = isGuest ? GUEST_MAX_HISTORY_MESSAGES : AUTH_MAX_HISTORY_MESSAGES;
+  const maxChars = isGuest ? GUEST_MAX_HISTORY_CHARS : AUTH_MAX_HISTORY_CHARS;
+
+  return history.slice(-maxMessages).map((message) => ({
+    ...message,
+    content: message.content.slice(0, maxChars),
+  }));
 }
 
 // ---------------------------------------------------------------------------
@@ -129,8 +162,9 @@ export async function POST(request: NextRequest) {
       return jsonError('Missing query or campusSlug', 400);
     }
 
-    if (query.length > 500) {
-      return jsonError('Query too long (max 500 chars)', 400);
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) {
+      return jsonError('Query is required', 400);
     }
 
     // Gemini client auto-detects: GOOGLE_CLOUD_PROJECT → Vertex AI, else GEMINI_API_KEY → AI Studio
@@ -171,6 +205,12 @@ export async function POST(request: NextRequest) {
       userId = devUser?.id ?? DEFAULT_DEV_USER.id;
     }
 
+    const isGuest = !userId;
+    const maxQueryLength = isGuest ? GUEST_MAX_QUERY_LENGTH : AUTH_MAX_QUERY_LENGTH;
+    if (trimmedQuery.length > maxQueryLength) {
+      return jsonError(`Query too long (max ${maxQueryLength} chars)`, 400);
+    }
+
     // --- Rate limiting (only for authenticated users) -----------------------
     if (userId) {
       const rateCheck = await checkRateLimit(supabase, userId, subscriptionTier);
@@ -206,7 +246,7 @@ export async function POST(request: NextRequest) {
     };
 
     // --- Parse conversation history -----------------------------------------
-    const conversationHistory = parseHistory(history);
+    const conversationHistory = clampHistory(parseHistory(history), isGuest);
 
     // --- Build ToolContext for the new engine --------------------------------
     const toolContext = {
@@ -214,6 +254,7 @@ export async function POST(request: NextRequest) {
       campusId: campus.id as string,
       campusSlug,
       userId: userId ?? undefined,
+      allowedToolNames: isGuest ? GUEST_ALLOWED_TOOLS : undefined,
     };
 
     // --- Initialize CribAI --------------------------------------------------
@@ -228,8 +269,8 @@ export async function POST(request: NextRequest) {
     const REGISTERED_MISSION_INTENTS = new Set(['housing_search', 'tour_outreach']);
 
     let intentProposal: { intent: string; confidence: number; extractedFields: Record<string, unknown> } | null = null;
-    if (shouldClassify(query)) {
-      const intentResult = await classifyIntent(query);
+    if (!isGuest && shouldClassify(trimmedQuery)) {
+      const intentResult = await classifyIntent(trimmedQuery);
       if (
         intentResult.confidence > 0.75 &&
         intentResult.intent !== 'general_chat' &&
@@ -248,7 +289,7 @@ export async function POST(request: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          const chatArgs = { query, tree, conversationHistory };
+          const chatArgs = { query: trimmedQuery, tree, conversationHistory };
           for await (const chunk of cribai.chat(chatArgs)) {
             if (typeof chunk === 'string') {
               // Old engine yields plain strings — wrap as TextEvent

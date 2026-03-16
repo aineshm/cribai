@@ -113,7 +113,7 @@ export async function proxy(request: NextRequest) {
 
   // Protected campus routes — redirect to login if not authenticated
   const protectedRouteMatch = pathname.match(
-    /^\/([^/]+)\/(cribai|dashboard|saved|notifications|submit-listing)/
+    /^\/([^/]+)\/(dashboard|saved|notifications|submit-listing)/
   );
   if (protectedRouteMatch && !user) {
     const loginUrl = request.nextUrl.clone();
@@ -148,7 +148,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // Block unauthenticated users from /api/ai/*
-  if (pathname.startsWith('/api/ai/') && !user) {
+  if (pathname.startsWith('/api/ai/') && pathname !== '/api/ai/cribai' && !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

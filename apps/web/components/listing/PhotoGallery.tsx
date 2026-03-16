@@ -86,7 +86,7 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
     <>
       {/* Desktop Grid Layout */}
       <motion.div
-        className="hidden md:grid md:grid-cols-3 gap-2 rounded-xl overflow-hidden relative"
+        className="relative hidden overflow-hidden rounded-[2rem] border border-[var(--surface-200)] bg-white p-2 shadow-[0_18px_44px_rgba(15,23,42,0.07)] md:grid md:grid-cols-3 md:gap-2"
         style={{ height: '420px' }}
         variants={staggerContainer}
         initial="initial"
@@ -144,11 +144,14 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
       </motion.div>
 
       {/* Mobile Carousel */}
-      <div className="md:hidden relative rounded-xl overflow-hidden" style={{ height: '280px' }}>
+      <div
+        className="relative overflow-hidden rounded-[1.75rem] border border-[var(--surface-200)] bg-white p-2 shadow-[0_14px_32px_rgba(15,23,42,0.06)] md:hidden"
+        style={{ height: '296px' }}
+      >
         <button
           type="button"
           onClick={() => openLightbox(mobileIndex)}
-          className="w-full h-full cursor-pointer relative"
+          className="relative h-full w-full cursor-pointer overflow-hidden rounded-[1.25rem]"
           aria-label={`View ${photos[mobileIndex]?.alt ?? 'photo'} in fullscreen`}
         >
           {photos[mobileIndex] && (
@@ -164,7 +167,7 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
         <button
           type="button"
           onClick={prevMobile}
-          className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 backdrop-blur-sm rounded-full p-1.5 shadow-md"
+          className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-white/88 p-1.5 shadow-md backdrop-blur-sm"
           aria-label="Previous photo"
         >
           <ChevronLeft className="size-5 text-foreground" />
@@ -172,7 +175,7 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
         <button
           type="button"
           onClick={nextMobile}
-          className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 backdrop-blur-sm rounded-full p-1.5 shadow-md"
+          className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-white/88 p-1.5 shadow-md backdrop-blur-sm"
           aria-label="Next photo"
         >
           <ChevronRight className="size-5 text-foreground" />
@@ -194,7 +197,7 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
         </div>
 
         {/* Photo counter */}
-        <div className="absolute top-3 right-3 bg-black/50 text-white text-xs px-2 py-1 rounded-full">
+        <div className="absolute right-5 top-5 rounded-full bg-black/55 px-2 py-1 text-xs text-white">
           {mobileIndex + 1} / {photos.length}
         </div>
       </div>

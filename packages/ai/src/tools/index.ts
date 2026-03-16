@@ -1,3 +1,3 @@
-export { CRIBAI_TOOLS } from './schemas';
+export { CRIBAI_TOOLS, getToolDeclarations } from './schemas';
 export { executeTool } from './executor';
-export type { ToolContext, ToolResult, ToolHandler } from './types';
+export type { ToolContext, ToolResult, ToolHandler, ToolName } from './types';

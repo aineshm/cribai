@@ -11,7 +11,7 @@
  */
 'use client';
 
-import { useEffect, useCallback } from 'react';
+import { useEffect } from 'react';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { createClient } from '@campusnest/supabase/client';
 
@@ -24,41 +24,38 @@ export function useMissionsRealtime(
   onChange: RealtimeChangeHandler,
   onResubscribe?: () => void,
 ): void {
-  // onChange must be stable — caller should wrap with useCallback
-  const stableOnChange = useCallback(onChange, [onChange]);
-  const stableOnResubscribe = useCallback(onResubscribe ?? (() => {}), [onResubscribe]);
-
   useEffect(() => {
     if (!userId) return;
 
+    const handleResubscribe = onResubscribe ?? (() => {});
     const supabase = createClient();
     const channel = supabase
       .channel(`missions:${userId}`, { config: { private: true } })
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'missions', filter: `user_id=eq.${userId}` },
-        stableOnChange
+        onChange
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'mission_logs' },
-        stableOnChange
+        onChange
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'mission_drafts' },
-        stableOnChange
+        onChange
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           // Channel is live — fetch current state to close the gap
           // between the old subscription teardown and this new one.
-          stableOnResubscribe();
+          handleResubscribe();
         }
       });
 
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [userId, stableOnChange, stableOnResubscribe]);
+  }, [userId, onChange, onResubscribe]);
 }

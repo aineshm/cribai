@@ -24,11 +24,13 @@ interface CribAIChatProps {
   readonly campusId?: string;
   readonly initialListingId?: string;
   readonly initialAddress?: string;
+  readonly inputSeed?: string | null;
   readonly conversationId?: string | null;
   readonly isAuthenticated?: boolean;
   readonly onConversationCreated?: (id: string) => void;
   /** Called when the AI proposes a mission via SSE. */
   readonly onMissionProposal?: (proposal: MissionProposal) => void;
+  readonly onInputSeedConsumed?: () => void;
   /** Optional CSS class for the outermost container (e.g. `h-full` when rendered inside a Sheet). */
   readonly className?: string;
 }
@@ -140,10 +142,12 @@ export function CribAIChat({
   campusId,
   initialListingId: _initialListingId,
   initialAddress,
+  inputSeed,
   conversationId: externalConversationId,
   isAuthenticated = false,
   onConversationCreated,
   onMissionProposal,
+  onInputSeedConsumed,
   className,
 }: CribAIChatProps) {
   const [messages, setMessages] = useState<readonly Message[]>([]);
@@ -203,6 +207,18 @@ export function CribAIChat({
       // sessionStorage full or unavailable
     }
   }, [messages, isAuthenticated]);
+
+  useEffect(() => {
+    if (!inputSeed) return;
+
+    setInput((prev) => {
+      if (prev.trim().length > 0) {
+        return prev;
+      }
+      return inputSeed;
+    });
+    onInputSeedConsumed?.();
+  }, [inputSeed, onInputSeedConsumed]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

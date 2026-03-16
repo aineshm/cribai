@@ -29,7 +29,9 @@ export function AIChatPanel() {
     campusId,
     isAuthenticated,
     pendingProposal,
+    draftPrompt,
     setPendingProposal,
+    clearDraftPrompt,
   } = useChatContext();
 
   const handleMissionProposal = useCallback(
@@ -80,6 +82,8 @@ export function AIChatPanel() {
             campusId={campusId}
             isAuthenticated={isAuthenticated}
             onMissionProposal={handleMissionProposal}
+            inputSeed={draftPrompt}
+            onInputSeedConsumed={clearDraftPrompt}
             className="flex h-full flex-col bg-white"
           />
         </div>

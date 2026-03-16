@@ -18,6 +18,21 @@ describe('executeTool', () => {
     expect(result.clientBlock.type).toBe('legal_disclaimer');
   });
 
+  it('blocks tools that are not allowed for the current viewer', async () => {
+    const context = createMockContext({
+      userId: undefined,
+      allowedToolNames: ['search_listings', 'get_listing_detail'],
+    });
+
+    await expect(
+      executeTool(
+        'contact_pm',
+        { listing_id: SAMPLE_LISTING_ROW.id },
+        context,
+      ),
+    ).rejects.toThrow('This action requires signing in.');
+  });
+
   it('throws for unknown tool', async () => {
     const context = createMockContext();
     await expect(executeTool('nonexistent_tool', {}, context)).rejects.toThrow('Unknown tool');

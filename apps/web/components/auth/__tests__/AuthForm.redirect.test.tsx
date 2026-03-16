@@ -8,6 +8,12 @@ import { AuthForm } from '../AuthForm';
 
 const mockPush = vi.fn();
 let mockReturnToParam: string | null = null;
+let mockProfileRecord:
+  | { display_name?: string | null; profile_completed_at?: string | null }
+  | null = {
+    display_name: 'Returning Student',
+    profile_completed_at: '2026-03-15T00:00:00.000Z',
+  };
 
 vi.mock('next/navigation', () => ({
   useSearchParams: () => ({
@@ -89,6 +95,10 @@ vi.mock('../ProfileSetup', () => ({
 // Supabase client mock — OTP sign-in and verify succeed, includes getUser + from for profile persistence
 const mockVerifyOtp = vi.fn().mockResolvedValue({ error: null });
 const mockSignInWithOtp = vi.fn().mockResolvedValue({ error: null });
+const mockProfileMaybeSingle = vi.fn(async () => ({
+  data: mockProfileRecord,
+  error: null,
+}));
 
 vi.mock('@campusnest/supabase/client', () => ({
   createClient: () => ({
@@ -101,6 +111,11 @@ vi.mock('@campusnest/supabase/client', () => ({
       }),
     },
     from: () => ({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          maybeSingle: mockProfileMaybeSingle,
+        }),
+      }),
       update: vi.fn().mockReturnValue({
         eq: vi.fn().mockResolvedValue({ error: null }),
       }),
@@ -112,30 +127,21 @@ vi.mock('@campusnest/supabase/client', () => ({
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function advanceToProfileStep() {
-  // Render the form — it starts on the email step
+async function advanceThroughOtp() {
   render(<AuthForm />);
 
-  // Fill in the email and submit
   const emailInput = screen.getByRole('textbox', { name: /email/i });
   fireEvent.change(emailInput, { target: { value: 'student@wisc.edu' } });
 
   const continueBtn = screen.getByRole('button', { name: /continue/i });
   fireEvent.click(continueBtn);
 
-  // Wait for OTP step to appear
   await waitFor(() => {
     expect(screen.getByTestId('otp-input')).toBeInTheDocument();
   });
 
-  // Simulate entering a full 8-digit OTP — triggers auto-verify
   const otpInput = screen.getByTestId('otp-input');
   fireEvent.change(otpInput, { target: { value: '12345678' } });
-
-  // Wait for profile step to appear
-  await waitFor(() => {
-    expect(screen.getByTestId('complete-profile-btn')).toBeInTheDocument();
-  });
 }
 
 // ---------------------------------------------------------------------------
@@ -146,44 +152,50 @@ describe('AuthForm — post-auth redirect', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockReturnToParam = null;
+    mockProfileRecord = {
+      display_name: 'Returning Student',
+      profile_completed_at: '2026-03-15T00:00:00.000Z',
+    };
   });
 
-  it('redirects to /explore when no returnTo param is present', async () => {
+  it('redirects returning users to /explore when no returnTo param is present', async () => {
     mockReturnToParam = null;
 
-    await advanceToProfileStep();
-
-    const completeBtn = screen.getByTestId('complete-profile-btn');
-    fireEvent.click(completeBtn);
+    await advanceThroughOtp();
 
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith('/explore');
     });
   });
 
-  it('redirects to returnTo path when valid relative path is provided', async () => {
+  it('redirects returning users to returnTo path when valid relative path is provided', async () => {
     mockReturnToParam = '/profile';
 
-    await advanceToProfileStep();
-
-    const completeBtn = screen.getByTestId('complete-profile-btn');
-    fireEvent.click(completeBtn);
+    await advanceThroughOtp();
 
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith('/profile');
     });
   });
 
-  it('redirects to /explore when returnTo is an open redirect attempt (//evil.com)', async () => {
+  it('redirects returning users to /explore when returnTo is an open redirect attempt (//evil.com)', async () => {
     mockReturnToParam = '//evil.com';
 
-    await advanceToProfileStep();
-
-    const completeBtn = screen.getByTestId('complete-profile-btn');
-    fireEvent.click(completeBtn);
+    await advanceThroughOtp();
 
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith('/explore');
     });
+  });
+
+  it('sends new users to profile completion when no completed profile exists yet', async () => {
+    mockProfileRecord = null;
+
+    await advanceThroughOtp();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('complete-profile-btn')).toBeInTheDocument();
+    });
+    expect(mockPush).not.toHaveBeenCalled();
   });
 });

@@ -73,7 +73,7 @@ describe('MainLayout', () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
     const layout = await MainLayout({ children: <>test content</> });
     render(layout);
-    const chatLink = screen.getByRole('link', { name: /chat/i });
+    const chatLink = screen.getByRole('link', { name: /agent/i });
     expect(chatLink).toBeInTheDocument();
     expect(chatLink).toHaveAttribute('href', '/chat');
     const nav = chatLink.closest('nav');
@@ -91,8 +91,8 @@ describe('MainLayout', () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1', email: 'test@example.com' } } });
     const layout = await MainLayout({ children: <></> });
     render(layout);
-    const postLink = screen.getByRole('link', { name: 'Post' });
-    const profileLink = screen.getByRole('link', { name: 'Profile' });
+    const postLink = screen.getByRole('link', { name: 'Post Sublease' });
+    const profileLink = screen.getAllByRole('link').find((link) => link.getAttribute('href') === '/profile');
     expect(postLink).toBeInTheDocument();
     expect(postLink).toHaveAttribute('href', '/post');
     expect(profileLink).toBeInTheDocument();
@@ -104,8 +104,8 @@ describe('MainLayout', () => {
     mockGet.mockReturnValue(null);
     const layout = await MainLayout({ children: <></> });
     render(layout);
-    expect(screen.queryByRole('link', { name: 'Post' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Profile' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Post Sublease' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('link').find((link) => link.getAttribute('href') === '/profile')).toBeUndefined();
   });
 
   it('shows Post and Profile links via dev-auth header when no Supabase user', async () => {
@@ -116,8 +116,8 @@ describe('MainLayout', () => {
     );
     const layout = await MainLayout({ children: <></> });
     render(layout);
-    expect(screen.getByRole('link', { name: 'Post' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Profile' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Post Sublease' })).toBeInTheDocument();
+    expect(screen.getAllByRole('link').find((link) => link.getAttribute('href') === '/profile')).toBeDefined();
   });
 
   it('CampusNest wordmark still renders in both auth states', async () => {

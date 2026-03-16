@@ -21,15 +21,15 @@ export function ListingDetailClient({
 }: ListingDetailClientProps) {
   return (
     <motion.div
-      className="min-h-screen bg-background"
+      className="min-h-screen bg-[linear-gradient(180deg,#f7faf9_0%,#ffffff_26%)]"
       variants={pageTransition}
       initial="initial"
       animate="animate"
       exit="exit"
     >
       {/* Top Nav Bar */}
-      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-md border-b border-[var(--surface-200)]">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
+      <div className="sticky top-0 z-30 border-b border-[var(--surface-200)] bg-white/92 backdrop-blur-md">
+        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
           <Button
             variant="ghost"
             size="icon-sm"
@@ -44,7 +44,7 @@ export function ListingDetailClient({
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="mx-auto max-w-6xl px-4 py-6 lg:py-8">
         {/* Photo Gallery */}
         {listing.photoUrls.length > 0 && (
           <PhotoGallery
@@ -58,7 +58,7 @@ export function ListingDetailClient({
         )}
 
         {/* Two-Column Layout */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-[1fr_340px] lg:grid-cols-[1fr_380px] gap-8">
+        <div className="mt-8 grid grid-cols-1 gap-8 md:grid-cols-[1fr_340px] lg:grid-cols-[1fr_380px]">
           {/* Left Column — Content */}
           <ListingContent listing={listing} />
 
@@ -67,6 +67,7 @@ export function ListingDetailClient({
             <CTASidebar
               price={listing.price}
               listingTitle={listing.title}
+              listingAddress={listing.address}
               listingId={listing.id}
               campusSlug={campusSlug}
             />
@@ -75,7 +76,13 @@ export function ListingDetailClient({
       </div>
 
       {/* Mobile Bottom Bar */}
-      <MobileBottomBar price={listing.price} listingTitle={listing.title} listingId={listing.id} />
+      <MobileBottomBar
+        price={listing.price}
+        listingTitle={listing.title}
+        listingAddress={listing.address}
+        listingId={listing.id}
+        campusSlug={campusSlug}
+      />
     </motion.div>
   );
 }

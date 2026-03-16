@@ -1,4 +1,5 @@
 import { Type, type FunctionDeclaration } from '@google/genai';
+import type { ToolName } from './types';
 
 const searchListings: FunctionDeclaration = {
   name: 'search_listings',
@@ -259,16 +260,30 @@ const getNeighborhoodInfo: FunctionDeclaration = {
   },
 };
 
-export const CRIBAI_TOOLS: readonly FunctionDeclaration[] = [
-  searchListings,
-  getListingDetail,
-  compareListings,
-  scheduleTour,
-  explainLeaseTerm,
-  getLandlordInfo,
-  getSavedListings,
-  webSearch,
-  getReviews,
-  contactPm,
-  getNeighborhoodInfo,
-];
+export const CRIBAI_TOOLS_BY_NAME: Record<ToolName, FunctionDeclaration> = {
+  search_listings: searchListings,
+  get_listing_detail: getListingDetail,
+  compare_listings: compareListings,
+  schedule_tour: scheduleTour,
+  explain_lease_term: explainLeaseTerm,
+  get_landlord_info: getLandlordInfo,
+  get_saved_listings: getSavedListings,
+  web_search: webSearch,
+  get_reviews: getReviews,
+  contact_pm: contactPm,
+  get_neighborhood_info: getNeighborhoodInfo,
+};
+
+export const CRIBAI_TOOLS: readonly FunctionDeclaration[] = Object.values(
+  CRIBAI_TOOLS_BY_NAME,
+);
+
+export function getToolDeclarations(
+  names?: readonly ToolName[],
+): readonly FunctionDeclaration[] {
+  if (!names || names.length === 0) {
+    return CRIBAI_TOOLS;
+  }
+
+  return names.map((name) => CRIBAI_TOOLS_BY_NAME[name]);
+}

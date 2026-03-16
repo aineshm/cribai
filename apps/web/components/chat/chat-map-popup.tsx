@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import type { MapBlock } from '@campusnest/types';
 
 type MapListing = MapBlock['listings'][number];
@@ -14,9 +15,11 @@ export function ChatMapPopup({ listing, campusSlug }: ChatMapPopupProps) {
   return (
     <div className="max-w-[200px]">
       {listing.photoUrl !== null && (
-        <img
+        <Image
           src={listing.photoUrl}
           alt={listing.address}
+          width={200}
+          height={96}
           className="h-24 w-full rounded-t object-cover"
         />
       )}

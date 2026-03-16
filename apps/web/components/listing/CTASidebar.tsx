@@ -9,13 +9,13 @@ import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { slideInFromRight } from '@/lib/animations';
-import { trackEvent } from '@/lib/track-event';
 import { BookTourModal } from './BookTourModal';
 import { useChatContext } from '@/components/chat/ChatProvider';
 
 interface CTASidebarProps {
   readonly price: number;
   readonly listingTitle: string;
+  readonly listingAddress: string;
   readonly listingId: string;
   readonly campusSlug?: string;
 }
@@ -23,13 +23,14 @@ interface CTASidebarProps {
 export function CTASidebar({
   price,
   listingTitle,
+  listingAddress,
   listingId,
   campusSlug,
 }: CTASidebarProps) {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [tourModalOpen, setTourModalOpen] = useState(false);
-  const { setOpen: openChat } = useChatContext();
+  const { setOpen: openChat, setDraftPrompt } = useChatContext();
   const router = useRouter();
 
   useEffect(() => {
@@ -132,8 +133,16 @@ export function CTASidebar({
         initial="initial"
         animate="animate"
       >
-        <Card>
-          <CardContent className="space-y-4">
+        <Card className="overflow-hidden rounded-[1.75rem] border border-[var(--surface-200)] bg-white shadow-[0_20px_48px_rgba(15,23,42,0.08)]">
+          <div className="bg-[linear-gradient(135deg,#0f766e_0%,#115e59_42%,#f59e0b_160%)] px-5 py-4 text-white">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/75">
+              Ready to move fast?
+            </p>
+            <p className="mt-2 text-sm leading-6 text-white/90">
+              Save it, ask CampusNest AI for lease context, or request a tour.
+            </p>
+          </div>
+          <CardContent className="space-y-4 p-5">
             {/* Price */}
             <div>
               <div className="flex items-baseline gap-1">
@@ -146,11 +155,8 @@ export function CTASidebar({
 
             {/* Primary CTA */}
             <Button
-              className="w-full h-10"
-              onClick={() => {
-                trackEvent('contact_clicked', { listing_id: listingId });
-                setTourModalOpen(true);
-              }}
+              className="h-11 w-full rounded-xl bg-teal-800 hover:bg-teal-900"
+              onClick={() => setTourModalOpen(true)}
             >
               <Calendar className="size-4" />
               Book a Tour
@@ -159,8 +165,11 @@ export function CTASidebar({
             {/* Secondary CTA */}
             <Button
               variant="outline"
-              className="w-full h-10"
-              onClick={() => openChat(true)}
+              className="h-11 w-full rounded-xl border-teal-200 text-teal-800 hover:bg-teal-50"
+              onClick={() => {
+                setDraftPrompt(`Tell me about ${listingTitle} at ${listingAddress}.`);
+                openChat(true);
+              }}
             >
               <MessageCircle className="size-4" />
               Ask AI About This Listing
@@ -170,7 +179,7 @@ export function CTASidebar({
             <div className="flex gap-2">
               <Button
                 variant="outline"
-                className="flex-1"
+                className="flex-1 rounded-xl"
                 onClick={() => void handleSaveToggle()}
                 disabled={saving}
               >
@@ -183,7 +192,7 @@ export function CTASidebar({
                 />
                 {saved ? 'Saved' : 'Save'}
               </Button>
-              <Button variant="outline" className="flex-1" disabled title="Coming soon">
+              <Button variant="outline" className="flex-1 rounded-xl" disabled title="Coming soon">
                 <Share2 className="size-4" />
                 Share
               </Button>
@@ -195,7 +204,10 @@ export function CTASidebar({
       <BookTourModal
         isOpen={tourModalOpen}
         onClose={() => setTourModalOpen(false)}
+        listingId={listingId}
         listingTitle={listingTitle}
+        listingAddress={listingAddress}
+        campusSlug={campusSlug}
       />
     </>
   );

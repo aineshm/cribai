@@ -6,6 +6,10 @@ export function trackEvent(
   event: string,
   metadata?: Record<string, unknown>
 ): void {
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
+
   fetch('/api/events', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

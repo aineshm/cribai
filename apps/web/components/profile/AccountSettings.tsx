@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,7 @@ interface NotificationPrefs {
 export function AccountSettings() {
   const [activeSection, setActiveSection] =
     useState<SettingsSection>('personal');
+  const router = useRouter();
 
   const [personalInfo, setPersonalInfo] = useState<PersonalInfo>({
     fullName: '',
@@ -34,9 +36,18 @@ export function AccountSettings() {
     phone: '',
   });
 
+  function getSupabaseClient() {
+    try {
+      return createClient();
+    } catch {
+      return null;
+    }
+  }
+
   useEffect(() => {
     async function loadUser() {
-      const supabase = createClient();
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setPersonalInfo({
@@ -65,7 +76,12 @@ export function AccountSettings() {
   };
 
   const handleSave = async () => {
-    const supabase = createClient();
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      toast.error('Profile settings are temporarily unavailable.');
+      return;
+    }
+
     const { error: updateError } = await supabase.auth.updateUser({
       data: { full_name: personalInfo.fullName, phone: personalInfo.phone },
     });
@@ -86,8 +102,17 @@ export function AccountSettings() {
     toast.success('Profile updated');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      toast.error('Logout is temporarily unavailable.');
+      return;
+    }
+
+    await supabase.auth.signOut();
     toast.info('Logged out successfully.');
+    router.push('/');
+    router.refresh();
   };
 
   return (

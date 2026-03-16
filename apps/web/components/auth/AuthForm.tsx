@@ -32,6 +32,13 @@ const slideVariants = {
   }),
 };
 
+function getSafeReturnTo(searchParams: ReturnType<typeof useSearchParams>): string {
+  const returnTo = searchParams.get('returnTo');
+  return returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//')
+    ? returnTo
+    : '/explore';
+}
+
 export function AuthForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -94,16 +101,51 @@ export function AuthForm() {
       type: 'email',
     });
 
-    setLoading(false);
-
     if (verifyError) {
       setError(verifyError.message);
+      setLoading(false);
       return;
     }
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      let profile:
+        | {
+            readonly display_name?: string | null;
+            readonly profile_completed_at?: string | null;
+          }
+        | null
+        | undefined;
+
+      try {
+        const profileQuery = supabase
+          .from('profiles')
+          .select('display_name, profile_completed_at')
+          .eq('id', user.id);
+
+        if ('maybeSingle' in profileQuery && typeof profileQuery.maybeSingle === 'function') {
+          const { data } = await profileQuery.maybeSingle();
+          profile = data;
+        }
+      } catch {
+        profile = null;
+      }
+
+      if (profile?.display_name || profile?.profile_completed_at) {
+        toast.success('Signed in successfully!');
+        setLoading(false);
+        router.push(getSafeReturnTo(searchParams));
+        return;
+      }
+    }
+
     toast.success('Signed in successfully!');
+    setLoading(false);
     goToStep('profile');
-  }, [email, otp, goToStep]);
+  }, [email, otp, goToStep, router, searchParams]);
 
   // Auto-verify when OTP is complete (8 digits — Supabase project setting)
   const autoVerifiedRef = useRef(false);
@@ -167,13 +209,7 @@ export function AuthForm() {
     }
 
     trackEvent('signup_completed');
-
-    const returnTo = searchParams.get('returnTo');
-    const destination =
-      returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//')
-        ? returnTo
-        : '/explore';
-    router.push(destination);
+    router.push(getSafeReturnTo(searchParams));
   }, [searchParams, router]);
 
   return (

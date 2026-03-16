@@ -66,6 +66,18 @@ vi.mock('next/link', () => ({
   ),
 }));
 
+vi.mock('next/image', () => ({
+  default: ({
+    alt,
+    src,
+    ...props
+  }: {
+    alt: string;
+    src: string;
+    [key: string]: unknown;
+  }) => <img alt={alt} src={src} {...props} />,
+}));
+
 import { ChatMapBlock } from '../chat-map-block';
 import { ChatMapPopup } from '../chat-map-popup';
 

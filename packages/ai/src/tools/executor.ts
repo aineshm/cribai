@@ -1,4 +1,4 @@
-import type { ToolContext, ToolResult } from './types';
+import type { ToolContext, ToolResult, ToolName } from './types';
 import { searchListings } from './handlers/search-listings';
 import { getListingDetail } from './handlers/get-listing-detail';
 import { compareListings } from './handlers/compare-listings';
@@ -30,6 +30,13 @@ export async function executeTool(
   args: Record<string, unknown>,
   context: ToolContext,
 ): Promise<ToolResult> {
+  if (
+    context.allowedToolNames &&
+    !context.allowedToolNames.includes(name as ToolName)
+  ) {
+    throw new Error('This action requires signing in.');
+  }
+
   const handler = HANDLERS[name];
   if (!handler) {
     throw new Error(`Unknown tool: ${name}`);

@@ -4,6 +4,13 @@ import { render, screen, fireEvent } from '@testing-library/react';
 // ProfilePage is an async Server Component (Supabase + cookies) — test the client shell instead
 import { ProfilePageClient } from '../ProfilePageClient';
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    refresh: vi.fn(),
+  }),
+}));
+
 // Mock framer-motion to avoid animation issues
 vi.mock('framer-motion', () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,

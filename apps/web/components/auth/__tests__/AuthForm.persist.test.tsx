@@ -8,6 +8,9 @@ import { AuthForm } from '../AuthForm';
 
 const mockPush = vi.fn();
 let mockReturnToParam: string | null = null;
+let mockProfileRecord:
+  | { display_name?: string | null; profile_completed_at?: string | null }
+  | null = null;
 
 vi.mock('next/navigation', () => ({
   useSearchParams: () => ({
@@ -93,6 +96,10 @@ const mockSignInWithOtp = vi.fn().mockResolvedValue({ error: null });
 const mockGetUser = vi.fn().mockResolvedValue({
   data: { user: { id: 'user-1', email: 'student@wisc.edu' } },
 });
+const mockProfileMaybeSingle = vi.fn(async () => ({
+  data: mockProfileRecord,
+  error: null,
+}));
 const mockProfileUpdate = vi.fn().mockReturnValue({
   eq: vi.fn().mockResolvedValue({ error: null }),
 });
@@ -106,6 +113,11 @@ vi.mock('@campusnest/supabase/client', () => ({
       getUser: mockGetUser,
     },
     from: () => ({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          maybeSingle: mockProfileMaybeSingle,
+        }),
+      }),
       update: mockProfileUpdate,
     }),
   }),
@@ -149,6 +161,7 @@ describe('AuthForm — profile persistence', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockReturnToParam = null;
+    mockProfileRecord = null;
     mockUpdateUser.mockResolvedValue({ error: null });
   });
 

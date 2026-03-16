@@ -39,44 +39,50 @@ export function ListingContent({ listing }: ListingContentProps) {
       animate="animate"
     >
       {/* Title & Quick Info */}
-      <motion.div className="space-y-3" variants={staggerItem}>
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground font-[family-name:var(--font-display)]">
+      <motion.div
+        className="rounded-[1.75rem] border border-[var(--surface-200)] bg-white p-6 shadow-[0_16px_36px_rgba(15,23,42,0.05)]"
+        variants={staggerItem}
+      >
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-700">
+          CampusNest listing
+        </p>
+        <h1 className="mt-3 text-2xl font-bold text-foreground font-[family-name:var(--font-display)] md:text-3xl">
           {listing.title}
         </h1>
 
-        <div className="flex items-center gap-2 text-muted-foreground text-sm">
+        <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
           <MapPin className="size-4 shrink-0" />
           <span>{listing.address}</span>
         </div>
 
         {/* Beds / Baths / Sqft */}
-        <div className="flex items-center gap-4 text-sm text-foreground">
+        <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-foreground">
           {listing.beds !== null && (
-            <div className="flex items-center gap-1.5">
-              <Bed className="size-4 text-muted-foreground" />
+            <div className="flex items-center gap-1.5 rounded-full bg-[var(--surface-50)] px-3 py-2">
+              <Bed className="size-4 text-teal-700" />
               <span>
                 {listing.beds === 0 ? 'Studio' : `${listing.beds} bed${listing.beds !== 1 ? 's' : ''}`}
               </span>
             </div>
           )}
           {listing.baths !== null && (
-            <div className="flex items-center gap-1.5">
-              <Bath className="size-4 text-muted-foreground" />
+            <div className="flex items-center gap-1.5 rounded-full bg-[var(--surface-50)] px-3 py-2">
+              <Bath className="size-4 text-teal-700" />
               <span>
                 {listing.baths} bath{listing.baths !== 1 ? 's' : ''}
               </span>
             </div>
           )}
           {listing.sqft !== null && (
-            <div className="flex items-center gap-1.5">
-              <Maximize className="size-4 text-muted-foreground" />
+            <div className="flex items-center gap-1.5 rounded-full bg-[var(--surface-50)] px-3 py-2">
+              <Maximize className="size-4 text-teal-700" />
               <span>{listing.sqft.toLocaleString()} sqft</span>
             </div>
           )}
         </div>
 
         {/* Mobile price */}
-        <div className="md:hidden">
+        <div className="mt-5 md:hidden">
           <span className="text-2xl font-bold text-foreground font-[family-name:var(--font-display)]">
             ${listing.price.toLocaleString()}
           </span>
@@ -84,18 +90,18 @@ export function ListingContent({ listing }: ListingContentProps) {
         </div>
 
         {/* Source + available date badges */}
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="capitalize">
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="capitalize border-teal-200 bg-teal-50 text-teal-800">
             {listing.source}
           </Badge>
           {listing.availableDate && (
-            <Badge variant="outline" className="gap-1">
+            <Badge variant="outline" className="gap-1 border-amber-200 bg-amber-50 text-amber-800">
               <Calendar className="size-3" />
               Available {listing.availableDate}
             </Badge>
           )}
           {listing.fairnessScore !== null && (
-            <Badge variant="outline" className="gap-1">
+            <Badge variant="outline" className="gap-1 border-[var(--surface-200)] bg-white">
               Fairness: {listing.fairnessScore}/10
             </Badge>
           )}
@@ -105,7 +111,7 @@ export function ListingContent({ listing }: ListingContentProps) {
       <Separator />
 
       {/* Description */}
-      <motion.div className="space-y-3" variants={staggerItem}>
+      <motion.div className="space-y-3 rounded-[1.75rem] border border-[var(--surface-200)] bg-white p-6 shadow-[0_14px_34px_rgba(15,23,42,0.04)]" variants={staggerItem}>
         <SectionHeading>About This Place</SectionHeading>
         <p className="text-sm text-muted-foreground leading-relaxed">
           {listing.description}
@@ -137,7 +143,7 @@ export function ListingContent({ listing }: ListingContentProps) {
       {listing.amenities.length > 0 && (
         <>
           <Separator />
-          <div className="space-y-3">
+          <div className="space-y-3 rounded-[1.75rem] border border-[var(--surface-200)] bg-white p-6 shadow-[0_14px_34px_rgba(15,23,42,0.04)]">
             <SectionHeading>Amenities</SectionHeading>
             <AmenitiesGrid amenities={listing.amenities} />
           </div>
@@ -150,7 +156,7 @@ export function ListingContent({ listing }: ListingContentProps) {
           <Separator />
           <motion.div className="space-y-3" variants={staggerItem}>
             <SectionHeading>Lease Details</SectionHeading>
-            <Card className="border-[var(--primary-200)] bg-[var(--primary-50)]/30">
+            <Card className="rounded-[1.5rem] border-teal-100 bg-teal-50/80">
               <CardContent className="p-4">
                 <p className="text-sm text-foreground">
                   <span className="font-medium">Lease Term:</span> {listing.leaseTerm}
@@ -167,9 +173,9 @@ export function ListingContent({ listing }: ListingContentProps) {
           <Separator />
           <motion.div className="space-y-3" variants={staggerItem}>
             <SectionHeading>Special Offers</SectionHeading>
-            <Card className="border-[var(--secondary-200)] bg-[var(--secondary-50)]/30">
+            <Card className="rounded-[1.5rem] border-amber-100 bg-amber-50/80">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-sm text-[var(--secondary-700)]">
+                <CardTitle className="flex items-center gap-2 text-sm text-amber-800">
                   <Tag className="size-4" />
                   Current Promotions
                 </CardTitle>
@@ -188,13 +194,13 @@ export function ListingContent({ listing }: ListingContentProps) {
 
       {/* Contact & Source */}
       <Separator />
-      <motion.div className="space-y-3" variants={staggerItem}>
+      <motion.div className="space-y-3 rounded-[1.75rem] border border-[var(--surface-200)] bg-white p-6 shadow-[0_14px_34px_rgba(15,23,42,0.04)]" variants={staggerItem}>
         <SectionHeading>Contact & Source</SectionHeading>
         <div className="flex flex-wrap gap-3">
           {listing.buildingPhone && (
             <a
               href={`tel:${listing.buildingPhone}`}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--primary-700)] text-white text-sm hover:bg-[var(--primary-800)] transition-colors"
+              className="inline-flex items-center gap-2 rounded-xl bg-teal-800 px-4 py-2 text-sm text-white transition-colors hover:bg-teal-900"
             >
               <Phone className="size-4" />
               {listing.buildingPhone}
@@ -205,7 +211,7 @@ export function ListingContent({ listing }: ListingContentProps) {
               href={listing.sourceUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--surface-300)] text-sm text-foreground hover:bg-[var(--surface-50)] transition-colors"
+              className="inline-flex items-center gap-2 rounded-xl border border-[var(--surface-300)] px-4 py-2 text-sm text-foreground transition-colors hover:bg-[var(--surface-50)]"
             >
               <ExternalLink className="size-4" />
               View on {listing.source}
@@ -249,7 +255,7 @@ function ScoreCard({
         : 'text-muted-foreground';
 
   return (
-    <div className="flex flex-col items-center gap-1.5 p-3 rounded-lg bg-[var(--surface-50)] border border-[var(--surface-200)]">
+    <div className="flex flex-col items-center gap-1.5 rounded-[1.25rem] border border-[var(--surface-200)] bg-[var(--surface-50)] p-4">
       <Icon className={`size-5 ${color}`} />
       <span className={`text-xl font-bold ${color}`}>{score}</span>
       <span className="text-xs text-muted-foreground">{label}</span>

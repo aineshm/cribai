@@ -53,7 +53,7 @@ describe('ListingCard', () => {
 
   it('renders walk score when available', () => {
     render(<ListingCard listing={baseListing} />);
-    expect(screen.getByText('92')).toBeInTheDocument();
+    expect(screen.getByText(/Walk score 92/i)).toBeInTheDocument();
   });
 
   it('renders listing title', () => {

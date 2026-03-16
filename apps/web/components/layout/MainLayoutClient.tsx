@@ -10,6 +10,7 @@
  */
 
 import { useConcierge } from '@/components/concierge/ConciergeProvider';
+import { AIChatPanel } from '@/components/chat/AIChatPanel';
 import { ChatProvider } from '@/components/chat/ChatProvider';
 
 interface MainLayoutClientProps {
@@ -30,6 +31,7 @@ export function MainLayoutClient({ children, campusSlug, campusId, isAuthenticat
       onMissionCreated={openToMission}
     >
       {children}
+      <AIChatPanel />
     </ChatProvider>
   );
 }

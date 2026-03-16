@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { cookies, headers } from 'next/headers';
 import { createServerComponentClient } from '@campusnest/supabase/server';
-import { Sparkles } from 'lucide-react';
+import { Home, PlusCircle, Search, Sparkles } from 'lucide-react';
 import { ConciergeShell } from '@/components/concierge/ConciergeShell';
 import { MainLayoutClient } from '@/components/layout/MainLayoutClient';
 
@@ -59,45 +59,66 @@ export default async function MainLayout({
 
   return (
     // ConciergeShell provides ConciergeContext — must be the outer wrapper so
-    // MainLayoutClient (inside) can call useConcierge() to get openToMission.
+      // MainLayoutClient (inside) can call useConcierge() to get openToMission.
     <ConciergeShell>
       <MainLayoutClient campusSlug={campusSlug} campusId={campusId} isAuthenticated={isAuthenticated}>
         <div className="min-h-[100dvh]">
-          <nav className="sticky top-0 z-50 border-b border-[var(--surface-200)] bg-white/80 backdrop-blur-sm px-6 py-4">
-            <div className="mx-auto flex max-w-6xl items-center justify-between">
+          <nav className="sticky top-0 z-50 border-b border-black/5 bg-white/90 px-4 py-3 backdrop-blur-md sm:px-6 lg:px-8">
+            <div className="mx-auto flex max-w-7xl items-center justify-between gap-6">
               <Link
                 href="/"
-                className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-900)]"
+                className="flex items-center gap-2 text-teal-800 transition-opacity hover:opacity-90"
               >
-                CampusNest
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-800 text-white shadow-sm">
+                  <Home className="size-5" strokeWidth={2.5} />
+                </span>
+                <span className="text-xl font-semibold tracking-tight text-[var(--surface-900)]">
+                  CampusNest
+                </span>
               </Link>
-              <div className="flex items-center gap-4">
+
+              {isAuthenticated && (
+                <div className="hidden md:flex flex-1 max-w-md items-center">
+                  <div className="relative w-full">
+                    <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--surface-400)]" />
+                    <input
+                      type="text"
+                      placeholder={`Search near ${campusSlug === 'uw-madison' ? 'UW-Madison' : campusSlug}...`}
+                      className="w-full rounded-full border border-[var(--surface-200)] bg-[var(--surface-50)] py-2 pl-10 pr-4 text-sm text-[var(--surface-700)] focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/15"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-4 md:gap-6">
                 {isAuthenticated && (
                   <>
                     <Link
                       href="/explore"
-                      className="text-sm text-[var(--surface-600)] hover:text-[var(--surface-900)] transition-colors"
+                      className="hidden md:inline text-sm font-medium text-[var(--surface-600)] transition-colors hover:text-teal-800"
                     >
-                      Explore
-                    </Link>
-                    <Link
-                      href="/post"
-                      className="text-sm text-[var(--surface-600)] hover:text-[var(--surface-900)] transition-colors"
-                    >
-                      Post
-                    </Link>
-                    <Link
-                      href="/profile"
-                      className="text-sm text-[var(--surface-600)] hover:text-[var(--surface-900)] transition-colors"
-                    >
-                      Profile
+                      Discover
                     </Link>
                     <Link
                       href="/chat"
-                      className="flex items-center gap-1.5 text-sm font-medium text-[var(--surface-500)] hover:text-[var(--surface-800)] transition-colors"
+                      className="hidden md:flex items-center gap-1 text-sm font-medium text-[var(--surface-600)] transition-colors hover:text-teal-800"
                     >
-                      <Sparkles className="size-4" />
-                      Chat
+                      <Sparkles className="size-4 text-amber-500" />
+                      Agent
+                    </Link>
+                    <Link
+                      href="/post"
+                      className="hidden md:flex items-center gap-1.5 text-sm font-semibold text-teal-800 transition-colors hover:text-teal-900"
+                    >
+                      <PlusCircle className="size-4" />
+                      Post Sublease
+                    </Link>
+                    <Link
+                      href="/profile"
+                      className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-100 text-sm font-semibold text-teal-800 shadow-sm transition-colors hover:bg-teal-200"
+                      aria-label="Open profile"
+                    >
+                      {(resolvedUser?.user_metadata?.full_name as string | undefined)?.slice(0, 1) ?? 'U'}
                     </Link>
                   </>
                 )}

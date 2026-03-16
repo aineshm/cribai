@@ -1,16 +1,21 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Calendar, Clock, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { scaleIn, fadeIn } from '@/lib/animations';
 import { toast } from 'sonner';
+import { trackEvent } from '@/lib/track-event';
 
 interface BookTourModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
+  readonly listingId: string;
   readonly listingTitle: string;
+  readonly listingAddress: string;
+  readonly campusSlug?: string;
 }
 
 function getNextWeekdays(count: number): readonly { label: string; value: string }[] {
@@ -50,26 +55,72 @@ const TIME_SLOTS = [
 export function BookTourModal({
   isOpen,
   onClose,
+  listingId,
   listingTitle,
+  listingAddress,
+  campusSlug,
 }: BookTourModalProps) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [confirmed, setConfirmed] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const router = useRouter();
 
-  const handleConfirm = useCallback(() => {
+  const handleConfirm = useCallback(async () => {
     if (!selectedDate || !selectedTime) return;
-    setConfirmed(true);
-    toast.success('Tour request submitted!', {
-      description: `${selectedDate} at ${selectedTime}`,
-    });
-  }, [selectedDate, selectedTime]);
+    setSubmitting(true);
+    setErrorMessage(null);
+
+    try {
+      const response = await fetch('/api/tours', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          listingId,
+          preferredDates: [selectedDate],
+          selectedTime,
+          notes: message || undefined,
+        }),
+      });
+
+      if (response.status === 401) {
+        const returnTo = campusSlug
+          ? `/listing/${listingId}?campus=${encodeURIComponent(campusSlug)}`
+          : `/listing/${listingId}`;
+        router.push(`/login?returnTo=${encodeURIComponent(returnTo)}`);
+        onClose();
+        return;
+      }
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({ error: 'Failed to request tour' }));
+        throw new Error(data.error ?? 'Failed to request tour');
+      }
+
+      setConfirmed(true);
+      trackEvent('tour_requested', { listing_id: listingId });
+      toast.success('Tour request submitted!', {
+        description: `${selectedDate} around ${selectedTime}`,
+      });
+    } catch (error) {
+      const messageText =
+        error instanceof Error ? error.message : 'Failed to request tour. Please try again.';
+      setErrorMessage(messageText);
+      toast.error(messageText);
+    } finally {
+      setSubmitting(false);
+    }
+  }, [campusSlug, listingId, message, onClose, router, selectedDate, selectedTime]);
 
   const handleClose = useCallback(() => {
     setConfirmed(false);
     setSelectedDate(null);
     setSelectedTime(null);
     setMessage('');
+    setErrorMessage(null);
+    setSubmitting(false);
     onClose();
   }, [onClose]);
 
@@ -164,8 +215,9 @@ export function BookTourModal({
                     Tour Requested!
                   </h3>
                   <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-                    Your tour request for &quot;{listingTitle}&quot; has been
-                    submitted. The landlord will confirm shortly.
+                    Your tour request for &quot;{listingTitle}&quot; at{' '}
+                    {listingAddress} has been submitted. We&apos;ll keep it in
+                    your dashboard while you wait for a response.
                   </p>
                   <Button onClick={handleClose} className="mt-4">
                     Done
@@ -174,6 +226,12 @@ export function BookTourModal({
               ) : (
                 /* Booking Form */
                 <div className="space-y-5">
+                  {errorMessage && (
+                    <div className="rounded-lg bg-[var(--fair-bad-bg)] px-3 py-2 text-sm text-[var(--fair-bad)]">
+                      {errorMessage}
+                    </div>
+                  )}
+
                   {/* Date Selection */}
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -242,10 +300,10 @@ export function BookTourModal({
                   {/* Confirm */}
                   <Button
                     className="w-full h-10"
-                    onClick={handleConfirm}
-                    disabled={!selectedDate || !selectedTime}
+                    onClick={() => void handleConfirm()}
+                    disabled={!selectedDate || !selectedTime || submitting}
                   >
-                    Confirm Tour Request
+                    {submitting ? 'Submitting...' : 'Confirm Tour Request'}
                   </Button>
                 </div>
               )}
