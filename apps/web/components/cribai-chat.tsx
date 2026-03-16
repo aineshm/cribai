@@ -79,6 +79,7 @@ interface SSEEvent {
   readonly type?: string;
   readonly content?: string;
   readonly name?: string;
+  readonly args?: Record<string, unknown>;
   readonly block?: ChatBlock;
   readonly message?: string;
   readonly text?: string;
@@ -172,7 +173,7 @@ export function CribAIChat({
   onInputSeedConsumed,
   mapBounds,
   onMessageSent,
-  onSearchContext: _onSearchContext,
+  onSearchContext,
   className,
 }: CribAIChatProps) {
   const [messages, setMessages] = useState<readonly Message[]>([]);
@@ -406,6 +407,23 @@ export function CribAIChat({
                 { type: 'tool_loading', toolName: event.name ?? 'unknown' },
               ];
               updateAssistantMessage(assistantBlocks);
+
+              // Extract search context from search_listings tool args
+              if (event.name === 'search_listings' && event.args && onSearchContext) {
+                const args = event.args;
+                const budget = args.max_rent
+                  ? `Under $${Number(args.max_rent).toLocaleString()}`
+                  : args.min_rent
+                    ? `From $${Number(args.min_rent).toLocaleString()}`
+                    : undefined;
+                const bedrooms = args.bedrooms !== undefined
+                  ? (args.bedrooms === 0 ? 'Studio' : `${args.bedrooms} bed`)
+                  : undefined;
+                const amenities = Array.isArray(args.amenities) && args.amenities.length > 0
+                  ? (args.amenities as string[])
+                  : undefined;
+                onSearchContext({ budget, bedrooms, amenities });
+              }
               break;
             }
 

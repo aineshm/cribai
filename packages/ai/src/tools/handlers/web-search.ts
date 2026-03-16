@@ -15,6 +15,38 @@ interface PersistWebListingParams {
   readonly content: string;
 }
 
+/** Extracted structured data from web search result content */
+interface ExtractedListingData {
+  readonly prices: readonly number[];
+  readonly bedrooms: readonly number[];
+  readonly addresses: readonly string[];
+}
+
+/**
+ * Extract structured listing data from web search result content.
+ * Uses regex patterns to find prices, bedroom counts, and street addresses.
+ */
+function extractListingData(content: string): ExtractedListingData {
+  // Extract prices: $800, $1,200, $1200/mo, etc.
+  const priceMatches = content.match(/\$[\d,]+(?:\.\d{2})?(?:\s*\/\s*(?:mo|month|mth))?/gi) ?? [];
+  const prices = priceMatches
+    .map(p => parseInt(p.replace(/[$,\/\w\s.]/g, ''), 10))
+    .filter(p => p >= 200 && p <= 10000); // Reasonable rent range
+
+  // Extract bedroom counts: 1-bedroom, 2 bed, 3BR, studio
+  const bedMatches = content.match(/(\d)\s*[-\s]?\s*(?:bed(?:room)?s?|br)\b/gi) ?? [];
+  const bedrooms = bedMatches
+    .map(b => parseInt(b, 10))
+    .filter(b => b >= 0 && b <= 10);
+  if (/\bstudio\b/i.test(content)) bedrooms.push(0);
+
+  // Extract street addresses: patterns like "123 Main St" or "456 W Gorham St, Madison"
+  const addressMatches = content.match(/\d+\s+(?:[NSEW]\.?\s+)?[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(?:St|Ave|Blvd|Dr|Ln|Rd|Ct|Way|Pl|Cir|Pkwy)\.?(?:\s*(?:#|Unit|Apt|Suite)\s*\w+)?(?:,\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)?/g) ?? [];
+  const addresses = [...new Set(addressMatches)].slice(0, 5);
+
+  return { prices: [...new Set(prices)], bedrooms: [...new Set(bedrooms)], addresses };
+}
+
 /**
  * Returns true if the web search result has enough structured data to be
  * stored as a listing. Prevents garbage titles (e.g. "Top 10 apartments …")
@@ -37,14 +69,7 @@ function hasMinimumListingFields(params: PersistWebListingParams): boolean {
 }
 
 /**
- * Persists a web search result as a listing in the database. Called for every
- * web search result returned by webSearch(). Uses upsert on (source, source_url)
- * so duplicate URLs are deduplicated. The Phase 3 embedding pipeline will embed
- * new/changed rows on the next nightly run.
- *
- * Returns null without persisting if the result lacks minimum required fields
- * (parseable address, source URL). Results are still returned to the AI as
- * search context even when not persisted.
+ * Persists a web search result as a listing in the database.
  */
 export async function persistWebListing(
   params: PersistWebListingParams,
@@ -124,26 +149,19 @@ export async function webSearch(
   }
 
   const location = parsed.location ?? 'Madison WI';
-  const searchQuery = `${parsed.query} apartments rentals near ${location}`;
+  const searchQuery = `${parsed.query} near ${location}`;
 
-  // Check cache first — still resolve persisted IDs so model context has them
+  // Check cache first
   const cached = getCachedResults(searchQuery);
   if (cached) {
-    const cachedIds = await Promise.all(
-      cached.map(r => persistWebListing({
-        address: r.title,
-        sourceUrl: r.url,
-        content: r.content,
-      }, context))
-    );
-    return buildResult(cached, cachedIds);
+    return buildEnrichedResult(cached, context);
   }
 
   try {
     const tvly = tavily({ apiKey });
     const response = await tvly.search(searchQuery, {
       maxResults: 8,
-      searchDepth: 'basic',
+      searchDepth: 'advanced',
       topic: 'general',
     });
 
@@ -166,15 +184,7 @@ export async function webSearch(
 
     setCachedResults(searchQuery, webResults);
 
-    const persistedIds = await Promise.all(
-      webResults.map(r => persistWebListing({
-        address: r.title,
-        sourceUrl: r.url,
-        content: r.content,
-      }, context))
-    );
-
-    return buildResult(webResults, persistedIds);
+    return buildEnrichedResult(webResults, context);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return {
@@ -187,29 +197,74 @@ export async function webSearch(
   }
 }
 
-function buildResult(
+/**
+ * Build an enriched result by extracting structured listing data from each
+ * web search result's content. Persists listings with real addresses and prices.
+ */
+async function buildEnrichedResult(
   results: readonly WebSearchResult[],
-  persistedIds: readonly (string | null)[] = [],
-): ToolResult {
-  const modelContext = `Found ${results.length} web result(s):\n${results
-    .map(
-      (r, i) => {
-        const id = persistedIds[i];
-        const idSuffix = id ? `\n   Listing ID: ${id}` : '';
-        return `${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${r.content.slice(0, 200)}${idSuffix}`;
-      },
-    )
-    .join('\n')}`;
+  context: ToolContext,
+): Promise<ToolResult> {
+  const enrichedEntries: string[] = [];
+  const persistedIds: (string | null)[] = [];
+
+  for (const r of results) {
+    const extracted = extractListingData(r.content);
+
+    // Persist each extracted address as a separate listing
+    if (extracted.addresses.length > 0) {
+      for (const addr of extracted.addresses) {
+        const id = await persistWebListing({
+          address: addr,
+          sourceUrl: r.url,
+          rentMonthly: extracted.prices[0],
+          bedrooms: extracted.bedrooms[0],
+          content: r.content,
+        }, context);
+        if (id) persistedIds.push(id);
+      }
+    } else {
+      // No extractable address — still pass raw result to AI but don't persist
+      persistedIds.push(null);
+    }
+
+    // Build enriched model context entry
+    const priceInfo = extracted.prices.length > 0
+      ? `Prices mentioned: ${extracted.prices.map(p => `$${p.toLocaleString()}/mo`).join(', ')}`
+      : 'No specific prices found';
+    const bedInfo = extracted.bedrooms.length > 0
+      ? `Bedrooms: ${extracted.bedrooms.map(b => b === 0 ? 'Studio' : `${b}BR`).join(', ')}`
+      : '';
+    const addrInfo = extracted.addresses.length > 0
+      ? `Addresses found: ${extracted.addresses.join('; ')}`
+      : 'No specific addresses extracted';
+
+    enrichedEntries.push(
+      `Source: ${r.title}\n` +
+      `   URL: ${r.url}\n` +
+      `   ${priceInfo}\n` +
+      (bedInfo ? `   ${bedInfo}\n` : '') +
+      `   ${addrInfo}\n` +
+      `   Summary: ${r.content.slice(0, 300)}`
+    );
+  }
+
+  const modelContext = `Web search found ${results.length} source(s) with extracted listing data:\n\n${enrichedEntries.join('\n\n')}\n\n` +
+    `[IMPORTANT: Synthesize the extracted data above into a helpful response. ` +
+    `Mention specific prices, addresses, and bedroom counts when available. ` +
+    `If a result is just an aggregator homepage (apartments.com, zillow.com), ` +
+    `summarize what it indicates about the market rather than just linking to it. ` +
+    `Recommend the user check specific properties you found addresses for.]`;
 
   return {
     modelContext,
     clientBlock: {
       type: 'web_result' as const,
-      results: results.map((r, i) => ({
+      results: results.map((r) => ({
         title: r.title,
         url: r.url,
         snippet: r.content.slice(0, 200),
-        listingId: persistedIds[i] ?? null,
+        listingId: null,
       })),
     },
   };

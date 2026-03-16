@@ -90,20 +90,20 @@ export function ChatProvider({
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`,
       };
-      // Prefer campusId (UUID) over campus_slug — the API accepts either
+      // Always provide campus_slug as fallback; prefer campusId if available
+      const slug = campusSlug || 'uw-madison';
       const campusPayload = campusId
-        ? { campusId }
-        : campusSlug
-          ? { campus_slug: campusSlug }
-          : { campus_slug: 'uw-madison' };
+        ? { campusId, campus_slug: slug }
+        : { campus_slug: slug };
 
+      const intentLabel = pendingProposal.intent.replace(/_/g, ' ');
       const res = await fetch('/api/missions', {
         method: 'POST',
         headers: missionHeaders,
         body: JSON.stringify({
           type: pendingProposal.intent,
-          title: pendingProposal.intent.replace(/_/g, ' '),
-          goal: `${pendingProposal.intent.replace(/_/g, ' ')} mission`,
+          title: intentLabel.charAt(0).toUpperCase() + intentLabel.slice(1),
+          goal: `${intentLabel} mission`,
           input: pendingProposal.extractedFields,
           ...campusPayload,
         }),
