@@ -53,7 +53,7 @@ export function AuthSplitLayout({ children }: AuthSplitLayoutProps) {
       </div>
 
       {/* Right panel — form */}
-      <div className="flex w-full lg:w-1/2 items-center justify-center p-8 lg:px-20 lg:py-24">
+      <div className="flex w-full lg:w-1/2 items-start pt-24 sm:items-center sm:pt-0 justify-center p-8 lg:px-20 lg:py-24">
         <div className="w-full max-w-md">
           {/* Mobile logo (hidden on desktop) */}
           <div className="mb-8 flex items-center gap-2 lg:hidden">

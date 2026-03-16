@@ -30,14 +30,16 @@ export function SubleaseClient({ subleaseCount, totalCount }: SubleaseClientProp
         <div className="flex items-center justify-center gap-8">
           <div className="text-center">
             <p className="text-3xl font-bold text-[var(--primary-600)]">
-              {subleaseCount}
+              {subleaseCount > 0 ? subleaseCount : 'New'}
             </p>
-            <p className="text-sm text-[var(--surface-400)]">Subleases</p>
+            <p className="text-sm text-[var(--surface-400)]">
+              {subleaseCount > 0 ? 'Subleases' : 'Be the first'}
+            </p>
           </div>
           <div className="h-10 w-px bg-[var(--surface-200)]" />
           <div className="text-center">
             <p className="text-3xl font-bold text-[var(--primary-600)]">
-              {totalCount}
+              {totalCount.toLocaleString()}
             </p>
             <p className="text-sm text-[var(--surface-400)]">Total Listings</p>
           </div>
