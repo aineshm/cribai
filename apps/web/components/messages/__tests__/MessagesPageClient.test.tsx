@@ -58,8 +58,8 @@ describe('MessagesPageClient', () => {
 
     render(<MessagesPageClient />);
 
-    expect(screen.getByRole('button', { name: 'Past' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'Active' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: /^Past$/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /^Active/ })).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('clears the selection when the user switches to a tab that does not contain the selected mission', () => {
@@ -67,7 +67,7 @@ describe('MessagesPageClient', () => {
 
     render(<MessagesPageClient />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Active' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Active/ }));
 
     expect(selectMission).toHaveBeenCalledWith(null);
   });

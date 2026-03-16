@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useId, useState } from 'react';
-import { Bot, CheckCircle2, Clock, AlertCircle, FileText, Sparkles, X } from 'lucide-react';
+import { ArrowRight, Bot, CheckCircle2, Clock, AlertCircle, FileText, Sparkles, X } from 'lucide-react';
 import { useConcierge } from '@/components/concierge/ConciergeProvider';
 import type { LegacyMission } from '@/lib/concierge-types';
 
@@ -16,7 +16,12 @@ function statusIcon(status: string) {
     case 'waiting_approval':
       return <FileText className="size-4 text-amber-500" />;
     case 'running':
-      return <Clock className="size-4 text-blue-500" />;
+      return (
+        <span className="relative flex size-4 items-center justify-center">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal-400 opacity-50" />
+          <span className="relative inline-flex size-2 rounded-full bg-teal-600" />
+        </span>
+      );
     case 'failed':
       return <AlertCircle className="size-4 text-red-500" />;
     default:
@@ -27,11 +32,21 @@ function statusIcon(status: string) {
 function statusLabel(status: string): string {
   switch (status) {
     case 'completed': return 'Completed';
-    case 'waiting_approval': return 'Action Needed';
-    case 'running': return 'In Progress';
+    case 'waiting_approval': return 'Action needed';
+    case 'running': return 'In progress';
     case 'pending': return 'Pending';
     case 'failed': return 'Failed';
     default: return status;
+  }
+}
+
+function statusLabelColor(status: string): string {
+  switch (status) {
+    case 'completed': return 'text-teal-700';
+    case 'waiting_approval': return 'text-amber-600 font-semibold';
+    case 'running': return 'text-teal-600';
+    case 'failed': return 'text-red-600';
+    default: return 'text-gray-500';
   }
 }
 
@@ -43,6 +58,8 @@ export function MessagesPageClient() {
 
   const activeMissions = missions.filter(m => ACTIVE_STATUSES.has(m.status));
   const pastMissions = missions.filter(m => !ACTIVE_STATUSES.has(m.status));
+  const pendingApproval = missions.filter(m => m.status === 'waiting_approval');
+  const isWorking = missions.some(m => m.status === 'running');
   const displayedMissions = tab === 'active' ? activeMissions : pastMissions;
 
   useEffect(() => {
@@ -85,6 +102,12 @@ export function MessagesPageClient() {
       selectMission(null);
       setMobileDetailOpen(false);
     }
+  }
+
+  function handleReviewFirst() {
+    const first = pendingApproval[0];
+    if (!first) return;
+    handleSelectMission(first);
   }
 
   return (
@@ -136,13 +159,37 @@ export function MessagesPageClient() {
             </div>
             <div>
               <h1 className="font-[family-name:var(--font-display)] text-lg font-bold text-gray-900">
-                AI Concierge
+                Your Agent
               </h1>
-              <p className="text-xs text-gray-500">
-                Managing {activeMissions.length} active mission{activeMissions.length !== 1 ? 's' : ''}
-              </p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span
+                  className={`h-2 w-2 rounded-full ${isWorking ? 'bg-amber-400 animate-pulse' : 'bg-gray-300'}`}
+                />
+                <span className="text-xs text-gray-500">
+                  {isWorking ? 'Working' : 'Idle'}
+                </span>
+              </div>
             </div>
           </div>
+
+          {/* Pending Review Banner */}
+          {pendingApproval.length > 0 && (
+            <div className="mt-4 flex items-center justify-between rounded-xl bg-amber-50 border border-amber-200 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="size-4 text-amber-500 shrink-0" />
+                <span className="text-sm font-medium text-amber-800">
+                  Review required ({pendingApproval.length})
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleReviewFirst}
+                className="flex items-center gap-1 text-xs font-semibold text-amber-700 hover:text-amber-900 transition-colors"
+              >
+                Review <ArrowRight className="size-3" />
+              </button>
+            </div>
+          )}
 
           {/* Tabs */}
           <div className="mt-4 flex gap-1 rounded-xl bg-gray-100 p-1">
@@ -158,7 +205,9 @@ export function MessagesPageClient() {
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
-                {t === 'active' ? 'Active' : 'Past'}
+                {t === 'active'
+                  ? `Active${activeMissions.length > 0 ? ` (${activeMissions.length})` : ''}`
+                  : 'Past'}
               </button>
             ))}
           </div>
@@ -172,13 +221,21 @@ export function MessagesPageClient() {
                 <Sparkles className="size-7 text-teal-600" />
               </div>
               <p className="font-[family-name:var(--font-display)] text-lg font-bold text-gray-900">
-                {tab === 'active' ? 'No active missions' : 'No past missions'}
+                {tab === 'active' ? 'Agent is idle' : 'No past missions'}
               </p>
               <p className="mt-2 text-sm text-gray-500 max-w-xs">
                 {tab === 'active'
-                  ? 'Start a conversation in Discover to create housing search or tour booking missions.'
+                  ? 'Ask CribAI to search for housing or schedule tours to start a mission.'
                   : 'Completed missions will appear here.'}
               </p>
+              {tab === 'active' && (
+                <a
+                  href="/explore"
+                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-teal-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-teal-900 transition-colors"
+                >
+                  Open Discover <ArrowRight className="size-4" />
+                </a>
+              )}
             </div>
           )}
           {displayedMissions.map((mission) => (
@@ -239,11 +296,9 @@ function MissionTaskCard({
       <div className="flex items-start gap-3">
         {statusIcon(mission.status)}
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-              {statusLabel(mission.status)}
-            </span>
-          </div>
+          <span className={`text-xs font-medium ${statusLabelColor(mission.status)}`}>
+            {statusLabel(mission.status)}
+          </span>
           <p className="mt-1 text-sm font-bold text-gray-900 truncate">{mission.title}</p>
           {mission.summary && (
             <p className="mt-1 text-sm text-gray-500 line-clamp-2">{mission.summary}</p>
@@ -263,6 +318,8 @@ function MissionTaskCard({
 }
 
 function MissionDetailPanel({ mission }: { readonly mission: LegacyMission }) {
+  const [showLogs, setShowLogs] = useState(false);
+
   return (
     <div className="flex-1 overflow-y-auto p-8">
       <div className="max-w-2xl mx-auto space-y-6">
@@ -270,7 +327,7 @@ function MissionDetailPanel({ mission }: { readonly mission: LegacyMission }) {
         <div>
           <div className="flex items-center gap-2 mb-2">
             {statusIcon(mission.status)}
-            <span className="text-xs font-bold uppercase tracking-wider text-gray-500">
+            <span className={`text-xs font-medium ${statusLabelColor(mission.status)}`}>
               {statusLabel(mission.status)}
             </span>
           </div>
@@ -295,28 +352,36 @@ function MissionDetailPanel({ mission }: { readonly mission: LegacyMission }) {
           </p>
         </div>
 
-        {/* Mission Logs */}
+        {/* Execution logs — collapsible */}
         {mission.logs && mission.logs.length > 0 && (
-          <div className="rounded-2xl border border-gray-200 overflow-hidden">
-            <div className="bg-gray-900 p-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">
-                System Execution Logs
-              </h3>
-              <div className="space-y-1.5 font-mono text-xs">
-                {mission.logs.map((log, i) => {
-                  const tagColor = log.status === 'success' ? 'text-green-400'
-                    : log.status === 'error' ? 'text-red-400'
-                    : 'text-amber-400';
-                  return (
-                    <p key={i} className="text-gray-300">
-                      <span className={tagColor}>[{log.status.toUpperCase()}]</span>{' '}
-                      <span className="text-gray-500">{new Date(log.timestamp).toLocaleTimeString()}</span>{' '}
-                      {log.action}: {log.detail}
-                    </p>
-                  );
-                })}
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowLogs(v => !v)}
+              className="text-xs text-gray-400 underline underline-offset-2 hover:text-gray-600 transition-colors"
+            >
+              {showLogs ? 'Hide execution logs' : 'View execution logs'}
+            </button>
+            {showLogs && (
+              <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="bg-gray-900 p-4">
+                  <div className="space-y-1.5 font-mono text-xs">
+                    {mission.logs.map((log, i) => {
+                      const tagColor = log.status === 'success' ? 'text-green-400'
+                        : log.status === 'error' ? 'text-red-400'
+                        : 'text-amber-400';
+                      return (
+                        <p key={i} className="text-gray-300">
+                          <span className={tagColor}>[{log.status.toUpperCase()}]</span>{' '}
+                          <span className="text-gray-500">{new Date(log.timestamp).toLocaleTimeString()}</span>{' '}
+                          {log.action}: {log.detail}
+                        </p>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
