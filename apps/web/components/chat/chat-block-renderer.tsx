@@ -44,7 +44,7 @@ export const ChatBlockRenderer = memo(function ChatBlockRenderer({ block, campus
 
     case 'listing_card':
       return (
-        <div className="grid gap-2 sm:grid-cols-2" role="list" aria-label="Search results">
+        <div className="grid max-w-xl gap-2 sm:grid-cols-2" role="list" aria-label="Search results">
           {block.listings.slice(0, 5).map((listing) => (
             <div key={listing.id} role="listitem">
               <ChatListingCard

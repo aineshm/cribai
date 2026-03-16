@@ -13,6 +13,7 @@ interface ListingSummary {
   readonly trueCostTotal: number | null;
   readonly amenities: readonly string[];
   readonly campusSlug?: string;
+  readonly source?: string;
 }
 
 function fairnessColor(score: number): string {
@@ -32,14 +33,21 @@ export function ChatListingCard({ listing, campusSlug }: ChatListingCardProps) {
   return (
     <Link
       href={`/${slug}/listings/${listing.id}`}
-      className="block rounded-lg border border-[var(--surface-200)] bg-white p-3 hover:border-[var(--primary-400)] hover:shadow-sm transition-all"
+      className="block rounded-lg border border-[var(--surface-200)] bg-white p-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:border-[var(--primary-400)] hover:shadow-sm transition-all"
       aria-label={`View listing at ${listing.address}`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-[var(--surface-900)]">
-            {listing.address}
-          </p>
+          <div className="flex items-center gap-1.5">
+            <p className="truncate text-sm font-medium text-[var(--surface-900)]">
+              {listing.address}
+            </p>
+            {listing.source && (
+              <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-[var(--surface-100)] text-[var(--surface-500)]">
+                {listing.source}
+              </span>
+            )}
+          </div>
           <p className="mt-0.5 text-lg font-bold text-[var(--surface-900)]">
             {listing.rentMonthly != null ? `$${listing.rentMonthly.toLocaleString()}` : 'Price N/A'}
             {listing.rentMonthly != null && <span className="text-xs font-normal text-[var(--surface-500)]">/mo</span>}

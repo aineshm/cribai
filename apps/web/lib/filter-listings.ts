@@ -63,10 +63,13 @@ export function filterListings(
     if (f.sublease && listing.source !== 'sublease') return false;
     if (f.priceMax !== null && listing.price > f.priceMax) return false;
     if (f.bedsMin !== null) {
-      // Studio filter (bedsMin=0): only match listings explicitly marked as 0 beds
-      // Other values: exclude listings with unknown bed count
       if (listing.beds === null) return false;
-      if (listing.beds < f.bedsMin) return false;
+      // Studio filter (bedsMin=0): only show 0-bed (studio) listings
+      if (f.bedsMin === 0) {
+        if (listing.beds !== 0) return false;
+      } else {
+        if (listing.beds < f.bedsMin) return false;
+      }
     }
     if (f.petFriendly) {
       const hasPets = listing.amenities.some(
