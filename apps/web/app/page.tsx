@@ -56,7 +56,7 @@ export default async function HomePage() {
             <Link href="/explore" className="transition-colors hover:text-teal-800">
               Browse
             </Link>
-            <Link href={isAuthenticated ? '/messages' : '/login'} className="transition-colors hover:text-teal-800">
+            <Link href={isAuthenticated ? '/messages' : '/login?returnTo=/messages'} className="transition-colors hover:text-teal-800">
               Agent
             </Link>
             <Link
@@ -110,6 +110,24 @@ export default async function HomePage() {
               <CheckCircle2 className="size-4 text-emerald-600" />
               Exclusively for verified `.edu` students
             </p>
+
+            {/* Mobile-only chat bubble card — social proof visible above the fold */}
+            <div className="lg:hidden rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100">
+                  <Sparkles className="size-4 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900">
+                    &ldquo;I need a 2-bedroom under $800/mo that allows cats, near Engineering.&rdquo;
+                  </p>
+                  <div className="mt-1.5 flex items-center gap-2 text-sm font-bold text-teal-700">
+                    <span>Found 12 matching listings</span>
+                    <ArrowRight className="size-4" />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="relative lg:h-[600px] h-[400px] overflow-hidden rounded-[2rem] shadow-[0_30px_80px_rgba(15,23,42,0.18)]">
@@ -145,12 +163,11 @@ export default async function HomePage() {
         <section className="border-y border-[var(--surface-200)] bg-[var(--surface-50)] py-10">
           <div className="mx-auto max-w-7xl px-4 text-center sm:px-6 lg:px-8">
             <p className="mb-6 text-sm font-semibold uppercase tracking-[0.24em] text-[var(--surface-500)]">
-              Trusted by students at 50+ universities
+              Starting at UW-Madison
             </p>
-            <div className="flex flex-wrap justify-center gap-8 text-xl font-semibold text-[var(--surface-400)] grayscale">
-              {['UW-Madison', 'Michigan', 'UT Austin', 'UCLA', 'Penn State'].map((school) => (
-                <span key={school}>{school}</span>
-              ))}
+            <div className="flex flex-wrap justify-center gap-8 text-xl font-semibold text-[var(--surface-400)]">
+              <span className="text-teal-800">UW-Madison</span>
+              <span className="text-sm self-center text-[var(--surface-400)]">More campuses coming soon</span>
             </div>
           </div>
         </section>

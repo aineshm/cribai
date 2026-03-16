@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { Sparkles, MapPin, Bed, DollarSign } from 'lucide-react';
+import { Sparkles, MapPin, Bed, DollarSign, Map as MapIcon, MessageSquare } from 'lucide-react';
 import { CribAIChat } from '@/components/cribai-chat';
 import { useChatContext } from '@/components/chat/ChatProvider';
 import { MissionProposalCard } from '@/components/chat/MissionProposalCard';
@@ -63,6 +63,9 @@ function ContextBar({ context }: { readonly context: SearchContext }) {
 export function ExploreClient({ listings }: ExploreClientProps) {
   const { campusSlug, campusId, isAuthenticated, pendingProposal, setPendingProposal } = useChatContext();
 
+  // Mobile view toggle (chat vs map)
+  const [mobileView, setMobileView] = useState<'chat' | 'map'>('chat');
+
   // Map viewport state
   const [mapBounds, setMapBounds] = useState<MapBounds | null>(null);
   const [lockedBounds, setLockedBounds] = useState<MapBounds | null>(null);
@@ -111,35 +114,71 @@ export function ExploreClient({ listings }: ExploreClientProps) {
   const activeBounds = lockedBounds ?? mapBounds;
 
   return (
-    <div className="app-mobile-pane flex overflow-hidden bg-white">
-      {/* Left: Conversational Search Panel */}
-      <div className="flex w-full min-w-0 min-h-0 flex-col border-r border-gray-100 md:w-1/2 lg:w-7/12 overflow-hidden">
+    <div className="app-mobile-pane flex flex-col overflow-hidden bg-white">
+      {/* Mobile view toggle — hidden on desktop */}
+      <div className="flex md:hidden border-b border-gray-100">
         <ContextBar context={searchContext} />
-        {pendingProposal && (
-          <div className="border-b border-gray-100 px-4 py-3">
-            <MissionProposalCard />
-          </div>
-        )}
-        <CribAIChat
-          campusSlug={campusSlug}
-          campusId={campusId}
-          isAuthenticated={isAuthenticated}
-          onMissionProposal={handleMissionProposal}
-          mapBounds={activeBounds}
-          onMessageSent={handleMessageSent}
-          onSearchContext={handleSearchContext}
-          className="flex flex-1 flex-col min-h-0"
-        />
+        <div className="flex shrink-0 border-l border-gray-100">
+          <button
+            type="button"
+            onClick={() => setMobileView('chat')}
+            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${
+              mobileView === 'chat' ? 'text-teal-800 bg-teal-50' : 'text-gray-400'
+            }`}
+          >
+            <MessageSquare className="size-3" />
+            Chat
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileView('map')}
+            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${
+              mobileView === 'map' ? 'text-teal-800 bg-teal-50' : 'text-gray-400'
+            }`}
+          >
+            <MapIcon className="size-3" />
+            Map
+          </button>
+        </div>
       </div>
 
-      {/* Right: Map Panel (desktop only) */}
-      <div className="hidden md:block md:w-1/2 lg:w-5/12">
-        <MapPanel
-          listings={listings}
-          onBoundsChange={handleBoundsChange}
-          showSearchButton={showSearchButton}
-          onSearchArea={handleSearchArea}
-        />
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* Left: Conversational Search Panel */}
+        <div className={`flex min-w-0 min-h-0 flex-col border-r border-gray-100 md:w-1/2 lg:w-7/12 overflow-hidden ${
+          mobileView === 'chat' ? 'w-full' : 'hidden md:flex'
+        }`}>
+          {/* Desktop context bar (mobile one is above) */}
+          <div className="hidden md:block">
+            <ContextBar context={searchContext} />
+          </div>
+          {pendingProposal && (
+            <div className="border-b border-gray-100 px-4 py-3">
+              <MissionProposalCard />
+            </div>
+          )}
+          <CribAIChat
+            campusSlug={campusSlug}
+            campusId={campusId}
+            isAuthenticated={isAuthenticated}
+            onMissionProposal={handleMissionProposal}
+            mapBounds={activeBounds}
+            onMessageSent={handleMessageSent}
+            onSearchContext={handleSearchContext}
+            className="flex flex-1 flex-col min-h-0"
+          />
+        </div>
+
+        {/* Right: Map Panel (always on desktop, togglable on mobile) */}
+        <div className={`md:block md:w-1/2 lg:w-5/12 ${
+          mobileView === 'map' ? 'block w-full' : 'hidden'
+        }`}>
+          <MapPanel
+            listings={listings}
+            onBoundsChange={handleBoundsChange}
+            showSearchButton={showSearchButton}
+            onSearchArea={handleSearchArea}
+          />
+        </div>
       </div>
     </div>
   );

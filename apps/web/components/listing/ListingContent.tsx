@@ -110,15 +110,18 @@ export function ListingContent({ listing }: ListingContentProps) {
         </div>
       </motion.div>
 
-      <Separator />
-
-      {/* Description */}
-      <motion.div className="space-y-3 rounded-[1.75rem] border border-[var(--surface-200)] bg-white p-6 shadow-[0_14px_34px_rgba(15,23,42,0.04)]" variants={staggerItem}>
-        <SectionHeading>About This Place</SectionHeading>
-        <p className="text-sm text-muted-foreground leading-relaxed">
-          {listing.description}
-        </p>
-      </motion.div>
+      {/* Description — hidden when empty or just an address restatement */}
+      {listing.description && listing.description.length > 50 && (
+        <>
+          <Separator />
+          <motion.div className="space-y-3 rounded-[1.75rem] border border-[var(--surface-200)] bg-white p-6 shadow-[0_14px_34px_rgba(15,23,42,0.04)]" variants={staggerItem}>
+            <SectionHeading>About This Place</SectionHeading>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {listing.description}
+            </p>
+          </motion.div>
+        </>
+      )}
 
       {/* Walk / Bike / Transit Scores */}
       {hasScores && (
