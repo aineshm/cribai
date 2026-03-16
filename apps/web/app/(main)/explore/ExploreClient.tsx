@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import { Sparkles, History } from 'lucide-react';
 import { CribAIChat } from '@/components/cribai-chat';
 import { useChatContext } from '@/components/chat/ChatProvider';
+import { MissionProposalCard } from '@/components/chat/MissionProposalCard';
 import type { ExploreListing } from '@/lib/listing-types';
 
 interface ExploreClientProps {
@@ -82,17 +83,30 @@ function MapPanel({ listings }: { readonly listings: readonly ExploreListing[] }
 }
 
 export function ExploreClient({ listings }: ExploreClientProps) {
-  const { campusSlug, campusId, isAuthenticated } = useChatContext();
+  const { campusSlug, campusId, isAuthenticated, pendingProposal, setPendingProposal } = useChatContext();
+
+  const handleMissionProposal = useCallback(
+    (proposal: { intent: string; confidence: number; extractedFields: Record<string, unknown> }) => {
+      setPendingProposal(proposal);
+    },
+    [setPendingProposal],
+  );
 
   return (
     <div className="app-mobile-pane flex overflow-hidden bg-white">
       {/* Left: Conversational Search Panel */}
       <div className="flex w-full min-w-0 flex-col border-r border-gray-100 md:w-1/2 lg:w-7/12">
         <ContextBar />
+        {pendingProposal && (
+          <div className="border-b border-gray-100 px-4 py-3">
+            <MissionProposalCard />
+          </div>
+        )}
         <CribAIChat
           campusSlug={campusSlug}
           campusId={campusId}
           isAuthenticated={isAuthenticated}
+          onMissionProposal={handleMissionProposal}
           className="flex flex-1 flex-col"
         />
       </div>
