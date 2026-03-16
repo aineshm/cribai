@@ -166,42 +166,44 @@ export function PostWizard({ userEmail }: PostWizardProps) {
       {/* Step content */}
       <div className="flex-1 px-4 py-6 lg:px-12 lg:py-10">
         <div className="mx-auto max-w-2xl">
-          <AnimatePresence mode="wait" custom={direction}>
-            <motion.div
-              key={currentStep}
-              custom={direction}
-              variants={slideVariants}
-              initial="enter"
-              animate="center"
-              exit="exit"
-            >
-              {renderStep()}
-            </motion.div>
-          </AnimatePresence>
-
-          {/* Navigation buttons */}
-          <div className="mt-8 flex items-center justify-between border-t border-border pt-6">
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={handleBack}
-              disabled={currentStep === 0}
-              className="gap-2"
-            >
-              <ChevronLeft className="size-4" />
-              Back
-            </Button>
-
-            {currentStep < STEPS.length - 1 ? (
-              <Button
-                size="lg"
-                onClick={handleNext}
-                className="gap-2"
+          <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm sm:p-10">
+            <AnimatePresence mode="wait" custom={direction}>
+              <motion.div
+                key={currentStep}
+                custom={direction}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
               >
-                Next
-                <ChevronRight className="size-4" />
+                {renderStep()}
+              </motion.div>
+            </AnimatePresence>
+
+            {/* Navigation buttons */}
+            <div className="mt-8 flex items-center justify-between border-t border-gray-100 pt-6">
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={handleBack}
+                disabled={currentStep === 0}
+                className="gap-2 rounded-xl"
+              >
+                <ChevronLeft className="size-4" />
+                Back
               </Button>
-            ) : null}
+
+              {currentStep < STEPS.length - 1 ? (
+                <Button
+                  size="lg"
+                  onClick={handleNext}
+                  className="gap-2 rounded-xl bg-teal-800 py-4 font-bold shadow-lg hover:bg-teal-900"
+                >
+                  Next
+                  <ChevronRight className="size-4" />
+                </Button>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>
