@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import { Sparkles, X } from 'lucide-react';
 import {
   Sheet,
@@ -22,6 +23,13 @@ import { CribAIChat } from '../cribai-chat';
  * proposals from CribAIChat's SSE back to ChatProvider.
  */
 export function AIChatPanel() {
+  const pathname = usePathname();
+  // Hide on pages that embed their own chat/missions UI
+  const hiddenPaths = ['/explore', '/messages', '/chat'];
+  if (hiddenPaths.some(p => pathname === p || pathname.startsWith(`${p}/`))) {
+    return null;
+  }
+
   const {
     open,
     setOpen,

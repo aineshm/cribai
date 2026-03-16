@@ -13,3 +13,7 @@ coverage/
 .mcp.json
 gen-lang-client-*.json
 .playwright-mcp/
+playwright-report/
+test-results/
+.DS_Store
+info-dump.md

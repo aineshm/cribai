@@ -1,7 +1,7 @@
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@900,700,500,300,400&f[]=cabinet-grotesk@800,500,700,400,900&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import url('https://api.fontshare.com/v2/css?f[]=satoshi@900,700,500,300,400&f[]=cabinet-grotesk@800,500,700,400,900&display=swap');
 
 @custom-variant dark (&:is(.dark *));
 
