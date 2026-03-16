@@ -58,7 +58,7 @@ export function MobileBottomNav({ isAuthenticated }: MobileBottomNavProps) {
         if (item.elevated) {
           return (
             <Link
-              key={item.href}
+              key={item.label}
               href={item.href}
               aria-current={isActive ? 'page' : undefined}
               className={`flex h-full w-full flex-col items-center justify-center space-y-1 ${
@@ -75,7 +75,7 @@ export function MobileBottomNav({ isAuthenticated }: MobileBottomNavProps) {
 
         return (
           <Link
-            key={item.href}
+            key={item.label}
             href={item.href}
             aria-current={isActive ? 'page' : undefined}
             className={`relative flex h-full w-full flex-col items-center justify-center space-y-1 ${

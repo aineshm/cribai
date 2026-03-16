@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
 import { SavedListings } from '@/components/profile/SavedListings';
 import { AccountSettings } from '@/components/profile/AccountSettings';
@@ -37,6 +37,10 @@ export function ProfilePageClient({
   isVerified,
   savedListings,
 }: ProfilePageClientProps) {
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const defaultTab = tabParam === 'saved' || tabParam === 'chats' || tabParam === 'settings' ? tabParam : 'saved';
+
   return (
     <motion.div
       variants={pageTransition}
@@ -57,7 +61,7 @@ export function ProfilePageClient({
 
       {/* Tabbed Content */}
       <div className="mt-8">
-        <Tabs defaultValue="saved">
+        <Tabs defaultValue={defaultTab}>
           <TabsList variant="line" className="mb-6">
             <TabsTrigger value="saved" className="gap-1.5">
               <Heart className="size-4" />

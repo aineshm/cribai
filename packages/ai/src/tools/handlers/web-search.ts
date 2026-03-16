@@ -80,11 +80,13 @@ export async function persistWebListing(
   }
 
   try {
+    // Use address+URL as external_id to avoid collisions when one page has multiple addresses
+    const externalId = `${params.sourceUrl}#${params.address}`;
     const { data, error } = await context.supabase
       .from('listings')
       .upsert(
         {
-          external_id: params.sourceUrl,
+          external_id: externalId,
           address: params.address,
           source: 'web_search',
           source_url: params.sourceUrl,

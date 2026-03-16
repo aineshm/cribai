@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { CribAIChat } from '../../../components/cribai-chat';
 import { ConversationSidebar } from '../../../components/chat/conversation-sidebar';
 import { MissionProposalCard } from '../../../components/chat/MissionProposalCard';
@@ -16,10 +17,19 @@ import { useConcierge } from '../../../components/concierge/ConciergeProvider';
  * context, which is set by the layout. This ensures a single source of truth.
  */
 export function ChatPageClient() {
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const conversationParam = searchParams.get('conversation');
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(conversationParam);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { pendingProposal, setPendingProposal, campusId, campusSlug, isAuthenticated } = useChatContext();
   const { missions } = useConcierge();
+
+  // Sync with URL search params (e.g., navigating from Profile chat history)
+  useEffect(() => {
+    if (conversationParam && conversationParam !== activeConversationId) {
+      setActiveConversationId(conversationParam);
+    }
+  }, [conversationParam]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSelectConversation = useCallback((id: string) => {
     setActiveConversationId(id);

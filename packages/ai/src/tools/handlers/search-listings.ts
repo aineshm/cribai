@@ -80,7 +80,19 @@ async function semanticSearch(
     throw new Error(`Semantic search failed: ${error.message}`);
   }
 
-  const rows = (data ?? []) as readonly SemanticRpcRow[];
+  let rows = (data ?? []) as readonly SemanticRpcRow[];
+
+  // Apply map viewport bounds filter (client-side since RPC doesn't support it)
+  if (context.mapBounds) {
+    const BUFFER = 0.005;
+    rows = rows.filter(row =>
+      row.latitude != null && row.longitude != null &&
+      row.latitude >= context.mapBounds!.minLat - BUFFER &&
+      row.latitude <= context.mapBounds!.maxLat + BUFFER &&
+      row.longitude >= context.mapBounds!.minLng - BUFFER &&
+      row.longitude <= context.mapBounds!.maxLng + BUFFER
+    );
+  }
 
   // Map RPC results to ListingSummary (already sorted by similarity)
   const listings: readonly ListingSummary[] = rows.map(row => ({

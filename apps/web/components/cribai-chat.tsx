@@ -476,7 +476,7 @@ export function CribAIChat({
       setIsStreaming(false);
       abortRef.current = null;
     }
-  }, [input, isStreaming, messages, campusSlug, campusId, conversationId, isAuthenticated, onConversationCreated, onMissionProposal, scrollToBottom]);
+  }, [input, isStreaming, messages, campusSlug, campusId, conversationId, isAuthenticated, onConversationCreated, onMissionProposal, onMessageSent, onSearchContext, mapBounds, scrollToBottom]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
