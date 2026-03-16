@@ -144,7 +144,7 @@ export function PostWizard({ userEmail }: PostWizardProps) {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col lg:flex-row">
+    <div className="flex min-h-[calc(100dvh-var(--app-header-height)-var(--mobile-nav-height)-var(--safe-area-bottom))] flex-col lg:min-h-[calc(100dvh-var(--app-header-height))] lg:flex-row">
       {/* Desktop sidebar */}
       <div className="hidden lg:block">
         <StepSidebar

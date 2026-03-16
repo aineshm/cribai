@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Bot, CheckCircle2, Clock, AlertCircle, FileText, Sparkles, X } from 'lucide-react';
 import { useConcierge } from '@/components/concierge/ConciergeProvider';
 import type { LegacyMission } from '@/lib/concierge-types';
@@ -39,10 +39,24 @@ export function MessagesPageClient() {
   const { missions, selectedMission, selectMission } = useConcierge();
   const [tab, setTab] = useState<TabValue>('active');
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+  const detailTitleId = useId();
 
   const activeMissions = missions.filter(m => ACTIVE_STATUSES.has(m.status));
   const pastMissions = missions.filter(m => !ACTIVE_STATUSES.has(m.status));
   const displayedMissions = tab === 'active' ? activeMissions : pastMissions;
+
+  useEffect(() => {
+    if (!mobileDetailOpen) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setMobileDetailOpen(false);
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [mobileDetailOpen]);
 
   function handleSelectMission(mission: LegacyMission) {
     selectMission(mission);
@@ -50,24 +64,33 @@ export function MessagesPageClient() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-64px)] bg-white">
+    <div className="app-mobile-pane flex overflow-hidden bg-white">
       {/* Mobile detail drawer */}
       {mobileDetailOpen && selectedMission && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div
             className="absolute inset-0 bg-black/30 backdrop-blur-sm"
             onClick={() => setMobileDetailOpen(false)}
+            aria-hidden="true"
           />
-          <div className="absolute inset-x-0 bottom-0 top-16 bg-white rounded-t-3xl overflow-hidden flex flex-col shadow-xl">
-            <div className="flex items-center justify-between p-4 border-b border-gray-100">
-              <h2 className="font-[family-name:var(--font-display)] font-bold text-gray-900 truncate">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={detailTitleId}
+            className="absolute inset-x-0 bottom-0 top-16 flex flex-col overflow-hidden rounded-t-3xl bg-white shadow-xl"
+          >
+            <div className="flex items-center justify-between border-b border-gray-100 p-4">
+              <h2
+                id={detailTitleId}
+                className="truncate font-[family-name:var(--font-display)] font-bold text-gray-900"
+              >
                 {selectedMission.title}
               </h2>
               <button
                 type="button"
                 aria-label="Close mission detail"
                 onClick={() => setMobileDetailOpen(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+                className="flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-gray-100"
               >
                 <X className="size-4 text-gray-500" />
               </button>
@@ -80,7 +103,7 @@ export function MessagesPageClient() {
       )}
 
       {/* Sidebar */}
-      <div className="w-full md:w-[400px] border-r border-gray-100 flex flex-col bg-gray-50/50">
+      <div className="flex w-full flex-col border-r border-gray-100 bg-gray-50/50 md:w-[400px]">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100 p-4">
           <div className="flex items-center gap-3">

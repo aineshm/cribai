@@ -24,12 +24,6 @@ import { CribAIChat } from '../cribai-chat';
  */
 export function AIChatPanel() {
   const pathname = usePathname();
-  // Hide on pages that embed their own chat/missions UI
-  const hiddenPaths = ['/explore', '/messages', '/chat'];
-  if (hiddenPaths.some(p => pathname === p || pathname.startsWith(`${p}/`))) {
-    return null;
-  }
-
   const {
     open,
     setOpen,
@@ -48,6 +42,12 @@ export function AIChatPanel() {
     },
     [setPendingProposal],
   );
+
+  // Hide on pages that embed their own chat/missions UI
+  const hiddenPaths = ['/explore', '/messages', '/chat'];
+  if (hiddenPaths.some(p => pathname === p || pathname.startsWith(`${p}/`))) {
+    return null;
+  }
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>

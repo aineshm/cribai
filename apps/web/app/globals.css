@@ -7,6 +7,10 @@
 
 /* ─── Design Tokens ─── */
 :root {
+  --app-header-height: 4rem;
+  --mobile-nav-height: 4rem;
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+
   /* Primary — Deep Teal */
   --primary-50: #f0fdfa;
   --primary-100: #ccfbf1;
@@ -415,3 +419,23 @@ body {
 /* ─── Hide Scrollbar (for horizontal carousels) ─── */
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.app-mobile-pane {
+  height: calc(100dvh - var(--app-header-height) - var(--mobile-nav-height) - var(--safe-area-bottom));
+  min-height: calc(100dvh - var(--app-header-height) - var(--mobile-nav-height) - var(--safe-area-bottom));
+}
+
+.safe-area-pb {
+  padding-bottom: var(--safe-area-bottom);
+}
+
+@media (min-width: 768px) {
+  .app-mobile-pane {
+    height: calc(100dvh - var(--app-header-height));
+    min-height: calc(100dvh - var(--app-header-height));
+  }
+
+  .safe-area-pb {
+    padding-bottom: 0;
+  }
+}

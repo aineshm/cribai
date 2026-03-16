@@ -245,7 +245,7 @@ export function ListingContent({ listing }: ListingContentProps) {
       </motion.div>
 
       {/* Spacer for mobile bottom bar */}
-      <div className="h-20 md:hidden" />
+      <div className="h-[calc(5rem+var(--safe-area-bottom))] md:hidden" />
     </motion.div>
   );
 }

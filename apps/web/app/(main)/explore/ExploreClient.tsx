@@ -85,9 +85,9 @@ export function ExploreClient({ listings }: ExploreClientProps) {
   const { campusSlug, campusId, isAuthenticated } = useChatContext();
 
   return (
-    <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-white">
+    <div className="app-mobile-pane flex overflow-hidden bg-white">
       {/* Left: Conversational Search Panel */}
-      <div className="flex w-full flex-col md:w-1/2 lg:w-7/12 border-r border-gray-100">
+      <div className="flex w-full min-w-0 flex-col border-r border-gray-100 md:w-1/2 lg:w-7/12">
         <ContextBar />
         <CribAIChat
           campusSlug={campusSlug}
