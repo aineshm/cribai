@@ -17,21 +17,26 @@ interface NavItem {
   readonly elevated?: boolean;
 }
 
-const NAV_ITEMS: readonly NavItem[] = [
-  { href: '/explore', icon: Search, label: 'Search', match: '/explore' },
-  { href: '/messages', icon: Bot, label: 'Agent', match: '/messages', showDot: true },
-  { href: '/post', icon: PlusCircle, label: 'Post', match: '/post', elevated: true },
-  { href: '/profile?tab=saved', icon: Heart, label: 'Saved', match: '/profile' },
-  { href: '/profile', icon: User, label: 'Profile', match: '/profile' },
-];
+function getNavItems(isAuthenticated: boolean): readonly NavItem[] {
+  return [
+    { href: '/explore', icon: Search, label: 'Search', match: '/explore' },
+    { href: isAuthenticated ? '/messages' : '/login', icon: Bot, label: 'Agent', match: '/messages', showDot: isAuthenticated },
+    { href: isAuthenticated ? '/post' : '/login', icon: PlusCircle, label: 'Post', match: '/post', elevated: true },
+    { href: isAuthenticated ? '/profile?tab=saved' : '/login', icon: Heart, label: 'Saved', match: '/profile' },
+    { href: isAuthenticated ? '/profile' : '/login', icon: User, label: 'Profile', match: '/profile' },
+  ];
+}
 
 export function MobileBottomNav({ isAuthenticated }: MobileBottomNavProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  if (!isAuthenticated) return null;
-  // Hide on listing detail (has its own bottom bar) and auth pages
+  // Hide on listing detail (has its own bottom bar), auth pages, and landing page
   if (pathname.startsWith('/listing/')) return null;
+  if (pathname === '/login' || pathname === '/verify-edu') return null;
+  if (pathname === '/') return null;
+
+  const navItems = getNavItems(isAuthenticated);
 
   const savedTabActive = pathname === '/profile' && searchParams.get('tab') === 'saved';
 
@@ -40,7 +45,7 @@ export function MobileBottomNav({ isAuthenticated }: MobileBottomNavProps) {
       aria-label="Primary"
       className="safe-area-pb md:hidden fixed bottom-0 left-0 right-0 z-50 flex min-h-16 items-center justify-around border-t border-[var(--surface-200)] bg-white px-2"
     >
-      {NAV_ITEMS.map((item) => {
+      {navItems.map((item) => {
         const isSavedLink = item.href.startsWith('/profile?tab=saved');
         const isProfileLink = item.href === '/profile';
         const isActive = isSavedLink

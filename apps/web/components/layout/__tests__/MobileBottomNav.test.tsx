@@ -16,7 +16,24 @@ describe('MobileBottomNav', () => {
     mockSearchParams = new URLSearchParams();
   });
 
-  it('does not render when the user is not authenticated', () => {
+  it('renders for unauthenticated users with login links for protected tabs', () => {
+    render(<MobileBottomNav isAuthenticated={false} />);
+    // Search tab still links to /explore
+    expect(screen.getByRole('link', { name: 'Search' })).toHaveAttribute('href', '/explore');
+    // Agent tab links to /login for guests
+    expect(screen.getByRole('link', { name: 'Agent' })).toHaveAttribute('href', '/login');
+    // Profile tab links to /login for guests
+    expect(screen.getByRole('link', { name: 'Profile' })).toHaveAttribute('href', '/login');
+  });
+
+  it('does not render on the landing page', () => {
+    mockPathname = '/';
+    const { container } = render(<MobileBottomNav isAuthenticated={false} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('does not render on login page', () => {
+    mockPathname = '/login';
     const { container } = render(<MobileBottomNav isAuthenticated={false} />);
     expect(container).toBeEmptyDOMElement();
   });

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
-import { Map, Marker } from 'react-map-gl/mapbox';
+import { Map, Marker, Popup } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { motion } from 'framer-motion';
 import { MapPin } from 'lucide-react';
@@ -109,6 +109,39 @@ export function MapPanel({ listings }: MapPanelProps) {
             </Marker>
           );
         })}
+        {selectedId && (() => {
+          const listing = geoListings.find((l) => l.id === selectedId);
+          if (!listing) return null;
+          return (
+            <Popup
+              latitude={listing.latitude!}
+              longitude={listing.longitude!}
+              anchor="bottom"
+              offset={28}
+              closeOnClick={false}
+              onClose={() => setSelectedId(null)}
+              className="[&_.mapboxgl-popup-content]:rounded-xl [&_.mapboxgl-popup-content]:p-0 [&_.mapboxgl-popup-content]:shadow-lg"
+            >
+              <a
+                href={`/listing/${listing.id}`}
+                className="block w-56 rounded-xl bg-white p-3 no-underline transition-colors hover:bg-gray-50"
+              >
+                <p className="text-sm font-bold text-gray-900 truncate">
+                  {listing.title || listing.address || 'Listing'}
+                </p>
+                <p className="mt-1 text-xs text-gray-500 truncate">{listing.address}</p>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-sm font-bold text-teal-800">
+                    ${listing.price.toLocaleString()}/mo
+                  </span>
+                  <span className="text-xs font-medium text-teal-700">
+                    View →
+                  </span>
+                </div>
+              </a>
+            </Popup>
+          );
+        })()}
       </Map>
     </motion.div>
   );

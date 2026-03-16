@@ -272,14 +272,7 @@ export default async function HomePage() {
         </footer>
       </main>
 
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-black/5 bg-white/95 p-4 shadow-[0_-8px_28px_rgba(0,0,0,0.06)] backdrop-blur md:hidden">
-        <Link
-          href={primaryHref}
-          className="flex w-full items-center justify-center rounded-2xl bg-teal-800 px-6 py-4 text-lg font-semibold text-white shadow-lg shadow-teal-900/15"
-        >
-          {primaryText}
-        </Link>
-      </div>
+      {/* Removed: duplicate fixed-bottom CTA on mobile — hero CTA is sufficient */}
     </div>
   );
 }

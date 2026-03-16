@@ -19,7 +19,7 @@ export default function NotFound() {
             Go home
           </Link>
           <Link
-            href="/uw-madison/listings"
+            href="/explore"
             className="rounded-xl border border-[var(--surface-200)] px-5 py-2.5 text-sm font-medium text-[var(--surface-600)] hover:bg-[var(--surface-50)] transition-colors"
           >
             Browse listings
