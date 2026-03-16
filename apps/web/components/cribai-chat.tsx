@@ -480,8 +480,8 @@ export function CribAIChat({
             <div
               className={`space-y-2 px-4 py-3 ${
                 msg.role === 'user'
-                  ? 'max-w-[80%] rounded-2xl rounded-br-md bg-gradient-to-br from-[var(--primary-600)] to-[var(--primary-700)] text-white shadow-md shadow-[var(--primary-600)]/10'
-                  : 'max-w-[75%] lg:max-w-[65%] rounded-2xl rounded-bl-md bg-[var(--surface-100)]/80 text-[var(--surface-800)]'
+                  ? 'max-w-[80%] rounded-2xl rounded-br-sm bg-teal-800 text-white shadow-md'
+                  : 'max-w-[85%] lg:max-w-[70%] rounded-2xl rounded-bl-sm bg-gray-100/80 text-gray-800 border border-gray-200/50'
               }`}
             >
               {msg.blocks.map((block, j) => (

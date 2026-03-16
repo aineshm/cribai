@@ -12,6 +12,7 @@
 import { useConcierge } from '@/components/concierge/ConciergeProvider';
 import { AIChatPanel } from '@/components/chat/AIChatPanel';
 import { ChatProvider } from '@/components/chat/ChatProvider';
+import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 
 interface MainLayoutClientProps {
   readonly children: React.ReactNode;
@@ -32,6 +33,7 @@ export function MainLayoutClient({ children, campusSlug, campusId, isAuthenticat
     >
       {children}
       <AIChatPanel />
+      <MobileBottomNav isAuthenticated={isAuthenticated ?? false} />
     </ChatProvider>
   );
 }
