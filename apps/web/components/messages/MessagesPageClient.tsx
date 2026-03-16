@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Bot, CheckCircle2, Clock, AlertCircle, FileText, Sparkles } from 'lucide-react';
+import { Bot, CheckCircle2, Clock, AlertCircle, FileText, Sparkles, X } from 'lucide-react';
 import { useConcierge } from '@/components/concierge/ConciergeProvider';
 import type { LegacyMission } from '@/lib/concierge-types';
 
@@ -38,13 +38,47 @@ function statusLabel(status: string): string {
 export function MessagesPageClient() {
   const { missions, selectedMission, selectMission } = useConcierge();
   const [tab, setTab] = useState<TabValue>('active');
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
 
   const activeMissions = missions.filter(m => ACTIVE_STATUSES.has(m.status));
   const pastMissions = missions.filter(m => !ACTIVE_STATUSES.has(m.status));
   const displayedMissions = tab === 'active' ? activeMissions : pastMissions;
 
+  function handleSelectMission(mission: LegacyMission) {
+    selectMission(mission);
+    setMobileDetailOpen(true);
+  }
+
   return (
     <div className="flex h-[calc(100vh-64px)] bg-white">
+      {/* Mobile detail drawer */}
+      {mobileDetailOpen && selectedMission && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div
+            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+            onClick={() => setMobileDetailOpen(false)}
+          />
+          <div className="absolute inset-x-0 bottom-0 top-16 bg-white rounded-t-3xl overflow-hidden flex flex-col shadow-xl">
+            <div className="flex items-center justify-between p-4 border-b border-gray-100">
+              <h2 className="font-[family-name:var(--font-display)] font-bold text-gray-900 truncate">
+                {selectedMission.title}
+              </h2>
+              <button
+                type="button"
+                aria-label="Close mission detail"
+                onClick={() => setMobileDetailOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+              >
+                <X className="size-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <MissionDetailPanel mission={selectedMission} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sidebar */}
       <div className="w-full md:w-[400px] border-r border-gray-100 flex flex-col bg-gray-50/50">
         {/* Header */}
@@ -104,7 +138,7 @@ export function MessagesPageClient() {
               key={mission.id}
               mission={mission}
               isSelected={selectedMission?.id === mission.id}
-              onSelect={() => selectMission(mission)}
+              onSelect={() => handleSelectMission(mission)}
             />
           ))}
         </div>

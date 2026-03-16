@@ -27,6 +27,8 @@ function ContextBar() {
   );
 }
 
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? '';
+
 /** Map panel with listing pins (placeholder grayscale style) */
 function MapPanel({ listings }: { readonly listings: readonly ExploreListing[] }) {
   const pins = useMemo(
@@ -37,14 +39,20 @@ function MapPanel({ listings }: { readonly listings: readonly ExploreListing[] }
   return (
     <div className="relative h-full w-full bg-gray-200">
       {/* Grayscale map background */}
-      <Image
-        src="https://api.mapbox.com/styles/v1/mapbox/light-v11/static/-89.4012,43.0731,13,0/800x1200?access_token=pk.placeholder"
-        alt="Map of Madison"
-        fill
-        className="object-cover grayscale"
-        sizes="50vw"
-        unoptimized
-      />
+      {MAPBOX_TOKEN ? (
+        <Image
+          src={`https://api.mapbox.com/styles/v1/mapbox/light-v11/static/-89.4012,43.0731,13,0/800x1200?access_token=${MAPBOX_TOKEN}`}
+          alt="Map of Madison"
+          fill
+          className="object-cover grayscale"
+          sizes="50vw"
+          unoptimized
+        />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+          <p className="text-xs text-gray-400">Map unavailable</p>
+        </div>
+      )}
       <div className="absolute inset-0 bg-white/20" />
 
       {/* Map sync badge */}
