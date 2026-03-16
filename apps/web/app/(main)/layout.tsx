@@ -62,7 +62,7 @@ export default async function MainLayout({
       // MainLayoutClient (inside) can call useConcierge() to get openToMission.
     <ConciergeShell>
       <MainLayoutClient campusSlug={campusSlug} campusId={campusId} isAuthenticated={isAuthenticated}>
-        <div className="min-h-[100dvh]">
+        <div className="min-h-[100dvh] pb-[calc(var(--mobile-nav-height)+var(--safe-area-bottom))] md:pb-0">
           <nav className="sticky top-0 z-50 border-b border-black/5 bg-white/90 px-4 py-3 backdrop-blur-md sm:px-6 lg:px-8">
             <div className="mx-auto flex max-w-7xl items-center justify-between gap-6">
               <Link
@@ -72,7 +72,7 @@ export default async function MainLayout({
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-800 text-white shadow-sm">
                   <Home className="size-5" strokeWidth={2.5} />
                 </span>
-                <span className="text-xl font-semibold tracking-tight text-[var(--surface-900)]">
+                <span className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight text-[var(--surface-900)]">
                   CampusNest
                 </span>
               </Link>

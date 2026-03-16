@@ -40,12 +40,9 @@ describe('StepSidebar desktop navigation', () => {
         onStepClick={vi.fn()}
       />
     );
-    // The label button for the current step (Details) has text-primary class
-    const detailsButtons = screen.getAllByText('Details');
-    const hasActiveClass = detailsButtons.some((el) =>
-      el.className.includes('text-primary')
-    );
-    expect(hasActiveClass).toBe(true);
+    const detailsButton = screen.getByRole('button', { name: 'Details' });
+    expect(detailsButton.className).toContain('text-teal-800');
+    expect(detailsButton.className).toContain('font-bold');
   });
 
   it('shows checkmark icons for completed steps', () => {

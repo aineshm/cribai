@@ -153,6 +153,10 @@ const getLandlordInfo: FunctionDeclaration = {
         type: Type.STRING,
         description: 'UUID of a listing to find its landlord',
       },
+      name: {
+        type: Type.STRING,
+        description: 'Name of the landlord or property management company to search for',
+      },
     },
   },
 };

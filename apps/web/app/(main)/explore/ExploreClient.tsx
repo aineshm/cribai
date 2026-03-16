@@ -1,121 +1,106 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import Link from 'next/link';
-import { motion } from 'framer-motion';
-import { Send } from 'lucide-react';
-import { ExploreLayout } from '@/components/explore/ExploreLayout';
-import { FilterChips } from '@/components/explore/FilterChips';
-import { pageTransition } from '@/lib/animations';
-import { filterListings, DEFAULT_FILTERS, type FilterValues } from '@/lib/filter-listings';
-import { AIChatButton } from '@/components/chat/AIChatButton';
+import { useMemo } from 'react';
+import Image from 'next/image';
+import { Sparkles, History } from 'lucide-react';
+import { CribAIChat } from '@/components/cribai-chat';
+import { useChatContext } from '@/components/chat/ChatProvider';
 import type { ExploreListing } from '@/lib/listing-types';
 
 interface ExploreClientProps {
   readonly listings: readonly ExploreListing[];
 }
 
-export function ExploreClient({ listings }: ExploreClientProps) {
-  const [filters, setFilters] = useState<FilterValues>(DEFAULT_FILTERS);
+/** Context badges shown above the chat */
+function ContextBar() {
+  return (
+    <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar border-b border-gray-100 bg-gray-50/80 px-4 py-2 backdrop-blur-sm">
+      <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-teal-50 px-3 py-1 text-xs font-medium text-teal-800">
+        <Sparkles className="size-3" />
+        Active Context
+      </span>
+      <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs text-gray-500 border border-gray-200">
+        <History className="size-3" />
+        Past Searches
+      </span>
+    </div>
+  );
+}
 
-  const filteredListings = useMemo(
-    () => filterListings(listings, filters),
-    [listings, filters]
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? '';
+
+/** Map panel with listing pins (placeholder grayscale style) */
+function MapPanel({ listings }: { readonly listings: readonly ExploreListing[] }) {
+  const pins = useMemo(
+    () => listings.filter(l => l.latitude !== null && l.longitude !== null).slice(0, 20),
+    [listings],
   );
 
   return (
-    <motion.div
-      className="min-h-screen bg-[linear-gradient(180deg,#ffffff_0%,#f7faf9_100%)]"
-      variants={pageTransition}
-      initial="initial"
-      animate="animate"
-    >
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
-          <div className="space-y-6">
-            <section className="relative overflow-hidden rounded-[2rem] bg-[linear-gradient(135deg,#0f766e_0%,#115e59_46%,#f59e0b_160%)] px-6 py-8 text-white shadow-[0_24px_70px_rgba(15,118,110,0.22)] sm:px-8">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.16),transparent_32%)]" />
-              <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-                <div className="max-w-2xl space-y-4">
-                  <div className="inline-flex items-center gap-2 rounded-full bg-white/12 px-3 py-1.5 text-sm font-medium backdrop-blur">
-                    <Send className="size-4 text-amber-300" />
-                    CampusNest Discovery
-                  </div>
-                  <div className="space-y-2">
-                    <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-                      Find your perfect off-campus home
-                    </h1>
-                    <p className="max-w-xl text-sm leading-7 text-white/80 sm:text-base">
-                      Browse verified listings, filter fast, and use AI when the normal
-                      search UI stops being enough.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="rounded-[1.5rem] bg-white/95 p-4 text-[var(--surface-800)] shadow-xl backdrop-blur sm:max-w-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-700">
-                    Live context
-                  </p>
-                  <p className="mt-2 text-sm leading-6">
-                    {filteredListings.length} matches after filters. Summer subleases, pet-friendly
-                    spots, and walkable options surface first.
-                  </p>
-                </div>
-              </div>
-            </section>
-
-            <Link
-              href="/post"
-              className="flex items-center justify-between gap-3 rounded-[1.5rem] border border-teal-100 bg-teal-50 px-5 py-4 text-sm text-teal-900 shadow-sm transition-colors hover:bg-teal-100"
-            >
-              <span className="flex items-center gap-2">
-                <Send className="size-4" />
-                <span>
-                  <span className="font-semibold">Have a summer sublease?</span>{' '}
-                  Post it free and reach verified students.
-                </span>
-              </span>
-              <span className="hidden text-xs font-semibold uppercase tracking-[0.18em] text-teal-700 sm:inline">
-                Post now
-              </span>
-            </Link>
-
-            <div className="rounded-[1.75rem] border border-[var(--surface-200)] bg-white px-4 py-4 shadow-[0_16px_40px_rgba(0,0,0,0.04)] sm:px-5">
-              <FilterChips
-                resultCount={filteredListings.length}
-                filters={filters}
-                onFiltersChange={setFilters}
-              />
-            </div>
-
-            <ExploreLayout listings={filteredListings} />
-          </div>
-
-          <aside className="hidden lg:block">
-            <div className="sticky top-24 rounded-[1.75rem] border border-[var(--surface-200)] bg-white p-5 shadow-[0_16px_40px_rgba(0,0,0,0.05)]">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-700">
-                Ask AI when you get stuck
-              </p>
-              <h2 className="mt-3 text-2xl font-semibold text-[var(--surface-900)]">
-                Let CampusNest narrow it down.
-              </h2>
-              <p className="mt-3 text-sm leading-7 text-[var(--surface-600)]">
-                Ask for quieter buildings, cat-friendly leases, sublease-only options, or better
-                value near a specific campus building.
-              </p>
-              <div className="mt-5 space-y-2 text-sm text-[var(--surface-600)]">
-                <div className="rounded-2xl bg-[var(--surface-50)] px-4 py-3">
-                  “Find the quietest 2-bed near Engineering under $1,200.”
-                </div>
-                <div className="rounded-2xl bg-[var(--surface-50)] px-4 py-3">
-                  “Which of these has the best landlord reviews?”
-                </div>
-              </div>
-            </div>
-          </aside>
+    <div className="relative h-full w-full bg-gray-200">
+      {/* Grayscale map background */}
+      {MAPBOX_TOKEN ? (
+        <Image
+          src={`https://api.mapbox.com/styles/v1/mapbox/light-v11/static/-89.4012,43.0731,13,0/800x1200?access_token=${MAPBOX_TOKEN}`}
+          alt="Map of Madison"
+          fill
+          className="object-cover grayscale"
+          sizes="50vw"
+          unoptimized
+        />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+          <p className="text-xs text-gray-400">Map unavailable</p>
         </div>
+      )}
+      <div className="absolute inset-0 bg-white/20" />
+
+      {/* Map sync badge */}
+      <div className="absolute top-4 right-4 z-10 flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-md backdrop-blur-sm">
+        <span className="h-2 w-2 rounded-full bg-teal-500 animate-pulse" />
+        Synced with chat
       </div>
-      <AIChatButton />
-    </motion.div>
+
+      {/* Sample listing pins */}
+      {pins.slice(0, 5).map((listing, i) => {
+        const topPercent = 20 + (i * 15);
+        const leftPercent = 15 + (i * 14);
+        return (
+          <div
+            key={listing.id}
+            className="absolute z-10"
+            style={{ top: `${topPercent}%`, left: `${leftPercent}%` }}
+          >
+            <div className="rounded-full bg-teal-800 px-2.5 py-1 text-xs font-bold text-white shadow-lg">
+              ${listing.price.toLocaleString()}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function ExploreClient({ listings }: ExploreClientProps) {
+  const { campusSlug, campusId, isAuthenticated } = useChatContext();
+
+  return (
+    <div className="app-mobile-pane flex overflow-hidden bg-white">
+      {/* Left: Conversational Search Panel */}
+      <div className="flex w-full min-w-0 flex-col border-r border-gray-100 md:w-1/2 lg:w-7/12">
+        <ContextBar />
+        <CribAIChat
+          campusSlug={campusSlug}
+          campusId={campusId}
+          isAuthenticated={isAuthenticated}
+          className="flex flex-1 flex-col"
+        />
+      </div>
+
+      {/* Right: Map Panel (desktop only) */}
+      <div className="hidden md:block md:w-1/2 lg:w-5/12">
+        <MapPanel listings={listings} />
+      </div>
+    </div>
   );
 }

@@ -17,8 +17,8 @@ export function StepSidebar({
   onStepClick,
 }: StepSidebarProps) {
   return (
-    <aside className="sticky top-0 flex h-screen w-[260px] flex-col border-r border-border bg-card px-6 py-10">
-      <h2 className="mb-8 font-[family-name:var(--font-display)] text-lg font-semibold text-foreground">
+    <aside className="sticky top-0 flex h-screen w-[260px] flex-col border-r border-gray-100 bg-white px-6 py-10">
+      <h2 className="mb-8 font-[family-name:var(--font-display)] text-lg font-bold text-gray-900">
         Post Sublease
       </h2>
 
@@ -36,13 +36,13 @@ export function StepSidebar({
                   type="button"
                   onClick={() => onStepClick(index)}
                   className={cn(
-                    'flex size-8 shrink-0 items-center justify-center rounded-full border-2 text-sm font-medium transition-colors',
+                    'flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold transition-all',
                     isCompleted &&
-                      'border-primary bg-primary text-primary-foreground',
+                      'bg-teal-800 text-white shadow-sm',
                     isCurrent &&
-                      'border-primary bg-primary/10 text-primary',
+                      'border-2 border-amber-400 bg-white text-teal-800 ring-4 ring-amber-400/20',
                     isUpcoming &&
-                      'border-muted-foreground/30 text-muted-foreground/50'
+                      'border-2 border-gray-200 text-gray-400'
                   )}
                 >
                   {isCompleted ? (
@@ -58,8 +58,8 @@ export function StepSidebar({
                     className={cn(
                       'h-8 w-0.5 transition-colors',
                       isCompleted
-                        ? 'bg-primary'
-                        : 'bg-muted-foreground/20'
+                        ? 'bg-teal-800'
+                        : 'bg-gray-200'
                     )}
                   />
                 )}
@@ -71,9 +71,9 @@ export function StepSidebar({
                 onClick={() => onStepClick(index)}
                 className={cn(
                   'mt-1 text-sm font-medium transition-colors',
-                  isCurrent && 'text-primary',
-                  isCompleted && 'text-foreground',
-                  isUpcoming && 'text-muted-foreground/60'
+                  isCurrent && 'text-teal-800 font-bold',
+                  isCompleted && 'text-gray-900',
+                  isUpcoming && 'text-gray-400'
                 )}
               >
                 {step.label}

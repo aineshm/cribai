@@ -133,39 +133,28 @@ export function CTASidebar({
         initial="initial"
         animate="animate"
       >
-        <Card className="overflow-hidden rounded-[1.75rem] border border-[var(--surface-200)] bg-white shadow-[0_20px_48px_rgba(15,23,42,0.08)]">
-          <div className="bg-[linear-gradient(135deg,#0f766e_0%,#115e59_42%,#f59e0b_160%)] px-5 py-4 text-white">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/75">
-              Ready to move fast?
-            </p>
-            <p className="mt-2 text-sm leading-6 text-white/90">
-              Save it, ask CampusNest AI for lease context, or request a tour.
-            </p>
-          </div>
-          <CardContent className="space-y-4 p-5">
+        <Card className="overflow-hidden rounded-3xl border border-gray-200 bg-white p-6 shadow-lg">
+          <CardContent className="space-y-5 p-0">
             {/* Price */}
-            <div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-3xl font-bold text-foreground font-[family-name:var(--font-display)]">
-                  ${price.toLocaleString()}
-                </span>
-                <span className="text-muted-foreground text-sm">/month</span>
-              </div>
+            <div className="flex items-baseline gap-1">
+              <span className="font-[family-name:var(--font-display)] text-3xl font-extrabold text-foreground">
+                ${price.toLocaleString()}
+              </span>
+              <span className="text-muted-foreground text-sm">/month</span>
             </div>
 
             {/* Primary CTA */}
             <Button
-              className="h-11 w-full rounded-xl bg-teal-800 hover:bg-teal-900"
+              className="h-12 w-full rounded-xl bg-teal-800 text-base font-bold shadow-lg hover:bg-teal-900"
               onClick={() => setTourModalOpen(true)}
             >
               <Calendar className="size-4" />
               Book a Tour
             </Button>
 
-            {/* Secondary CTA */}
+            {/* Secondary CTA — amber accent */}
             <Button
-              variant="outline"
-              className="h-11 w-full rounded-xl border-teal-200 text-teal-800 hover:bg-teal-50"
+              className="h-12 w-full rounded-xl bg-amber-400 text-base font-bold text-amber-950 shadow-sm hover:bg-amber-500"
               onClick={() => {
                 setDraftPrompt(`Tell me about ${listingTitle} at ${listingAddress}.`);
                 openChat(true);

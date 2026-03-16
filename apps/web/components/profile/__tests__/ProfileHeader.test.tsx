@@ -3,11 +3,15 @@ import { render, screen } from '@testing-library/react';
 import { ProfileHeader } from '../ProfileHeader';
 
 // Mock lucide-react icons
-vi.mock('lucide-react', () => ({
-  ShieldCheck: () => <svg data-testid="shield-check-icon" />,
-  GraduationCap: () => <svg data-testid="graduation-cap-icon" />,
-  CalendarDays: () => <svg data-testid="calendar-days-icon" />,
-}));
+vi.mock('lucide-react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('lucide-react')>();
+  return {
+    ...actual,
+    CheckCircle2: () => <svg data-testid="check-circle-icon" />,
+    GraduationCap: () => <svg data-testid="graduation-cap-icon" />,
+    CalendarDays: () => <svg data-testid="calendar-days-icon" />,
+  };
+});
 
 describe('ProfileHeader card', () => {
   const baseProps = {

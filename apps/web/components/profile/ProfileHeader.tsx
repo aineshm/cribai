@@ -1,12 +1,7 @@
 'use client';
 
-import {
-  Card,
-  CardContent,
-} from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { ShieldCheck, GraduationCap, CalendarDays } from 'lucide-react';
+import { CheckCircle2, GraduationCap, CalendarDays } from 'lucide-react';
 
 interface ProfileHeaderProps {
   readonly name: string;
@@ -35,42 +30,44 @@ export function ProfileHeader({
     .slice(0, 2);
 
   return (
-    <Card>
-      <CardContent className="flex flex-col items-center gap-4 py-6 sm:flex-row sm:items-start">
-        <Avatar className="size-20">
+    <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm sm:p-8">
+      <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
+        <Avatar className="size-24 shrink-0 bg-teal-800 text-3xl font-bold">
           {avatarUrl ? (
             <AvatarImage src={avatarUrl} alt={`${name}'s profile photo`} />
           ) : null}
-          <AvatarFallback className="text-lg">{initials}</AvatarFallback>
+          <AvatarFallback className="bg-teal-800 text-2xl font-bold text-white">
+            {initials}
+          </AvatarFallback>
         </Avatar>
 
         <div className="flex-1 text-center sm:text-left">
           <div className="flex flex-col items-center gap-2 sm:flex-row">
-            <h1 className="font-[family-name:var(--font-display)] text-xl font-semibold text-foreground">
+            <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold text-gray-900">
               {name}
             </h1>
             {isVerified && (
-              <Badge variant="default" className="gap-1">
-                <ShieldCheck className="size-3" />
+              <span className="flex items-center gap-1 rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800">
+                <CheckCircle2 className="size-3.5" />
                 Verified Student
-              </Badge>
+              </span>
             )}
           </div>
 
-          <p className="mt-0.5 text-sm text-muted-foreground">{email}</p>
+          <p className="mt-1 text-sm text-gray-500">{email}</p>
 
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground sm:justify-start">
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-4 text-sm text-gray-500 sm:justify-start">
             <span className="flex items-center gap-1.5">
-              <GraduationCap className="size-4" />
+              <GraduationCap className="size-4 text-teal-700" />
               {university} &middot; Class of {graduationYear}
             </span>
             <span className="flex items-center gap-1.5">
-              <CalendarDays className="size-4" />
+              <CalendarDays className="size-4 text-teal-700" />
               Member since {memberSince}
             </span>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

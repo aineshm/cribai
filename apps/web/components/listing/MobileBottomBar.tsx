@@ -29,7 +29,7 @@ export function MobileBottomBar({
   return (
     <>
       <motion.div
-        className="fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--surface-200)] bg-white/94 px-4 py-3 backdrop-blur-md md:hidden"
+        className="safe-area-pb fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--surface-200)] bg-white/94 px-4 py-3 backdrop-blur-md md:hidden"
         variants={slideInFromBottom}
         initial="initial"
         animate="animate"

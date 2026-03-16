@@ -49,7 +49,7 @@ export default async function HomePage() {
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-800 text-white shadow-sm">
               <Home className="size-5" strokeWidth={2.5} />
             </span>
-            <span className="text-xl font-semibold tracking-tight">CampusNest</span>
+            <span className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight">CampusNest</span>
           </Link>
 
           <div className="hidden md:flex items-center gap-6 text-sm font-medium text-[var(--surface-600)]">
@@ -81,7 +81,7 @@ export default async function HomePage() {
             </div>
 
             <div className="space-y-4">
-              <h1 className="max-w-2xl text-5xl font-semibold leading-[1.02] tracking-tight text-[var(--surface-900)] sm:text-6xl">
+              <h1 className="font-[family-name:var(--font-display)] max-w-2xl text-5xl font-extrabold leading-[1.05] tracking-tight text-[var(--surface-900)] sm:text-6xl">
                 Find your perfect college apartment
                 <span className="text-teal-800"> with AI that actually understands.</span>
               </h1>
@@ -157,7 +157,7 @@ export default async function HomePage() {
 
         <section className="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
           <div className="mx-auto mb-16 max-w-2xl text-center">
-            <h2 className="font-[family-name:var(--font-display)] text-4xl font-semibold text-[var(--surface-900)]">
+            <h2 className="font-[family-name:var(--font-display)] text-4xl font-bold text-[var(--surface-900)]">
               Apartment hunting, rebuilt for students.
             </h2>
             <p className="mt-4 text-lg text-[var(--surface-600)]">
@@ -198,7 +198,7 @@ export default async function HomePage() {
                   <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${feature.tone}`}>
                     <Icon className="size-5" />
                   </div>
-                  <h3 className="mt-6 text-2xl font-semibold text-[var(--surface-900)]">
+                  <h3 className="mt-6 font-[family-name:var(--font-display)] text-2xl font-bold text-[var(--surface-900)]">
                     {feature.title}
                   </h3>
                   <p className="mt-3 leading-7 text-[var(--surface-600)]">
@@ -213,7 +213,7 @@ export default async function HomePage() {
         <section className="relative overflow-hidden bg-teal-900 py-24 text-white">
           <div className="absolute top-0 right-[-10%] h-80 w-80 rounded-full bg-teal-800 blur-3xl" />
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <h2 className="mb-16 text-center text-4xl font-semibold">How CampusNest works</h2>
+            <h2 className="mb-16 text-center font-[family-name:var(--font-display)] text-4xl font-bold">How CampusNest works</h2>
             <div className="grid gap-10 md:grid-cols-3">
               {[
                 ['01', 'Sign up with .edu', 'Create your student account and unlock verified-only search.'],
@@ -235,7 +235,7 @@ export default async function HomePage() {
         <footer className="bg-[var(--surface-50)] pt-20 pb-10">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="mb-20 rounded-[2rem] bg-amber-400 px-8 py-14 text-center shadow-xl shadow-amber-500/20 md:px-16">
-              <h2 className="text-4xl font-semibold text-[var(--surface-900)] sm:text-5xl">
+              <h2 className="font-[family-name:var(--font-display)] text-4xl font-bold text-[var(--surface-900)] sm:text-5xl">
                 Ready to find your nest?
               </h2>
               <p className="mx-auto mt-5 max-w-2xl text-lg text-amber-950/80">
