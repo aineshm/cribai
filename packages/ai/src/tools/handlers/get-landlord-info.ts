@@ -6,7 +6,7 @@ import { textSearchPlace, getPlaceDetails } from '../lib/google-places';
 const inputSchema = z.object({
   landlord_id: z.string().uuid().optional(),
   listing_id: z.string().uuid().optional(),
-  name: z.string().optional(),
+  name: z.string().trim().min(1).max(200).optional(),
 });
 
 const CACHE_TTL_MS = 86_400_000; // 24 hours
@@ -51,7 +51,19 @@ async function lookupViaGooglePlaces(
   const cached = await getCached<ToolResult>(context.supabase, cacheKey);
   if (cached) return cached;
 
-  const placeId = await textSearchPlace(`${searchQuery}, Madison, WI`, apiKey);
+  let placeId: string | null;
+  try {
+    placeId = await textSearchPlace(`${searchQuery}, Madison, WI`, apiKey);
+  } catch (err) {
+    console.warn('[get-landlord-info] Google Places search failed:', err instanceof Error ? err.message : err);
+    return {
+      modelContext: `Google Places search failed for "${searchQuery}". No landlord info available.`,
+      clientBlock: {
+        type: 'text' as const,
+        content: 'Could not look up landlord information right now. Please try again later.',
+      },
+    };
+  }
   if (!placeId) {
     return {
       modelContext: `No Google Places listing found for "${searchQuery}". No landlord info available.`,
@@ -71,7 +83,7 @@ async function lookupViaGooglePlaces(
   const reviews = details.reviews ?? [];
   const rating = details.rating;
   const ratingCount = details.userRatingCount;
-  const placeName = details.displayName.text;
+  const placeName = details.displayName?.text ?? 'Unknown Property';
 
   const modelLines = [`Property: ${placeName}`];
 
@@ -85,7 +97,10 @@ async function lookupViaGooglePlaces(
     modelLines.push('');
     modelLines.push('Notable reviews:');
     for (const r of reviews.slice(0, 3)) {
-      modelLines.push(`- [${r.rating}/5] "${r.text.text}" — ${r.authorAttribution.displayName} (${r.relativePublishTimeDescription})`);
+      const reviewText = r.text?.text ?? '';
+      const authorName = r.authorAttribution?.displayName ?? 'Anonymous';
+      const timeDesc = r.relativePublishTimeDescription ?? '';
+      modelLines.push(`- [${r.rating}/5] "${reviewText}" — ${authorName} (${timeDesc})`);
     }
   }
 
@@ -98,7 +113,10 @@ async function lookupViaGooglePlaces(
   if (reviews.length > 0) {
     clientLines.push('');
     for (const r of reviews.slice(0, 3)) {
-      clientLines.push(`> "${r.text.text}"\n> — ${r.authorAttribution.displayName}, ${r.relativePublishTimeDescription}`);
+      const reviewText = r.text?.text ?? '';
+      const authorName = r.authorAttribution?.displayName ?? 'Anonymous';
+      const timeDesc = r.relativePublishTimeDescription ?? '';
+      clientLines.push(`> "${reviewText}"\n> — ${authorName}, ${timeDesc}`);
     }
   }
 
@@ -199,7 +217,12 @@ export async function getLandlordInfo(
   if (companyName) {
     try {
       const placesResult = await lookupViaGooglePlaces(companyName, context);
-      modelContext += `\n\nGoogle Places data:\n${placesResult.modelContext}`;
+      const isUseful = !placesResult.modelContext.includes('not configured')
+        && !placesResult.modelContext.includes('No Google Places listing found')
+        && !placesResult.modelContext.includes('search failed');
+      if (isUseful) {
+        modelContext += `\n\nGoogle Places data:\n${placesResult.modelContext}`;
+      }
     } catch {
       // Google Places lookup failed — continue with DB data only
     }

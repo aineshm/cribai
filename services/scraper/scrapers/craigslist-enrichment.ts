@@ -169,7 +169,9 @@ async function extractWithLLM(
       amenities: Array.isArray(parsed.amenities)
         ? parsed.amenities.filter((a): a is string => typeof a === 'string')
         : [],
-      availableDate: typeof parsed.availableDate === 'string' ? parsed.availableDate : null,
+      availableDate: typeof parsed.availableDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(parsed.availableDate)
+        ? parsed.availableDate
+        : null,
       petPolicy: typeof parsed.petPolicy === 'string' ? parsed.petPolicy : null,
       parking: typeof parsed.parking === 'string' ? parsed.parking : null,
       furnished: typeof parsed.furnished === 'boolean' ? parsed.furnished : null,
@@ -212,7 +214,9 @@ export async function enrichListings(
   console.log(`[craigslist-enrich] Enriching ${listings.length} listings from detail pages`);
 
   const gemini = createGeminiClient();
-  let enrichedCount = 0;
+  let processedCount = 0;
+  let fetchedCount = 0;
+  let failedCount = 0;
   let llmCount = 0;
 
   const enriched: RawListing[] = [];
@@ -224,17 +228,20 @@ export async function enrichListings(
     }
 
     // Rate limit between fetches
-    if (enrichedCount > 0) {
+    if (processedCount > 0) {
       const delay = DETAIL_FETCH_DELAY_MS + Math.random() * 500;
       await sleep(delay);
     }
 
+    processedCount++;
     const html = await fetchWithRetry(listing.sourceUrl);
     if (!html) {
       enriched.push(listing);
-      enrichedCount++;
+      failedCount++;
       continue;
     }
+
+    fetchedCount++;
 
     const detail = parseDetailPage(html);
 
@@ -271,12 +278,17 @@ export async function enrichListings(
     }
 
     enriched.push(merged);
-    enrichedCount++;
   }
 
   console.log(
-    `[craigslist-enrich] Done: ${enrichedCount} detail pages fetched, ${llmCount} LLM extractions`,
+    `[craigslist-enrich] Done: ${fetchedCount}/${processedCount} detail pages fetched (${failedCount} failed), ${llmCount} LLM extractions`,
   );
+
+  if (processedCount > 0 && failedCount / processedCount > 0.5) {
+    console.warn(
+      `[craigslist-enrich] WARNING: ${Math.round((failedCount / processedCount) * 100)}% of detail page fetches failed — Craigslist may be rate-limiting`,
+    );
+  }
 
   return enriched;
 }
