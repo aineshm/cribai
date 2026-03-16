@@ -193,7 +193,18 @@ async function sqlSearch(
       'id, address, rent_monthly, bedrooms, bathrooms, sqft, fairness_score, true_cost_total, amenities, source',
     )
     .eq('campus_id', context.campusId)
-    .eq('is_active', true);
+    .eq('is_active', true)
+    .gt('rent_monthly', 0);
+
+  // Apply map viewport bounds as geographic filter (~500m buffer)
+  if (context.mapBounds) {
+    const BUFFER = 0.005; // ~500m in degrees
+    query = query
+      .gte('latitude', context.mapBounds.minLat - BUFFER)
+      .lte('latitude', context.mapBounds.maxLat + BUFFER)
+      .gte('longitude', context.mapBounds.minLng - BUFFER)
+      .lte('longitude', context.mapBounds.maxLng + BUFFER);
+  }
 
   if (parsed.bedrooms !== undefined) {
     if (parsed.bedrooms >= 4) {

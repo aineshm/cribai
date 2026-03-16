@@ -14,12 +14,20 @@ export type ToolName =
   | 'contact_pm'
   | 'get_neighborhood_info';
 
+export interface MapBounds {
+  readonly minLat: number;
+  readonly maxLat: number;
+  readonly minLng: number;
+  readonly maxLng: number;
+}
+
 export interface ToolContext {
   readonly supabase: SupabaseClient;
   readonly campusId: string;
   readonly campusSlug: string;
   readonly userId?: string;
   readonly allowedToolNames?: readonly ToolName[];
+  readonly mapBounds?: MapBounds;
 }
 
 export interface ToolResult {

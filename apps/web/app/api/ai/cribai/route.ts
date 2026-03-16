@@ -155,7 +155,7 @@ async function checkRateLimit(
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as Record<string, unknown>;
-    const { query, campusSlug, history } = body;
+    const { query, campusSlug, history, bounds } = body;
 
     // --- Input validation ---------------------------------------------------
     if (typeof query !== 'string' || typeof campusSlug !== 'string') {
@@ -249,12 +249,18 @@ export async function POST(request: NextRequest) {
     const conversationHistory = clampHistory(parseHistory(history), isGuest);
 
     // --- Build ToolContext for the new engine --------------------------------
+    // Parse optional map viewport bounds for geographic filtering
+    const mapBounds = bounds && typeof bounds === 'object'
+      ? bounds as { minLat: number; maxLat: number; minLng: number; maxLng: number }
+      : undefined;
+
     const toolContext = {
       supabase,
       campusId: campus.id as string,
       campusSlug,
       userId: userId ?? undefined,
       allowedToolNames: isGuest ? GUEST_ALLOWED_TOOLS : undefined,
+      mapBounds,
     };
 
     // --- Initialize CribAI --------------------------------------------------

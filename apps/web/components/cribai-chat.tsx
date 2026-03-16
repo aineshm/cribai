@@ -19,6 +19,22 @@ interface MissionProposal {
   readonly extractedFields: Record<string, unknown>;
 }
 
+/** Geographic bounds from the map viewport */
+interface MapBounds {
+  readonly minLat: number;
+  readonly maxLat: number;
+  readonly minLng: number;
+  readonly maxLng: number;
+}
+
+/** Search context extracted from AI tool calls */
+interface SearchContextUpdate {
+  readonly mapArea?: string;
+  readonly budget?: string;
+  readonly bedrooms?: string;
+  readonly amenities?: readonly string[];
+}
+
 interface CribAIChatProps {
   readonly campusSlug: string;
   readonly campusId?: string;
@@ -31,6 +47,12 @@ interface CribAIChatProps {
   /** Called when the AI proposes a mission via SSE. */
   readonly onMissionProposal?: (proposal: MissionProposal) => void;
   readonly onInputSeedConsumed?: () => void;
+  /** Map viewport bounds to include in search context */
+  readonly mapBounds?: MapBounds | null;
+  /** Called when user sends a message (for locking map bounds) */
+  readonly onMessageSent?: () => void;
+  /** Called when AI tool calls reveal search filters */
+  readonly onSearchContext?: (ctx: SearchContextUpdate) => void;
   /** Optional CSS class for the outermost container (e.g. `h-full` when rendered inside a Sheet). */
   readonly className?: string;
 }
@@ -148,6 +170,9 @@ export function CribAIChat({
   onConversationCreated,
   onMissionProposal,
   onInputSeedConsumed,
+  mapBounds,
+  onMessageSent,
+  onSearchContext: _onSearchContext,
   className,
 }: CribAIChatProps) {
   const [messages, setMessages] = useState<readonly Message[]>([]);
@@ -269,10 +294,18 @@ export function CribAIChat({
         headers['Authorization'] = `Bearer ${session.access_token}`;
       }
 
+      // Notify parent that user sent a message (to lock map bounds)
+      onMessageSent?.();
+
       const response = await fetch('/api/ai/cribai', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ query, campusSlug, history }),
+        body: JSON.stringify({
+          query,
+          campusSlug,
+          history,
+          ...(mapBounds ? { bounds: mapBounds } : {}),
+        }),
         signal: controller.signal,
       });
 

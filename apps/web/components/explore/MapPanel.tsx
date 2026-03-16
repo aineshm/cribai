@@ -4,9 +4,17 @@ import { useState, useCallback, useMemo } from 'react';
 import { Map, Marker, Popup } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { motion } from 'framer-motion';
-import { MapPin } from 'lucide-react';
+import { MapPin, Search } from 'lucide-react';
 import { fadeIn } from '@/lib/animations';
 import type { ExploreListing } from '@/lib/listing-types';
+import type { ViewStateChangeEvent } from 'react-map-gl/mapbox';
+
+export interface MapBounds {
+  readonly minLat: number;
+  readonly maxLat: number;
+  readonly minLng: number;
+  readonly maxLng: number;
+}
 
 /** UW-Madison campus center */
 const DEFAULT_CENTER = { latitude: 43.0731, longitude: -89.4012 };
@@ -14,14 +22,29 @@ const DEFAULT_ZOOM = 13;
 
 interface MapPanelProps {
   readonly listings: readonly ExploreListing[];
+  readonly onBoundsChange?: (bounds: MapBounds) => void;
+  readonly showSearchButton?: boolean;
+  readonly onSearchArea?: () => void;
 }
 
-export function MapPanel({ listings }: MapPanelProps) {
+export function MapPanel({ listings, onBoundsChange, showSearchButton, onSearchArea }: MapPanelProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const handleMarkerClick = useCallback((id: string) => {
     setSelectedId((prev) => (prev === id ? null : id));
   }, []);
+
+  const handleMoveEnd = useCallback((e: ViewStateChangeEvent) => {
+    if (!onBoundsChange) return;
+    const bounds = e.target.getBounds();
+    if (!bounds) return;
+    onBoundsChange({
+      minLat: bounds.getSouth(),
+      maxLat: bounds.getNorth(),
+      minLng: bounds.getWest(),
+      maxLng: bounds.getEast(),
+    });
+  }, [onBoundsChange]);
 
   const geoListings = useMemo(
     () => listings.filter((l) => l.latitude != null && l.longitude != null),
@@ -67,6 +90,19 @@ export function MapPanel({ listings }: MapPanelProps) {
           {geoListings.length} geocoded matches syncing with your filters
         </p>
       </div>
+
+      {/* Search this area button */}
+      {showSearchButton && onSearchArea && (
+        <button
+          type="button"
+          onClick={onSearchArea}
+          className="absolute bottom-6 left-1/2 z-10 -translate-x-1/2 flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-teal-800 shadow-lg border border-gray-200 hover:bg-teal-50 transition-colors"
+        >
+          <Search className="size-4" />
+          Search this area
+        </button>
+      )}
+
       <Map
         mapboxAccessToken={mapToken}
         initialViewState={{
@@ -76,6 +112,7 @@ export function MapPanel({ listings }: MapPanelProps) {
         }}
         style={{ width: '100%', height: '100%' }}
         mapStyle="mapbox://styles/mapbox/streets-v12"
+        onMoveEnd={handleMoveEnd}
       >
         {geoListings.map((listing) => {
           const isSelected = listing.id === selectedId;
