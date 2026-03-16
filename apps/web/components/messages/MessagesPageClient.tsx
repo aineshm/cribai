@@ -58,9 +58,33 @@ export function MessagesPageClient() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [mobileDetailOpen]);
 
+  useEffect(() => {
+    if (!selectedMission) {
+      setMobileDetailOpen(false);
+      return;
+    }
+
+    const nextTab: TabValue = ACTIVE_STATUSES.has(selectedMission.status) ? 'active' : 'past';
+    setTab((currentTab) => (currentTab === nextTab ? currentTab : nextTab));
+  }, [selectedMission]);
+
   function handleSelectMission(mission: LegacyMission) {
     selectMission(mission);
     setMobileDetailOpen(true);
+  }
+
+  function handleTabChange(nextTab: TabValue) {
+    setTab(nextTab);
+
+    if (!selectedMission) {
+      return;
+    }
+
+    const selectedMissionTab: TabValue = ACTIVE_STATUSES.has(selectedMission.status) ? 'active' : 'past';
+    if (selectedMissionTab !== nextTab) {
+      selectMission(null);
+      setMobileDetailOpen(false);
+    }
   }
 
   return (
@@ -95,7 +119,7 @@ export function MessagesPageClient() {
                 <X className="size-4 text-gray-500" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto">
+            <div className="safe-area-pb flex-1 overflow-y-auto">
               <MissionDetailPanel mission={selectedMission} />
             </div>
           </div>
@@ -126,7 +150,8 @@ export function MessagesPageClient() {
               <button
                 key={t}
                 type="button"
-                onClick={() => setTab(t)}
+                aria-pressed={tab === t}
+                onClick={() => handleTabChange(t)}
                 className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${
                   tab === t
                     ? 'bg-white text-gray-900 shadow-sm'
@@ -204,6 +229,7 @@ function MissionTaskCard({
     <button
       type="button"
       onClick={onSelect}
+      aria-pressed={isSelected}
       className={`w-full text-left p-4 rounded-2xl border transition-all ${
         isSelected
           ? 'bg-white border-teal-200 shadow-sm ring-1 ring-teal-800/10'

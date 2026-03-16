@@ -33,6 +33,7 @@ vi.mock('lucide-react', () => ({
   Heart: () => <svg data-testid="heart-icon" />,
   Settings: () => <svg data-testid="settings-icon" />,
   ShieldCheck: () => <svg />,
+  CheckCircle2: () => <svg />,
   GraduationCap: () => <svg />,
   CalendarDays: () => <svg />,
   MapPin: () => <svg />,

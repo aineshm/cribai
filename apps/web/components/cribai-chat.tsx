@@ -211,12 +211,7 @@ export function CribAIChat({
   useEffect(() => {
     if (!inputSeed) return;
 
-    setInput((prev) => {
-      if (prev.trim().length > 0) {
-        return prev;
-      }
-      return inputSeed;
-    });
+    setInput(inputSeed);
     onInputSeedConsumed?.();
   }, [inputSeed, onInputSeedConsumed]);
 
@@ -505,7 +500,7 @@ export function CribAIChat({
       </div>
 
       {/* Input */}
-      <div className="border-t border-[var(--surface-200)]/60 p-4 glass rounded-b-2xl">
+      <div className="safe-area-pb border-t border-[var(--surface-200)]/60 p-4 glass rounded-b-2xl">
         <div className="flex gap-2">
           <input
             type="text"
