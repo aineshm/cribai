@@ -44,6 +44,8 @@ vi.mock('lucide-react', () => ({
   Save: () => <svg />,
   Sofa: () => <svg />,
   Car: () => <svg />,
+  MessageSquare: () => <svg />,
+  Sparkles: () => <svg />,
 }));
 
 // Mock sonner
