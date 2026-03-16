@@ -100,7 +100,7 @@ export default async function MainLayout({
                       Discover
                     </Link>
                     <Link
-                      href="/chat"
+                      href="/messages"
                       className="hidden md:flex items-center gap-1 text-sm font-medium text-[var(--surface-600)] transition-colors hover:text-teal-800"
                     >
                       <Sparkles className="size-4 text-amber-500" />

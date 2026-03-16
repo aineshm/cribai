@@ -41,7 +41,7 @@ export function ExploreClient({ listings }: ExploreClientProps) {
   return (
     <div className="app-mobile-pane flex overflow-hidden bg-white">
       {/* Left: Conversational Search Panel */}
-      <div className="flex w-full min-w-0 flex-col border-r border-gray-100 md:w-1/2 lg:w-7/12">
+      <div className="flex w-full min-w-0 min-h-0 flex-col border-r border-gray-100 md:w-1/2 lg:w-7/12 overflow-hidden">
         <ContextBar />
         {pendingProposal && (
           <div className="border-b border-gray-100 px-4 py-3">
@@ -53,7 +53,7 @@ export function ExploreClient({ listings }: ExploreClientProps) {
           campusId={campusId}
           isAuthenticated={isAuthenticated}
           onMissionProposal={handleMissionProposal}
-          className="flex flex-1 flex-col"
+          className="flex flex-1 flex-col min-h-0"
         />
       </div>
 

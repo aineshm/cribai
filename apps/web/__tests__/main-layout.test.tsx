@@ -75,7 +75,7 @@ describe('MainLayout', () => {
     render(layout);
     const chatLink = screen.getByRole('link', { name: /agent/i });
     expect(chatLink).toBeInTheDocument();
-    expect(chatLink).toHaveAttribute('href', '/chat');
+    expect(chatLink).toHaveAttribute('href', '/messages');
     const nav = chatLink.closest('nav');
     expect(nav).not.toBeNull();
   });

@@ -56,7 +56,7 @@ export default async function HomePage() {
             <Link href="/explore" className="transition-colors hover:text-teal-800">
               Browse
             </Link>
-            <Link href={isAuthenticated ? '/chat' : '/login'} className="transition-colors hover:text-teal-800">
+            <Link href={isAuthenticated ? '/messages' : '/login'} className="transition-colors hover:text-teal-800">
               Agent
             </Link>
             <Link

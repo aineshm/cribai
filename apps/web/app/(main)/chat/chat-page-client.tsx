@@ -48,8 +48,8 @@ export function ChatPageClient() {
   );
 
   return (
-    <div className="animate-fade-in">
-      <div className="mb-6">
+    <div className="app-mobile-pane flex flex-col overflow-hidden animate-fade-in">
+      <div className="shrink-0 px-4 pt-4 pb-3">
         <h1 className="font-[family-name:var(--font-display)] text-3xl text-[var(--surface-900)]">
           AI Chat
         </h1>
@@ -58,10 +58,10 @@ export function ChatPageClient() {
         </p>
       </div>
 
-      <div className="flex gap-4">
+      <div className="flex flex-1 min-h-0 gap-4 px-4 pb-4">
         {/* Left sidebar: conversations + active missions */}
         {isAuthenticated && (
-          <div className="w-64 shrink-0 space-y-4">
+          <div className="hidden md:flex w-64 shrink-0 flex-col min-h-0 space-y-4 overflow-y-auto">
             <ConversationSidebar
               onSelectConversation={handleSelectConversation}
               onNewChat={handleNewChat}
@@ -87,7 +87,7 @@ export function ChatPageClient() {
           </div>
         )}
 
-        <div className="flex-1 min-w-0 space-y-3">
+        <div className="flex flex-1 min-w-0 min-h-0 flex-col space-y-3">
           {/* Mission proposal card */}
           {pendingProposal && <MissionProposalCard />}
 
@@ -98,6 +98,7 @@ export function ChatPageClient() {
             isAuthenticated={isAuthenticated}
             onConversationCreated={handleConversationCreated}
             onMissionProposal={handleMissionProposal}
+            className="flex flex-1 flex-col min-h-0"
           />
         </div>
       </div>
