@@ -74,6 +74,9 @@ export function ExploreClient({ listings }: ExploreClientProps) {
   // Live filter context from AI tool calls
   const [searchContext, setSearchContext] = useState<SearchContext>({});
 
+  // AI search results for map overlay (null = show all listings)
+  const [aiMapListings, setAiMapListings] = useState<readonly ExploreListing[] | null>(null);
+
   const handleMissionProposal = useCallback(
     (proposal: { intent: string; confidence: number; extractedFields: Record<string, unknown> }) => {
       setPendingProposal(proposal);
@@ -105,6 +108,28 @@ export function ExploreClient({ listings }: ExploreClientProps) {
       setSearchContext(prev => ({ ...prev, mapArea: 'Current map area' }));
     }
   }, [mapBounds]);
+
+  const handleMapListings = useCallback((results: readonly { id: string; address: string; rentMonthly: number; latitude: number; longitude: number }[]) => {
+    const asExploreListings: readonly ExploreListing[] = results.map(r => ({
+      id: r.id,
+      title: r.address,
+      address: r.address,
+      price: r.rentMonthly,
+      latitude: r.latitude,
+      longitude: r.longitude,
+      beds: null,
+      baths: null,
+      sqft: null,
+      photoUrl: null,
+      amenities: [],
+      source: 'ai_search',
+      sourceUrl: null,
+      fairnessScore: null,
+      availableDate: null,
+      walkScore: null,
+    }));
+    setAiMapListings(asExploreListings);
+  }, []);
 
   const handleSearchContext = useCallback((ctx: SearchContext) => {
     // Replace (not merge) so stale chips from previous searches are cleared
@@ -170,6 +195,7 @@ export function ExploreClient({ listings }: ExploreClientProps) {
             mapBounds={activeBounds}
             onMessageSent={handleMessageSent}
             onSearchContext={handleSearchContext}
+            onMapListings={handleMapListings}
             className="flex flex-1 flex-col min-h-0"
           />
         </div>
@@ -179,7 +205,7 @@ export function ExploreClient({ listings }: ExploreClientProps) {
           mobileView === 'map' ? 'block w-full' : 'hidden'
         }`}>
           <MapPanel
-            listings={listings}
+            listings={aiMapListings ?? listings}
             onBoundsChange={handleBoundsChange}
             showSearchButton={showSearchButton}
             onSearchArea={handleSearchArea}

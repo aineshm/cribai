@@ -77,7 +77,10 @@ async function semanticSearch(
   });
 
   if (error) {
-    throw new Error(`Semantic search failed: ${error.message}`);
+    return {
+      modelContext: 'Search is temporarily unavailable. Try rephrasing your request or I can search by specific filters instead.',
+      clientBlock: { type: 'listing_card' as const, listings: [] },
+    };
   }
 
   let rows = (data ?? []) as readonly SemanticRpcRow[];
@@ -254,7 +257,10 @@ async function sqlSearch(
   const { data, error } = await query;
 
   if (error) {
-    throw new Error(`Search failed: ${error.message}`);
+    return {
+      modelContext: 'Search is temporarily unavailable. Try rephrasing your request or I can search by specific filters instead.',
+      clientBlock: { type: 'listing_card' as const, listings: [] },
+    };
   }
 
   const listings: readonly ListingSummary[] = (data ?? []).map(row => ({

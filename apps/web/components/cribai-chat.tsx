@@ -53,6 +53,8 @@ interface CribAIChatProps {
   readonly onMessageSent?: () => void;
   /** Called when AI tool calls reveal search filters */
   readonly onSearchContext?: (ctx: SearchContextUpdate) => void;
+  /** Called when AI search returns map listings — passes lat/lng results to update the main MapPanel */
+  readonly onMapListings?: (listings: readonly { id: string; address: string; rentMonthly: number; latitude: number; longitude: number }[]) => void;
   /** Optional CSS class for the outermost container (e.g. `h-full` when rendered inside a Sheet). */
   readonly className?: string;
 }
@@ -174,6 +176,7 @@ export function CribAIChat({
   mapBounds,
   onMessageSent,
   onSearchContext,
+  onMapListings,
   className,
 }: CribAIChatProps) {
   const [messages, setMessages] = useState<readonly Message[]>([]);
@@ -435,6 +438,22 @@ export function CribAIChat({
                 assistantBlocks = withoutLoading;
               }
               updateAssistantMessage(assistantBlocks);
+
+              // When the search_listings tool returns a map block, push listings to the main MapPanel
+              if (event.name === 'search_listings_map' && event.block?.type === 'map' && onMapListings) {
+                type RawMapListing = { id: string; address: string; rentMonthly: number; latitude: number | null; longitude: number | null };
+                const rawListings = (event.block as { type: 'map'; listings: RawMapListing[] }).listings ?? [];
+                const mapListings = rawListings
+                  .filter(l => l.latitude != null && l.longitude != null)
+                  .map(l => ({
+                    id: l.id,
+                    address: l.address,
+                    rentMonthly: l.rentMonthly,
+                    latitude: l.latitude as number,
+                    longitude: l.longitude as number,
+                  }));
+                onMapListings(mapListings);
+              }
               break;
             }
 
@@ -476,7 +495,7 @@ export function CribAIChat({
       setIsStreaming(false);
       abortRef.current = null;
     }
-  }, [input, isStreaming, messages, campusSlug, campusId, conversationId, isAuthenticated, onConversationCreated, onMissionProposal, onMessageSent, onSearchContext, mapBounds, scrollToBottom]);
+  }, [input, isStreaming, messages, campusSlug, campusId, conversationId, isAuthenticated, onConversationCreated, onMissionProposal, onMessageSent, onSearchContext, onMapListings, mapBounds, scrollToBottom]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
