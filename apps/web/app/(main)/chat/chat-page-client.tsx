@@ -58,7 +58,7 @@ export function ChatPageClient() {
   );
 
   return (
-    <div className="app-mobile-pane flex flex-col overflow-hidden animate-fade-in">
+    <div className="app-mobile-pane flex flex-col overflow-hidden animate-fade-in bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary-50/25 via-white to-white">
       <div className="shrink-0 px-4 pt-4 pb-3">
         <h1 className="font-[family-name:var(--font-display)] text-3xl text-[var(--surface-900)]">
           AI Chat

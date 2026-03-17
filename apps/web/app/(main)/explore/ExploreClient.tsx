@@ -52,7 +52,7 @@ function ContextBar({ context }: { readonly context: SearchContext }) {
         );
       })}
       {chips.length === 0 && (
-        <span className="text-xs text-gray-400 shrink-0">
+        <span className="text-xs text-gray-500 shrink-0">
           Start searching to see active filters
         </span>
       )}
@@ -120,7 +120,7 @@ export function ExploreClient({ listings }: ExploreClientProps) {
   const activeBounds = lockedBounds ?? mapBounds;
 
   return (
-    <div className="app-mobile-pane flex flex-col overflow-hidden bg-white">
+    <div className="app-mobile-pane flex flex-col overflow-hidden bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-teal-50/30 via-white to-white">
       {/* Mobile view toggle — hidden on desktop */}
       <div className="flex md:hidden border-b border-gray-100">
         <ContextBar context={searchContext} />

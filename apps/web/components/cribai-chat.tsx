@@ -486,11 +486,11 @@ export function CribAIChat({
   }, [sendMessage]);
 
   return (
-    <div className={className ?? "flex h-[calc(100dvh-220px)] md:h-[600px] flex-col rounded-2xl border border-[var(--surface-200)]/60 bg-white/90 backdrop-blur-sm shadow-[var(--shadow-card-hover)]"}>
+    <div className={className ?? "flex h-[calc(100dvh-var(--app-chrome-height))] md:h-[600px] flex-col rounded-2xl border border-[var(--surface-200)]/60 bg-white/90 backdrop-blur-sm shadow-[var(--shadow-card-hover)]"}>
       {/* Messages */}
       <div className="flex-1 min-h-0 space-y-4 overflow-y-auto p-5 scroll-smooth">
         {messages.length === 0 && (
-          <div className="flex h-full items-center justify-center text-[var(--surface-400)]">
+          <div className="flex h-full items-center justify-center text-[var(--surface-500)]">
             <div className="text-center animate-fade-in">
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--primary-50)] to-[var(--primary-100)]">
                 <Sparkles className="h-7 w-7 text-[var(--primary-600)]" strokeWidth={1.5} />
