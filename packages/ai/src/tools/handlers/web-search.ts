@@ -15,6 +15,20 @@ interface PersistWebListingParams {
   readonly content: string;
 }
 
+/**
+ * Sanitize web content before injecting into model context.
+ * Strips patterns that could be interpreted as instructions by the LLM.
+ */
+function sanitizeWebContent(content: string): string {
+  return content
+    // Remove common prompt injection patterns
+    .replace(/(?:ignore|disregard|forget)\s+(?:all\s+)?(?:previous|above|prior)\s+(?:instructions?|rules?|prompts?)/gi, '[filtered]')
+    .replace(/(?:you\s+are|act\s+as|pretend\s+to\s+be|from\s+now\s+on)/gi, '[filtered]')
+    .replace(/(?:system\s*:?\s*|assistant\s*:?\s*|human\s*:?\s*)/gi, '')
+    // Truncate to safe length
+    .slice(0, 300);
+}
+
 /** Extracted structured data from web search result content */
 interface ExtractedListingData {
   readonly prices: readonly number[];
@@ -209,11 +223,14 @@ async function buildEnrichedResult(
 ): Promise<ToolResult> {
   const enrichedEntries: string[] = [];
   const persistedIds: (string | null)[] = [];
+  // Track the first persisted listing ID per result (for "View in CampusNest" links)
+  const resultListingIds: (string | null)[] = [];
 
   for (const r of results) {
     const extracted = extractListingData(r.content);
 
     // Persist each extracted address as a separate listing
+    let firstIdForResult: string | null = null;
     if (extracted.addresses.length > 0) {
       for (const addr of extracted.addresses) {
         const id = await persistWebListing({
@@ -223,12 +240,13 @@ async function buildEnrichedResult(
           bedrooms: extracted.bedrooms[0],
           content: r.content,
         }, context);
-        if (id) persistedIds.push(id);
+        if (id) {
+          persistedIds.push(id);
+          if (!firstIdForResult) firstIdForResult = id;
+        }
       }
-    } else {
-      // No extractable address — still pass raw result to AI but don't persist
-      persistedIds.push(null);
     }
+    resultListingIds.push(firstIdForResult);
 
     // Build enriched model context entry
     const priceInfo = extracted.prices.length > 0
@@ -247,7 +265,7 @@ async function buildEnrichedResult(
       `   ${priceInfo}\n` +
       (bedInfo ? `   ${bedInfo}\n` : '') +
       `   ${addrInfo}\n` +
-      `   Summary: ${r.content.slice(0, 300)}`
+      `   Summary: ${sanitizeWebContent(r.content.slice(0, 300))}`
     );
   }
 
@@ -262,11 +280,11 @@ async function buildEnrichedResult(
     modelContext,
     clientBlock: {
       type: 'web_result' as const,
-      results: results.map((r) => ({
+      results: results.map((r, i) => ({
         title: r.title,
         url: r.url,
         snippet: r.content.slice(0, 200),
-        listingId: null,
+        listingId: resultListingIds[i] ?? null,
       })),
     },
   };

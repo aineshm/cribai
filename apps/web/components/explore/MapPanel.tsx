@@ -124,7 +124,11 @@ export function MapPanel({ listings, onBoundsChange, showSearchButton, onSearchA
               onClick={() => handleMarkerClick(listing.id)}
               anchor="bottom"
             >
-              <div className="flex flex-col items-center cursor-pointer">
+              <button
+                type="button"
+                aria-label={`${listing.title || listing.address || 'Listing'} — $${listing.price.toLocaleString()} per month`}
+                className="flex flex-col items-center cursor-pointer bg-transparent border-none p-0"
+              >
                 <div
                   className={`whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-semibold shadow-lg transition-colors ${
                     isSelected
@@ -142,7 +146,7 @@ export function MapPanel({ listings, onBoundsChange, showSearchButton, onSearchA
                       : 'border-t-[var(--color-teal-800,#115e59)]'
                   }`}
                 />
-              </div>
+              </button>
             </Marker>
           );
         })}

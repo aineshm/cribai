@@ -107,7 +107,13 @@ export function ExploreClient({ listings }: ExploreClientProps) {
   }, [mapBounds]);
 
   const handleSearchContext = useCallback((ctx: SearchContext) => {
-    setSearchContext(prev => ({ ...prev, ...ctx }));
+    // Replace (not merge) so stale chips from previous searches are cleared
+    setSearchContext(prev => ({
+      mapArea: ctx.mapArea ?? prev.mapArea,
+      budget: ctx.budget,
+      bedrooms: ctx.bedrooms,
+      amenities: ctx.amenities,
+    }));
   }, []);
 
   // Use locked bounds (from when search started) if available, otherwise current viewport
@@ -122,21 +128,21 @@ export function ExploreClient({ listings }: ExploreClientProps) {
           <button
             type="button"
             onClick={() => setMobileView('chat')}
-            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${
+            className={`flex items-center gap-1.5 px-4 min-h-[44px] text-xs font-medium transition-colors ${
               mobileView === 'chat' ? 'text-teal-800 bg-teal-50' : 'text-gray-400'
             }`}
           >
-            <MessageSquare className="size-3" />
+            <MessageSquare className="size-3.5" />
             Chat
           </button>
           <button
             type="button"
             onClick={() => setMobileView('map')}
-            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${
+            className={`flex items-center gap-1.5 px-4 min-h-[44px] text-xs font-medium transition-colors ${
               mobileView === 'map' ? 'text-teal-800 bg-teal-50' : 'text-gray-400'
             }`}
           >
-            <MapIcon className="size-3" />
+            <MapIcon className="size-3.5" />
             Map
           </button>
         </div>
