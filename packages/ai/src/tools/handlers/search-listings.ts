@@ -132,10 +132,10 @@ async function semanticSearch(
   const uniqueHint = `\n\n[Unique properties: ${uniqueCount}. If no unique properties matched, consider using web_search to find more options.]`;
   const modelContext = filtered.length === 0
     ? 'No listings found matching the criteria.' + uniqueHint
-    : `Found ${filtered.length} listing(s) matching "${parsed.semantic_query}":\n${filtered
+    : `[INTERNAL — do not show listing_id values to the user]\nFound ${filtered.length} listing(s) matching "${parsed.semantic_query}":\n${filtered
         .map(
           (l, i) =>
-            `${i + 1}. [id:${l.id}] ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10 (source: ${l.source ?? 'unknown'})`,
+            `${i + 1}. ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10 [listing_id:${l.id}]${l.source && l.source !== 'unknown' ? ` (source: ${l.source})` : ''}`,
         )
         .join('\n')}\n\n[Prefer Zillow-sourced listings when recommending — they have verified data and photos.]` + uniqueHint;
 
@@ -159,29 +159,31 @@ async function semanticSearch(
     clientBlock: { type: 'listing_card', listings: [...filtered] },
   };
 
-  if (rowsWithLatLng.length >= 3) {
+  if (rowsWithLatLng.length >= 1) {
     const sumLat = rowsWithLatLng.reduce((s, r) => s + (r.latitude ?? 0), 0);
     const sumLng = rowsWithLatLng.reduce((s, r) => s + (r.longitude ?? 0), 0);
     const centerLat = sumLat / rowsWithLatLng.length;
     const centerLng = sumLng / rowsWithLatLng.length;
 
-    const mapListings = filteredRows.map(row => {
-      const photoUrls = Array.isArray(row.photo_urls) ? row.photo_urls : [];
-      return {
-        id: row.id,
-        address: row.address,
-        rentMonthly: Number(row.rent_monthly),
-        bedrooms: row.bedrooms,
-        bathrooms: row.bathrooms,
-        sqft: row.sqft,
-        fairnessScore: row.fairness_score,
-        trueCostTotal: row.true_cost_total,
-        amenities: Array.isArray(row.amenities) ? [...row.amenities] : [],
-        latitude: row.latitude ?? 0,
-        longitude: row.longitude ?? 0,
-        photoUrl: photoUrls.length > 0 ? (photoUrls[0] as string) : null,
-      };
-    });
+    const mapListings = filteredRows
+      .filter(row => row.latitude !== null && row.longitude !== null)
+      .map(row => {
+        const photoUrls = Array.isArray(row.photo_urls) ? row.photo_urls : [];
+        return {
+          id: row.id,
+          address: row.address,
+          rentMonthly: Number(row.rent_monthly),
+          bedrooms: row.bedrooms,
+          bathrooms: row.bathrooms,
+          sqft: row.sqft,
+          fairnessScore: row.fairness_score,
+          trueCostTotal: row.true_cost_total,
+          amenities: Array.isArray(row.amenities) ? [...row.amenities] : [],
+          latitude: row.latitude as number,
+          longitude: row.longitude as number,
+          photoUrl: photoUrls.length > 0 ? (photoUrls[0] as string) : null,
+        };
+      });
 
     return {
       ...result,
@@ -296,10 +298,10 @@ async function sqlSearch(
   const sqlUniqueHint = `\n\n[Unique properties: ${sqlUniqueCount}. If fewer than 1 unique property matched, consider using web_search to find more options.]`;
   const modelContext = filtered.length === 0
     ? 'No listings found matching the criteria.' + sqlUniqueHint
-    : `Found ${filtered.length} listing(s):\n${filtered
+    : `[INTERNAL — do not show listing_id values to the user]\nFound ${filtered.length} listing(s):\n${filtered
         .map(
           (l, i) =>
-            `${i + 1}. [id:${l.id}] ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10 (source: ${l.source ?? 'unknown'})`,
+            `${i + 1}. ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10 [listing_id:${l.id}]${l.source && l.source !== 'unknown' ? ` (source: ${l.source})` : ''}`,
         )
         .join('\n')}\n\n[Prefer Zillow-sourced listings when recommending — they have verified data and photos.]` + sqlUniqueHint;
 

@@ -54,7 +54,7 @@ interface CribAIChatProps {
   /** Called when AI tool calls reveal search filters */
   readonly onSearchContext?: (ctx: SearchContextUpdate) => void;
   /** Called when AI search returns map listings — passes lat/lng results to update the main MapPanel */
-  readonly onMapListings?: (listings: readonly { id: string; address: string; rentMonthly: number; latitude: number; longitude: number }[]) => void;
+  readonly onMapListings?: (listings: readonly { id: string; address: string; rentMonthly: number; beds: number | null; sqft: number | null; photoUrl: string | null; fairnessScore: number | null; latitude: number; longitude: number }[]) => void;
   /** Optional CSS class for the outermost container (e.g. `h-full` when rendered inside a Sheet). */
   readonly className?: string;
 }
@@ -441,7 +441,7 @@ export function CribAIChat({
 
               // When the search_listings tool returns a map block, push listings to the main MapPanel
               if (event.name === 'search_listings_map' && event.block?.type === 'map' && onMapListings) {
-                type RawMapListing = { id: string; address: string; rentMonthly: number; latitude: number | null; longitude: number | null };
+                type RawMapListing = { id: string; address: string; rentMonthly: number; bedrooms: number | null; sqft: number | null; fairnessScore: number | null; photoUrl: string | null; latitude: number | null; longitude: number | null };
                 const rawListings = (event.block as { type: 'map'; listings: RawMapListing[] }).listings ?? [];
                 const mapListings = rawListings
                   .filter(l => l.latitude != null && l.longitude != null)
@@ -449,6 +449,10 @@ export function CribAIChat({
                     id: l.id,
                     address: l.address,
                     rentMonthly: l.rentMonthly,
+                    beds: l.bedrooms,
+                    sqft: l.sqft,
+                    photoUrl: l.photoUrl,
+                    fairnessScore: l.fairnessScore,
                     latitude: l.latitude as number,
                     longitude: l.longitude as number,
                   }));

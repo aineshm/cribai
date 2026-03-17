@@ -109,7 +109,7 @@ export function ExploreClient({ listings }: ExploreClientProps) {
     }
   }, [mapBounds]);
 
-  const handleMapListings = useCallback((results: readonly { id: string; address: string; rentMonthly: number; latitude: number; longitude: number }[]) => {
+  const handleMapListings = useCallback((results: readonly { id: string; address: string; rentMonthly: number; beds: number | null; sqft: number | null; photoUrl: string | null; fairnessScore: number | null; latitude: number; longitude: number }[]) => {
     const asExploreListings: readonly ExploreListing[] = results.map(r => ({
       id: r.id,
       title: r.address,
@@ -117,14 +117,14 @@ export function ExploreClient({ listings }: ExploreClientProps) {
       price: r.rentMonthly,
       latitude: r.latitude,
       longitude: r.longitude,
-      beds: null,
+      beds: r.beds,
       baths: null,
-      sqft: null,
-      photoUrl: null,
+      sqft: r.sqft,
+      photoUrl: r.photoUrl,
       amenities: [],
       source: 'ai_search',
       sourceUrl: null,
-      fairnessScore: null,
+      fairnessScore: r.fairnessScore,
       availableDate: null,
       walkScore: null,
     }));
