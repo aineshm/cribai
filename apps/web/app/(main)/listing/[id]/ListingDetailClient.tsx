@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,8 @@ import { PhotoGallery } from '@/components/listing/PhotoGallery';
 import { ListingContent } from '@/components/listing/ListingContent';
 import { CTASidebar } from '@/components/listing/CTASidebar';
 import { MobileBottomBar } from '@/components/listing/MobileBottomBar';
+import { ListingViewStats } from '@/components/listing/ListingViewStats';
+import { trackEvent } from '@/lib/track-event';
 import type { ListingDetail } from '@/lib/listing-types';
 
 interface ListingDetailClientProps {
@@ -19,6 +22,14 @@ export function ListingDetailClient({
   listing,
   campusSlug,
 }: ListingDetailClientProps) {
+  // Track listing view once per mount (dedup with ref to survive StrictMode double-mount)
+  const hasTracked = useRef(false);
+  useEffect(() => {
+    if (hasTracked.current) return;
+    hasTracked.current = true;
+    trackEvent('listing_viewed', { listing_id: listing.id });
+  }, [listing.id]);
+
   return (
     <motion.div
       className="min-h-screen bg-[linear-gradient(180deg,#f7faf9_0%,#ffffff_26%)]"
@@ -43,6 +54,9 @@ export function ListingDetailClient({
           </span>
         </div>
       </div>
+
+      {/* View stats banner — only renders for listing creator */}
+      <ListingViewStats listingId={listing.id} />
 
       <div className="mx-auto max-w-6xl px-4 py-6 lg:py-8">
         {/* Photo Gallery */}

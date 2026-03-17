@@ -45,7 +45,8 @@ export function extractLocationPhrase(query: string): string | null {
         .replace(/\s+(?:with|under|below|above|for|that|which|and)\s+.*$/i, '')
         .replace(/\s+\d+\s*(?:bed|br|bath|sqft).*$/i, '')
         .trim();
-      if (cleaned.length > 0) {
+      // Require at least 4 chars to avoid false matches on short pronouns ("me", "us", "it")
+      if (cleaned.length >= 4) {
         return cleaned;
       }
     }

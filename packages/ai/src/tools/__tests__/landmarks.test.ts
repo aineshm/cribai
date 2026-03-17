@@ -45,6 +45,12 @@ describe('extractLocationPhrase', () => {
     expect(extractLocationPhrase('cheap apartments with parking')).toBeNull();
     expect(extractLocationPhrase('2 bedroom studio downtown')).toBeNull();
   });
+
+  it('returns null for short pronouns like "near me"', () => {
+    expect(extractLocationPhrase('apartments near me')).toBeNull();
+    expect(extractLocationPhrase('find something by us')).toBeNull();
+    expect(extractLocationPhrase('place close to it')).toBeNull();
+  });
 });
 
 describe('findBestLandmarkMatch', () => {
