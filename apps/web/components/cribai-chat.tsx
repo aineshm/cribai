@@ -53,6 +53,18 @@ interface CribAIChatProps {
   readonly onMessageSent?: () => void;
   /** Called when AI tool calls reveal search filters */
   readonly onSearchContext?: (ctx: SearchContextUpdate) => void;
+  /** Called when AI search returns geocoded results — updates the map with matched listings only */
+  readonly onMapListings?: (listings: readonly {
+    id: string;
+    address: string;
+    rentMonthly: number;
+    beds: number | null;
+    sqft: number | null;
+    photoUrl: string | null;
+    fairnessScore: number | null;
+    latitude: number;
+    longitude: number;
+  }[]) => void;
   /** Optional CSS class for the outermost container (e.g. `h-full` when rendered inside a Sheet). */
   readonly className?: string;
 }
@@ -174,6 +186,7 @@ export function CribAIChat({
   mapBounds,
   onMessageSent,
   onSearchContext,
+  onMapListings,
   className,
 }: CribAIChatProps) {
   const [messages, setMessages] = useState<readonly Message[]>([]);
@@ -435,6 +448,36 @@ export function CribAIChat({
                 assistantBlocks = withoutLoading;
               }
               updateAssistantMessage(assistantBlocks);
+
+              // When the search_listings tool returns a map block, push listings to the main MapPanel
+              if (event.name === 'search_listings_map' && event.block?.type === 'map' && onMapListings) {
+                type RawMapListing = {
+                  id: string;
+                  address: string;
+                  rentMonthly: number;
+                  bedrooms: number | null;
+                  sqft: number | null;
+                  fairnessScore: number | null;
+                  photoUrl: string | null;
+                  latitude: number | null;
+                  longitude: number | null;
+                };
+                const rawListings = (event.block as { type: 'map'; listings: RawMapListing[] }).listings ?? [];
+                const mapListings = rawListings
+                  .filter(l => l.latitude != null && l.longitude != null)
+                  .map(l => ({
+                    id: l.id,
+                    address: l.address,
+                    rentMonthly: l.rentMonthly,
+                    beds: l.bedrooms,
+                    sqft: l.sqft,
+                    photoUrl: l.photoUrl,
+                    fairnessScore: l.fairnessScore,
+                    latitude: l.latitude as number,
+                    longitude: l.longitude as number,
+                  }));
+                onMapListings(mapListings);
+              }
               break;
             }
 
@@ -476,7 +519,7 @@ export function CribAIChat({
       setIsStreaming(false);
       abortRef.current = null;
     }
-  }, [input, isStreaming, messages, campusSlug, campusId, conversationId, isAuthenticated, onConversationCreated, onMissionProposal, onMessageSent, onSearchContext, mapBounds, scrollToBottom]);
+  }, [input, isStreaming, messages, campusSlug, campusId, conversationId, isAuthenticated, onConversationCreated, onMissionProposal, onMessageSent, onSearchContext, onMapListings, mapBounds, scrollToBottom]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -486,11 +529,11 @@ export function CribAIChat({
   }, [sendMessage]);
 
   return (
-    <div className={className ?? "flex h-[calc(100dvh-220px)] md:h-[600px] flex-col rounded-2xl border border-[var(--surface-200)]/60 bg-white/90 backdrop-blur-sm shadow-[var(--shadow-card-hover)]"}>
+    <div className={className ?? "flex h-[calc(100dvh-var(--app-chrome-height))] md:h-[600px] flex-col rounded-2xl border border-[var(--surface-200)]/60 bg-white/90 backdrop-blur-sm shadow-[var(--shadow-card-hover)]"}>
       {/* Messages */}
       <div className="flex-1 min-h-0 space-y-4 overflow-y-auto p-5 scroll-smooth">
         {messages.length === 0 && (
-          <div className="flex h-full items-center justify-center text-[var(--surface-400)]">
+          <div className="flex h-full items-center justify-center text-[var(--surface-500)]">
             <div className="text-center animate-fade-in">
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--primary-50)] to-[var(--primary-100)]">
                 <Sparkles className="h-7 w-7 text-[var(--primary-600)]" strokeWidth={1.5} />

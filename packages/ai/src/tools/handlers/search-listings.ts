@@ -97,7 +97,10 @@ async function semanticSearch(
   const { data, error } = await context.supabase.rpc('match_listings_semantic', rpcParams);
 
   if (error) {
-    throw new Error(`Semantic search failed: ${error.message}`);
+    return {
+      modelContext: 'Search is temporarily unavailable. Try rephrasing your request or I can search by specific filters instead.',
+      clientBlock: { type: 'listing_card' as const, listings: [] },
+    };
   }
 
   let rows = (data ?? []) as readonly SemanticRpcRow[];
@@ -152,10 +155,10 @@ async function semanticSearch(
   const uniqueHint = `\n\n[Unique properties: ${uniqueCount}. If no unique properties matched, consider using web_search to find more options.]`;
   const modelContext = filtered.length === 0
     ? 'No listings found matching the criteria.' + geoHint + uniqueHint
-    : `Found ${filtered.length} listing(s) matching "${parsed.semantic_query}":${geoHint}\n${filtered
+    : `[INTERNAL — do not show listing_id values to the user]\nFound ${filtered.length} listing(s) matching "${parsed.semantic_query}":${geoHint}\n${filtered
         .map(
           (l, i) =>
-            `${i + 1}. [id:${l.id}] ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10 (source: ${l.source ?? 'unknown'})`,
+            `${i + 1}. ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10 [listing_id:${l.id}]${l.source && l.source !== 'unknown' ? ` (source: ${l.source})` : ''}`,
         )
         .join('\n')}\n\n[Prefer Zillow-sourced listings when recommending — they have verified data and photos.]` + uniqueHint;
 
@@ -179,7 +182,7 @@ async function semanticSearch(
     clientBlock: { type: 'listing_card', listings: [...filtered] },
   };
 
-  if (rowsWithLatLng.length >= 3) {
+  if (rowsWithLatLng.length >= 1) {
     // Center map on landmark when detected, otherwise average listing positions
     const centerLat = landmark
       ? landmark.latitude
@@ -188,23 +191,25 @@ async function semanticSearch(
       ? landmark.longitude
       : rowsWithLatLng.reduce((s, r) => s + (r.longitude ?? 0), 0) / rowsWithLatLng.length;
 
-    const mapListings = filteredRows.map(row => {
-      const photoUrls = Array.isArray(row.photo_urls) ? row.photo_urls : [];
-      return {
-        id: row.id,
-        address: row.address,
-        rentMonthly: Number(row.rent_monthly),
-        bedrooms: row.bedrooms,
-        bathrooms: row.bathrooms,
-        sqft: row.sqft,
-        fairnessScore: row.fairness_score,
-        trueCostTotal: row.true_cost_total,
-        amenities: Array.isArray(row.amenities) ? [...row.amenities] : [],
-        latitude: row.latitude ?? 0,
-        longitude: row.longitude ?? 0,
-        photoUrl: photoUrls.length > 0 ? (photoUrls[0] as string) : null,
-      };
-    });
+    const mapListings = filteredRows
+      .filter(row => row.latitude !== null && row.longitude !== null)
+      .map(row => {
+        const photoUrls = Array.isArray(row.photo_urls) ? row.photo_urls : [];
+        return {
+          id: row.id,
+          address: row.address,
+          rentMonthly: Number(row.rent_monthly),
+          bedrooms: row.bedrooms,
+          bathrooms: row.bathrooms,
+          sqft: row.sqft,
+          fairnessScore: row.fairness_score,
+          trueCostTotal: row.true_cost_total,
+          amenities: Array.isArray(row.amenities) ? [...row.amenities] : [],
+          latitude: row.latitude as number,
+          longitude: row.longitude as number,
+          photoUrl: photoUrls.length > 0 ? (photoUrls[0] as string) : null,
+        };
+      });
 
     return {
       ...result,
@@ -228,7 +233,7 @@ async function sqlSearch(
   let query = context.supabase
     .from('listings')
     .select(
-      'id, address, rent_monthly, bedrooms, bathrooms, sqft, fairness_score, true_cost_total, amenities, source',
+      'id, address, rent_monthly, bedrooms, bathrooms, sqft, fairness_score, true_cost_total, amenities, source, latitude, longitude, photo_urls',
     )
     .eq('campus_id', context.campusId)
     .eq('is_active', true)
@@ -280,7 +285,10 @@ async function sqlSearch(
   const { data, error } = await query;
 
   if (error) {
-    throw new Error(`Search failed: ${error.message}`);
+    return {
+      modelContext: 'Search is temporarily unavailable. Try rephrasing your request or I can search by specific filters instead.',
+      clientBlock: { type: 'listing_card' as const, listings: [] },
+    };
   }
 
   const listings: readonly ListingSummary[] = (data ?? []).map(row => ({
@@ -316,15 +324,57 @@ async function sqlSearch(
   const sqlUniqueHint = `\n\n[Unique properties: ${sqlUniqueCount}. If fewer than 1 unique property matched, consider using web_search to find more options.]`;
   const modelContext = filtered.length === 0
     ? 'No listings found matching the criteria.' + sqlUniqueHint
-    : `Found ${filtered.length} listing(s):\n${filtered
+    : `[INTERNAL — do not show listing_id values to the user]\nFound ${filtered.length} listing(s):\n${filtered
         .map(
           (l, i) =>
-            `${i + 1}. [id:${l.id}] ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10 (source: ${l.source ?? 'unknown'})`,
+            `${i + 1}. ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10 [listing_id:${l.id}]${l.source && l.source !== 'unknown' ? ` (source: ${l.source})` : ''}`,
         )
         .join('\n')}\n\n[Prefer Zillow-sourced listings when recommending — they have verified data and photos.]` + sqlUniqueHint;
 
-  return {
+  const sqlResult = {
     modelContext,
-    clientBlock: { type: 'listing_card', listings: [...filtered] },
+    clientBlock: { type: 'listing_card' as const, listings: [...filtered] },
   };
+
+  // Build map block when any results have coordinates
+  const rowsWithCoords = (data ?? []).filter(
+    row => row.latitude != null && row.longitude != null,
+  );
+
+  if (rowsWithCoords.length >= 1) {
+    const sumLat = rowsWithCoords.reduce((s, r) => s + (r.latitude as number), 0);
+    const sumLng = rowsWithCoords.reduce((s, r) => s + (r.longitude as number), 0);
+    const centerLat = sumLat / rowsWithCoords.length;
+    const centerLng = sumLng / rowsWithCoords.length;
+
+    const mapListings = rowsWithCoords.map(row => {
+      const photoUrls = Array.isArray(row.photo_urls) ? row.photo_urls : [];
+      return {
+        id: row.id as string,
+        address: row.address as string,
+        rentMonthly: Number(row.rent_monthly),
+        bedrooms: row.bedrooms as number | null,
+        bathrooms: row.bathrooms as number | null,
+        sqft: row.sqft as number | null,
+        fairnessScore: row.fairness_score as number | null,
+        trueCostTotal: row.true_cost_total as number | null,
+        amenities: (row.amenities as string[] | null) ?? [],
+        latitude: row.latitude as number,
+        longitude: row.longitude as number,
+        photoUrl: photoUrls.length > 0 ? (photoUrls[0] as string) : null,
+      };
+    });
+
+    return {
+      ...sqlResult,
+      mapBlock: {
+        type: 'map' as const,
+        listings: mapListings,
+        center: { lat: centerLat, lng: centerLng },
+        zoom: 14,
+      },
+    };
+  }
+
+  return sqlResult;
 }

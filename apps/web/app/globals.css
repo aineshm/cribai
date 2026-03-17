@@ -10,6 +10,7 @@
   --app-header-height: 4rem;
   --mobile-nav-height: 4rem;
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --app-chrome-height: 220px;
 
   /* Primary — Deep Teal */
   --primary-50: #f0fdfa;

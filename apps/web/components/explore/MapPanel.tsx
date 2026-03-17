@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { Map, Marker, Popup } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { motion } from 'framer-motion';
@@ -29,6 +29,13 @@ interface MapPanelProps {
 
 export function MapPanel({ listings, onBoundsChange, showSearchButton, onSearchArea }: MapPanelProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const boundsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (boundsTimerRef.current) clearTimeout(boundsTimerRef.current);
+    };
+  }, []);
 
   const handleMarkerClick = useCallback((id: string) => {
     setSelectedId((prev) => (prev === id ? null : id));
@@ -38,12 +45,15 @@ export function MapPanel({ listings, onBoundsChange, showSearchButton, onSearchA
     if (!onBoundsChange) return;
     const bounds = e.target.getBounds();
     if (!bounds) return;
-    onBoundsChange({
-      minLat: bounds.getSouth(),
-      maxLat: bounds.getNorth(),
-      minLng: bounds.getWest(),
-      maxLng: bounds.getEast(),
-    });
+    if (boundsTimerRef.current) clearTimeout(boundsTimerRef.current);
+    boundsTimerRef.current = setTimeout(() => {
+      onBoundsChange({
+        minLat: bounds.getSouth(),
+        maxLat: bounds.getNorth(),
+        minLng: bounds.getWest(),
+        maxLng: bounds.getEast(),
+      });
+    }, 300);
   }, [onBoundsChange]);
 
   const geoListings = useMemo(
