@@ -53,6 +53,18 @@ interface CribAIChatProps {
   readonly onMessageSent?: () => void;
   /** Called when AI tool calls reveal search filters */
   readonly onSearchContext?: (ctx: SearchContextUpdate) => void;
+  /** Called when AI search returns geocoded results — updates the map with matched listings only */
+  readonly onMapListings?: (listings: readonly {
+    id: string;
+    address: string;
+    rentMonthly: number;
+    beds: number | null;
+    sqft: number | null;
+    photoUrl: string | null;
+    fairnessScore: number | null;
+    latitude: number;
+    longitude: number;
+  }[]) => void;
   /** Optional CSS class for the outermost container (e.g. `h-full` when rendered inside a Sheet). */
   readonly className?: string;
 }
@@ -174,6 +186,7 @@ export function CribAIChat({
   mapBounds,
   onMessageSent,
   onSearchContext,
+  onMapListings,
   className,
 }: CribAIChatProps) {
   const [messages, setMessages] = useState<readonly Message[]>([]);
@@ -428,6 +441,38 @@ export function CribAIChat({
             }
 
             case 'tool_result': {
+              // Map block event — update the map panel with AI-filtered listings
+              if (event.name === 'search_listings_map' && event.block?.type === 'map' && onMapListings) {
+                type RawMapListing = {
+                  id: string;
+                  address: string;
+                  rentMonthly: number;
+                  bedrooms: number | null;
+                  sqft: number | null;
+                  fairnessScore: number | null;
+                  photoUrl: string | null;
+                  latitude: number | null;
+                  longitude: number | null;
+                };
+                const rawListings = (event.block as { type: 'map'; listings: RawMapListing[] }).listings ?? [];
+                const mapListings = rawListings
+                  .filter(l => l.latitude != null && l.longitude != null)
+                  .map(l => ({
+                    id: l.id,
+                    address: l.address,
+                    rentMonthly: l.rentMonthly,
+                    beds: l.bedrooms,
+                    sqft: l.sqft,
+                    photoUrl: l.photoUrl,
+                    fairnessScore: l.fairnessScore,
+                    latitude: l.latitude as number,
+                    longitude: l.longitude as number,
+                  }));
+                onMapListings(mapListings);
+                // Don't render map block inline in the chat
+                break;
+              }
+
               const withoutLoading = assistantBlocks.filter(b => b.type !== 'tool_loading');
               if (event.block) {
                 assistantBlocks = [...withoutLoading, event.block];
@@ -476,7 +521,7 @@ export function CribAIChat({
       setIsStreaming(false);
       abortRef.current = null;
     }
-  }, [input, isStreaming, messages, campusSlug, campusId, conversationId, isAuthenticated, onConversationCreated, onMissionProposal, onMessageSent, onSearchContext, mapBounds, scrollToBottom]);
+  }, [input, isStreaming, messages, campusSlug, campusId, conversationId, isAuthenticated, onConversationCreated, onMissionProposal, onMessageSent, onSearchContext, onMapListings, mapBounds, scrollToBottom]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
