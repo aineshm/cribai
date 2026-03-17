@@ -2,27 +2,59 @@ import * as cheerio from 'cheerio';
 import { GoogleGenAI } from '@google/genai';
 import type { RawListing } from './base-scraper';
 
+// Browser-realistic User-Agent
 const USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
-const MAX_RETRIES = 2;
+// Browser-realistic headers (mirrors apartments-com.ts)
+const BROWSER_HEADERS: Record<string, string> = {
+  'User-Agent': USER_AGENT,
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Cache-Control': 'no-cache',
+  'Pragma': 'no-cache',
+  'Sec-Fetch-Dest': 'document',
+  'Sec-Fetch-Mode': 'navigate',
+  'Sec-Fetch-Site': 'none',
+  'Sec-Fetch-User': '?1',
+  'Upgrade-Insecure-Requests': '1',
+};
+
+// Detail page enrichment limits
+const MAX_DETAIL_PAGES = 50;
+const DETAIL_DELAY_MIN_MS = 3000;
+const DETAIL_DELAY_MAX_MS = 7000;
+const DETAIL_MAX_RETRIES = 1;
+const MAX_PHOTOS_PER_LISTING = 10;
+
+// Block detection patterns (case-insensitive check against response text)
+const BLOCK_SIGNALS = ['blocked', 'captcha', 'verify you are human'] as const;
+
+// Retry config for search page fetches (preserved from original)
+const SEARCH_MAX_RETRIES = 2;
 const INITIAL_BACKOFF_MS = 2000;
-const DETAIL_FETCH_DELAY_MS = 1500;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchWithRetry(url: string, retries = MAX_RETRIES): Promise<string | null> {
+/**
+ * Random delay between min and max milliseconds (inclusive).
+ */
+function randomDelay(minMs: number, maxMs: number): Promise<void> {
+  const ms = Math.floor(Math.random() * (maxMs - minMs)) + minMs;
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Fetch a URL with retries and browser-realistic headers.
+ * Returns the response body text, or null on failure.
+ */
+export async function fetchWithRetry(url: string, retries = SEARCH_MAX_RETRIES): Promise<string | null> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': USER_AGENT,
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.9',
-        },
-      });
+      const response = await fetch(url, { headers: BROWSER_HEADERS });
 
       if (response.ok) {
         return await response.text();
@@ -47,63 +79,107 @@ async function fetchWithRetry(url: string, retries = MAX_RETRIES): Promise<strin
   return null;
 }
 
+/**
+ * Check if a response body contains signals that Craigslist is blocking us.
+ */
+export function detectBlock(html: string): boolean {
+  const lower = html.toLowerCase();
+  return BLOCK_SIGNALS.some((signal) => lower.includes(signal));
+}
+
 /** Data extracted from a Craigslist detail page via cheerio */
 export interface DetailPageData {
   readonly photoUrls: readonly string[];
   readonly latitude: number | null;
   readonly longitude: number | null;
+  readonly address: string | null;
+  readonly bathrooms: number | null;
+  readonly amenities: readonly string[];
   readonly description: string | null;
   readonly postedDate: string | null;
 }
 
 /**
  * Parse a Craigslist detail page HTML to extract structured data.
+ * Extracts: photos, lat/lng, address, bathrooms, amenities, description, posted date.
  */
 export function parseDetailPage(html: string): DetailPageData {
   const $ = cheerio.load(html);
 
-  // Photos: try multiple selectors for different CL page structures
-  const photoUrls: string[] = [];
-  // Thumbstrip images
+  // --- Photos ---
+  // Try multiple selectors for different CL page structures
+  const rawPhotoUrls: string[] = [];
+
+  // Thumbstrip images (most common)
   $('#thumbs a').each((_, el) => {
     const href = $(el).attr('href');
-    if (href) photoUrls.push(href);
+    if (href) rawPhotoUrls.push(href);
   });
-  // Gallery images (alternative structure)
-  if (photoUrls.length === 0) {
+
+  // Gallery / swipe images (alternative structure)
+  if (rawPhotoUrls.length === 0) {
     $('.gallery img, .swipe img').each((_, el) => {
       const src = $(el).attr('src');
-      if (src && !src.includes('00000_')) photoUrls.push(src);
-    });
-  }
-  // Multi-image viewer
-  if (photoUrls.length === 0) {
-    $('img[title]').each((_, el) => {
-      const src = $(el).attr('src');
-      if (src && src.includes('images.craigslist.org')) photoUrls.push(src);
+      if (src && !src.includes('00000_')) rawPhotoUrls.push(src);
     });
   }
 
-  // Coordinates from map element
+  // Multi-image viewer with title attribute
+  if (rawPhotoUrls.length === 0) {
+    $('img[title]').each((_, el) => {
+      const src = $(el).attr('src');
+      if (src && src.includes('images.craigslist.org')) rawPhotoUrls.push(src);
+    });
+  }
+
+  // Deduplicate and cap at MAX_PHOTOS_PER_LISTING
+  const photoUrls = [...new Set(rawPhotoUrls)].slice(0, MAX_PHOTOS_PER_LISTING);
+
+  // --- Coordinates from #map element ---
   const mapEl = $('#map');
   const latStr = mapEl.attr('data-latitude');
   const lngStr = mapEl.attr('data-longitude');
-  const latitude = latStr ? parseFloat(latStr) : null;
-  const longitude = lngStr ? parseFloat(lngStr) : null;
+  const rawLat = latStr ? parseFloat(latStr) : null;
+  const rawLng = lngStr ? parseFloat(lngStr) : null;
+  const latitude = rawLat !== null && !isNaN(rawLat) ? rawLat : null;
+  const longitude = rawLng !== null && !isNaN(rawLng) ? rawLng : null;
 
-  // Description from posting body
+  // --- Address from .mapaddress or h2 fallback ---
+  const mapAddress = $('.mapaddress').text().trim();
+  const titleAddress = $('h2.postingtitletext').text().trim();
+  const address = mapAddress || titleAddress || null;
+
+  // --- Bathrooms from .attrgroup text ---
+  const attrText = $('.attrgroup').text();
+  const bathMatch = attrText.match(/(\d+(?:\.\d+)?)\s*(?:bath|ba)/i);
+  const bathrooms = bathMatch?.[1] ? parseFloat(bathMatch[1]) : null;
+
+  // --- Amenities from .attrgroup span elements ---
+  const amenities: string[] = [];
+  $('.attrgroup span').each((_, el) => {
+    const text = $(el).text().trim();
+    // Skip entries that look like bed/bath counts (already parsed above)
+    if (text && !/^\d+(?:\.\d+)?\s*(?:br|ba|bed|bath|ft2?)/i.test(text)) {
+      amenities.push(text.toLowerCase().replace(/\s+/g, '_'));
+    }
+  });
+
+  // --- Description from posting body ---
   const postingBody = $('#postingbody').clone();
   postingBody.find('.print-information, .print-qrcode-container').remove();
   const description = postingBody.text().trim() || null;
 
-  // Posted date
+  // --- Posted date ---
   const timeEl = $('time.date[datetime]');
   const postedDate = timeEl.attr('datetime') ?? null;
 
   return {
     photoUrls,
-    latitude: latitude !== null && !isNaN(latitude) ? latitude : null,
-    longitude: longitude !== null && !isNaN(longitude) ? longitude : null,
+    latitude,
+    longitude,
+    address,
+    bathrooms,
+    amenities,
     description,
     postedDate,
   };
@@ -203,54 +279,102 @@ function createGeminiClient(): GoogleGenAI | null {
 }
 
 /**
- * Enrich a batch of Craigslist listings by fetching their detail pages
- * and optionally running LLM extraction on sparse listings.
+ * Enrich a batch of Craigslist listings by fetching their detail pages.
+ *
+ * Adds: lat/lng, real address, bathrooms, amenities, photos.
+ * Conservative rate limiting (3-7s delay) with block detection that
+ * halts the loop early to avoid bans. Caps at maxPages detail fetches.
  */
 export async function enrichListings(
   listings: readonly RawListing[],
+  maxPages: number = MAX_DETAIL_PAGES,
 ): Promise<readonly RawListing[]> {
   if (listings.length === 0) return listings;
 
-  console.log(`[craigslist-enrich] Enriching ${listings.length} listings from detail pages`);
+  // Only enrich listings that have a sourceUrl, up to the cap
+  const enrichable = listings.filter((l) => !!l.sourceUrl);
+  const toEnrich = enrichable.slice(0, maxPages);
+  const skippedUrls = new Set(
+    enrichable.slice(maxPages).map((l) => l.sourceUrl),
+  );
+
+  console.log(
+    `[craigslist-enrich] Enriching ${toEnrich.length}/${listings.length} listings from detail pages (cap: ${maxPages})`,
+  );
 
   const gemini = createGeminiClient();
-  let processedCount = 0;
   let fetchedCount = 0;
   let failedCount = 0;
+  let consecutiveFailures = 0;
   let llmCount = 0;
+  let blocked = false;
 
-  const enriched: RawListing[] = [];
+  // Max consecutive fetch failures before treating as a soft block
+  const MAX_CONSECUTIVE_FAILURES = 3;
 
-  for (const listing of listings) {
-    if (!listing.sourceUrl) {
-      enriched.push(listing);
-      continue;
-    }
+  // Map sourceUrl -> enriched data for fast lookup
+  const enrichedMap = new Map<string, DetailPageData>();
 
-    // Rate limit between fetches
-    if (processedCount > 0) {
-      const delay = DETAIL_FETCH_DELAY_MS + Math.random() * 500;
-      await sleep(delay);
-    }
+  for (let i = 0; i < toEnrich.length; i++) {
+    const listing = toEnrich[i]!;
 
-    processedCount++;
-    const html = await fetchWithRetry(listing.sourceUrl);
+    // Random delay before each fetch (3-7s), including the first
+    await randomDelay(DETAIL_DELAY_MIN_MS, DETAIL_DELAY_MAX_MS);
+
+    const html = await fetchWithRetry(listing.sourceUrl, DETAIL_MAX_RETRIES);
     if (!html) {
-      enriched.push(listing);
       failedCount++;
+      consecutiveFailures++;
+
+      // Treat repeated failures (e.g. 403s) as a soft block
+      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+        console.warn(
+          `[craigslist-enrich] WARN: ${MAX_CONSECUTIVE_FAILURES} consecutive fetch failures — stopping enrichment to avoid ban. Enriched ${fetchedCount} listings so far.`,
+        );
+        blocked = true;
+        break;
+      }
       continue;
+    }
+
+    // Reset consecutive failure counter on success
+    consecutiveFailures = 0;
+
+    // Block detection — stop entire enrichment loop
+    if (detectBlock(html)) {
+      console.warn(
+        `[craigslist-enrich] WARN: Detected block signal on detail page fetch — stopping enrichment to avoid ban. Enriched ${fetchedCount} listings so far.`,
+      );
+      blocked = true;
+      break;
     }
 
     fetchedCount++;
-
     const detail = parseDetailPage(html);
+    enrichedMap.set(listing.sourceUrl, detail);
+  }
 
-    // Merge detail page data — only override null values
+  // Build enriched listings array (preserves original order)
+  const result: RawListing[] = [];
+
+  for (const listing of listings) {
+    const detail = enrichedMap.get(listing.sourceUrl);
+
+    // No detail data available — return listing as-is
+    if (!detail || !listing.sourceUrl || skippedUrls.has(listing.sourceUrl)) {
+      result.push(listing);
+      continue;
+    }
+
+    // Merge detail page data into listing (immutable — new object)
     let merged: RawListing = {
       ...listing,
       photoUrls: detail.photoUrls.length > 0 ? detail.photoUrls : listing.photoUrls,
       latitude: detail.latitude ?? listing.latitude,
       longitude: detail.longitude ?? listing.longitude,
+      address: detail.address ?? listing.address,
+      bathrooms: detail.bathrooms ?? listing.bathrooms,
+      amenities: detail.amenities.length > 0 ? detail.amenities : listing.amenities,
       rawData: {
         ...listing.rawData,
         description: detail.description,
@@ -258,7 +382,7 @@ export async function enrichListings(
       },
     };
 
-    // LLM extraction for sparse listings
+    // LLM extraction for sparse listings (bedrooms/amenities still missing)
     if (gemini && detail.description && isSparse(merged)) {
       const extracted = await extractWithLLM(detail.description, gemini);
       merged = {
@@ -277,18 +401,18 @@ export async function enrichListings(
       llmCount++;
     }
 
-    enriched.push(merged);
+    result.push(merged);
   }
 
   console.log(
-    `[craigslist-enrich] Done: ${fetchedCount}/${processedCount} detail pages fetched (${failedCount} failed), ${llmCount} LLM extractions`,
+    `[craigslist-enrich] Enriched ${fetchedCount}/${listings.length} listings with detail page data (${failedCount} failed, ${llmCount} LLM extractions${blocked ? ', stopped early due to block' : ''})`,
   );
 
-  if (processedCount > 0 && failedCount / processedCount > 0.5) {
+  if (!blocked && fetchedCount > 0 && failedCount / (fetchedCount + failedCount) > 0.5) {
     console.warn(
-      `[craigslist-enrich] WARNING: ${Math.round((failedCount / processedCount) * 100)}% of detail page fetches failed — Craigslist may be rate-limiting`,
+      `[craigslist-enrich] WARNING: ${Math.round((failedCount / (fetchedCount + failedCount)) * 100)}% of detail page fetches failed — Craigslist may be rate-limiting`,
     );
   }
 
-  return enriched;
+  return result;
 }
