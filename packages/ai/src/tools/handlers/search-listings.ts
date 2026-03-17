@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { ToolContext, ToolResult } from '../types';
 import type { ListingSummary } from '@campusnest/types';
 import { generateQueryEmbedding } from '../../embeddings/generate-embedding';
+import { resolveLandmarkFromQuery } from '../landmarks';
 
 const inputSchema = z.object({
   semantic_query: z.string().optional(),
@@ -64,9 +65,19 @@ async function semanticSearch(
   limit: number,
   context: ToolContext,
 ): Promise<ToolResult> {
+  // Resolve landmark from query for geographic proximity filtering
+  const landmark = await resolveLandmarkFromQuery(
+    parsed.semantic_query!,
+    context.campusId,
+    context.supabase,
+  );
+
   const queryVector = await generateQueryEmbedding(parsed.semantic_query!);
 
-  const { data, error } = await context.supabase.rpc('match_listings_semantic', {
+  // Default radius: ~1 mile (1600m). Increase for broader landmarks like "State Street"
+  const DEFAULT_RADIUS_M = 1600;
+
+  const rpcParams: Record<string, unknown> = {
     query_embedding: JSON.stringify(queryVector),
     p_campus_id: context.campusId,
     p_bedrooms: parsed.bedrooms ?? null,
@@ -74,7 +85,16 @@ async function semanticSearch(
     p_max_rent: parsed.max_rent ?? null,
     p_min_fairness: parsed.min_fairness ?? null,
     match_count: limit,
-  });
+  };
+
+  // Add geographic filter when a landmark is detected
+  if (landmark) {
+    rpcParams.p_latitude = landmark.latitude;
+    rpcParams.p_longitude = landmark.longitude;
+    rpcParams.p_radius_m = DEFAULT_RADIUS_M;
+  }
+
+  const { data, error } = await context.supabase.rpc('match_listings_semantic', rpcParams);
 
   if (error) {
     throw new Error(`Semantic search failed: ${error.message}`);
@@ -126,10 +146,13 @@ async function semanticSearch(
   const uniqueCount = uniqueAddresses.size;
 
   // Build modelContext WITHOUT numeric similarity scores
+  const geoHint = landmark
+    ? `\n[Geographic filter: results within ~1 mile of ${landmark.name} (${landmark.category})]`
+    : '';
   const uniqueHint = `\n\n[Unique properties: ${uniqueCount}. If no unique properties matched, consider using web_search to find more options.]`;
   const modelContext = filtered.length === 0
-    ? 'No listings found matching the criteria.' + uniqueHint
-    : `Found ${filtered.length} listing(s) matching "${parsed.semantic_query}":\n${filtered
+    ? 'No listings found matching the criteria.' + geoHint + uniqueHint
+    : `Found ${filtered.length} listing(s) matching "${parsed.semantic_query}":${geoHint}\n${filtered
         .map(
           (l, i) =>
             `${i + 1}. [id:${l.id}] ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10 (source: ${l.source ?? 'unknown'})`,
@@ -157,10 +180,13 @@ async function semanticSearch(
   };
 
   if (rowsWithLatLng.length >= 3) {
-    const sumLat = rowsWithLatLng.reduce((s, r) => s + (r.latitude ?? 0), 0);
-    const sumLng = rowsWithLatLng.reduce((s, r) => s + (r.longitude ?? 0), 0);
-    const centerLat = sumLat / rowsWithLatLng.length;
-    const centerLng = sumLng / rowsWithLatLng.length;
+    // Center map on landmark when detected, otherwise average listing positions
+    const centerLat = landmark
+      ? landmark.latitude
+      : rowsWithLatLng.reduce((s, r) => s + (r.latitude ?? 0), 0) / rowsWithLatLng.length;
+    const centerLng = landmark
+      ? landmark.longitude
+      : rowsWithLatLng.reduce((s, r) => s + (r.longitude ?? 0), 0) / rowsWithLatLng.length;
 
     const mapListings = filteredRows.map(row => {
       const photoUrls = Array.isArray(row.photo_urls) ? row.photo_urls : [];

@@ -4,6 +4,7 @@ import type { ToolContext } from '../types';
 interface MockQueryBuilder {
   select: ReturnType<typeof vi.fn>;
   eq: ReturnType<typeof vi.fn>;
+  gt: ReturnType<typeof vi.fn>;
   gte: ReturnType<typeof vi.fn>;
   lte: ReturnType<typeof vi.fn>;
   in: ReturnType<typeof vi.fn>;
@@ -18,6 +19,7 @@ export function createMockQueryBuilder(resolvedData: unknown = [], error: unknow
   const builder: MockQueryBuilder = {
     select: vi.fn(),
     eq: vi.fn(),
+    gt: vi.fn(),
     gte: vi.fn(),
     lte: vi.fn(),
     in: vi.fn(),
@@ -31,6 +33,7 @@ export function createMockQueryBuilder(resolvedData: unknown = [], error: unknow
   // Each method returns the builder for chaining
   builder.select.mockReturnValue(builder);
   builder.eq.mockReturnValue(builder);
+  builder.gt.mockReturnValue(builder);
   builder.gte.mockReturnValue(builder);
   builder.lte.mockReturnValue(builder);
   builder.in.mockReturnValue(builder);

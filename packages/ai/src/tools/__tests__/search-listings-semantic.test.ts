@@ -7,7 +7,13 @@ vi.mock('../../embeddings/generate-embedding', () => ({
   generateQueryEmbedding: vi.fn(),
 }));
 
+// Mock the landmarks module — no landmark resolution by default in existing tests
+vi.mock('../landmarks', () => ({
+  resolveLandmarkFromQuery: vi.fn().mockResolvedValue(null),
+}));
+
 import { generateQueryEmbedding } from '../../embeddings/generate-embedding';
+import { resolveLandmarkFromQuery } from '../landmarks';
 
 const MOCK_VECTOR = Array.from({ length: 768 }, (_, i) => i / 768);
 
@@ -208,5 +214,85 @@ describe('searchListings semantic search', () => {
     // relevance sort without semantic_query should still work (falls back to default)
     const result = await searchListings({ sort: 'relevance' }, context);
     expect(result.clientBlock.type).toBe('listing_card');
+  });
+
+  it('passes geo params to RPC when landmark is detected', async () => {
+    const landmark = {
+      name: 'Engineering Hall',
+      latitude: 43.0715,
+      longitude: -89.4115,
+      category: 'academic',
+    };
+    vi.mocked(resolveLandmarkFromQuery).mockResolvedValueOnce(landmark);
+
+    const context = createMockContext();
+    const rpcMock = vi.fn().mockResolvedValue({
+      data: [SAMPLE_RPC_RESULT_1],
+      error: null,
+    });
+    (context.supabase as unknown as { rpc: typeof rpcMock }).rpc = rpcMock;
+
+    const result = await searchListings(
+      { semantic_query: 'apartments near Engineering Hall' },
+      context,
+    );
+
+    expect(rpcMock).toHaveBeenCalledWith('match_listings_semantic', expect.objectContaining({
+      p_latitude: 43.0715,
+      p_longitude: -89.4115,
+      p_radius_m: 1600,
+    }));
+    expect(result.modelContext).toContain('Engineering Hall');
+    expect(result.modelContext).toContain('Geographic filter');
+  });
+
+  it('does not pass geo params when no landmark detected', async () => {
+    vi.mocked(resolveLandmarkFromQuery).mockResolvedValueOnce(null);
+
+    const context = createMockContext();
+    const rpcMock = vi.fn().mockResolvedValue({
+      data: [SAMPLE_RPC_RESULT_1],
+      error: null,
+    });
+    (context.supabase as unknown as { rpc: typeof rpcMock }).rpc = rpcMock;
+
+    await searchListings(
+      { semantic_query: 'cheap apartments' },
+      context,
+    );
+
+    const rpcArgs = rpcMock.mock.calls[0]![1] as Record<string, unknown>;
+    expect(rpcArgs).not.toHaveProperty('p_latitude');
+    expect(rpcArgs).not.toHaveProperty('p_longitude');
+    expect(rpcArgs).not.toHaveProperty('p_radius_m');
+  });
+
+  it('centers map on landmark when detected', async () => {
+    const landmark = {
+      name: 'Engineering Hall',
+      latitude: 43.0715,
+      longitude: -89.4115,
+      category: 'academic',
+    };
+    vi.mocked(resolveLandmarkFromQuery).mockResolvedValueOnce(landmark);
+
+    const context = createMockContext();
+    const rpcMock = vi.fn().mockResolvedValue({
+      data: [SAMPLE_RPC_RESULT_1, SAMPLE_RPC_RESULT_2, SAMPLE_RPC_RESULT_3],
+      error: null,
+    });
+    (context.supabase as unknown as { rpc: typeof rpcMock }).rpc = rpcMock;
+
+    const result = await searchListings(
+      { semantic_query: 'apartments near Engineering Hall' },
+      context,
+    );
+
+    expect(result.mapBlock).toBeDefined();
+    if (result.mapBlock?.type === 'map') {
+      // Map should center on the landmark, not the average of listings
+      expect(result.mapBlock.center.lat).toBe(43.0715);
+      expect(result.mapBlock.center.lng).toBe(-89.4115);
+    }
   });
 });
