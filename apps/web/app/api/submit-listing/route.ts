@@ -85,6 +85,7 @@ export async function POST(request: NextRequest) {
       source: 'sublease',
       source_url: source_url || null,
       contact_email: contact_email ?? null,
+      creator_id: user.id,
       is_active: true,
       last_embedded_at: null,
       external_id: `sublease-${user.id}-${Date.now()}`,
