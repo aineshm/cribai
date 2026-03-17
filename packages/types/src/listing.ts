@@ -55,7 +55,7 @@ export type Listing = z.infer<typeof listingSchema>;
 
 export const listingSubmissionSchema = z.object({
   address: z.string().min(5, 'Address must be at least 5 characters').max(200),
-  rent_monthly: z.number().positive('Rent must be positive').max(10000),
+  rent_monthly: z.number().positive('Rent must be positive').max(10000).nullable().optional(),
   bedrooms: z.number().int().min(0).max(10),
   bathrooms: z.number().min(0).max(10).optional(),
   sqft: z.number().positive().optional(),
