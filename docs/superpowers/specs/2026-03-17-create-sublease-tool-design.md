@@ -18,13 +18,13 @@ Add a `create_sublease` tool to CribAI that lets authenticated users list a subl
 - Tool registration in `executor.ts`, `types.ts`, `cribai.ts`
 - Two-phase HITL flow (preview → confirm → publish)
 - Geocoding via Google Places `textSearchPlace()` + `getPlaceDetails()`
+- **Agent run logging** — `agent_runs` table + centralized logging in executor (all tools)
 - Analytics events via existing `trackEvent()` pattern
 - Feature branch: `feat/create-sublease-tool`
 
 ### Out of Scope (follow-ups)
 
 - Floor plan scraping post-publish (async `after()` job)
-- Broader agent observability system (all CribAI tool calls)
 - Photo upload support (would require multimodal input or URL collection)
 - Per-tool rate limiting on sublease creation (follow-up hardening)
 
@@ -238,7 +238,7 @@ Using existing `trackEvent()` infrastructure:
 | `sublease_draft_created` | Phase 1 completes | `{ fields_extracted, fields_missing, geocode_success, user_id }` |
 | `sublease_published` | Phase 2 completes | `{ listing_id, time_since_draft_ms, user_id }` |
 
-`sublease_abandoned` and `sublease_draft_rejected` are deferred to the broader observability effort (they require tracking when the tool is NOT called).
+`sublease_abandoned` can be approximated via `agent_runs`: a Phase 1 run with no subsequent Phase 2 run from the same user within a session indicates abandonment. `sublease_draft_rejected` requires tracking when the tool is NOT called, which is deferred.
 
 ### Error Handling
 
@@ -260,20 +260,132 @@ Using existing `trackEvent()` infrastructure:
 - Contact email validated as email format
 - Description capped at 2000 chars
 
+## Agent Run Logging
+
+Every tool invocation across all CribAI tools is recorded for observability, debugging, and continuous improvement. This is implemented centrally in `executor.ts` so no individual tool handler needs to change (except `create_sublease` which adds tool-specific metadata).
+
+### Database Schema (migration 023)
+
+```sql
+CREATE TABLE agent_runs (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id          uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  campus_id        uuid REFERENCES campus_configs(id) ON DELETE SET NULL,
+  conversation_id  uuid,                        -- chat session, nullable (no FK — no conversations table yet)
+  tool_name        text NOT NULL,
+  phase            smallint,                    -- for two-phase tools like create_sublease (1 or 2); null for single-phase
+  args_summary     jsonb NOT NULL DEFAULT '{}', -- sanitized subset of args (no PII — no email, no personal details)
+  result_status    text NOT NULL                -- 'success' | 'error' | 'timeout'
+                   CHECK (result_status IN ('success', 'error', 'timeout')),
+  result_summary   jsonb NOT NULL DEFAULT '{}', -- key output metrics (listing_id, geocode_success, fields_count, etc.)
+  error_message    text,                        -- null on success
+  duration_ms      integer NOT NULL,
+  created_at       timestamptz NOT NULL DEFAULT now()
+);
+
+-- Indexes for common query patterns
+CREATE INDEX idx_agent_runs_user_id    ON agent_runs (user_id, created_at DESC);
+CREATE INDEX idx_agent_runs_tool_name  ON agent_runs (tool_name, created_at DESC);
+CREATE INDEX idx_agent_runs_created_at ON agent_runs (created_at DESC);
+
+-- RLS: service role only — not exposed to end users
+ALTER TABLE agent_runs ENABLE ROW LEVEL SECURITY;
+-- No permissive policies — only service-role client can write/read
+```
+
+### What Gets Stored
+
+**`args_summary`** — sanitized, non-PII subset of tool args:
+- Omit: `contact_email`, `student_email`, `message` (any free-text or personal fields)
+- Include: structural fields — `tool_name`, `confirmed`, `bedrooms_total`, `bedrooms_available`, `rent_monthly` (number only), `amenities` (count), `address` (city/state only after stripping unit/street)
+
+**`result_summary`** — key output metrics per tool:
+
+| Tool | result_summary fields |
+|------|----------------------|
+| `create_sublease` | `{ phase, geocode_success, listing_id, fields_extracted_count, fields_missing }` |
+| `search_listings` | `{ result_count, semantic, filters_applied }` |
+| `get_listing_detail` | `{ listing_found }` |
+| `schedule_tour` | `{ tour_id, conflict_count }` |
+| `contact_pm` | `{ draft_generated, has_landlord }` |
+| all tools | `{ result_count }` (fallback) |
+
+### Where Logging Happens
+
+**`packages/ai/src/tools/executor.ts`** — wrap the existing handler call:
+
+```typescript
+const start = Date.now();
+try {
+  const result = await handler(args, context);
+  await logAgentRun({
+    userId: context.userId,
+    campusId: context.campusId,
+    toolName: name,
+    argsSummary: sanitizeArgs(name, args),
+    resultStatus: 'success',
+    resultSummary: extractResultSummary(name, result),
+    durationMs: Date.now() - start,
+  });
+  return result;
+} catch (err) {
+  await logAgentRun({ ..., resultStatus: 'error', errorMessage: err.message, ... });
+  throw err;
+}
+```
+
+Logging is **fire-and-forget** (no `await` on the insert — same pattern as `trackEvent()`). A logging failure never breaks the tool call.
+
+### New helper: `packages/ai/src/tools/lib/agent-run-logger.ts`
+
+Exports:
+- `logAgentRun(params)` — fire-and-forget insert into `agent_runs` using service-role client
+- `sanitizeArgs(toolName, args)` — strips PII fields per tool
+- `extractResultSummary(toolName, result)` — pulls key metrics from ToolResult
+
+### create_sublease specific metadata
+
+For `create_sublease`, `result_summary` includes:
+```json
+{
+  "phase": 1,
+  "geocode_success": true,
+  "fields_extracted_count": 7,
+  "fields_missing": ["available_from"],
+  "listing_id": null
+}
+```
+
+Phase 2 on success:
+```json
+{
+  "phase": 2,
+  "geocode_success": true,
+  "listing_id": "uuid-...",
+  "fields_extracted_count": 9,
+  "fields_missing": []
+}
+```
+
+This gives a feedback loop: `fields_missing` across runs identifies which fields Gemini consistently fails to extract, informing prompt improvements.
+
 ## Files to Create/Modify
 
 | File | Action | Description |
 |------|--------|-------------|
+| `supabase/migrations/023_agent_runs.sql` | Create | `agent_runs` table + indexes + RLS |
+| `packages/ai/src/tools/lib/agent-run-logger.ts` | Create | Fire-and-forget logger, arg sanitizer, result extractor |
 | `packages/ai/src/tools/handlers/create-sublease.ts` | Create | Two-phase tool handler |
 | `packages/ai/src/tools/lib/geocode-address.ts` | Create | Geocoding helper |
 | `packages/ai/src/tools/lib/google-places.ts` | Modify | Add `location` field to `PlaceDetailsResult` |
 | `packages/types/src/listing.ts` | Modify | Make `rent_monthly` nullable in `listingSubmissionSchema` |
 | `packages/ai/src/tools/schemas.ts` | Modify | Add `create_sublease` FunctionDeclaration |
 | `packages/ai/src/tools/types.ts` | Modify | Add `'create_sublease'` to `ToolName` union |
-| `packages/ai/src/tools/executor.ts` | Modify | Import + register handler |
+| `packages/ai/src/tools/executor.ts` | Modify | Wrap handler calls with agent run logging |
 | `packages/ai/src/cribai.ts` | Modify | Add to `TOOL_SUMMARIES`, update system prompt |
 | `apps/web/app/api/ai/cribai/route.ts` | Modify | Exclude `create_sublease` from `GUEST_ALLOWED_TOOLS` |
 | `packages/ai/src/tools/__tests__/create-sublease.test.ts` | Create | Unit tests |
+| `packages/ai/src/tools/lib/__tests__/agent-run-logger.test.ts` | Create | Logger + sanitizer unit tests |
 | `packages/ai/src/tools/lib/__tests__/geocode-address.test.ts` | Create | Geocoding tests |
 
 ## Testing Strategy
