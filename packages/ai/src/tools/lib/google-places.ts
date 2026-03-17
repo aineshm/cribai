@@ -19,6 +19,10 @@ export interface PlaceDetailsResult {
   readonly rating: number;
   readonly userRatingCount: number;
   readonly reviews: readonly PlaceReview[];
+  readonly location?: {
+    readonly latitude: number;
+    readonly longitude: number;
+  };
 }
 
 export interface NearbyPlace {
