@@ -207,7 +207,7 @@ async function sqlSearch(
   let query = context.supabase
     .from('listings')
     .select(
-      'id, address, rent_monthly, bedrooms, bathrooms, sqft, fairness_score, true_cost_total, amenities, source',
+      'id, address, rent_monthly, bedrooms, bathrooms, sqft, fairness_score, true_cost_total, amenities, source, latitude, longitude, photo_urls',
     )
     .eq('campus_id', context.campusId)
     .eq('is_active', true)
@@ -305,8 +305,50 @@ async function sqlSearch(
         )
         .join('\n')}\n\n[Prefer Zillow-sourced listings when recommending — they have verified data and photos.]` + sqlUniqueHint;
 
-  return {
+  const sqlResult = {
     modelContext,
-    clientBlock: { type: 'listing_card', listings: [...filtered] },
+    clientBlock: { type: 'listing_card' as const, listings: [...filtered] },
   };
+
+  // Build map block when any results have coordinates
+  const rowsWithCoords = (data ?? []).filter(
+    row => row.latitude != null && row.longitude != null,
+  );
+
+  if (rowsWithCoords.length >= 1) {
+    const sumLat = rowsWithCoords.reduce((s, r) => s + (r.latitude as number), 0);
+    const sumLng = rowsWithCoords.reduce((s, r) => s + (r.longitude as number), 0);
+    const centerLat = sumLat / rowsWithCoords.length;
+    const centerLng = sumLng / rowsWithCoords.length;
+
+    const mapListings = rowsWithCoords.map(row => {
+      const photoUrls = Array.isArray(row.photo_urls) ? row.photo_urls : [];
+      return {
+        id: row.id as string,
+        address: row.address as string,
+        rentMonthly: Number(row.rent_monthly),
+        bedrooms: row.bedrooms as number | null,
+        bathrooms: row.bathrooms as number | null,
+        sqft: row.sqft as number | null,
+        fairnessScore: row.fairness_score as number | null,
+        trueCostTotal: row.true_cost_total as number | null,
+        amenities: (row.amenities as string[] | null) ?? [],
+        latitude: row.latitude as number,
+        longitude: row.longitude as number,
+        photoUrl: photoUrls.length > 0 ? (photoUrls[0] as string) : null,
+      };
+    });
+
+    return {
+      ...sqlResult,
+      mapBlock: {
+        type: 'map' as const,
+        listings: mapListings,
+        center: { lat: centerLat, lng: centerLng },
+        zoom: 14,
+      },
+    };
+  }
+
+  return sqlResult;
 }
