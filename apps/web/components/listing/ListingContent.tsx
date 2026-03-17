@@ -13,8 +13,6 @@ import {
   Phone,
   ExternalLink,
   Tag,
-  Sparkles,
-  CheckCircle2,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -197,27 +195,6 @@ export function ListingContent({ listing }: ListingContentProps) {
         </>
       )}
 
-      {/* AI Lease Summary */}
-      {listing.leaseTerm && (
-        <>
-          <Separator />
-          <motion.div
-            className="rounded-3xl border border-teal-100 bg-teal-50 p-6"
-            variants={staggerItem}
-          >
-            <div className="mb-4 flex items-center gap-2">
-              <Sparkles className="size-5 text-teal-700" />
-              <h2 className="font-[family-name:var(--font-display)] text-lg font-bold text-teal-900">
-                AI Lease Summary
-              </h2>
-            </div>
-            <div className="flex items-start gap-2.5">
-              <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-teal-600" />
-              <span className="text-sm leading-relaxed text-teal-800">{listing.leaseTerm}</span>
-            </div>
-          </motion.div>
-        </>
-      )}
 
       {/* Contact & Source */}
       <Separator />

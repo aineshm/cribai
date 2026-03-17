@@ -66,8 +66,7 @@ export function AmenitiesGrid({ amenities }: AmenitiesGridProps) {
       className="grid grid-cols-2 sm:grid-cols-3 gap-3"
       variants={staggerContainer}
       initial="initial"
-      whileInView="animate"
-      viewport={{ once: true, margin: '-50px' }}
+      animate="animate"
     >
       {amenities.map((name) => {
         const Icon = iconForAmenity(name);

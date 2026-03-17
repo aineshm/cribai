@@ -441,7 +441,15 @@ export function CribAIChat({
             }
 
             case 'tool_result': {
-              // Map block event — update the map panel with AI-filtered listings
+              const withoutLoading = assistantBlocks.filter(b => b.type !== 'tool_loading');
+              if (event.block) {
+                assistantBlocks = [...withoutLoading, event.block];
+              } else {
+                assistantBlocks = withoutLoading;
+              }
+              updateAssistantMessage(assistantBlocks);
+
+              // When the search_listings tool returns a map block, push listings to the main MapPanel
               if (event.name === 'search_listings_map' && event.block?.type === 'map' && onMapListings) {
                 type RawMapListing = {
                   id: string;
@@ -469,17 +477,7 @@ export function CribAIChat({
                     longitude: l.longitude as number,
                   }));
                 onMapListings(mapListings);
-                // Don't render map block inline in the chat
-                break;
               }
-
-              const withoutLoading = assistantBlocks.filter(b => b.type !== 'tool_loading');
-              if (event.block) {
-                assistantBlocks = [...withoutLoading, event.block];
-              } else {
-                assistantBlocks = withoutLoading;
-              }
-              updateAssistantMessage(assistantBlocks);
               break;
             }
 
