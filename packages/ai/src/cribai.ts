@@ -55,6 +55,8 @@ const TOOL_SUMMARIES: Record<ToolName, string> = {
     'contact_pm — help draft an inquiry to a property manager',
   get_neighborhood_info:
     'get_neighborhood_info — walkability, safety, commute times, and local vibe for an area',
+  create_sublease:
+    'create_sublease — post a sublease listing through conversation (two-phase: preview then publish)',
 };
 
 function buildSystemPrompt(
@@ -77,7 +79,7 @@ Guest access limits:
 Platform context:
 - CampusNest has 2,500+ real listings near UW-Madison sourced from Zillow, with photos, prices, and fairness scores
 - All users are verified via .edu email — this is a trust differentiator over Craigslist/Facebook
-- Students can post subleases at /post using the PostWizard form — ALWAYS direct users there when they ask about posting or subletting their place
+- Students can post subleases through this chat (use the create_sublease tool) or via the PostWizard form at /post. Prefer the conversational flow — collect fields naturally, confirm with the user, then publish.
 - Fairness scores (1-10, higher = better value) factor in rent, utilities, parking, and fees into a true cost calculation
 
 Your tools:
