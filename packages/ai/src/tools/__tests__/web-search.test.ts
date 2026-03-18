@@ -52,7 +52,7 @@ describe('webSearch handler', () => {
       createMockContext(),
     );
 
-    expect(result.modelContext).toContain('Found 2 web result(s)');
+    expect(result.modelContext).toContain('Web search found 2 source(s)');
     expect(result.modelContext).toContain('Nice Apt');
     expect(result.modelContext).toContain('https://example.com/1');
     expect(result.clientBlock.type).toBe('web_result');
@@ -69,12 +69,12 @@ describe('webSearch handler', () => {
     const cached = [
       { title: 'Cached Apt', url: 'https://cached.com/1', content: 'Cached result', score: 0.9 },
     ];
-    // Build the same searchQuery the handler builds
-    setCachedResults('test query apartments rentals near Madison WI', cached);
+    // Build the same searchQuery the handler builds: `${query} near ${location}`
+    setCachedResults('test query near Madison WI', cached);
 
     const result = await webSearch({ query: 'test query' }, createMockContext());
 
-    expect(result.modelContext).toContain('Found 1 web result(s)');
+    expect(result.modelContext).toContain('Web search found 1 source(s)');
     expect(result.modelContext).toContain('Cached Apt');
     expect(mockSearch).not.toHaveBeenCalled();
   });
@@ -111,7 +111,7 @@ describe('webSearch handler', () => {
     );
 
     expect(mockSearch).toHaveBeenCalledWith(
-      'apartments apartments rentals near Chicago IL',
+      'apartments near Chicago IL',
       expect.objectContaining({ maxResults: 8 }),
     );
   });

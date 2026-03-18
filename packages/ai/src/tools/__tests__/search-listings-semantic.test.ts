@@ -130,7 +130,7 @@ describe('searchListings semantic search', () => {
     }
   });
 
-  it('does not return mapBlock for fewer than 3 semantic results', async () => {
+  it('returns mapBlock for 2 semantic results with coordinates (threshold >= 1)', async () => {
     const context = createMockContext();
     const rpcMock = vi.fn().mockResolvedValue({
       data: [SAMPLE_RPC_RESULT_1, SAMPLE_RPC_RESULT_2],
@@ -143,7 +143,10 @@ describe('searchListings semantic search', () => {
       context,
     );
 
-    expect(result.mapBlock).toBeUndefined();
+    expect(result.mapBlock).toBeDefined();
+    if (result.mapBlock?.type === 'map') {
+      expect(result.mapBlock.listings).toHaveLength(2);
+    }
   });
 
   it('applies amenity filter on top of semantic results', async () => {

@@ -153,7 +153,7 @@ describe('persistWebListing', () => {
 
     expect(mock.upsertFn).toHaveBeenCalledWith(
       {
-        external_id: 'https://zillow.com/listing/789',
+        external_id: 'https://zillow.com/listing/789#456 Campus Dr',
         address: '456 Campus Dr',
         source: 'web_search',
         source_url: 'https://zillow.com/listing/789',

@@ -2,8 +2,21 @@
  * Centralized agent run logging for CribAI tools.
  * Fire-and-forget — logging failures never break tool calls.
  */
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { ToolResult } from '../types';
+
+// Lazy singleton for service client — avoids creating a new client per tool call
+let _loggerClient: SupabaseClient | null = null;
+function getLoggerClient(): SupabaseClient | null {
+  if (_loggerClient) return _loggerClient;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const secretKey = process.env.SUPABASE_SECRET_KEY;
+  if (!supabaseUrl || !secretKey) return null;
+  _loggerClient = createClient(supabaseUrl, secretKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  return _loggerClient;
+}
 
 // PII fields to strip per tool
 const PII_FIELDS: Record<string, readonly string[]> = {
@@ -82,17 +95,8 @@ export interface AgentRunParams {
  * Fire-and-forget: never awaited by the caller, never throws.
  */
 export function logAgentRun(params: AgentRunParams): void {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const secretKey = process.env.SUPABASE_SECRET_KEY;
-
-  // Silently skip if env vars missing (e.g., in tests without setup)
-  if (!supabaseUrl || !secretKey) {
-    return;
-  }
-
-  const client = createClient(supabaseUrl, secretKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  const client = getLoggerClient();
+  if (!client) return;
 
   // Fire-and-forget: intentionally not awaited
   void (async () => {
