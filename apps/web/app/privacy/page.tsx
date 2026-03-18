@@ -2,20 +2,20 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: 'Privacy Policy — CampusNest',
+  title: 'Privacy Policy — CribAI',
   description:
-    'Privacy Policy for CampusNest. Learn how we collect, use, and protect your data.',
+    'Privacy Policy for CribAI. Learn how we collect, use, and protect your data.',
   openGraph: {
-    title: 'Privacy Policy — CampusNest',
+    title: 'Privacy Policy — CribAI',
     description:
-      'Privacy Policy for CampusNest. Learn how we collect, use, and protect your data.',
+      'Privacy Policy for CribAI. Learn how we collect, use, and protect your data.',
     type: 'website',
   },
   twitter: {
     card: 'summary',
-    title: 'Privacy Policy — CampusNest',
+    title: 'Privacy Policy — CribAI',
     description:
-      'Privacy Policy for CampusNest. Learn how we collect, use, and protect your data.',
+      'Privacy Policy for CribAI. Learn how we collect, use, and protect your data.',
   },
 };
 
@@ -30,7 +30,7 @@ export default function PrivacyPage() {
             href="/"
             className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-900)]"
           >
-            CampusNest
+            CribAI
           </Link>
         </div>
       </nav>
@@ -78,7 +78,7 @@ export default function PrivacyPage() {
                 2. How We Use Your Data
               </h2>
               <ul className="mt-2 list-disc space-y-1 pl-5">
-                <li>Operating and maintaining the CampusNest platform.</li>
+                <li>Operating and maintaining the CribAI platform.</li>
                 <li>Displaying listings to other users.</li>
                 <li>Improving search results and AI-powered recommendations.</li>
                 <li>Sending transactional emails (account verification, listing updates).</li>
@@ -124,7 +124,7 @@ export default function PrivacyPage() {
                 5. Cookies
               </h2>
               <p className="mt-2">
-                CampusNest uses cookies for authentication (keeping you signed
+                CribAI uses cookies for authentication (keeping you signed
                 in) and basic analytics. We do not use third-party advertising
                 cookies. You can manage cookie preferences in your browser
                 settings, though disabling cookies may affect platform
@@ -175,7 +175,7 @@ export default function PrivacyPage() {
               <p className="mt-2">
                 We may update this privacy policy as our platform evolves.
                 Significant changes will be communicated via email or an
-                in-app notification. Continued use of CampusNest after changes
+                in-app notification. Continued use of CribAI after changes
                 constitutes acceptance.
               </p>
             </section>

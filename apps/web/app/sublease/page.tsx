@@ -3,18 +3,18 @@ import { createSecretClient } from '@campusnest/supabase/server';
 import { SubleaseClient } from './SubleaseClient';
 
 export const metadata: Metadata = {
-  title: 'Summer Subleases — CampusNest',
+  title: 'Summer Subleases — CribAI',
   description:
     'Find or post summer subleases at UW-Madison. AI-powered search, verified .edu students only. Free to use.',
   openGraph: {
-    title: 'Summer Subleases — CampusNest',
+    title: 'Summer Subleases — CribAI',
     description:
       'Find or post summer subleases at UW-Madison. AI-powered search, verified students only.',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Summer Subleases — CampusNest',
+    title: 'Summer Subleases — CribAI',
     description:
       'Find or post summer subleases at UW-Madison. AI-powered search, verified students only.',
   },

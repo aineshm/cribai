@@ -55,7 +55,7 @@ export function ChatWebResult({ results, campusSlug }: ChatWebResultProps) {
               href={`/${campusSlug}/listings/${item.listingId}`}
               className="mt-1.5 inline-block text-xs text-[var(--primary-600)] hover:underline"
             >
-              View in CampusNest
+              View in CribAI
             </Link>
           )}
         </div>

@@ -68,7 +68,7 @@ export function AuthForm() {
     setError(null);
 
     if (!isEduEmail(email)) {
-      setError('CampusNest requires a .edu email address');
+      setError('CribAI requires a .edu email address');
       setLoading(false);
       return;
     }
@@ -235,7 +235,7 @@ export function AuthForm() {
                 <Mail className="h-6 w-6" />
               </div>
               <h2 className="font-[family-name:var(--font-display)] text-2xl text-[var(--surface-900)]">
-                Sign in to CampusNest
+                Sign in to CribAI
               </h2>
               <p className="mt-2 text-sm text-[var(--surface-500)]">
                 Enter your .edu email and we&apos;ll send you a verification code.

@@ -68,12 +68,12 @@
   --shadow-card-hover: 0 10px 25px rgba(0, 0, 0, 0.08), 0 4px 10px rgba(0, 0, 0, 0.04);
   --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.12), 0 8px 20px rgba(0, 0, 0, 0.06);
 
-  /* CampusNest Radii */
+  /* CribAI Radii */
   --radius-card: 12px;
   --radius-button: 8px;
   --radius-chat: 20px;
 
-  /* ─── shadcn/ui Token Overrides — CampusNest Brand ─── */
+  /* ─── shadcn/ui Token Overrides — CribAI Brand ─── */
   --background: #fafaf9;
   --foreground: #1c1917;
   --card: #ffffff;

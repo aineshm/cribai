@@ -122,7 +122,7 @@ export default async function CampusLayout({
           <div className="mx-auto flex max-w-6xl items-center justify-between">
             <div className="flex items-center gap-4">
               <Link href="/" className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-900)]">
-                CampusNest
+                CribAI
               </Link>
               <span className="hidden sm:inline rounded-full bg-[var(--primary-50)] px-3 py-1 text-xs font-medium text-[var(--primary-700)]">
                 {campusConfig.universityName}
@@ -196,7 +196,7 @@ export default async function CampusLayout({
         <footer className="border-t border-[var(--surface-200)] bg-white px-6 py-6 mt-auto">
           <div className="mx-auto max-w-6xl flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[var(--surface-400)]">
             <div className="flex items-center gap-2">
-              <span className="font-[family-name:var(--font-display)] text-sm text-[var(--surface-500)]">CampusNest</span>
+              <span className="font-[family-name:var(--font-display)] text-sm text-[var(--surface-500)]">CribAI</span>
               <span className="text-[var(--surface-300)]">&middot;</span>
               <span>{campusConfig.universityName}</span>
             </div>

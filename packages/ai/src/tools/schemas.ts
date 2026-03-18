@@ -267,7 +267,7 @@ const getNeighborhoodInfo: FunctionDeclaration = {
 const createSublease: FunctionDeclaration = {
   name: 'create_sublease',
   description:
-    'Create a sublease listing on CampusNest. This is a two-phase tool:\n' +
+    'Create a sublease listing on CribAI. This is a two-phase tool:\n' +
     'Phase 1 (confirmed=false): Validates extracted fields and returns a formatted preview for the user to review.\n' +
     'Phase 2 (confirmed=true): Publishes the listing after user confirms. You MUST re-send ALL fields, not just confirmed=true.\n\n' +
     'Before calling this tool, collect the required fields from conversation:\n' +

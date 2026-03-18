@@ -27,7 +27,7 @@ export function FooterCTA({ isAuthenticated = false }: FooterCTAProps) {
           Ready to find your nest?
         </h2>
         <p className="mt-4 text-[var(--primary-200)] text-lg">
-          Join thousands of students already using CampusNest to find fair,
+          Join thousands of students already using CribAI to find fair,
           transparent housing.
         </p>
         <Link

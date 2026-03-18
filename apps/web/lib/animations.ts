@@ -1,7 +1,7 @@
 import type { Transition, Variants } from 'framer-motion';
 
 /**
- * CampusNest v1.1 Shared Framer Motion Variants & Spring Configs
+ * CribAI v1.1 Shared Framer Motion Variants & Spring Configs
  *
  * Usage:
  *   import { pageTransition, springConfig } from '@/lib/animations';

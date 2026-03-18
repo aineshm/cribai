@@ -44,7 +44,7 @@ export function ListingContent({ listing }: ListingContentProps) {
         variants={staggerItem}
       >
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-700">
-          CampusNest listing
+          CribAI listing
         </p>
         <h1 className="mt-3 text-2xl font-bold text-foreground font-[family-name:var(--font-display)] md:text-3xl">
           {listing.title}

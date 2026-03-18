@@ -20,7 +20,7 @@ export default async function SubmitListingPage({
         Submit a Listing
       </h1>
       <p className="mt-2 mb-6 text-sm text-[var(--surface-500)]">
-        Know about a rental? Help fellow students by adding it to CampusNest.
+        Know about a rental? Help fellow students by adding it to CribAI.
       </p>
       <SubmitListingForm campusSlug={campusSlug} />
     </div>

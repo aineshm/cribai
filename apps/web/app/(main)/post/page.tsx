@@ -1,12 +1,17 @@
-import { getCurrentUser } from '@/lib/get-current-user';
-import { PostWizard } from '@/components/post/PostWizard';
+'use client';
 
-export const metadata = {
-  title: 'Post Sublease | CampusNest',
-  description: 'List your sublease on CampusNest.',
-};
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
-export default async function PostPage() {
-  const { user } = await getCurrentUser();
-  return <PostWizard userEmail={user?.email} />;
+export default function PostRedirect() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace('/chat');
+  }, [router]);
+
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <p className="text-sm text-gray-500">Redirecting to chat...</p>
+    </div>
+  );
 }

@@ -93,7 +93,7 @@ export function ListingCard({ listing }: ListingCardProps) {
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">
-                  CampusNest match
+                  CribAI match
                 </p>
                 <h3 className="mt-1 line-clamp-2 text-base font-semibold leading-snug text-[var(--surface-900)]">
                   {listing.title}

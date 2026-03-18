@@ -223,7 +223,7 @@ async function buildEnrichedResult(
 ): Promise<ToolResult> {
   const enrichedEntries: string[] = [];
   const persistedIds: (string | null)[] = [];
-  // Track the first persisted listing ID per result (for "View in CampusNest" links)
+  // Track the first persisted listing ID per result (for "View in CribAI" links)
   const resultListingIds: (string | null)[] = [];
 
   for (const r of results) {

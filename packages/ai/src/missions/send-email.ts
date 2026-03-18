@@ -27,7 +27,7 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
 
   const { data, error } = await resend.emails.send(
     {
-      from: params.from ?? 'CampusNest Concierge <onboarding@resend.dev>',
+      from: params.from ?? 'CribAI Concierge <onboarding@resend.dev>',
       to: params.to,
       subject: params.subject,
       text: params.text,

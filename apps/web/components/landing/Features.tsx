@@ -22,7 +22,7 @@ const features = [
     icon: Headphones,
     title: 'End-to-End Support',
     description:
-      'From lease term explanations to tour scheduling, CampusNest AI handles the stressful parts so you can focus on what matters.',
+      'From lease term explanations to tour scheduling, CribAI AI handles the stressful parts so you can focus on what matters.',
   },
 ] as const;
 

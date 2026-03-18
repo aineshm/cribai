@@ -17,7 +17,7 @@ export function SubleaseClient({ subleaseCount, totalCount }: SubleaseClientProp
       <nav className="flex items-center justify-between border-b border-[var(--surface-200)] bg-white px-6 py-3">
         <Link href="/" className="flex items-center gap-2 text-[var(--primary-700)] font-semibold">
           <Home className="size-5" />
-          CampusNest
+          CribAI
         </Link>
         <div className="flex items-center gap-3">
           <Link href="/explore" className="text-sm text-[var(--surface-600)] hover:text-[var(--surface-900)] transition-colors">
@@ -86,7 +86,7 @@ export function SubleaseClient({ subleaseCount, totalCount }: SubleaseClientProp
             Find a Sublease
           </Link>
           <Link
-            href="/post"
+            href="/chat"
             className={cn(
               buttonVariants({ variant: 'outline', size: 'lg' }),
               'h-12 px-8 text-base rounded-full'

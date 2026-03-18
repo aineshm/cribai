@@ -1,5 +1,5 @@
 /**
- * Intent classifier for CampusNest CribAI.
+ * Intent classifier for CribAI.
  *
  * Classifies student housing messages into mission intents using Gemini.
  * Always returns a result — never throws. Falls back to `general_chat` on error.

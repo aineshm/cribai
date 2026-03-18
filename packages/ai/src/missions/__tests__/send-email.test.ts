@@ -72,7 +72,7 @@ describe('sendEmail', () => {
 
     expect(mockSend).toHaveBeenCalledWith(
       expect.objectContaining({
-        from: 'CampusNest Concierge <onboarding@resend.dev>',
+        from: 'CribAI Concierge <onboarding@resend.dev>',
       }),
       expect.any(Object),
     );

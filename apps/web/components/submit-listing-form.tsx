@@ -108,7 +108,7 @@ export function SubmitListingForm({ campusSlug }: SubmitListingFormProps) {
           Listing submitted!
         </h2>
         <p className="mt-2 max-w-sm text-sm text-[var(--surface-500)]">
-          Your listing will be reviewed and added to CampusNest. Fellow students will be able to discover it soon.
+          Your listing will be reviewed and added to CribAI. Fellow students will be able to discover it soon.
         </p>
         <div className="mt-6 flex gap-3">
           <button

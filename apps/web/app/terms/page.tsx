@@ -2,20 +2,20 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: 'Terms of Service — CampusNest',
+  title: 'Terms of Service — CribAI',
   description:
-    'Terms of Service for CampusNest, the student housing marketplace at UW-Madison.',
+    'Terms of Service for CribAI, the student housing marketplace at UW-Madison.',
   openGraph: {
-    title: 'Terms of Service — CampusNest',
+    title: 'Terms of Service — CribAI',
     description:
-      'Terms of Service for CampusNest, the student housing marketplace at UW-Madison.',
+      'Terms of Service for CribAI, the student housing marketplace at UW-Madison.',
     type: 'website',
   },
   twitter: {
     card: 'summary',
-    title: 'Terms of Service — CampusNest',
+    title: 'Terms of Service — CribAI',
     description:
-      'Terms of Service for CampusNest, the student housing marketplace at UW-Madison.',
+      'Terms of Service for CribAI, the student housing marketplace at UW-Madison.',
   },
 };
 
@@ -30,7 +30,7 @@ export default function TermsPage() {
             href="/"
             className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-900)]"
           >
-            CampusNest
+            CribAI
           </Link>
         </div>
       </nav>
@@ -47,10 +47,10 @@ export default function TermsPage() {
           <div className="mt-8 space-y-8 text-[var(--surface-700)] leading-relaxed">
             <section>
               <h2 className="text-lg font-semibold text-[var(--surface-900)]">
-                1. What CampusNest Is
+                1. What CribAI Is
               </h2>
               <p className="mt-2">
-                CampusNest is a student housing marketplace that helps
+                CribAI is a student housing marketplace that helps
                 UW-Madison students find and list housing, including summer
                 subleases. We are <strong>not</strong> a landlord, property
                 manager, or real estate broker. We provide the platform;
@@ -77,7 +77,7 @@ export default function TermsPage() {
               <p className="mt-2">
                 Sublease listings, photos, descriptions, and other content you
                 post are your responsibility. By posting content you grant
-                CampusNest a non-exclusive, royalty-free license to display it
+                CribAI a non-exclusive, royalty-free license to display it
                 on the platform. You agree not to post content that is
                 misleading, discriminatory, or violates any law.
               </p>
@@ -89,7 +89,7 @@ export default function TermsPage() {
               </h2>
               <p className="mt-2">
                 We do not verify the accuracy of listing information such as
-                price, availability, amenities, or photos. CampusNest is not
+                price, availability, amenities, or photos. CribAI is not
                 liable for any disputes, damages, or losses arising from
                 transactions between users. Always visit a property in person
                 and review lease terms carefully before committing.
@@ -142,8 +142,8 @@ export default function TermsPage() {
                 8. Limitation of Liability
               </h2>
               <p className="mt-2">
-                CampusNest is provided &ldquo;as is&rdquo; without warranties
-                of any kind. To the fullest extent permitted by law, CampusNest
+                CribAI is provided &ldquo;as is&rdquo; without warranties
+                of any kind. To the fullest extent permitted by law, CribAI
                 shall not be liable for indirect, incidental, or consequential
                 damages arising from your use of the platform.
               </p>
@@ -155,7 +155,7 @@ export default function TermsPage() {
               </h2>
               <p className="mt-2">
                 We may update these terms from time to time. Continued use of
-                CampusNest after changes are posted constitutes acceptance of
+                CribAI after changes are posted constitutes acceptance of
                 the revised terms.
               </p>
             </section>

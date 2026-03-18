@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { cookies, headers } from 'next/headers';
 import { createServerComponentClient } from '@campusnest/supabase/server';
-import { Home, PlusCircle, Search, Sparkles } from 'lucide-react';
+import { Home, MessageSquare, Search, Sparkles } from 'lucide-react';
 import { ConciergeShell } from '@/components/concierge/ConciergeShell';
 import { MainLayoutClient } from '@/components/layout/MainLayoutClient';
 
@@ -73,7 +73,7 @@ export default async function MainLayout({
                   <Home className="size-5" strokeWidth={2.5} />
                 </span>
                 <span className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight text-[var(--surface-900)]">
-                  CampusNest
+                  CribAI
                 </span>
               </Link>
 
@@ -107,11 +107,11 @@ export default async function MainLayout({
                       Agent
                     </Link>
                     <Link
-                      href="/post"
+                      href="/chat"
                       className="hidden md:flex items-center gap-1.5 text-sm font-semibold text-teal-800 transition-colors hover:text-teal-900"
                     >
-                      <PlusCircle className="size-4" />
-                      Post Sublease
+                      <MessageSquare className="size-4" />
+                      Chat
                     </Link>
                     <Link
                       href="/profile"

@@ -20,7 +20,7 @@ export function ListingGrid({ listings }: ListingGridProps) {
           Your filters are too tight.
         </h3>
         <p className="mt-3 text-sm leading-7 text-[var(--surface-600)]">
-          Clear a few filters or ask CampusNest AI for a broader set of options.
+          Clear a few filters or ask CribAI AI for a broader set of options.
         </p>
       </div>
     );

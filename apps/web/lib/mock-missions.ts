@@ -1,5 +1,5 @@
 /**
- * CampusNest AI Concierge — Mock Mission Data
+ * CribAI AI Concierge — Mock Mission Data
  *
  * Sample missions across all types and statuses for UI development.
  */

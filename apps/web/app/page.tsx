@@ -49,7 +49,7 @@ export default async function HomePage() {
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-800 text-white shadow-sm">
               <Home className="size-5" strokeWidth={2.5} />
             </span>
-            <span className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight">CampusNest</span>
+            <span className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight">CribAI</span>
           </Link>
 
           <div className="hidden md:flex items-center gap-6 text-sm font-medium text-[var(--surface-600)]">
@@ -87,7 +87,7 @@ export default async function HomePage() {
               </h1>
               <p className="max-w-xl text-lg leading-8 text-[var(--surface-600)]">
                 Skip the endless scrolling and sketchy listings. Describe your budget, commute,
-                roommates, and must-haves in plain English, then let CampusNest do the hard part.
+                roommates, and must-haves in plain English, then let CribAI do the hard part.
               </p>
             </div>
 
@@ -196,7 +196,7 @@ export default async function HomePage() {
                 tone: 'bg-amber-400 text-amber-950',
                 title: 'Verified student network',
                 description:
-                  'CampusNest is built around `.edu` trust, real tenant context, and safer landlord discovery.',
+                  'CribAI is built around `.edu` trust, real tenant context, and safer landlord discovery.',
               },
               {
                 icon: Building,
@@ -230,7 +230,7 @@ export default async function HomePage() {
         <section className="relative overflow-hidden bg-teal-900 py-24 text-white">
           <div className="absolute top-0 right-[-10%] h-80 w-80 rounded-full bg-teal-800 blur-3xl" />
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <h2 className="mb-16 text-center font-[family-name:var(--font-display)] text-4xl font-bold">How CampusNest works</h2>
+            <h2 className="mb-16 text-center font-[family-name:var(--font-display)] text-4xl font-bold">How CribAI works</h2>
             <div className="grid gap-10 md:grid-cols-3">
               {[
                 ['01', 'Sign up with .edu', 'Create your student account and unlock verified-only search.'],
@@ -256,7 +256,7 @@ export default async function HomePage() {
                 Ready to find your nest?
               </h2>
               <p className="mx-auto mt-5 max-w-2xl text-lg text-amber-950/80">
-                Join the first wave of students using CampusNest to find better-fit apartments
+                Join the first wave of students using CribAI to find better-fit apartments
                 and summer subleases faster.
               </p>
               <Link
@@ -270,7 +270,7 @@ export default async function HomePage() {
             <div className="flex flex-col items-center justify-between gap-5 text-sm text-[var(--surface-500)] md:flex-row">
               <div className="flex items-center gap-2">
                 <MapPin className="size-4 text-teal-800" />
-                <span className="font-semibold text-[var(--surface-900)]">CampusNest</span>
+                <span className="font-semibold text-[var(--surface-900)]">CribAI</span>
                 <span>© 2026. Built by students, for students.</span>
               </div>
               <div className="flex gap-6">

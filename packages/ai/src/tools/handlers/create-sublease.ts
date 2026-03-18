@@ -281,7 +281,7 @@ async function handlePublish(
     `Address: ${listingAddress}`,
     `View it at: /listing/${listingId}`,
     '',
-    'Tell the user their sublease is now live on CampusNest and share the link.',
+    'Tell the user their sublease is now live on CribAI and share the link.',
   ].join('\n');
 
   return {
@@ -289,7 +289,7 @@ async function handlePublish(
     clientBlock: {
       type: 'text' as const,
       content: [
-        '**Your sublease is live on CampusNest!**',
+        '**Your sublease is live on CribAI!**',
         '',
         `**${listingAddress}**`,
         parsed.rent_monthly ? `$${parsed.rent_monthly}/mo` : 'Rent: Negotiable',

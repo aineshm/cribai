@@ -36,7 +36,7 @@ export function Footer() {
           {/* Brand */}
           <div>
             <span className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-900)]">
-              CampusNest
+              CribAI
             </span>
             <p className="mt-2 text-sm text-[var(--surface-500)] leading-relaxed">
               Student housing, finally transparent. Powered by AI that
@@ -81,7 +81,7 @@ export function Footer() {
         <Separator className="my-8" />
 
         <p className="text-center text-xs text-[var(--surface-400)]">
-          &copy; {new Date().getFullYear()} CampusNest. All rights reserved.
+          &copy; {new Date().getFullYear()} CribAI. All rights reserved.
         </p>
       </div>
     </footer>

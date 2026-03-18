@@ -1,7 +1,7 @@
 import { Space_Grotesk, DM_Sans } from 'next/font/google';
 
 /**
- * CampusNest v1.1 Font Configuration
+ * CribAI v1.1 Font Configuration
  *
  * Display font: Space Grotesk — geometric sans-serif for headings
  *   (replaces DM Serif Display; closest Google Fonts match to Cabinet Grotesk)

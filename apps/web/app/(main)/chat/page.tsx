@@ -1,17 +1,14 @@
 import { ChatPageClient } from './chat-page-client';
 
 export const metadata = {
-  title: 'Chat — CampusNest',
-  description: 'Ask CampusNest AI about listings, neighborhoods, prices, and more.',
+  title: 'Chat — CribAI',
+  description: 'Ask CribAI about listings, neighborhoods, prices, and more.',
 };
 
 /**
- * /chat — Full-page AI chat with conversation sidebar.
- * Accessible from main nav. Replaces the campus-scoped /[campusSlug]/cribai route
- * as the canonical chat destination.
+ * /chat — Inbox-style AI chat with conversation history.
+ * Shows conversation list by default, focused chat view when a conversation is selected.
  */
 export default async function ChatPage() {
-  // All state (campusSlug, campusId, isAuthenticated) is provided by the
-  // layout via ChatProvider context — no need to resolve here.
   return <ChatPageClient />;
 }

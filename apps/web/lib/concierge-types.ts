@@ -1,5 +1,5 @@
 /**
- * CampusNest AI Concierge Types
+ * CribAI AI Concierge Types
  *
  * DB-aligned type definitions for the AI Concierge mission system.
  * Re-exports from @campusnest/types (Zod-validated, snake_case matching DB columns).

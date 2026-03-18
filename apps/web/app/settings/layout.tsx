@@ -27,7 +27,7 @@ export default async function SettingsLayout({
             href="/"
             className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-900)]"
           >
-            CampusNest
+            CribAI
           </Link>
           <span className="text-[var(--surface-300)]">/</span>
           <h1 className="text-sm font-medium text-[var(--surface-700)]">Settings</h1>

@@ -26,7 +26,7 @@ export const dynamic = 'force-dynamic';
 
 export function generateMetadata() {
   return {
-    title: 'Listing Detail — CampusNest',
+    title: 'Listing Detail — CribAI',
     description: 'View listing details, amenities, lease terms, and more.',
   };
 }

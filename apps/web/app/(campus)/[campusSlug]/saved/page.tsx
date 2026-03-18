@@ -120,7 +120,7 @@ export default async function SavedListingsPage({
             No saved listings yet
           </p>
           <p className="mt-2 text-sm text-[var(--surface-400)]">
-            Find your next place with CampusNest AI
+            Find your next place with CribAI AI
           </p>
           <Link
             href={`/${campusSlug}/cribai`}

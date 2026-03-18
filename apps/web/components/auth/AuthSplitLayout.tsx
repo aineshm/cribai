@@ -29,7 +29,7 @@ export function AuthSplitLayout({ children }: AuthSplitLayoutProps) {
             <Home className="size-5 text-white" strokeWidth={2.5} />
           </div>
           <span className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight">
-            CampusNest
+            CribAI
           </span>
         </div>
 
@@ -61,7 +61,7 @@ export function AuthSplitLayout({ children }: AuthSplitLayoutProps) {
               <Home className="size-5" strokeWidth={2.5} />
             </div>
             <span className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight text-teal-800">
-              CampusNest
+              CribAI
             </span>
           </div>
           {children}

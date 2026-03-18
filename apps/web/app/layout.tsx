@@ -7,7 +7,7 @@ import { displayFont, bodyFont } from '@/lib/fonts';
 const geist = Geist({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
-  title: 'CampusNest — Student Housing Intelligence',
+  title: 'CribAI — Student Housing Intelligence',
   description:
     'Find fair-priced student housing with True Cost Calculator, Price Fairness Scores, and AI-powered advice.',
 };
