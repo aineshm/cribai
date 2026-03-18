@@ -209,8 +209,9 @@ async function handlePublish(
   }
 
   // Deterministic idempotency key: prevents duplicate publishes if Gemini retries
+  // Includes available_from date so the same user can post different term subleases at the same address
   const addressHash = createHash('sha256')
-    .update(`${context.userId}-${parsed.address}`)
+    .update(`${context.userId}-${parsed.address}-${parsed.available_from ?? 'open'}`)
     .digest('hex')
     .slice(0, 12);
   const externalId = `sublease-${context.userId}-${addressHash}`;

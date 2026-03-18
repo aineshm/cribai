@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Home } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -11,7 +12,30 @@ interface SubleaseClientProps {
 
 export function SubleaseClient({ subleaseCount, totalCount }: SubleaseClientProps) {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--surface-50)] px-6 py-20">
+    <div className="flex min-h-screen flex-col bg-[var(--surface-50)]">
+      {/* Nav header */}
+      <nav className="flex items-center justify-between border-b border-[var(--surface-200)] bg-white px-6 py-3">
+        <Link href="/" className="flex items-center gap-2 text-[var(--primary-700)] font-semibold">
+          <Home className="size-5" />
+          CampusNest
+        </Link>
+        <div className="flex items-center gap-3">
+          <Link href="/explore" className="text-sm text-[var(--surface-600)] hover:text-[var(--surface-900)] transition-colors">
+            Browse
+          </Link>
+          <Link
+            href="/login"
+            className={cn(
+              buttonVariants({ variant: 'default', size: 'sm' }),
+              'rounded-full bg-[var(--primary-600)] text-white hover:bg-[var(--primary-700)]'
+            )}
+          >
+            Get Started
+          </Link>
+        </div>
+      </nav>
+
+      <div className="flex flex-1 flex-col items-center justify-center px-6 py-20">
       <div className="mx-auto max-w-2xl text-center space-y-8">
         <h1 className="font-[family-name:var(--font-display)] text-4xl sm:text-5xl font-bold text-[var(--surface-900)] leading-tight tracking-tight">
           Summer Subleases
@@ -78,6 +102,7 @@ export function SubleaseClient({ subleaseCount, totalCount }: SubleaseClientProp
           <span>AI-powered search</span>
           <span>True cost calculator</span>
         </div>
+      </div>
       </div>
     </div>
   );

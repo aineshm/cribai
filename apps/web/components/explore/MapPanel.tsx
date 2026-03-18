@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { MapPin, Search } from 'lucide-react';
 import { fadeIn } from '@/lib/animations';
 import type { ExploreListing } from '@/lib/listing-types';
-import type { ViewStateChangeEvent } from 'react-map-gl/mapbox';
+import type { ViewStateChangeEvent, MapRef } from 'react-map-gl/mapbox';
 
 export interface MapBounds {
   readonly minLat: number;
@@ -25,17 +25,31 @@ interface MapPanelProps {
   readonly onBoundsChange?: (bounds: MapBounds) => void;
   readonly showSearchButton?: boolean;
   readonly onSearchArea?: () => void;
+  /** When provided, the map flies to this center (e.g. after AI search results arrive) */
+  readonly flyToCenter?: { lat: number; lng: number } | null;
 }
 
-export function MapPanel({ listings, onBoundsChange, showSearchButton, onSearchArea }: MapPanelProps) {
+export function MapPanel({ listings, onBoundsChange, showSearchButton, onSearchArea, flyToCenter }: MapPanelProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const boundsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mapRef = useRef<MapRef>(null);
 
   useEffect(() => {
     return () => {
       if (boundsTimerRef.current) clearTimeout(boundsTimerRef.current);
     };
   }, []);
+
+  // Fly to center when AI search results arrive
+  useEffect(() => {
+    if (flyToCenter && mapRef.current) {
+      mapRef.current.flyTo({
+        center: [flyToCenter.lng, flyToCenter.lat],
+        zoom: 14,
+        duration: 1200,
+      });
+    }
+  }, [flyToCenter]);
 
   const handleMarkerClick = useCallback((id: string) => {
     setSelectedId((prev) => (prev === id ? null : id));
@@ -114,6 +128,7 @@ export function MapPanel({ listings, onBoundsChange, showSearchButton, onSearchA
       )}
 
       <Map
+        ref={mapRef}
         mapboxAccessToken={mapToken}
         initialViewState={{
           latitude: DEFAULT_CENTER.latitude,

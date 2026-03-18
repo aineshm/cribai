@@ -77,6 +77,9 @@ export function ExploreClient({ listings }: ExploreClientProps) {
   // AI search results for map overlay (null = show all listings)
   const [aiMapListings, setAiMapListings] = useState<readonly ExploreListing[] | null>(null);
 
+  // Fly-to center for map when AI results arrive
+  const [mapFlyTo, setMapFlyTo] = useState<{ lat: number; lng: number } | null>(null);
+
   const handleMissionProposal = useCallback(
     (proposal: { intent: string; confidence: number; extractedFields: Record<string, unknown> }) => {
       setPendingProposal(proposal);
@@ -129,11 +132,20 @@ export function ExploreClient({ listings }: ExploreClientProps) {
       walkScore: null,
     }));
     setAiMapListings(asExploreListings);
+
+    // Compute center of AI results and fly the map there
+    const withCoords = asExploreListings.filter(l => l.latitude != null && l.longitude != null);
+    if (withCoords.length > 0) {
+      const avgLat = withCoords.reduce((s, l) => s + (l.latitude ?? 0), 0) / withCoords.length;
+      const avgLng = withCoords.reduce((s, l) => s + (l.longitude ?? 0), 0) / withCoords.length;
+      setMapFlyTo({ lat: avgLat, lng: avgLng });
+    }
   }, []);
 
   /** Reset AI-filtered map results back to showing all listings */
   const resetAiResults = useCallback(() => {
     setAiMapListings(null);
+    setMapFlyTo(null);
     setSearchContext({});
   }, []);
 
@@ -232,6 +244,7 @@ export function ExploreClient({ listings }: ExploreClientProps) {
             onBoundsChange={handleBoundsChange}
             showSearchButton={showSearchButton}
             onSearchArea={handleSearchArea}
+            flyToCenter={mapFlyTo}
           />
         </div>
       </div>
