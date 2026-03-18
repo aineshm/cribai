@@ -18,6 +18,7 @@ describe('sanitizeArgs', () => {
 
     expect(sanitized).not.toHaveProperty('contact_email');
     expect(sanitized).not.toHaveProperty('description');
+    expect(sanitized).not.toHaveProperty('address');
     expect(sanitized).toHaveProperty('rent_monthly', 900);
     expect(sanitized).toHaveProperty('bedrooms_total', 3);
     expect(sanitized).toHaveProperty('confirmed', false);

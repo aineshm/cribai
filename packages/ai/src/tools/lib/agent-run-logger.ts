@@ -7,7 +7,7 @@ import type { ToolResult } from '../types';
 
 // PII fields to strip per tool
 const PII_FIELDS: Record<string, readonly string[]> = {
-  create_sublease: ['contact_email', 'description', 'roommate_info', 'gender_restriction'],
+  create_sublease: ['contact_email', 'description', 'roommate_info', 'gender_restriction', 'address'],
   schedule_tour: ['student_name', 'student_email', 'notes'],
   contact_pm: ['message'],
   web_search: ['query'],

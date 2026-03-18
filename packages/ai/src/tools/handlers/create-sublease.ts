@@ -5,9 +5,28 @@
  * Phase 2 (confirmed=true): Inserts listing via service-role client.
  */
 import { z } from 'zod';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { ToolContext, ToolResult } from '../types';
 import { geocodeAddress } from '../lib/geocode-address';
+
+// --- Lazy singleton for service-role client ---
+
+let _serviceClient: SupabaseClient | null = null;
+
+function getServiceClient(): SupabaseClient {
+  if (_serviceClient) return _serviceClient;
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const secretKey = process.env.SUPABASE_SECRET_KEY;
+  if (!supabaseUrl || !secretKey) {
+    throw new Error('Server configuration error. Please try again later.');
+  }
+
+  _serviceClient = createClient(supabaseUrl, secretKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  return _serviceClient;
+}
 
 // --- Input validation schema ---
 const inputSchema = z.object({
@@ -36,26 +55,23 @@ function fireAnalyticsEvent(
   eventName: string,
   payload: Record<string, unknown>,
 ): void {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const secretKey = process.env.SUPABASE_SECRET_KEY;
-  if (!supabaseUrl || !secretKey) return;
-
-  const client = createClient(supabaseUrl, secretKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-
-  void (async () => {
-    try {
-      const { error } = await client
-        .from('analytics_events')
-        .insert({ event_name: eventName, properties: payload });
-      if (error) {
-        console.error('[create-sublease] analytics error:', error.message);
+  try {
+    const client = getServiceClient();
+    void (async () => {
+      try {
+        const { error } = await client
+          .from('analytics_events')
+          .insert({ event_name: eventName, properties: payload });
+        if (error) {
+          console.error('[create-sublease] analytics error:', error.message);
+        }
+      } catch {
+        // Fire-and-forget: never block the tool response
       }
-    } catch {
-      // Fire-and-forget: never block the tool response
-    }
-  })();
+    })();
+  } catch {
+    // Service client not available — silently skip
+  }
 }
 
 // --- Formatting helpers ---
@@ -165,15 +181,7 @@ async function handlePublish(
   parsed: z.infer<typeof inputSchema>,
   context: ToolContext,
 ): Promise<ToolResult> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const secretKey = process.env.SUPABASE_SECRET_KEY;
-  if (!supabaseUrl || !secretKey) {
-    throw new Error('Server configuration error. Please try again later.');
-  }
-
-  const serviceClient = createClient(supabaseUrl, secretKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  const serviceClient = getServiceClient();
 
   // Resolve contact email: provided > user's auth email > null
   let contactEmail = parsed.contact_email ?? null;
