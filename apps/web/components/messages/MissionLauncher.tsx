@@ -10,7 +10,7 @@ interface MissionLauncherProps {
   readonly searchParams: Record<string, string | string[] | undefined>;
 }
 
-type MissionType = 'housing_search' | 'tour_outreach';
+type MissionType = 'housing_search';
 
 function param(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? '' : value ?? '';
@@ -93,10 +93,11 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
           goal,
           campus_slug: 'uw-madison',
           input: {
-            ...(budget ? { max_rent: Number(budget) } : {}),
+            // Housing search executor reads camelCase keys (HousingSearchInput schema)
+            ...(budget ? { maxRent: Number(budget) } : {}),
             ...(bedrooms ? { bedrooms: Number(bedrooms) } : {}),
-            ...(location ? { location } : {}),
-            ...(moveInDate ? { move_in_date: moveInDate } : {}),
+            ...(location ? { preferences: `near ${location}` } : {}),
+            ...(moveInDate ? { moveInDate } : {}),
           },
         }),
       });
@@ -157,7 +158,11 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
             className={INPUT_CLASS}
           >
             <option value="housing_search">Housing Search</option>
-            <option value="tour_outreach">Tour Outreach</option>
+            {/* Tour Outreach is NOT available here. It requires listing IDs,
+                student contact info, and availability — all gathered during a
+                chat conversation. Tour outreach missions are launched via CribAI's
+                propose_mission tool in the chat flow, not this standalone form.
+                See: packages/ai/src/missions/tour-outreach-mission.ts */}
           </select>
         </label>
 
