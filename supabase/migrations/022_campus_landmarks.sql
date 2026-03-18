@@ -23,6 +23,11 @@ CREATE INDEX idx_campus_landmarks_location ON campus_landmarks USING GIST (locat
 -- Index for campus-scoped lookups
 CREATE INDEX idx_campus_landmarks_campus ON campus_landmarks (campus_id);
 
+-- RLS: campus landmarks are publicly readable reference data
+ALTER TABLE campus_landmarks ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Campus landmarks are publicly readable"
+  ON campus_landmarks FOR SELECT TO authenticated, anon USING (true);
+
 -- ============================================================
 -- Seed UW-Madison landmarks (~30 key buildings)
 -- Coordinates sourced from official campus maps
