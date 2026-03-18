@@ -12,6 +12,11 @@ let mockedState: {
   selectedMission: null,
 };
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 vi.mock('@/components/concierge/ConciergeProvider', () => ({
   useConcierge: () => ({
     missions: mockedState.missions,
@@ -56,7 +61,7 @@ describe('MessagesPageClient', () => {
   it('switches to the past tab when a past mission is already selected in shared context', () => {
     mockedState.selectedMission = pastMission;
 
-    render(<MessagesPageClient />);
+    render(<MessagesPageClient searchParams={{}} />);
 
     expect(screen.getByRole('button', { name: /^Past$/ })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: /^Active/ })).toHaveAttribute('aria-pressed', 'false');
@@ -65,7 +70,7 @@ describe('MessagesPageClient', () => {
   it('clears the selection when the user switches to a tab that does not contain the selected mission', () => {
     mockedState.selectedMission = pastMission;
 
-    render(<MessagesPageClient />);
+    render(<MessagesPageClient searchParams={{}} />);
 
     fireEvent.click(screen.getByRole('button', { name: /^Active/ }));
 

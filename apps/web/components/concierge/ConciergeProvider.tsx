@@ -181,9 +181,47 @@ export function ConciergeProvider({
     setSelectedMission(null);
   }, []);
 
+  // ─── Fetch mission detail (logs + draft) on selection ────────────────────
+  const fetchMissionDetail = useCallback(async (missionId: string) => {
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const res = await fetch(`/api/missions/${missionId}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) return;
+
+      const body = (await res.json()) as {
+        mission: Record<string, unknown>;
+        logs: readonly { created_at: string; status: string; step_name: string; message?: string }[];
+        currentDraft: Record<string, unknown> | null;
+      };
+
+      // Map DB logs to LegacyMission ExecutionLog shape
+      const mappedLogs = (body.logs ?? []).map(log => ({
+        timestamp: log.created_at,
+        action: log.step_name ?? 'step',
+        detail: log.message ?? '',
+        status: (log.status === 'completed' ? 'success' : log.status === 'failed' ? 'error' : 'pending') as 'success' | 'pending' | 'error',
+      }));
+
+      // Enrich the selected mission with real logs
+      setSelectedMission(prev => prev?.id === missionId ? { ...prev, logs: mappedLogs } : prev);
+    } catch (err) {
+      console.error('[ConciergeProvider] Failed to fetch mission detail:', err);
+    }
+  }, []);
+
   const selectMission = useCallback(
-    (mission: LegacyMission | null) => setSelectedMission(mission),
-    []
+    (mission: LegacyMission | null) => {
+      setSelectedMission(mission);
+      if (mission) {
+        void fetchMissionDetail(mission.id);
+      }
+    },
+    [fetchMissionDetail]
   );
 
   const addMission = useCallback(

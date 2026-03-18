@@ -1,13 +1,13 @@
 'use client';
 
 /**
- * MissionProposalCard — displayed in the chat thread when CribAI detects
- * intent for a background mission. Lets the user confirm or dismiss.
+ * MissionProposalCard — slim navigation banner displayed above chat input
+ * when CribAI detects intent for a background mission. Links to the
+ * /messages page for full HITL review before launching.
  */
 
-import { useState } from 'react';
-import { Sparkles, X, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useRouter } from 'next/navigation';
+import { Sparkles, X } from 'lucide-react';
 import { useChatContext } from './ChatProvider';
 
 /** Human-readable labels for known mission intent slugs. */
@@ -18,56 +18,45 @@ const INTENT_LABELS: Record<string, string> = {
 };
 
 export function MissionProposalCard() {
-  const { pendingProposal, missionError, confirmMission, dismissProposal } = useChatContext();
-  const [isLoading, setIsLoading] = useState(false);
+  const { pendingProposal, dismissProposal } = useChatContext();
+  const router = useRouter();
 
   if (!pendingProposal) return null;
 
   const label = INTENT_LABELS[pendingProposal.intent] ?? pendingProposal.intent;
+  const fields = pendingProposal.extractedFields;
 
-  const handleConfirm = async () => {
-    setIsLoading(true);
-    try {
-      await confirmMission();
-    } finally {
-      setIsLoading(false);
+  const handleReview = () => {
+    const params = new URLSearchParams({ launch: 'true', intent: pendingProposal.intent });
+
+    const optional: ReadonlyArray<[string, string]> = [
+      ['budget', String(fields.max_rent ?? '')],
+      ['bedrooms', String(fields.bedrooms ?? '')],
+      ['location', String(fields.location ?? '')],
+      ['move_in_date', String(fields.move_in_date ?? '')],
+    ];
+
+    for (const [key, value] of optional) {
+      if (value) params.set(key, value);
     }
+
+    router.push(`/messages?${params.toString()}`);
+    dismissProposal();
   };
 
   return (
-    <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-4 space-y-3">
+    <div className="flex w-full items-center justify-between bg-teal-50/80 border border-teal-200 rounded-lg px-4 py-2.5">
       <div className="flex items-center gap-2">
-        <Sparkles className="h-4 w-4 text-teal-700" />
-        <span className="text-sm font-semibold text-gray-900">Start {label} Mission?</span>
+        <Sparkles className="size-4 text-teal-700" />
+        <span className="text-sm font-medium text-gray-900">{label} mission ready</span>
       </div>
-      <p className="text-xs text-gray-500">
-        Your agent will work on this in the background and notify you when results are ready.
-      </p>
-      {missionError && (
-        <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2">
-          <p className="text-xs font-medium text-red-700">{missionError}</p>
-        </div>
-      )}
-      <div className="flex gap-2">
-        <Button
-          size="sm"
-          onClick={() => void handleConfirm()}
-          disabled={isLoading}
-          className="bg-teal-800 hover:bg-teal-900"
-        >
-          {isLoading ? (
-            <>
-              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-              Starting...
-            </>
-          ) : (
-            'Start Mission'
-          )}
-        </Button>
-        <Button size="sm" variant="ghost" onClick={dismissProposal} disabled={isLoading}>
-          <X className="h-3 w-3 mr-1" />
-          Dismiss
-        </Button>
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={handleReview} className="text-sm font-semibold text-teal-800 hover:text-teal-900">
+          Review &amp; Start &rarr;
+        </button>
+        <button type="button" onClick={dismissProposal} className="text-gray-400 hover:text-gray-600" aria-label="Dismiss">
+          <X className="size-3.5" />
+        </button>
       </div>
     </div>
   );

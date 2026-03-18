@@ -13,7 +13,8 @@ export type ToolName =
   | 'get_reviews'
   | 'contact_pm'
   | 'get_neighborhood_info'
-  | 'create_sublease';
+  | 'create_sublease'
+  | 'propose_mission';
 
 export interface MapBounds {
   readonly minLat: number;

@@ -6,6 +6,11 @@ export const metadata: Metadata = {
   description: 'View and manage your AI agent missions, tour bookings, and housing search tasks.',
 };
 
-export default function MessagesPage() {
-  return <MessagesPageClient />;
+export default async function MessagesPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  return <MessagesPageClient searchParams={params} />;
 }

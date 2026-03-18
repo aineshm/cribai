@@ -296,6 +296,8 @@ export async function POST(request: NextRequest) {
       async start(controller) {
         try {
           const chatArgs = { query: trimmedQuery, tree, conversationHistory };
+          let toolProposedMission = false;
+
           for await (const chunk of cribai.chat(chatArgs)) {
             if (typeof chunk === 'string') {
               // Old engine yields plain strings — wrap as TextEvent
@@ -303,14 +305,38 @@ export async function POST(request: NextRequest) {
             } else if (isStructuredEvent(chunk)) {
               // Suppress engine's done — we emit our own after mission_proposal
               if (chunk.type === 'done') continue;
+
+              // Detect propose_mission tool results and re-emit as top-level mission_proposal
+              if (
+                chunk.type === 'tool_result' &&
+                'block' in chunk &&
+                chunk.block.type === 'text'
+              ) {
+                try {
+                  const parsed = JSON.parse(chunk.block.content) as Record<string, unknown>;
+                  if (parsed._missionProposal === true) {
+                    toolProposedMission = true;
+                    const proposalEvent: ChatEvent = {
+                      type: 'mission_proposal',
+                      intent: parsed.intent as string,
+                      confidence: 1,
+                      extractedFields: (parsed.extractedFields ?? {}) as Record<string, unknown>,
+                    };
+                    controller.enqueue(encoder.encode(sseEncode(proposalEvent)));
+                    continue; // Don't also emit the raw tool_result
+                  }
+                } catch {
+                  // Not JSON or not a mission proposal — fall through to normal emit
+                }
+              }
+
               // New engine yields ChatEvent objects — pass through
               controller.enqueue(encoder.encode(sseEncode(chunk)));
             }
           }
 
-          // Emit mission_proposal before done so the client sees it
-          // (the client cancels the reader on 'done')
-          if (intentProposal) {
+          // Emit classifier mission_proposal before done (skip if tool already proposed one)
+          if (intentProposal && !toolProposedMission) {
             const proposalEvent: ChatEvent = {
               type: 'mission_proposal',
               intent: intentProposal.intent,

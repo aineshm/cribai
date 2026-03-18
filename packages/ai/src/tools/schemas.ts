@@ -352,6 +352,45 @@ const createSublease: FunctionDeclaration = {
   },
 };
 
+const proposeMission: FunctionDeclaration = {
+  name: 'propose_mission',
+  description:
+    'Propose a background mission when the student describes a complex, multi-step housing need ' +
+    '(e.g., comprehensive apartment search with many criteria, scheduling multiple tours, comparing ' +
+    'many options). Do NOT propose missions for simple questions that a single tool call can answer.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      intent: {
+        type: Type.STRING,
+        enum: ['housing_search', 'tour_outreach'],
+        description: 'The type of mission to propose',
+      },
+      bedrooms: {
+        type: Type.INTEGER,
+        description: 'Extracted bedroom count from conversation',
+      },
+      max_rent: {
+        type: Type.NUMBER,
+        description: 'Budget ceiling in dollars per month',
+      },
+      location: {
+        type: Type.STRING,
+        description: 'Area or landmark preference (e.g., "near Camp Randall")',
+      },
+      move_in_date: {
+        type: Type.STRING,
+        description: 'Target move-in date in YYYY-MM-DD format',
+      },
+      notes: {
+        type: Type.STRING,
+        description: 'Additional context from conversation (amenities, roommate preferences, etc.)',
+      },
+    },
+    required: ['intent'],
+  },
+};
+
 export const CRIBAI_TOOLS_BY_NAME: Record<ToolName, FunctionDeclaration> = {
   search_listings: searchListings,
   get_listing_detail: getListingDetail,
@@ -365,6 +404,7 @@ export const CRIBAI_TOOLS_BY_NAME: Record<ToolName, FunctionDeclaration> = {
   contact_pm: contactPm,
   get_neighborhood_info: getNeighborhoodInfo,
   create_sublease: createSublease,
+  propose_mission: proposeMission,
 };
 
 export const CRIBAI_TOOLS: readonly FunctionDeclaration[] = Object.values(

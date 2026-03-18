@@ -57,6 +57,8 @@ const TOOL_SUMMARIES: Record<ToolName, string> = {
     'get_neighborhood_info — walkability, safety, commute times, and local vibe for an area',
   create_sublease:
     'create_sublease — post a sublease listing through conversation (two-phase: preview then publish)',
+  propose_mission:
+    'propose_mission — suggest a background mission when the student needs comprehensive, multi-step help',
 };
 
 function buildSystemPrompt(
@@ -87,8 +89,8 @@ Your tools:
 ${toolList}
 
 Missions:
-- You can propose housing search missions for comprehensive background searches that run asynchronously
-- When a student has complex, multi-step housing needs, suggest a mission
+- When a student describes a complex, multi-step housing need (like finding and comparing many apartments, scheduling multiple tours, or doing a comprehensive search), call the propose_mission tool to suggest a background mission
+- Do NOT propose missions for simple questions that a single tool call can answer
 
 Guidelines:
 - Be concise, helpful, and student-friendly — students are busy

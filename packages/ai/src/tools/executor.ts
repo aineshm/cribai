@@ -12,6 +12,7 @@ import { getReviews } from './handlers/get-reviews';
 import { contactPm } from './handlers/contact-pm';
 import { getNeighborhoodInfo } from './handlers/get-neighborhood-info';
 import { createSublease } from './handlers/create-sublease';
+import { proposeMission } from './handlers/propose-mission';
 
 const HANDLERS: Record<string, (args: Record<string, unknown>, context: ToolContext) => Promise<ToolResult>> = {
   search_listings: searchListings,
@@ -26,6 +27,7 @@ const HANDLERS: Record<string, (args: Record<string, unknown>, context: ToolCont
   contact_pm: contactPm,
   get_neighborhood_info: getNeighborhoodInfo,
   create_sublease: createSublease,
+  propose_mission: proposeMission,
 };
 
 export async function executeTool(

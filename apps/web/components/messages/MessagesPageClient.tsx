@@ -4,6 +4,7 @@ import { useEffect, useId, useState } from 'react';
 import { ArrowRight, Bot, CheckCircle2, Clock, AlertCircle, FileText, Sparkles, X } from 'lucide-react';
 import { useConcierge } from '@/components/concierge/ConciergeProvider';
 import type { LegacyMission } from '@/lib/concierge-types';
+import { MissionLauncher } from './MissionLauncher';
 
 type TabValue = 'active' | 'past';
 
@@ -50,7 +51,11 @@ function statusLabelColor(status: string): string {
   }
 }
 
-export function MessagesPageClient() {
+export function MessagesPageClient({
+  searchParams,
+}: {
+  readonly searchParams: Record<string, string | string[] | undefined>;
+}) {
   const { missions, selectedMission, selectMission } = useConcierge();
   const [tab, setTab] = useState<TabValue>('active');
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
@@ -211,6 +216,11 @@ export function MessagesPageClient() {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Mission Launcher */}
+        <div className="px-4 pt-3">
+          <MissionLauncher searchParams={searchParams} />
         </div>
 
         {/* Mission List */}
