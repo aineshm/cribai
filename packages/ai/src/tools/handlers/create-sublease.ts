@@ -5,6 +5,7 @@
  * Phase 2 (confirmed=true): Inserts listing via service-role client.
  */
 import { z } from 'zod';
+import { createHash } from 'node:crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { ToolContext, ToolResult } from '../types';
 import { geocodeAddress } from '../lib/geocode-address';
@@ -29,10 +30,10 @@ function getServiceClient(): SupabaseClient {
 }
 
 // --- Input validation schema ---
-const inputSchema = z.object({
+const baseSchema = z.object({
   address: z.string().min(5).max(200),
   bedrooms_total: z.number().int().min(0).max(10),
-  bedrooms_available: z.number().int().min(1).max(10),
+  bedrooms_available: z.number().int().min(0).max(10),
   contact_email: z.string().email().optional(),
   rent_monthly: z.number().positive().max(10000).optional().nullable(),
   bathrooms: z.number().min(0).max(10).optional(),
@@ -47,7 +48,12 @@ const inputSchema = z.object({
   gender_restriction: z.string().max(50).optional(),
   roommate_info: z.string().max(200).optional(),
   confirmed: z.boolean().default(false),
-});
+}).refine(
+  (data) => data.bedrooms_total === 0 || data.bedrooms_available <= data.bedrooms_total,
+  { message: 'bedrooms_available cannot exceed bedrooms_total', path: ['bedrooms_available'] },
+);
+
+const inputSchema = baseSchema;
 
 // --- Analytics helper (fire-and-forget) ---
 
@@ -61,7 +67,7 @@ function fireAnalyticsEvent(
       try {
         const { error } = await client
           .from('analytics_events')
-          .insert({ event_name: eventName, properties: payload });
+          .insert({ event: eventName, metadata: payload });
         if (error) {
           console.error('[create-sublease] analytics error:', error.message);
         }
@@ -202,7 +208,12 @@ async function handlePublish(
     }
   }
 
-  const externalId = `sublease-${context.userId}-${Date.now()}`;
+  // Deterministic idempotency key: prevents duplicate publishes if Gemini retries
+  const addressHash = createHash('sha256')
+    .update(`${context.userId}-${parsed.address}`)
+    .digest('hex')
+    .slice(0, 12);
+  const externalId = `sublease-${context.userId}-${addressHash}`;
 
   const insertData: Record<string, unknown> = {
     campus_id: context.campusId,
