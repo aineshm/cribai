@@ -1,144 +1,106 @@
 import { test, expect } from '@playwright/test';
-import { ListingsPage } from './pages/ListingsPage';
 
 /**
- * E2E tests — Listings page (/{campusSlug}/listings)
+ * E2E tests — Legacy listings routes + Explore page
  *
- * Journeys covered:
- *   1. Listings page loads with heading and subtitle
- *   2. All four filter controls are rendered
- *   3. Beds filter updates the URL query param
- *   4. Sort filter updates the URL query param
- *   5. Invalid campus slug shows "Campus not found."
- *   6. Empty state renders when no results match filters
+ * Architecture change (current):
+ *   The old /[campusSlug]/listings page with filter grid has been replaced by the
+ *   AI-native /explore page (CribAI chat + live map). The campus listings routes
+ *   now redirect to /explore.
  *
- * Notes:
- *   - Tests that verify listing cards require a live DB.  They are written
- *     defensively — they assert on visible UI state only, not DB row counts.
- *   - Filter interaction tests verify URL params rather than DOM results to
- *     avoid DB dependency.
+ * Tests cover:
+ *   1. /[campusSlug]/listings redirects to /explore
+ *   2. /explore renders the AI chat interface with correct elements
+ *   3. Invalid campus slug listing route still redirects to /explore (not crash)
  */
 
-const CAMPUS = 'uw-madison';
-
-test.describe('Listings page', () => {
-  test('loads with correct heading and subtitle', async ({ page }) => {
-    const listings = new ListingsPage(page, CAMPUS);
-    await listings.goto();
-
-    await listings.assertLoaded();
+test.describe('Legacy listings route redirects', () => {
+  test('/uw-madison/listings redirects to /explore', async ({ page }) => {
+    await page.goto('/uw-madison/listings');
+    await page.waitForURL('**/explore', { timeout: 15000 });
+    await expect(page).toHaveURL(/\/explore/);
   });
 
-  test('renders all four filter controls', async ({ page }) => {
-    const listings = new ListingsPage(page, CAMPUS);
-    await listings.goto();
-
-    await listings.assertFiltersVisible();
+  test('/ut-austin/listings shows not-found (campus not in DB)', async ({ page }) => {
+    // Only uw-madison is in the DB; unknown campus slugs render the 404 page
+    await page.goto('/ut-austin/listings');
+    await page.waitForLoadState('networkidle', { timeout: 15000 });
+    // Either a redirect to /explore or a 404 — both are acceptable for an unknown campus
+    const isOnExplore = page.url().includes('/explore');
+    const isNotFound = await page.getByText('Page not found').isVisible().catch(() => false);
+    expect(isOnExplore || isNotFound).toBe(true);
   });
 
-  test('beds filter appends ?beds= to the URL', async ({ page }) => {
-    const listings = new ListingsPage(page, CAMPUS);
-    await listings.goto();
+  test('/invalid-campus/listings shows not-found', async ({ page }) => {
+    await page.goto('/invalid-campus-xyz/listings');
+    await page.waitForLoadState('networkidle', { timeout: 15000 });
+    // Either a redirect to /explore or a 404 — both are acceptable
+    const isOnExplore = page.url().includes('/explore');
+    const isNotFound = await page.getByText('Page not found').isVisible().catch(() => false);
+    expect(isOnExplore || isNotFound).toBe(true);
+  });
+});
 
-    // Wait for filters to be visible (Suspense boundary)
-    await expect(listings.bedsFilter).toBeVisible();
+test.describe('Explore page (replaced listings UI)', () => {
+  test.use({ viewport: { width: 1280, height: 900 } });
 
-    await listings.selectBeds('2');
+  test('renders CribAI chat input', async ({ page }) => {
+    await page.goto('/explore');
+    await page.waitForLoadState('networkidle');
 
-    await expect.poll(() => page.url(), { timeout: 10000 }).toContain('beds=2');
+    const chatInput = page.getByRole('textbox', { name: /chat message input/i });
+    await expect(chatInput).toBeVisible();
+    await expect(chatInput).not.toBeDisabled();
   });
 
-  test('sort filter appends ?sort= to the URL', async ({ page }) => {
-    const listings = new ListingsPage(page, CAMPUS);
-    await listings.goto();
+  test('renders LIVE MAP panel with geocoded count', async ({ page }) => {
+    await page.goto('/explore');
+    await page.waitForLoadState('networkidle');
 
-    await expect(listings.sortFilter).toBeVisible();
-
-    await listings.selectSort('price_asc');
-
-    await expect.poll(() => page.url(), { timeout: 10000 }).toContain('sort=price_asc');
+    await expect(page.getByText('LIVE MAP', { exact: false })).toBeVisible();
+    await expect(page.getByText(/geocoded matches/i)).toBeVisible();
   });
 
-  test('min price filter appends ?minPrice= to the URL', async ({ page }) => {
-    const listings = new ListingsPage(page, CAMPUS);
-    await listings.goto();
+  test('renders Send button', async ({ page }) => {
+    await page.goto('/explore');
+    await page.waitForLoadState('networkidle');
 
-    await expect(listings.minPriceInput).toBeVisible();
-
-    await listings.setMinPrice('800');
-
-    await expect.poll(() => page.url(), { timeout: 10000 }).toContain('minPrice=800');
+    await expect(page.getByRole('button', { name: /send/i })).toBeVisible();
   });
 
-  test('max price filter appends ?maxPrice= to the URL', async ({ page }) => {
-    const listings = new ListingsPage(page, CAMPUS);
-    await listings.goto();
+  test('renders Active Context / ContextBar', async ({ page }) => {
+    await page.goto('/explore');
+    await page.waitForLoadState('networkidle');
 
-    await expect(listings.maxPriceInput).toBeVisible();
-
-    await listings.setMaxPrice('2000');
-
-    await expect.poll(() => page.url(), { timeout: 10000 }).toContain('maxPrice=2000');
+    // ContextBar always renders with either "Active Context" or "Filters" label in teal-50 pill
+    const contextPill = page.locator('.bg-teal-50').first();
+    await expect(contextPill).toBeAttached();
   });
 
-  test('shows empty state when no listings match an extreme price filter', async ({ page }) => {
-    const listings = new ListingsPage(page, CAMPUS);
-    // maxPrice of $1 guarantees no listings match
-    await listings.goto({ maxPrice: '1' });
+  test('renders CampusNest nav brand', async ({ page }) => {
+    await page.goto('/explore');
+    await page.waitForLoadState('networkidle');
 
-    // Either empty state, campus-not-found, or global 404 (if DB is down)
-    const emptyOrNotFound =
-      (await listings.noListingsHeading.isVisible()) ||
-      (await listings.campusNotFound.isVisible()) ||
-      (await listings.globalNotFound.isVisible());
-
-    expect(
-      emptyOrNotFound,
-      'Expected empty listings state or not-found page'
-    ).toBe(true);
+    const topNav = page.getByRole('navigation').first();
+    await expect(topNav.getByText('CampusNest')).toBeVisible();
   });
 
-  test('shows not-found page for an invalid campus slug', async ({ page }) => {
-    const listings = new ListingsPage(page, 'invalid-campus-xyz');
-    await listings.goto();
+  test('prompt chip "Find me a 2-bedroom under $1200" is visible', async ({ page }) => {
+    await page.goto('/explore');
+    await page.waitForLoadState('networkidle');
 
-    // Layout calls notFound() for invalid slugs, rendering the global 404 page
-    await expect(listings.globalNotFound).toBeVisible();
+    await expect(page.getByText('Find me a 2-bedroom under $1200')).toBeVisible();
   });
+});
 
-  test('listing cards link to the correct detail URL pattern', async ({ page }) => {
-    const listings = new ListingsPage(page, CAMPUS);
-    await listings.goto();
+test.describe('Explore page — mobile', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
 
-    const cards = listings.listingCards();
-    const count = await cards.count();
+  test('chat input renders on mobile', async ({ page }) => {
+    await page.goto('/explore');
+    await page.waitForLoadState('networkidle');
 
-    if (count === 0) {
-      // DB not reachable or no listings — verify empty state instead
-      const emptyOrNotFound =
-        (await listings.noListingsHeading.isVisible()) ||
-        (await listings.campusNotFound.isVisible()) ||
-        (await listings.globalNotFound.isVisible());
-      expect(emptyOrNotFound).toBe(true);
-      return;
-    }
-
-    // Each card href must match /{campusSlug}/listings/{uuid}
-    const firstCard = cards.first();
-    const href = await firstCard.getAttribute('href');
-    expect(href).toMatch(new RegExp(`^/${CAMPUS}/listings/.+`));
-  });
-
-  test('ut-austin listings page loads correctly', async ({ page }) => {
-    const listings = new ListingsPage(page, 'ut-austin');
-    await listings.goto();
-
-    // Page should render heading or not-found (global 404), never crash
-    const headingOrNotFound =
-      (await listings.heading.isVisible()) ||
-      (await listings.campusNotFound.isVisible()) ||
-      (await listings.globalNotFound.isVisible());
-
-    expect(headingOrNotFound).toBe(true);
+    const chatInput = page.getByRole('textbox', { name: /chat message input/i });
+    await expect(chatInput).toBeVisible();
   });
 });

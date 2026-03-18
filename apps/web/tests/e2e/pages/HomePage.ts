@@ -3,42 +3,46 @@ import { type Page, type Locator, expect } from '@playwright/test';
 /**
  * Page Object Model for the CampusNest landing page (/).
  *
- * DOM notes (from apps/web/app/page.tsx — Phase 11 redesign, updated Phase 21):
+ * DOM notes (from apps/web/app/page.tsx — current implementation):
  *   - Nav with "CampusNest" brand text
- *   - Unauthenticated: "Sign In" link → /login
- *   - Authenticated: "Dashboard" link → /explore
- *   - Hero section with h1 "Find Your Perfect College Apartment"
- *   - Unauthenticated: "Get Started Free" CTA link → /login
- *   - Authenticated: "Go to Dashboard" CTA link → /explore
- *   - SocialProof section: "Trusted by students at 50+ universities"
- *   - Features section: 3 cards (AI-Powered Search, Verified Student Community, End-to-End Support)
- *   - HowItWorks section: h2 "How It Works", 3 steps
- *   - FooterCTA section: h2 "Ready to find your nest?"
- *   - MobileStickyBar: fixed bottom bar with "Get Started Free" (sm:hidden, appears after hero CTA scrolls out)
+ *   - Unauthenticated nav: "Browse" link → /explore, "Agent" link, "Get Started" button → /login
+ *   - Authenticated nav: "Dashboard" button → /explore
+ *   - Hero h1: "Find your perfect college apartment with AI that actually understands."
+ *   - Unauthenticated hero CTA: "Get Started (it's free)" → /login
+ *   - Authenticated hero CTA: "Go to Explore" → /explore
+ *   - "See how it works" secondary CTA → /explore
+ *   - Campus section: "Starting at UW-Madison"
+ *   - Features section: h2 "Apartment hunting, rebuilt for students."
+ *     3 cards: "AI-powered search", "Verified student network", "End-to-end support"
+ *   - How It Works section: h2 "How CampusNest works", 3 steps (01, 02, 03)
+ *   - Footer CTA section: h2 "Ready to find your nest?", "Create free account" button
+ *   - NO mobile sticky bar (removed in current implementation)
  */
 export class HomePage {
   readonly page: Page;
 
   // Nav — unauthenticated state
   readonly brandText: Locator;
-  readonly signInLink: Locator;
+  readonly browseLink: Locator;
+  readonly getStartedNavButton: Locator;
 
   // Nav — authenticated state
   readonly dashboardLink: Locator;
 
-  // Hero — unauthenticated state
+  // Hero
   readonly heroHeading: Locator;
   readonly heroSubtitle: Locator;
   readonly getStartedCta: Locator;
   readonly seeHowItWorksLink: Locator;
 
   // Hero — authenticated state
-  readonly dashboardCta: Locator;
+  readonly goToExploreCtaHero: Locator;
 
-  // Social proof
-  readonly socialProofText: Locator;
+  // Campus section
+  readonly uwMadisonBadge: Locator;
 
   // Features
+  readonly featuresHeading: Locator;
   readonly featureCards: {
     aiSearch: Locator;
     verifiedCommunity: Locator;
@@ -47,58 +51,54 @@ export class HomePage {
 
   // How It Works
   readonly howItWorksHeading: Locator;
-  readonly howItWorksSteps: Locator;
 
   // Footer CTA
   readonly footerCtaHeading: Locator;
   readonly footerCtaButton: Locator;
 
-  // Mobile sticky bar
-  readonly mobileStickyBar: Locator;
-
   constructor(page: Page) {
     this.page = page;
 
-    // Nav — unauthenticated state
+    // Nav
     this.brandText = page.locator('nav').getByText('CampusNest');
-    this.signInLink = page.locator('nav').getByRole('link', { name: 'Sign In' });
+    this.browseLink = page.locator('nav').getByRole('link', { name: 'Browse' });
+    this.getStartedNavButton = page.locator('nav').getByRole('link', { name: 'Get Started' });
 
     // Nav — authenticated state
     this.dashboardLink = page.locator('nav').getByRole('link', { name: /Dashboard/i });
 
     // Hero
     this.heroHeading = page.getByRole('heading', {
-      name: /Find Your Perfect College Apartment/i,
+      name: /Find your perfect college apartment/i,
       level: 1,
     });
-    this.heroSubtitle = page.getByText('True Cost Calculator, Price Fairness Scores');
-    this.getStartedCta = page.locator('#hero-cta').getByRole('link', { name: 'Get Started Free' });
-    this.seeHowItWorksLink = page.getByRole('link', { name: 'See How It Works' });
+    this.heroSubtitle = page.getByText(/Skip the endless scrolling/i);
+    this.getStartedCta = page.getByRole('link', { name: /Get Started \(it's free\)/i });
+    this.seeHowItWorksLink = page.getByRole('link', { name: 'See how it works' });
 
     // Hero — authenticated state
-    this.dashboardCta = page.locator('#hero-cta').getByRole('link', { name: 'Go to Dashboard' });
+    this.goToExploreCtaHero = page.getByRole('link', { name: 'Go to Explore' });
 
-    // Social proof
-    this.socialProofText = page.getByText('Trusted by students at 50+ universities');
+    // Campus section — use exact text match on the teal-800 span (not the "Starting at..." label)
+    this.uwMadisonBadge = page.locator('span.text-teal-800', { hasText: /^UW-Madison$/ });
 
     // Features
+    this.featuresHeading = page.getByRole('heading', { name: 'Apartment hunting, rebuilt for students.' });
     this.featureCards = {
-      aiSearch: page.getByRole('heading', { name: 'AI-Powered Search' }),
-      verifiedCommunity: page.getByRole('heading', { name: 'Verified Student Community' }),
-      support: page.getByRole('heading', { name: 'End-to-End Support' }),
+      aiSearch: page.getByRole('heading', { name: 'AI-powered search' }),
+      verifiedCommunity: page.getByRole('heading', { name: 'Verified student network' }),
+      support: page.getByRole('heading', { name: 'End-to-end support' }),
     };
 
     // How It Works
-    this.howItWorksHeading = page.getByRole('heading', { name: 'How It Works' });
-    this.howItWorksSteps = page.getByTestId('how-it-works-step');
+    this.howItWorksHeading = page.getByRole('heading', { name: 'How CampusNest works' });
 
     // Footer CTA
     this.footerCtaHeading = page.getByRole('heading', { name: 'Ready to find your nest?' });
-    this.footerCtaButton = page.locator('section').filter({ hasText: 'Ready to find your nest?' }).getByRole('link', { name: 'Get Started Free' });
-
-    // Mobile sticky bar — the AnimatePresence wrapper renders a div with role-less link
-    // Use a robust locator: fixed-position element containing "Get Started Free" that isn't in the hero
-    this.mobileStickyBar = page.getByTestId('mobile-sticky-bar');
+    // Unauthenticated: "Create free account"; authenticated: "Open Explore"
+    this.footerCtaButton = page
+      .locator('footer')
+      .getByRole('link', { name: /Create free account|Open Explore/i });
   }
 
   async goto() {
@@ -111,7 +111,7 @@ export class HomePage {
   }
 
   async assertAllSections() {
-    await expect(this.socialProofText).toBeVisible();
+    await expect(this.featuresHeading).toBeVisible();
     await expect(this.featureCards.aiSearch).toBeVisible();
     await expect(this.featureCards.verifiedCommunity).toBeVisible();
     await expect(this.featureCards.support).toBeVisible();
@@ -121,9 +121,5 @@ export class HomePage {
 
   async clickGetStarted() {
     await this.getStartedCta.click();
-  }
-
-  async clickSignIn() {
-    await this.signInLink.click();
   }
 }

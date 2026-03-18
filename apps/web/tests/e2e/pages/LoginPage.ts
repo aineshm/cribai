@@ -1,9 +1,15 @@
 import { type Page, type Locator, expect } from '@playwright/test';
 
 /**
- * Page Object Model for the login page (/login) — Phase 11 redesign.
+ * Page Object Model for the login page (/login) — current implementation.
  *
- * Layout: AuthSplitLayout — branded left panel (lg:flex) + form right panel.
+ * Layout: AuthSplitLayout — branded left panel (hidden lg:flex, bg-teal-900) + form right panel.
+ *
+ * Left panel content (desktop only, hidden on mobile):
+ *   - "CampusNest" brand text
+ *   - h1 "Find your perfect college apartment"
+ *   - Features: "Verified .edu student network", "AI-matched listings & fair pricing",
+ *     "Direct tour booking & lease analysis"
  *
  * Email step:
  *   - <h2> "Sign in to CampusNest"
@@ -18,14 +24,11 @@ import { type Page, type Locator, expect } from '@playwright/test';
  *   - 8 individual digit inputs (aria-label="Digit 1" through "Digit 8")
  *   - <button type="submit"> "Verify Code" (or spinner "Verifying...")
  *   - "Resend code" button (30s cooldown)
- *
- * Profile step:
- *   - ProfileSetup component with first name, university, graduation year
  */
 export class LoginPage {
   readonly page: Page;
 
-  // Split layout
+  // Split layout — branded left panel (visible only on lg+ viewports)
   readonly brandPanel: Locator;
   readonly brandHeading: Locator;
 
@@ -46,9 +49,10 @@ export class LoginPage {
   constructor(page: Page) {
     this.page = page;
 
-    // Split layout — branded left panel
-    this.brandPanel = page.locator('.auth-gradient-bg');
-    this.brandHeading = page.locator('.auth-gradient-bg').getByRole('heading', { name: 'CampusNest' });
+    // Split layout — branded left panel (bg-teal-900, hidden lg:flex)
+    // Target by its distinctive background class and teal-900 color
+    this.brandPanel = page.locator('.bg-teal-900').first();
+    this.brandHeading = page.locator('.bg-teal-900').getByText('CampusNest').first();
 
     // Email step locators
     this.heading = page.getByRole('heading', { name: 'Sign in to CampusNest' });

@@ -2,104 +2,113 @@ import { test, expect } from '@playwright/test';
 import { HomePage } from './pages/HomePage';
 
 /**
- * E2E tests — Landing Page (/) — Phase 11 redesign
+ * E2E tests — Landing Page (/) — current implementation
  *
  * UAT criteria:
  *   1. Unauthenticated visitor sees marketing landing page (hero, value prop, CTA)
- *   2. Social proof, feature cards, How It Works, footer CTA visible on desktop
- *   3. Mobile sticky CTA pinned to bottom on scroll
+ *   2. Feature cards, How CampusNest Works, footer CTA visible on desktop
+ *   3. Nav shows brand and unauthenticated CTA
  */
 
 test.describe('Landing Page', () => {
-  test('renders hero with heading, subtitle, and Get Started CTA', async ({ page }) => {
+  test('renders hero with heading and subtitle', async ({ page }) => {
     const home = new HomePage(page);
     await home.goto();
     await home.assertLoaded();
-    await expect(home.getStartedCta).toBeVisible();
   });
 
-  test('nav shows CampusNest brand and Sign In link', async ({ page }) => {
+  test('nav shows CampusNest brand and Browse link', async ({ page }) => {
     const home = new HomePage(page);
     await home.goto();
     await expect(home.brandText).toBeVisible();
-    await expect(home.signInLink).toBeVisible();
+    await expect(home.browseLink).toBeVisible();
+  });
+
+  test('nav Get Started button links to /login when unauthenticated', async ({ page }) => {
+    const home = new HomePage(page);
+    await home.goto();
+    await expect(home.getStartedNavButton).toBeVisible();
+    await expect(home.getStartedNavButton).toHaveAttribute('href', '/login');
   });
 
   test('all landing page sections visible on desktop', async ({ page }) => {
     const home = new HomePage(page);
     await home.goto();
 
-    // Scroll to trigger lazy animations
+    // Scroll to trigger lazy sections
     await home.footerCtaHeading.scrollIntoViewIfNeeded();
     await home.assertAllSections();
   });
 
-  test('How It Works section has 3 steps', async ({ page }) => {
+  test('hero "Get Started (it\'s free)" CTA links to /login when unauthenticated', async ({ page }) => {
     const home = new HomePage(page);
     await home.goto();
-
-    await home.howItWorksHeading.scrollIntoViewIfNeeded();
-    await expect(home.howItWorksSteps).toHaveCount(3);
+    await expect(home.getStartedCta).toBeVisible();
+    await expect(home.getStartedCta).toHaveAttribute('href', '/login');
   });
 
-  test('Get Started CTA navigates to /login', async ({ page }) => {
+  test('"Get Started (it\'s free)" CTA navigates to /login', async ({ page }) => {
     const home = new HomePage(page);
     await home.goto();
-
-    // Use direct navigation via href check + click with extended timeout
-    await expect(home.getStartedCta).toHaveAttribute('href', '/login');
     await home.getStartedCta.click();
     await page.waitForURL(/\/login/, { timeout: 15000 });
     await expect(page).toHaveURL(/\/login/);
   });
 
-  test('Sign In nav link navigates to /login', async ({ page }) => {
+  test('"See how it works" CTA links to /explore', async ({ page }) => {
     const home = new HomePage(page);
     await home.goto();
-
-    await expect(home.signInLink).toHaveAttribute('href', '/login');
-    await home.signInLink.click();
-    await page.waitForURL(/\/login/, { timeout: 15000 });
-    await expect(page).toHaveURL(/\/login/);
+    await expect(home.seeHowItWorksLink).toBeVisible();
+    await expect(home.seeHowItWorksLink).toHaveAttribute('href', '/explore');
   });
 
-  test('footer CTA Get Started link navigates to /login', async ({ page }) => {
+  test('How CampusNest works section renders', async ({ page }) => {
     const home = new HomePage(page);
     await home.goto();
+    await home.howItWorksHeading.scrollIntoViewIfNeeded();
+    await expect(home.howItWorksHeading).toBeVisible();
+    // Three numbered steps are present — use exact divs inside the how-it-works section
+    const step01 = page.locator('div.text-amber-300', { hasText: /^01$/ });
+    const step02 = page.locator('div.text-amber-300', { hasText: /^02$/ });
+    const step03 = page.locator('div.text-amber-300', { hasText: /^03$/ });
+    await expect(step01).toBeVisible();
+    await expect(step02).toBeVisible();
+    await expect(step03).toBeVisible();
+  });
 
+  test('footer CTA "Create free account" button navigates to /login', async ({ page }) => {
+    const home = new HomePage(page);
+    await home.goto();
     await home.footerCtaButton.scrollIntoViewIfNeeded();
+    await expect(home.footerCtaButton).toBeVisible();
     await home.footerCtaButton.click();
-
     await page.waitForURL('/login');
     await expect(page).toHaveURL('/login');
   });
-});
 
-test.describe('Landing Page — Mobile', () => {
-  test.use({ viewport: { width: 375, height: 812 } });
-
-  test('mobile sticky CTA appears after scrolling past hero', async ({ page }) => {
+  test('footer CTA heading "Ready to find your nest?" is visible', async ({ page }) => {
     const home = new HomePage(page);
     await home.goto();
-
-    // Scroll well past the hero section to trigger IntersectionObserver
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-
-    // Wait for the sticky bar to appear via assertion retry (no hardcoded timeout)
-    const stickyLink = page.getByRole('link', { name: 'Get Started Free' }).last();
-    await expect(stickyLink).toBeVisible({ timeout: 5000 });
+    await home.footerCtaHeading.scrollIntoViewIfNeeded();
+    await expect(home.footerCtaHeading).toBeVisible();
   });
 
-  test('mobile sticky CTA links to /login', async ({ page }) => {
+  test('UW-Madison campus section renders', async ({ page }) => {
     const home = new HomePage(page);
     await home.goto();
+    await expect(home.uwMadisonBadge).toBeVisible();
+  });
+});
 
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+test.describe('Landing Page — Feature Cards', () => {
+  test.use({ viewport: { width: 1280, height: 800 } });
 
-    // There are multiple "Get Started Free" links; the sticky bar one is last in DOM
-    const allGetStarted = page.getByRole('link', { name: 'Get Started Free' });
-    const lastLink = allGetStarted.last();
-    await expect(lastLink).toBeVisible({ timeout: 5000 });
-    await expect(lastLink).toHaveAttribute('href', '/login');
+  test('all three feature card headings are visible', async ({ page }) => {
+    const home = new HomePage(page);
+    await home.goto();
+    await home.featuresHeading.scrollIntoViewIfNeeded();
+    await expect(home.featureCards.aiSearch).toBeVisible();
+    await expect(home.featureCards.verifiedCommunity).toBeVisible();
+    await expect(home.featureCards.support).toBeVisible();
   });
 });

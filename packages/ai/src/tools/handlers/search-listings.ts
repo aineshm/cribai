@@ -174,7 +174,7 @@ async function semanticSearch(
     : rows;
 
   const rowsWithLatLng = filteredRows.filter(
-    row => row.latitude !== null && row.longitude !== null,
+    row => row.latitude != null && row.longitude != null && (row.latitude !== 0 || row.longitude !== 0),
   );
 
   const result: ToolResult = {
@@ -192,7 +192,7 @@ async function semanticSearch(
       : rowsWithLatLng.reduce((s, r) => s + (r.longitude ?? 0), 0) / rowsWithLatLng.length;
 
     const mapListings = filteredRows
-      .filter(row => row.latitude !== null && row.longitude !== null)
+      .filter(row => row.latitude != null && row.longitude != null && (row.latitude !== 0 || row.longitude !== 0))
       .map(row => {
         const photoUrls = Array.isArray(row.photo_urls) ? row.photo_urls : [];
         return {
@@ -338,7 +338,7 @@ async function sqlSearch(
 
   // Build map block when any results have coordinates
   const rowsWithCoords = (data ?? []).filter(
-    row => row.latitude != null && row.longitude != null,
+    row => row.latitude != null && row.longitude != null && (row.latitude !== 0 || row.longitude !== 0),
   );
 
   if (rowsWithCoords.length >= 1) {

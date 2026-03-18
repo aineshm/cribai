@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { Sparkles, MapPin, Bed, DollarSign, Map as MapIcon, MessageSquare } from 'lucide-react';
+import { Sparkles, MapPin, Bed, DollarSign, Map as MapIcon, MessageSquare, X } from 'lucide-react';
 import { CribAIChat } from '@/components/cribai-chat';
 import { useChatContext } from '@/components/chat/ChatProvider';
 import { MissionProposalCard } from '@/components/chat/MissionProposalCard';
@@ -131,6 +131,12 @@ export function ExploreClient({ listings }: ExploreClientProps) {
     setAiMapListings(asExploreListings);
   }, []);
 
+  /** Reset AI-filtered map results back to showing all listings */
+  const resetAiResults = useCallback(() => {
+    setAiMapListings(null);
+    setSearchContext({});
+  }, []);
+
   const handleSearchContext = useCallback((ctx: SearchContext) => {
     // Replace (not merge) so stale chips from previous searches are cleared
     setSearchContext(prev => ({
@@ -196,14 +202,31 @@ export function ExploreClient({ listings }: ExploreClientProps) {
             onMessageSent={handleMessageSent}
             onSearchContext={handleSearchContext}
             onMapListings={handleMapListings}
+            onChatReset={resetAiResults}
             className="flex flex-1 flex-col min-h-0"
           />
         </div>
 
         {/* Right: Map Panel (always on desktop, togglable on mobile) */}
-        <div className={`md:block md:w-1/2 lg:w-5/12 ${
+        <div className={`flex flex-col md:block md:w-1/2 lg:w-5/12 ${
           mobileView === 'map' ? 'block w-full' : 'hidden'
         }`}>
+          {aiMapListings && (
+            <div className="flex items-center justify-between border-b border-gray-100 bg-teal-50/80 px-4 py-2 backdrop-blur-sm">
+              <span className="flex items-center gap-1.5 text-xs text-teal-800">
+                <Sparkles className="size-3" />
+                Showing {aiMapListings.length} AI result{aiMapListings.length !== 1 ? 's' : ''}
+              </span>
+              <button
+                type="button"
+                onClick={resetAiResults}
+                className="flex items-center gap-1 text-xs font-medium text-teal-700 hover:text-teal-900 transition-colors"
+              >
+                Show all
+                <X className="size-3" />
+              </button>
+            </div>
+          )}
           <MapPanel
             listings={aiMapListings ?? listings}
             onBoundsChange={handleBoundsChange}

@@ -65,6 +65,8 @@ interface CribAIChatProps {
     latitude: number;
     longitude: number;
   }[]) => void;
+  /** Called when the chat is reset/cleared so parent can clean up AI state */
+  readonly onChatReset?: () => void;
   /** Optional CSS class for the outermost container (e.g. `h-full` when rendered inside a Sheet). */
   readonly className?: string;
 }
@@ -187,6 +189,7 @@ export function CribAIChat({
   onMessageSent,
   onSearchContext,
   onMapListings,
+  onChatReset,
   className,
 }: CribAIChatProps) {
   const [messages, setMessages] = useState<readonly Message[]>([]);
@@ -222,6 +225,7 @@ export function CribAIChat({
     } else if (isAuthenticated && !externalConversationId) {
       // New authenticated chat — start empty
       setMessages([]);
+      onChatReset?.();
     } else if (!isAuthenticated) {
       // Fallback to sessionStorage for unauthenticated users
       setMessages(loadSessionMessages());
