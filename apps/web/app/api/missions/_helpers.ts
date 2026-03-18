@@ -34,15 +34,12 @@ export async function resolveMissionAuth(request?: Request): Promise<{
     return { userId: devUser?.id ?? DEFAULT_DEV_USER.id, supabase, authViaBearerToken: false };
   }
 
-  // Try cookie-based auth first
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (!error && user) {
-    return { userId: user.id, supabase, authViaBearerToken: false };
-  }
-
-  // Fallback: check Authorization header for Bearer token.
-  // The cookie-based supabase client won't have this user's session,
-  // so RLS will fail — callers must use service-role client for DB ops.
+  // Check Authorization header for Bearer token FIRST.
+  // When the client sends an explicit Bearer token (e.g. MissionLauncher,
+  // SteeringBar), prefer it over cookies. This ensures `authViaBearerToken`
+  // is true so callers use the service-role client for DB writes — the
+  // cookie-based client's RLS context can be stale or missing even when
+  // getUser() succeeds via cookies, causing inserts to fail silently.
   if (request) {
     const authHeader = request.headers.get('authorization');
     if (authHeader?.startsWith('Bearer ')) {
@@ -52,6 +49,12 @@ export async function resolveMissionAuth(request?: Request): Promise<{
         return { userId: tokenUser.id, supabase, authViaBearerToken: true };
       }
     }
+  }
+
+  // Fallback: cookie-based auth (for requests without a Bearer token)
+  const { data: { user }, error } = await supabase.auth.getUser();
+  if (!error && user) {
+    return { userId: user.id, supabase, authViaBearerToken: false };
   }
 
   return { userId: null, supabase, authViaBearerToken: false };
