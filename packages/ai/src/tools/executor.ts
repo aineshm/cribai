@@ -1,4 +1,5 @@
 import type { ToolContext, ToolResult, ToolName } from './types';
+import { logAgentRun, sanitizeArgs, extractResultSummary } from './lib/agent-run-logger';
 import { searchListings } from './handlers/search-listings';
 import { getListingDetail } from './handlers/get-listing-detail';
 import { compareListings } from './handlers/compare-listings';
@@ -41,5 +42,38 @@ export async function executeTool(
   if (!handler) {
     throw new Error(`Unknown tool: ${name}`);
   }
-  return handler(args, context);
+
+  const startMs = Date.now();
+
+  try {
+    const result = await handler(args, context);
+
+    // Fire-and-forget: log successful tool run
+    logAgentRun({
+      userId: context.userId,
+      campusId: context.campusId,
+      toolName: name,
+      argsSummary: sanitizeArgs(name, args),
+      resultStatus: 'success',
+      resultSummary: extractResultSummary(name, result),
+      durationMs: Date.now() - startMs,
+    });
+
+    return result;
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+
+    // Fire-and-forget: log failed tool run
+    logAgentRun({
+      userId: context.userId,
+      campusId: context.campusId,
+      toolName: name,
+      argsSummary: sanitizeArgs(name, args),
+      resultStatus: 'error',
+      errorMessage,
+      durationMs: Date.now() - startMs,
+    });
+
+    throw err;
+  }
 }
