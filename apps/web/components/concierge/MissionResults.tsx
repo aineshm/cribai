@@ -26,6 +26,18 @@ export function MissionResults({ result }: MissionResultsProps) {
   const items = report?.items as readonly ShortlistItem[] | undefined;
 
   if (!items || items.length === 0) {
+    // Empty housing search — no matches found
+    if (report && report.totalSearched != null) {
+      return (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+          <h4 className="text-sm font-bold text-amber-800 mb-1">No Matches Found</h4>
+          <p className="text-xs text-amber-700">
+            Searched {report.totalSearched as number} listing(s) but none matched your criteria. Try broadening your search.
+          </p>
+        </div>
+      );
+    }
+
     // Sublease post result
     if (result.confirmed && result.listingUrl) {
       return (
