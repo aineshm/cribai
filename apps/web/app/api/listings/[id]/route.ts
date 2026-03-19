@@ -12,6 +12,22 @@ const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? '')
   .map((e) => e.trim())
   .filter(Boolean);
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// SECURITY: Only allow photo URLs from our Supabase storage domain
+const SUPABASE_HOST = process.env.NEXT_PUBLIC_SUPABASE_URL
+  ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname
+  : null;
+
+const safePhotoUrl = z.string().url().refine((url) => {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' && SUPABASE_HOST
+      ? parsed.hostname === SUPABASE_HOST
+      : false;
+  } catch { return false; }
+}, { message: 'Photo URLs must be from approved storage host' });
+
 const updateSchema = z
   .object({
     address: z.string().min(5).max(200).optional(),
@@ -23,7 +39,7 @@ const updateSchema = z
     amenities: z.array(z.string()).optional(),
     available_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     contact_email: z.string().email().optional(),
-    photo_urls: z.array(z.string().url()).optional(),
+    photo_urls: z.array(safePhotoUrl).max(10).optional(),
   })
   .strict();
 
@@ -32,6 +48,11 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+
+  // SECURITY: Validate id is a UUID before any DB query
+  if (!UUID_RE.test(id)) {
+    return NextResponse.json({ error: 'Invalid listing id' }, { status: 400 });
+  }
 
   // Authenticate user via cookies
   const cookieStore = await cookies();

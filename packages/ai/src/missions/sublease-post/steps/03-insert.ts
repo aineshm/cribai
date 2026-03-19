@@ -86,10 +86,12 @@ export const insertListingStep: MissionStep = {
       .single();
 
     if (insertError) {
+      // SECURITY: Log full error server-side, return generic message to user
+      console.error('[03-insert] DB insert error:', insertError);
       if (insertError.code === '23505') {
-        return { output: { error: 'A listing with this information already exists' }, done: true };
+        return { output: { error: 'A listing with this address already exists.' }, done: true };
       }
-      return { output: { error: `Insert failed: ${insertError.message}` }, done: true };
+      return { output: { error: 'Failed to create listing. Please try again.' }, done: true };
     }
 
     return {

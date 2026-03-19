@@ -199,7 +199,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Dev auth fallback — resolve userId from dev cookie when no bearer token
-    if (!userId && isDevAuthEnabled()) {
+    // SECURITY: Hard-gate to prevent dev auth from leaking into production
+    if (!userId && process.env.NODE_ENV !== 'production' && isDevAuthEnabled()) {
       const cookieStore = await cookies();
       const selectedId = cookieStore.get(DEV_USER_COOKIE)?.value;
       const devUser = selectedId ? getDevUserById(selectedId) : DEFAULT_DEV_USER;
@@ -332,7 +333,8 @@ export async function POST(request: NextRequest) {
               }
 
               // Detect mission_request from tool handlers and auto-create missions
-              if (chunk.type === 'mission_request' && userId) {
+              // SECURITY: Validate missionType against registered intents to prevent injection
+              if (chunk.type === 'mission_request' && userId && REGISTERED_MISSION_INTENTS.has(chunk.missionType)) {
                 const serviceClient = createSecretClient();
                 const missionTitle = chunk.missionType.replace(/_/g, ' ');
                 const { data: mission } = await serviceClient
