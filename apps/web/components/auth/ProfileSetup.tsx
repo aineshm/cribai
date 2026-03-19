@@ -34,7 +34,7 @@ function detectUniversity(email: string): string {
 function getGraduationYears(): string[] {
   const currentYear = new Date().getFullYear();
   const years: string[] = [];
-  for (let y = currentYear; y <= currentYear + 6; y++) {
+  for (let y = currentYear - 2; y <= currentYear + 6; y++) {
     years.push(String(y));
   }
   return years;

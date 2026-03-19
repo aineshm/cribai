@@ -16,7 +16,7 @@ export const profileSchema = z.object({
   subscriptionTier: subscriptionTierSchema.default('free'),
   stripeCustomerId: z.string().nullable().default(null),
   avatarUrl: z.string().url().nullable().default(null),
-  graduationYear: z.number().int().min(2020).max(2035).nullable().default(null),
+  graduationYear: z.number().int().min(2018).max(2036).nullable().default(null),
   major: z.string().max(200).nullable().default(null),
   profileCompletedAt: z.string().datetime().nullable().default(null),
   createdAt: z.string().datetime().optional(),
@@ -27,7 +27,7 @@ export type Profile = z.infer<typeof profileSchema>;
 /** Form validation schema — subset of fields users can edit */
 export const profileFormSchema = z.object({
   displayName: z.string().min(1, 'Display name is required').max(100),
-  graduationYear: z.number().int().min(2020).max(2035).optional(),
+  graduationYear: z.number().int().min(2018).max(2036).optional(),
   major: z.string().max(200).optional(),
 });
 

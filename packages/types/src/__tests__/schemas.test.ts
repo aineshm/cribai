@@ -199,12 +199,12 @@ describe('profileFormSchema', () => {
     expect(() => profileFormSchema.parse({ displayName: '' })).toThrow();
   });
 
-  it('rejects graduation year before 2020', () => {
-    expect(() => profileFormSchema.parse({ displayName: 'Test', graduationYear: 2019 })).toThrow();
+  it('rejects graduation year before 2018', () => {
+    expect(() => profileFormSchema.parse({ displayName: 'Test', graduationYear: 2017 })).toThrow();
   });
 
-  it('rejects graduation year after 2035', () => {
-    expect(() => profileFormSchema.parse({ displayName: 'Test', graduationYear: 2036 })).toThrow();
+  it('rejects graduation year after 2036', () => {
+    expect(() => profileFormSchema.parse({ displayName: 'Test', graduationYear: 2037 })).toThrow();
   });
 });
 

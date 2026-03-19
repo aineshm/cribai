@@ -29,6 +29,26 @@ function getServiceClient(): SupabaseClient {
   return _serviceClient;
 }
 
+// --- Date correction helper ---
+// Gemini sometimes extracts dates with the wrong year (e.g., 2024 instead of 2026).
+// If a date is in the past, bump the year to the current year (or next year if month has passed).
+function fixPastYear(dateStr: string | undefined): string | undefined {
+  if (!dateStr) return dateStr;
+  const parsed = new Date(dateStr + 'T00:00:00');
+  const now = new Date();
+  if (parsed < now) {
+    const currentYear = now.getFullYear();
+    const corrected = new Date(parsed);
+    corrected.setFullYear(currentYear);
+    // If still in the past (month/day already passed this year), use next year
+    if (corrected < now) {
+      corrected.setFullYear(currentYear + 1);
+    }
+    return corrected.toISOString().slice(0, 10);
+  }
+  return dateStr;
+}
+
 // --- Input validation schema ---
 const baseSchema = z.object({
   address: z.string().min(5).max(200),
@@ -37,8 +57,8 @@ const baseSchema = z.object({
   contact_email: z.string().email().optional(),
   rent_monthly: z.number().positive().max(10000).optional().nullable(),
   bathrooms: z.number().min(0).max(10).optional(),
-  available_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  available_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  available_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().transform(fixPastYear),
+  available_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().transform(fixPastYear),
   description: z.string().max(2000).optional(),
   amenities: z.array(z.string()).default([]),
   unit_number: z.string().max(20).optional(),

@@ -26,7 +26,7 @@ function getInitials(name: string): string {
 }
 
 const CURRENT_YEAR = new Date().getFullYear();
-const GRADUATION_YEARS = Array.from({ length: 8 }, (_, i) => CURRENT_YEAR - 1 + i);
+const GRADUATION_YEARS = Array.from({ length: 9 }, (_, i) => CURRENT_YEAR - 2 + i);
 
 export function ProfileForm({
   initialData,
