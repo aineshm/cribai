@@ -92,6 +92,12 @@ vi.mock('../ProfileSetup', () => ({
   ),
 }));
 
+// Mock fetch for /api/auth/validate-email (server-side email validation)
+const mockFetch = vi.fn().mockResolvedValue({
+  json: async () => ({ allowed: true }),
+});
+vi.stubGlobal('fetch', mockFetch);
+
 // Supabase client mock — OTP sign-in and verify succeed, includes getUser + from for profile persistence
 const mockVerifyOtp = vi.fn().mockResolvedValue({ error: null });
 const mockSignInWithOtp = vi.fn().mockResolvedValue({ error: null });

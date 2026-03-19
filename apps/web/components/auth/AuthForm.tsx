@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@campusnest/supabase/client';
-import { isAllowedEmail } from '@/lib/edu-validation';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -67,8 +66,21 @@ export function AuthForm() {
     setLoading(true);
     setError(null);
 
-    if (!isAllowedEmail(email)) {
-      setError('CribAI requires a .edu email address');
+    try {
+      const res = await fetch('/api/auth/validate-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const validation: { allowed: boolean; error?: string } = await res.json();
+
+      if (!validation.allowed) {
+        setError(validation.error ?? 'CribAI requires a .edu email address');
+        setLoading(false);
+        return;
+      }
+    } catch {
+      setError('Unable to validate email. Please try again.');
       setLoading(false);
       return;
     }

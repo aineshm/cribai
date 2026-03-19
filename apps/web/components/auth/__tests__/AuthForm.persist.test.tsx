@@ -89,6 +89,12 @@ vi.mock('../ProfileSetup', () => ({
   ),
 }));
 
+// Mock fetch for /api/auth/validate-email (server-side email validation)
+const mockFetch = vi.fn().mockResolvedValue({
+  json: async () => ({ allowed: true }),
+});
+vi.stubGlobal('fetch', mockFetch);
+
 // Supabase client mock — includes updateUser + getUser + from for profile persistence
 const mockUpdateUser = vi.fn().mockResolvedValue({ error: null });
 const mockVerifyOtp = vi.fn().mockResolvedValue({ error: null });
