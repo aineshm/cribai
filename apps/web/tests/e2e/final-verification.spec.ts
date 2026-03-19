@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 /**
- * Final pre-push E2E verification — CampusNest v2.0
+ * Final pre-push E2E verification — CribAI v2.0
  *
  * Covers every critical user journey before push to main:
  *   1. Core page smoke tests (/, /explore, /login, /sublease, /chat)
@@ -75,7 +75,7 @@ test.describe('SUITE 1 — Core Page Smoke Tests', () => {
     info.annotations.push({ type: 'screenshot', description: screenshotPath });
 
     // Nav brand
-    await expect(page.locator('nav').getByText('CampusNest').first()).toBeVisible();
+    await expect(page.locator('nav').getByText('CribAI').first()).toBeVisible();
 
     // Hero heading — H1
     const h1 = page.getByRole('heading', { level: 1 });
@@ -95,7 +95,7 @@ test.describe('SUITE 1 — Core Page Smoke Tests', () => {
 
     // Critical sections
     await expect(page.getByRole('heading', { name: /Apartment hunting, rebuilt/i })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /How CampusNest works/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /How CribAI works/i })).toBeVisible();
     await expect(page.getByRole('heading', { name: /Ready to find your nest/i })).toBeVisible();
   });
 
@@ -118,7 +118,7 @@ test.describe('SUITE 1 — Core Page Smoke Tests', () => {
     await expect(page.getByText(/geocoded matches/i).first()).toBeVisible();
 
     // Nav brand
-    await expect(page.getByRole('navigation').first().getByText('CampusNest')).toBeVisible();
+    await expect(page.getByRole('navigation').first().getByText('CribAI')).toBeVisible();
 
     // Prompt chips
     await expect(page.getByText('Find me a 2-bedroom under $1200')).toBeVisible();
@@ -135,7 +135,7 @@ test.describe('SUITE 1 — Core Page Smoke Tests', () => {
     info.annotations.push({ type: 'screenshot', description: screenshotPath });
 
     // Form elements
-    await expect(page.getByRole('heading', { name: 'Sign in to CampusNest' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Sign in to CribAI' })).toBeVisible();
     await expect(page.getByLabel('Email address')).toBeVisible();
     await expect(page.getByRole('button', { name: /Continue/i })).toBeVisible();
 
@@ -207,7 +207,7 @@ test.describe('SUITE 2 — Sublease Posting Flow', () => {
     expect(page.url()).toContain('returnTo=%2Fpost');
 
     // Login form should be visible
-    await expect(page.getByRole('heading', { name: 'Sign in to CampusNest' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Sign in to CribAI' })).toBeVisible();
 
     info.annotations.push({ type: 'auth gate assessment', description: 'Auth gate PASS — /post redirected to /login with returnTo=%2Fpost. Login form visible.' });
   });
@@ -314,7 +314,7 @@ test.describe('SUITE 4 — Listing Detail', () => {
       await expect(page.getByRole('button', { name: 'Ask AI About This Listing' })).toBeVisible();
 
       // Nav brand
-      await expect(page.getByRole('navigation').first().getByText('CampusNest')).toBeVisible();
+      await expect(page.getByRole('navigation').first().getByText('CribAI')).toBeVisible();
 
       info.annotations.push({ type: 'visual assessment', description: 'Listing detail PASS — price visible, CTAs present, nav intact' });
     } else {
@@ -381,7 +381,7 @@ test.describe('SUITE 5 — Login / Auth Layout', () => {
     await expect(page.getByText('Direct tour booking & lease analysis')).toBeVisible();
 
     // Form on right
-    await expect(page.getByRole('heading', { name: 'Sign in to CampusNest' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Sign in to CribAI' })).toBeVisible();
     await expect(page.getByLabel('Email address')).toHaveAttribute('placeholder', 'you@university.edu');
 
     info.annotations.push({ type: 'visual assessment', description: 'Split panel PASS — teal left with features, white right with form. Looks correct.' });
@@ -429,9 +429,9 @@ test.describe('SUITE 6 — Sublease Landing', () => {
     const pageTitle = await page.title();
     info.annotations.push({ type: 'page title', description: pageTitle });
 
-    // Nav CampusNest brand
-    const hasNav = await page.getByText('CampusNest').first().isVisible().catch(() => false);
-    info.annotations.push({ type: 'has CampusNest brand', description: String(hasNav) });
+    // Nav CribAI brand
+    const hasNav = await page.getByText('CribAI').first().isVisible().catch(() => false);
+    info.annotations.push({ type: 'has CribAI brand', description: String(hasNav) });
   });
 });
 
@@ -491,7 +491,7 @@ test.describe('SUITE 7 — Mobile Responsiveness (375x812 iPhone SE)', () => {
     info.annotations.push({ type: 'screenshot', description: screenshotPath });
 
     // Form visible on mobile
-    await expect(page.getByRole('heading', { name: 'Sign in to CampusNest' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Sign in to CribAI' })).toBeVisible();
     await expect(page.getByLabel('Email address')).toBeVisible();
 
     // Left branded panel hidden on mobile (uses hidden lg:flex)

@@ -6,7 +6,7 @@ import { HomePage } from './pages/HomePage';
  *
  * UAT criteria:
  *   1. Unauthenticated visitor sees marketing landing page (hero, value prop, CTA)
- *   2. Feature cards, How CampusNest Works, footer CTA visible on desktop
+ *   2. Feature cards, How CribAI Works, footer CTA visible on desktop
  *   3. Nav shows brand and unauthenticated CTA
  */
 
@@ -17,7 +17,7 @@ test.describe('Landing Page', () => {
     await home.assertLoaded();
   });
 
-  test('nav shows CampusNest brand and Browse link', async ({ page }) => {
+  test('nav shows CribAI brand and Browse link', async ({ page }) => {
     const home = new HomePage(page);
     await home.goto();
     await expect(home.brandText).toBeVisible();
@@ -62,7 +62,7 @@ test.describe('Landing Page', () => {
     await expect(home.seeHowItWorksLink).toHaveAttribute('href', '/explore');
   });
 
-  test('How CampusNest works section renders', async ({ page }) => {
+  test('How CribAI works section renders', async ({ page }) => {
     const home = new HomePage(page);
     await home.goto();
     await home.howItWorksHeading.scrollIntoViewIfNeeded();

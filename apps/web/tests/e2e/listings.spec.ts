@@ -77,12 +77,12 @@ test.describe('Explore page (replaced listings UI)', () => {
     await expect(contextPill).toBeAttached();
   });
 
-  test('renders CampusNest nav brand', async ({ page }) => {
+  test('renders CribAI nav brand', async ({ page }) => {
     await page.goto('/explore');
     await page.waitForLoadState('networkidle');
 
     const topNav = page.getByRole('navigation').first();
-    await expect(topNav.getByText('CampusNest')).toBeVisible();
+    await expect(topNav.getByText('CribAI')).toBeVisible();
   });
 
   test('prompt chip "Find me a 2-bedroom under $1200" is visible', async ({ page }) => {

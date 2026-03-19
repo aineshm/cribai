@@ -8,30 +8,30 @@ import { LoginPage } from './pages/LoginPage';
  * Coverage:
  *   POST-01: /post route is middleware-protected (redirects unauthenticated users to /login)
  *   LAND-01: Unauthenticated landing page CTAs point to /login
- *   EXPLORE-01: /explore route renders nav with CampusNest brand
+ *   EXPLORE-01: /explore route renders nav with CribAI brand
  */
 
-test.describe('Post Sublease Navigation', () => {
-  test('/post route redirects unauthenticated users to /login', async ({ page }) => {
-    await page.goto('/post');
+test.describe('Chat Navigation', () => {
+  test('/chat route redirects unauthenticated users to /login', async ({ page }) => {
+    await page.goto('/chat');
     await page.waitForURL(/\/login/, { timeout: 15000 });
     await expect(page).toHaveURL(/\/login/);
   });
 
-  test('/post redirect preserves returnTo param', async ({ page }) => {
-    await page.goto('/post');
+  test('/chat redirect preserves returnTo param', async ({ page }) => {
+    await page.goto('/chat');
     await page.waitForURL(/\/login/, { timeout: 15000 });
-    await expect(page).toHaveURL(/returnTo=%2Fpost/);
+    await expect(page).toHaveURL(/returnTo=%2Fchat/);
   });
 
-  test('/explore route renders nav with CampusNest brand', async ({ page }) => {
+  test('/explore route renders nav with CribAI brand', async ({ page }) => {
     await page.goto('/explore');
 
-    // The (main) layout top nav always shows CampusNest wordmark
+    // The (main) layout top nav always shows CribAI wordmark
     // Use the primary navigation role (top nav, not the mobile bottom nav)
     const topNav = page.getByRole('navigation').first();
     await expect(topNav).toBeVisible();
-    await expect(topNav.getByText('CampusNest')).toBeVisible();
+    await expect(topNav.getByText('CribAI')).toBeVisible();
   });
 });
 

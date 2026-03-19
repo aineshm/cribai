@@ -87,28 +87,28 @@ describe('MainLayout', () => {
     expect(screen.getByText('unique-child-content')).toBeInTheDocument();
   });
 
-  it('shows Post and Profile nav links when authenticated', async () => {
+  it('shows Chat and Profile nav links when authenticated', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1', email: 'test@example.com' } } });
     const layout = await MainLayout({ children: <></> });
     render(layout);
-    const postLink = screen.getByRole('link', { name: 'Post Sublease' });
+    const chatLink = screen.getByRole('link', { name: 'Chat' });
     const profileLink = screen.getAllByRole('link').find((link) => link.getAttribute('href') === '/profile');
-    expect(postLink).toBeInTheDocument();
-    expect(postLink).toHaveAttribute('href', '/post');
+    expect(chatLink).toBeInTheDocument();
+    expect(chatLink).toHaveAttribute('href', '/chat');
     expect(profileLink).toBeInTheDocument();
     expect(profileLink).toHaveAttribute('href', '/profile');
   });
 
-  it('does NOT show Post and Profile nav links when unauthenticated', async () => {
+  it('does NOT show Chat and Profile nav links when unauthenticated', async () => {
     mockGetUser.mockResolvedValue({ data: { user: null } });
     mockGet.mockReturnValue(null);
     const layout = await MainLayout({ children: <></> });
     render(layout);
-    expect(screen.queryByRole('link', { name: 'Post Sublease' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Chat' })).not.toBeInTheDocument();
     expect(screen.getAllByRole('link').find((link) => link.getAttribute('href') === '/profile')).toBeUndefined();
   });
 
-  it('shows Post and Profile links via dev-auth header when no Supabase user', async () => {
+  it('shows Chat and Profile links via dev-auth header when no Supabase user', async () => {
     mockGetUser.mockResolvedValue({ data: { user: null } });
     const devUser = JSON.stringify({ id: 'dev-user-1', email: 'dev@example.com' });
     mockGet.mockImplementation((key: string) =>
@@ -116,15 +116,15 @@ describe('MainLayout', () => {
     );
     const layout = await MainLayout({ children: <></> });
     render(layout);
-    expect(screen.getByRole('link', { name: 'Post Sublease' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Chat' })).toBeInTheDocument();
     expect(screen.getAllByRole('link').find((link) => link.getAttribute('href') === '/profile')).toBeDefined();
   });
 
-  it('CampusNest wordmark still renders in both auth states', async () => {
+  it('CribAI wordmark still renders in both auth states', async () => {
     mockGetUser.mockResolvedValue({ data: { user: null } });
     mockGet.mockReturnValue(null);
     const layout = await MainLayout({ children: <></> });
     render(layout);
-    expect(screen.getByText('CampusNest')).toBeInTheDocument();
+    expect(screen.getByText('CribAI')).toBeInTheDocument();
   });
 });

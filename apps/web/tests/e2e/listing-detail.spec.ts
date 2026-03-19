@@ -47,11 +47,11 @@ test.describe('Listing Detail — desktop', () => {
     await expect(page.locator('.text-3xl', { hasText: /\$/ }).first()).toBeVisible();
   });
 
-  test('CampusNest nav brand is visible on detail page', async ({ page }) => {
+  test('CribAI nav brand is visible on detail page', async ({ page }) => {
     await page.goto(`/listing/${KNOWN_LISTING_ID}`);
     await page.waitForLoadState('networkidle', { timeout: 30000 });
 
-    await expect(page.getByRole('navigation').first().getByText('CampusNest')).toBeVisible();
+    await expect(page.getByRole('navigation').first().getByText('CribAI')).toBeVisible();
   });
 });
 

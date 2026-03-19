@@ -26,7 +26,7 @@ test.describe('Auth page — Email step', () => {
     await expect(login.description).toBeVisible();
   });
 
-  test('heading reads "Sign in to CampusNest"', async ({ page }) => {
+  test('heading reads "Sign in to CribAI"', async ({ page }) => {
     const login = new LoginPage(page);
     await login.goto();
     await expect(login.heading).toBeVisible();
@@ -80,7 +80,7 @@ test.describe('Auth page — Split layout (desktop)', () => {
     await login.assertSplitLayoutVisible();
   });
 
-  test('left panel shows CampusNest branding', async ({ page }) => {
+  test('left panel shows CribAI branding', async ({ page }) => {
     const login = new LoginPage(page);
     await login.goto();
     await expect(login.brandHeading).toBeVisible();

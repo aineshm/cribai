@@ -1,10 +1,10 @@
 import { type Page, type Locator, expect } from '@playwright/test';
 
 /**
- * Page Object Model for the CampusNest landing page (/).
+ * Page Object Model for the CribAI landing page (/).
  *
  * DOM notes (from apps/web/app/page.tsx — current implementation):
- *   - Nav with "CampusNest" brand text
+ *   - Nav with "CribAI" brand text
  *   - Unauthenticated nav: "Browse" link → /explore, "Agent" link, "Get Started" button → /login
  *   - Authenticated nav: "Dashboard" button → /explore
  *   - Hero h1: "Find your perfect college apartment with AI that actually understands."
@@ -14,7 +14,7 @@ import { type Page, type Locator, expect } from '@playwright/test';
  *   - Campus section: "Starting at UW-Madison"
  *   - Features section: h2 "Apartment hunting, rebuilt for students."
  *     3 cards: "AI-powered search", "Verified student network", "End-to-end support"
- *   - How It Works section: h2 "How CampusNest works", 3 steps (01, 02, 03)
+ *   - How It Works section: h2 "How CribAI works", 3 steps (01, 02, 03)
  *   - Footer CTA section: h2 "Ready to find your nest?", "Create free account" button
  *   - NO mobile sticky bar (removed in current implementation)
  */
@@ -60,7 +60,7 @@ export class HomePage {
     this.page = page;
 
     // Nav
-    this.brandText = page.locator('nav').getByText('CampusNest');
+    this.brandText = page.locator('nav').getByText('CribAI');
     this.browseLink = page.locator('nav').getByRole('link', { name: 'Browse' });
     this.getStartedNavButton = page.locator('nav').getByRole('link', { name: 'Get Started' });
 
@@ -91,7 +91,7 @@ export class HomePage {
     };
 
     // How It Works
-    this.howItWorksHeading = page.getByRole('heading', { name: 'How CampusNest works' });
+    this.howItWorksHeading = page.getByRole('heading', { name: 'How CribAI works' });
 
     // Footer CTA
     this.footerCtaHeading = page.getByRole('heading', { name: 'Ready to find your nest?' });

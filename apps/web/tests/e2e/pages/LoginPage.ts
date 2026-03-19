@@ -6,13 +6,13 @@ import { type Page, type Locator, expect } from '@playwright/test';
  * Layout: AuthSplitLayout — branded left panel (hidden lg:flex, bg-teal-900) + form right panel.
  *
  * Left panel content (desktop only, hidden on mobile):
- *   - "CampusNest" brand text
+ *   - "CribAI" brand text
  *   - h1 "Find your perfect college apartment"
  *   - Features: "Verified .edu student network", "AI-matched listings & fair pricing",
  *     "Direct tour booking & lease analysis"
  *
  * Email step:
- *   - <h2> "Sign in to CampusNest"
+ *   - <h2> "Sign in to CribAI"
  *   - <p> "Enter your .edu email and we'll send you a verification code."
  *   - <input type="email" aria-label="Email address" placeholder="you@university.edu">
  *   - <button type="submit"> "Continue" (or "Sending code..." while loading)
@@ -52,10 +52,10 @@ export class LoginPage {
     // Split layout — branded left panel (bg-teal-900, hidden lg:flex)
     // Target by its distinctive background class and teal-900 color
     this.brandPanel = page.locator('.bg-teal-900').first();
-    this.brandHeading = page.locator('.bg-teal-900').getByText('CampusNest').first();
+    this.brandHeading = page.locator('.bg-teal-900').getByText('CribAI').first();
 
     // Email step locators
-    this.heading = page.getByRole('heading', { name: 'Sign in to CampusNest' });
+    this.heading = page.getByRole('heading', { name: 'Sign in to CribAI' });
     this.description = page.getByText("we'll send you a verification code");
     this.emailInput = page.getByLabel('Email address');
     this.submitButton = page.getByRole('button', { name: /Continue|Sending code/i });
