@@ -70,21 +70,27 @@ export function PhotoUploader({
   }, [listingId, userId, existingPhotos, remainingSlots, onPhotosUpdated]);
 
   const handleRemovePhoto = useCallback(async (urlToRemove: string) => {
-    const updatedUrls = existingPhotos.filter(url => url !== urlToRemove);
+    if (uploading) return;
+    setUploading(true);
+    try {
+      const updatedUrls = existingPhotos.filter(url => url !== urlToRemove);
 
-    const res = await fetch(`/api/listings/${listingId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ photo_urls: updatedUrls }),
-    });
+      const res = await fetch(`/api/listings/${listingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ photo_urls: updatedUrls }),
+      });
 
-    if (res.ok) {
-      onPhotosUpdated(updatedUrls);
-      toast.success('Photo removed');
-    } else {
-      toast.error('Failed to remove photo');
+      if (res.ok) {
+        onPhotosUpdated(updatedUrls);
+        toast.success('Photo removed');
+      } else {
+        toast.error('Failed to remove photo');
+      }
+    } finally {
+      setUploading(false);
     }
-  }, [listingId, existingPhotos, onPhotosUpdated]);
+  }, [listingId, existingPhotos, onPhotosUpdated, uploading]);
 
   return (
     <div className="space-y-3">

@@ -42,8 +42,10 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const VALID_INTENTS: readonly MissionType[] = ['housing_search', 'listing_deep_dive', 'sublease_post'];
+  const rawIntent = param(searchParams.intent);
   const [intent, setIntent] = useState<MissionType>(
-    (param(searchParams.intent) as MissionType) || 'housing_search',
+    VALID_INTENTS.includes(rawIntent as MissionType) ? (rawIntent as MissionType) : 'housing_search',
   );
   const [budget, setBudget] = useState(param(searchParams.budget));
   const [bedrooms, setBedrooms] = useState(param(searchParams.bedrooms));

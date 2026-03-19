@@ -20,6 +20,7 @@ export const fetchDetailStep: MissionStep = {
         'id, address, rent_monthly, bedrooms, bathrooms, sqft, fairness_score, fairness_data, true_cost, true_cost_total, amenities, available_date, description, source, contact_email, photo_urls, raw_data',
       )
       .eq('id', listingId)
+      .eq('campus_id', ctx.campusId)
       .eq('is_active', true)
       .single();
 

@@ -34,6 +34,11 @@ export const validateFieldsStep: MissionStep = {
       errors.push('Rent must be $1-$10,000/month');
     }
 
+    const contactEmail = input.contact_email as string | undefined;
+    if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+      errors.push('Invalid contact email format');
+    }
+
     if (errors.length > 0) {
       return {
         output: { validationErrors: errors, validated: false },

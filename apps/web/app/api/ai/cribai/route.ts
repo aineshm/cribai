@@ -252,9 +252,16 @@ export async function POST(request: NextRequest) {
 
     // --- Build ToolContext for the new engine --------------------------------
     // Parse optional map viewport bounds for geographic filtering
-    const mapBounds = bounds && typeof bounds === 'object'
-      ? bounds as { minLat: number; maxLat: number; minLng: number; maxLng: number }
-      : undefined;
+    // SECURITY: Validate shape to prevent NaN in arithmetic filters
+    function isValidBounds(v: unknown): v is { minLat: number; maxLat: number; minLng: number; maxLng: number } {
+      if (!v || typeof v !== 'object') return false;
+      const b = v as Record<string, unknown>;
+      return (
+        typeof b.minLat === 'number' && typeof b.maxLat === 'number' &&
+        typeof b.minLng === 'number' && typeof b.maxLng === 'number'
+      );
+    }
+    const mapBounds = isValidBounds(bounds) ? bounds : undefined;
 
     const toolContext = {
       supabase,
@@ -390,7 +397,7 @@ export async function POST(request: NextRequest) {
             void supabase.from('ai_query_logs').insert({
               user_id: userId,
               campus_id: campus.id,
-              query,
+              query: trimmedQuery,
             });
           }
         } catch (err) {
