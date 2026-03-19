@@ -87,8 +87,8 @@ export function ListingDetailClient({
           )}
         </div>
 
-        {/* Photo Gallery */}
-        {listing.photoUrls.length > 0 && (
+        {/* Photo Gallery or Placeholder */}
+        {listing.photoUrls.length > 0 ? (
           <PhotoGallery
             photos={listing.photoUrls.map((url, i) => ({
               id: `photo-${i}`,
@@ -97,6 +97,13 @@ export function ListingDetailClient({
               url,
             }))}
           />
+        ) : (
+          <div className="flex items-center justify-center rounded-2xl bg-gradient-to-br from-teal-50 to-teal-100 border border-teal-200/50 aspect-[3/1] text-teal-600">
+            <div className="text-center">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-10 mx-auto mb-2 opacity-50"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+              <p className="text-sm font-medium opacity-70">No photos yet</p>
+            </div>
+          </div>
         )}
 
         {/* Map */}

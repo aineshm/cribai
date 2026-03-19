@@ -6,7 +6,7 @@
 
 import { createSecretClient } from '@campusnest/supabase/server';
 import { parseWkbPoint } from '@campusnest/utils';
-import type { ExploreListing, ListingDetail } from './listing-types';
+import type { ExploreListing, ListingDetail, SubleaseDetails } from './listing-types';
 
 /* ------------------------------------------------------------------ */
 /*  Raw DB row shapes (snake_case from Supabase)                      */
@@ -122,6 +122,27 @@ function buildDescription(row: ListingRow): string {
   return parts.join(' ');
 }
 
+/** Extract sublease-specific fields from raw_data */
+function extractSubleaseDetails(rawData: Record<string, unknown> | null): SubleaseDetails {
+  if (!rawData) {
+    return {
+      bedroomsAvailable: null, leaseEnd: null, propertyType: null,
+      furnished: null, parking: null, roommateInfo: null,
+      genderRestriction: null, unitNumber: null,
+    };
+  }
+  return {
+    bedroomsAvailable: typeof rawData.bedrooms_available === 'number' ? rawData.bedrooms_available : null,
+    leaseEnd: typeof rawData.lease_end === 'string' ? rawData.lease_end : null,
+    propertyType: typeof rawData.property_type === 'string' ? rawData.property_type : null,
+    furnished: typeof rawData.furnished === 'boolean' ? rawData.furnished : null,
+    parking: typeof rawData.parking === 'boolean' ? rawData.parking : null,
+    roommateInfo: typeof rawData.roommate_info === 'string' ? rawData.roommate_info : null,
+    genderRestriction: typeof rawData.gender_restriction === 'string' ? rawData.gender_restriction : null,
+    unitNumber: typeof rawData.unit_number === 'string' ? rawData.unit_number : null,
+  };
+}
+
 /* ------------------------------------------------------------------ */
 /*  Map DB rows → UI types                                            */
 /* ------------------------------------------------------------------ */
@@ -182,6 +203,7 @@ function toListingDetail(row: ListingRow): ListingDetail {
         longitude: coords?.longitude ?? null,
       };
     })(),
+    subleaseDetails: row.source === 'sublease' ? extractSubleaseDetails(row.raw_data) : null,
   };
 }
 

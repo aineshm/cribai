@@ -49,4 +49,18 @@ export interface ListingDetail {
   readonly contactEmail: string | null;
   readonly latitude: number | null;
   readonly longitude: number | null;
+  /** Sublease-specific fields from raw_data */
+  readonly subleaseDetails: SubleaseDetails | null;
+}
+
+/** Sublease-specific metadata extracted from raw_data */
+export interface SubleaseDetails {
+  readonly bedroomsAvailable: number | null;
+  readonly leaseEnd: string | null;
+  readonly propertyType: string | null;
+  readonly furnished: boolean | null;
+  readonly parking: boolean | null;
+  readonly roommateInfo: string | null;
+  readonly genderRestriction: string | null;
+  readonly unitNumber: string | null;
 }

@@ -13,6 +13,12 @@ import {
   Phone,
   ExternalLink,
   Tag,
+  Mail,
+  Home,
+  Users,
+  Car,
+  Sofa,
+  Clock,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -61,7 +67,9 @@ export function ListingContent({ listing }: ListingContentProps) {
             <div className="flex items-center gap-1.5 rounded-full bg-[var(--surface-50)] px-3 py-2">
               <Bed className="size-4 text-teal-700" />
               <span>
-                {listing.beds === 0 ? 'Studio' : `${listing.beds} bed${listing.beds !== 1 ? 's' : ''}`}
+                {listing.subleaseDetails?.bedroomsAvailable != null
+                  ? `${listing.subleaseDetails.bedroomsAvailable} of ${listing.beds} bed${listing.beds !== 1 ? 's' : ''} available`
+                  : listing.beds === 0 ? 'Studio' : `${listing.beds} bed${listing.beds !== 1 ? 's' : ''}`}
               </span>
             </div>
           )}
@@ -117,6 +125,36 @@ export function ListingContent({ listing }: ListingContentProps) {
             <p className="text-sm text-muted-foreground leading-relaxed">
               {listing.description}
             </p>
+          </motion.div>
+        </>
+      )}
+
+      {/* Sublease Details */}
+      {listing.subleaseDetails && (
+        <>
+          <Separator />
+          <motion.div className="space-y-3 rounded-[1.75rem] border border-[var(--surface-200)] bg-white p-6 shadow-[0_14px_34px_rgba(15,23,42,0.04)]" variants={staggerItem}>
+            <SectionHeading>Sublease Details</SectionHeading>
+            <div className="grid grid-cols-2 gap-3">
+              {listing.subleaseDetails.propertyType && (
+                <DetailChip icon={Home} label="Type" value={listing.subleaseDetails.propertyType} />
+              )}
+              {listing.subleaseDetails.leaseEnd && (
+                <DetailChip icon={Clock} label="Lease ends" value={listing.subleaseDetails.leaseEnd} />
+              )}
+              {listing.subleaseDetails.roommateInfo && (
+                <DetailChip icon={Users} label="Roommates" value={listing.subleaseDetails.roommateInfo} />
+              )}
+              {listing.subleaseDetails.furnished !== null && (
+                <DetailChip icon={Sofa} label="Furnished" value={listing.subleaseDetails.furnished ? 'Yes' : 'No'} />
+              )}
+              {listing.subleaseDetails.parking !== null && (
+                <DetailChip icon={Car} label="Parking" value={listing.subleaseDetails.parking ? 'Included' : 'Not included'} />
+              )}
+              {listing.subleaseDetails.genderRestriction && (
+                <DetailChip icon={Users} label="Restriction" value={listing.subleaseDetails.genderRestriction} />
+              )}
+            </div>
           </motion.div>
         </>
       )}
@@ -201,6 +239,15 @@ export function ListingContent({ listing }: ListingContentProps) {
       <motion.div className="space-y-3 rounded-3xl border border-gray-100 bg-white p-6 shadow-sm" variants={staggerItem}>
         <SectionHeading>Contact & Source</SectionHeading>
         <div className="flex flex-wrap gap-3">
+          {listing.contactEmail && (
+            <a
+              href={`mailto:${listing.contactEmail}`}
+              className="inline-flex items-center gap-2 rounded-xl bg-teal-800 px-4 py-2 text-sm text-white transition-colors hover:bg-teal-900"
+            >
+              <Mail className="size-4" />
+              {listing.contactEmail}
+            </a>
+          )}
           {listing.buildingPhone && (
             <a
               href={`tel:${listing.buildingPhone}`}
@@ -263,6 +310,26 @@ function ScoreCard({
       <Icon className={`size-5 ${color}`} />
       <span className={`text-xl font-bold ${color}`}>{score}</span>
       <span className="text-xs text-muted-foreground">{label}</span>
+    </div>
+  );
+}
+
+function DetailChip({
+  icon: Icon,
+  label,
+  value,
+}: {
+  readonly icon: React.ElementType;
+  readonly label: string;
+  readonly value: string;
+}) {
+  return (
+    <div className="flex items-start gap-2.5 rounded-xl border border-[var(--surface-200)] bg-[var(--surface-50)] p-3">
+      <Icon className="size-4 text-teal-700 mt-0.5 shrink-0" />
+      <div>
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="text-sm font-medium text-foreground capitalize">{value}</p>
+      </div>
     </div>
   );
 }
