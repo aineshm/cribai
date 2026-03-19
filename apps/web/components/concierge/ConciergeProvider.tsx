@@ -62,6 +62,7 @@ function dbMissionToLegacy(m: DbMission): LegacyMission {
     summary,
     logs: [],
     actionCard: undefined,
+    result: m.result,
   };
 }
 
@@ -240,8 +241,9 @@ export function ConciergeProvider({
         status: (log.status === 'success' ? 'success' : log.status === 'error' ? 'error' : 'pending') as 'success' | 'pending' | 'error',
       }));
 
-      // Enrich the selected mission with real logs
-      setSelectedMission(prev => prev?.id === missionId ? { ...prev, logs: mappedLogs } : prev);
+      // Enrich the selected mission with real logs and result
+      const missionResult = (body.mission as Record<string, unknown>).result as Record<string, unknown> | null;
+      setSelectedMission(prev => prev?.id === missionId ? { ...prev, logs: mappedLogs, result: missionResult } : prev);
     } catch (err) {
       console.error('[ConciergeProvider] Failed to fetch mission detail:', err);
     }

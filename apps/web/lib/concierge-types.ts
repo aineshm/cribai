@@ -82,5 +82,6 @@ export interface LegacyMission {
   readonly summary: string;
   readonly logs: readonly ExecutionLog[];
   readonly actionCard?: ActionCard;
+  readonly result?: Record<string, unknown> | null;
 }
 

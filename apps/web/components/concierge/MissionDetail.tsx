@@ -13,6 +13,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AgentSummary } from '@/components/concierge/AgentSummary';
+import { MissionResults } from '@/components/concierge/MissionResults';
 import { MissionActionCard } from '@/components/concierge/MissionActionCard';
 import { ExecutionLogs } from '@/components/concierge/ExecutionLogs';
 import { SteeringBar } from '@/components/concierge/SteeringBar';
@@ -92,6 +93,11 @@ export function MissionDetail({ mission, onBack }: MissionDetailProps) {
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         <AgentSummary summary={mission.summary} />
+
+        {/* Mission results — shortlist, sublease link, etc. */}
+        {mission.result && (
+          <MissionResults result={mission.result} />
+        )}
 
         {mission.actionCard && (
           <MissionActionCard actionCard={mission.actionCard} />
