@@ -21,7 +21,7 @@ interface ExploreClientProps {
 }
 
 /** Live filter chips showing what the AI is filtering on */
-function ContextBar({ context }: { readonly context: SearchContext }) {
+function ContextBar({ context, onReset }: { readonly context: SearchContext; readonly onReset?: () => void }) {
   const chips: { key: string; label: string; icon: typeof Sparkles }[] = [];
 
   if (context.mapArea) chips.push({ key: 'map', label: context.mapArea, icon: MapPin });
@@ -55,6 +55,16 @@ function ContextBar({ context }: { readonly context: SearchContext }) {
         <span className="text-xs text-gray-500 shrink-0">
           Start searching to see active filters
         </span>
+      )}
+      {chips.length > 0 && onReset && (
+        <button
+          type="button"
+          onClick={onReset}
+          className="flex shrink-0 items-center gap-1 rounded-full bg-white px-3 py-1 text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 transition-colors"
+        >
+          <X className="size-3" />
+          Reset All
+        </button>
       )}
     </div>
   );
@@ -142,11 +152,13 @@ export function ExploreClient({ listings }: ExploreClientProps) {
     }
   }, []);
 
-  /** Reset AI-filtered map results back to showing all listings */
+  /** Reset AI-filtered map results back to showing all listings from the full corpus */
   const resetAiResults = useCallback(() => {
     setAiMapListings(null);
     setMapFlyTo(null);
     setSearchContext({});
+    setLockedBounds(null);
+    setShowSearchButton(false);
   }, []);
 
   const handleSearchContext = useCallback((ctx: SearchContext) => {
@@ -166,7 +178,7 @@ export function ExploreClient({ listings }: ExploreClientProps) {
     <div className="app-mobile-pane flex flex-col overflow-hidden bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-teal-50/30 via-white to-white">
       {/* Mobile view toggle — hidden on desktop */}
       <div className="flex md:hidden border-b border-gray-100">
-        <ContextBar context={searchContext} />
+        <ContextBar context={searchContext} onReset={resetAiResults} />
         <div className="flex shrink-0 border-l border-gray-100">
           <button
             type="button"
@@ -198,7 +210,7 @@ export function ExploreClient({ listings }: ExploreClientProps) {
         }`}>
           {/* Desktop context bar (mobile one is above) */}
           <div className="hidden md:block">
-            <ContextBar context={searchContext} />
+            <ContextBar context={searchContext} onReset={resetAiResults} />
           </div>
           {pendingProposal && (
             <div className="border-b border-gray-100 px-4 py-3">

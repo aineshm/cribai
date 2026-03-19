@@ -4,11 +4,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
 import { SavedListings } from '@/components/profile/SavedListings';
+import { MyListings } from '@/components/profile/MyListings';
 import { AccountSettings } from '@/components/profile/AccountSettings';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { motion } from 'framer-motion';
 import { pageTransition } from '@/lib/animations';
-import { Heart, Settings, MessageSquare, Sparkles } from 'lucide-react';
+import { Heart, Settings, MessageSquare, Sparkles, Home } from 'lucide-react';
 
 interface SavedListingItem {
   readonly id: string;
@@ -16,6 +17,16 @@ interface SavedListingItem {
   readonly address: string;
   readonly price: number;
   readonly imageUrl?: string;
+}
+
+interface MyListingItem {
+  readonly id: string;
+  readonly address: string;
+  readonly price: number;
+  readonly beds: number | null;
+  readonly source: string;
+  readonly availableDate: string | null;
+  readonly photoUrl: string | null;
 }
 
 interface ProfilePageClientProps {
@@ -26,6 +37,7 @@ interface ProfilePageClientProps {
   readonly memberSince: string;
   readonly isVerified: boolean;
   readonly savedListings?: ReadonlyArray<SavedListingItem>;
+  readonly myListings?: ReadonlyArray<MyListingItem>;
 }
 
 export function ProfilePageClient({
@@ -36,10 +48,12 @@ export function ProfilePageClient({
   memberSince,
   isVerified,
   savedListings,
+  myListings,
 }: ProfilePageClientProps) {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
-  const defaultTab = tabParam === 'saved' || tabParam === 'chats' || tabParam === 'settings' ? tabParam : 'saved';
+  const validTabs = ['saved', 'my-listings', 'chats', 'settings'] as const;
+  const defaultTab = validTabs.includes(tabParam as typeof validTabs[number]) ? tabParam! : 'saved';
 
   return (
     <motion.div
@@ -65,7 +79,11 @@ export function ProfilePageClient({
           <TabsList variant="line" className="mb-6">
             <TabsTrigger value="saved" className="gap-1.5">
               <Heart className="size-4" />
-              Saved Listings
+              Saved
+            </TabsTrigger>
+            <TabsTrigger value="my-listings" className="gap-1.5">
+              <Home className="size-4" />
+              My Listings
             </TabsTrigger>
             <TabsTrigger value="chats" className="gap-1.5">
               <MessageSquare className="size-4" />
@@ -79,6 +97,10 @@ export function ProfilePageClient({
 
           <TabsContent value="saved">
             <SavedListings listings={savedListings} />
+          </TabsContent>
+
+          <TabsContent value="my-listings">
+            <MyListings listings={myListings} />
           </TabsContent>
 
           <TabsContent value="chats">

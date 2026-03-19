@@ -83,6 +83,27 @@ export default async function ProfilePage() {
     };
   });
 
+  // Fetch user's posted listings (subleases they created)
+  const { data: postedRows } = await supabase
+    .from('listings')
+    .select('id, address, rent_monthly, bedrooms, photo_urls, source, available_date')
+    .eq('creator_id', resolvedUser.id)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false });
+
+  const myListings = (postedRows ?? []).map((row) => {
+    const photoUrls = (row.photo_urls as string[] | null) ?? [];
+    return {
+      id: row.id as string,
+      address: row.address as string,
+      price: Number(row.rent_monthly),
+      beds: row.bedrooms as number | null,
+      source: row.source as string,
+      availableDate: row.available_date as string | null,
+      photoUrl: photoUrls[0] ?? null,
+    };
+  });
+
   return (
     <ProfilePageClient
       name={name}
@@ -92,6 +113,7 @@ export default async function ProfilePage() {
       memberSince={memberSince}
       isVerified={isVerified}
       savedListings={savedListings}
+      myListings={myListings}
     />
   );
 }

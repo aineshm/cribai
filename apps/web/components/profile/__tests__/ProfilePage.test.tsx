@@ -47,6 +47,9 @@ vi.mock('lucide-react', () => ({
   Car: () => <svg />,
   MessageSquare: () => <svg />,
   Sparkles: () => <svg />,
+  Home: () => <svg data-testid="home-icon" />,
+  Eye: () => <svg />,
+  ExternalLink: () => <svg />,
 }));
 
 // Mock sonner
@@ -73,9 +76,9 @@ const demoListings = [
 ];
 
 describe('ProfilePage tabs', () => {
-  it('renders the "Saved Listings" tab trigger', () => {
+  it('renders the "Saved" tab trigger', () => {
     render(<ProfilePageClient {...defaultProps} />);
-    expect(screen.getByRole('tab', { name: /saved listings/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /^saved$/i })).toBeInTheDocument();
   });
 
   it('renders the "Account Settings" tab trigger', () => {

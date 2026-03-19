@@ -10,9 +10,9 @@ interface MissionLauncherProps {
   readonly searchParams: Record<string, string | string[] | undefined>;
 }
 
-type MissionType = 'housing_search' | 'listing_deep_dive' | 'sublease_post';
+type MissionType = 'housing_search' | 'listing_deep_dive' | 'sublease_post' | 'tour_outreach';
 
-const VALID_INTENTS: readonly MissionType[] = ['housing_search', 'listing_deep_dive', 'sublease_post'];
+const VALID_INTENTS: readonly MissionType[] = ['housing_search', 'listing_deep_dive', 'sublease_post', 'tour_outreach'];
 
 function param(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? '' : value ?? '';
@@ -25,6 +25,7 @@ function buildAutoGoal(intent: MissionType, fields: {
   moveInDate: string;
 }): string {
   if (intent === 'listing_deep_dive') return 'Deep dive analysis on a specific listing';
+  if (intent === 'tour_outreach') return 'Schedule tours for listings I\'m interested in';
   if (intent === 'sublease_post') {
     const parts: string[] = ['Post sublease'];
     if (fields.location) parts.push(`at ${fields.location}`);
@@ -106,13 +107,18 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
           }
         : intent === 'listing_deep_dive'
           ? { listingId }
-          : intent === 'sublease_post'
+          : intent === 'tour_outreach'
             ? {
-                ...(location ? { address: location } : {}),
-                ...(bedrooms ? { bedrooms_total: Number(bedrooms), bedrooms_available: Number(bedrooms) } : {}),
-                ...(budget ? { rent_monthly: Number(budget) } : {}),
+                ...(location ? { preferences: location } : {}),
+                ...(budget ? { maxRent: Number(budget) } : {}),
               }
-            : {};
+            : intent === 'sublease_post'
+              ? {
+                  ...(location ? { address: location } : {}),
+                  ...(bedrooms ? { bedrooms_total: Number(bedrooms), bedrooms_available: Number(bedrooms) } : {}),
+                  ...(budget ? { rent_monthly: Number(budget) } : {}),
+                }
+              : {};
 
       const res = await fetch('/api/missions', {
         method: 'POST',
@@ -157,7 +163,7 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
     );
   }
 
-  const showHousingFields = intent === 'housing_search' || intent === 'sublease_post';
+  const showHousingFields = intent === 'housing_search' || intent === 'sublease_post' || intent === 'tour_outreach';
 
   return (
     <div className="rounded-xl border border-teal-200 bg-teal-50/30 p-5 space-y-4">
@@ -187,6 +193,7 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
             className={INPUT_CLASS}
           >
             <option value="housing_search">Housing Search</option>
+            <option value="tour_outreach">Tour Outreach</option>
             <option value="listing_deep_dive">Listing Deep Dive</option>
             <option value="sublease_post">Post Sublease</option>
           </select>
@@ -248,7 +255,7 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
               />
             </label>
 
-            {intent === 'housing_search' && (
+            {(intent === 'housing_search' || intent === 'tour_outreach') && (
               <label className="space-y-1">
                 <span className="text-xs font-medium text-gray-600">
                   Move-in Date <span className="text-gray-400">(optional)</span>
