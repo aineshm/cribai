@@ -17,11 +17,9 @@ const MISSION_REGISTRY: Map<string, MissionDefinition> = new Map();
  * Throws if a definition for the same type is already registered.
  */
 export function registerMission(definition: MissionDefinition): void {
+  // Idempotent: skip if already registered (side-effect imports may run multiple times)
   if (MISSION_REGISTRY.has(definition.type)) {
-    throw new Error(
-      `Mission type '${definition.type}' is already registered. ` +
-      'Each mission type can only be registered once.',
-    );
+    return;
   }
   MISSION_REGISTRY.set(definition.type, definition);
 }

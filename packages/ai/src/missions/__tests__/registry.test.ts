@@ -47,11 +47,11 @@ describe('mission registry', () => {
     expect(result).toBeUndefined();
   });
 
-  it('throws on duplicate registration', () => {
+  it('is idempotent on duplicate registration', () => {
     registerMission(testDefinition);
-    expect(() => registerMission(testDefinition)).toThrow(
-      "Mission type 'housing_search' is already registered",
-    );
+    // Should not throw — idempotent for side-effect imports
+    registerMission(testDefinition);
+    expect(getMissionDefinition('housing_search')).toBe(testDefinition);
   });
 
   it('lists registered types', () => {

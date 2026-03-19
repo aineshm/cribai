@@ -5,6 +5,14 @@
  * definitions for use by API routes and mission implementations.
  */
 
+// Side-effect imports: register all mission pipelines with the registry.
+// These MUST be import statements (not just re-exports) so tree-shaking
+// cannot strip them — the registerMission() calls run at import time.
+import './housing-search/index';
+import './tour-outreach-mission';
+import './listing-deep-dive/index';
+import './sublease-post/index';
+
 export { executeMission } from './executor';
 export { registerMission, getMissionDefinition, getRegisteredTypes, clearRegistry } from './registry';
 export type {
@@ -32,8 +40,10 @@ export {
   getCampusSlug,
 } from './mission-repository';
 export type { InsertLogParams, InsertDraftParams, InsertSteeringParams } from './mission-repository';
+// Named re-exports for direct consumer use (registration already happened via imports above)
 export { tourOutreachDefinition } from './tour-outreach-mission';
 export { LISTING_DEEP_DIVE_STEPS } from './listing-deep-dive/index';
 export { SUBLEASE_POST_STEPS } from './sublease-post/index';
+export { HOUSING_SEARCH_STEPS } from './housing-search/index';
 export { parseSteeringIntent } from './steering-parser';
 export type { SteeringUpdate } from './steering-parser';
