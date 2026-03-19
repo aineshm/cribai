@@ -47,4 +47,6 @@ export interface ListingDetail {
   readonly specialOffers: readonly string[];
   readonly creatorId: string | null;
   readonly contactEmail: string | null;
+  readonly latitude: number | null;
+  readonly longitude: number | null;
 }

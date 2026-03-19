@@ -175,6 +175,13 @@ function toListingDetail(row: ListingRow): ListingDetail {
         .filter(Boolean),
     creatorId: row.creator_id ?? null,
     contactEmail: row.contact_email ?? null,
+    ...(() => {
+      const coords = parseWkbPoint(row.location);
+      return {
+        latitude: coords?.latitude ?? null,
+        longitude: coords?.longitude ?? null,
+      };
+    })(),
   };
 }
 

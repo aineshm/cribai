@@ -12,6 +12,7 @@ import { MobileBottomBar } from '@/components/listing/MobileBottomBar';
 import { ListingViewStats } from '@/components/listing/ListingViewStats';
 import { PostedByBadge } from '@/components/listing/PostedByBadge';
 import { EditListingForm } from '@/components/listing/EditListingForm';
+import { ListingMap } from '@/components/listing/ListingMap';
 import { trackEvent } from '@/lib/track-event';
 import type { ListingDetail } from '@/lib/listing-types';
 
@@ -96,6 +97,18 @@ export function ListingDetailClient({
               url,
             }))}
           />
+        )}
+
+        {/* Map */}
+        {listing.latitude != null && listing.longitude != null && (
+          <div className="mt-6">
+            <ListingMap
+              latitude={listing.latitude}
+              longitude={listing.longitude}
+              address={listing.address}
+              price={listing.price}
+            />
+          </div>
         )}
 
         {/* Two-Column Layout */}
