@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await queryClient
     .from('missions')
-    .select('id, type, title, status, goal, current_step_index, created_at, updated_at')
+    .select('id, type, title, status, goal, result, current_step_index, created_at, updated_at')
     .eq('user_id', userId)
     .order('updated_at', { ascending: false })
     .limit(20);

@@ -35,6 +35,7 @@ interface DbMission {
   readonly title: string;
   readonly status: LegacyMission['status'];
   readonly goal: string;
+  readonly result: Record<string, unknown> | null;
   readonly current_step_index: number;
   readonly created_at: string;
   readonly updated_at: string;
@@ -45,6 +46,11 @@ interface DbMission {
  * Plan 29-04 will migrate to MissionWithDetails and remove this mapping.
  */
 function dbMissionToLegacy(m: DbMission): LegacyMission {
+  // Show result summary when mission is completed, otherwise show goal
+  const summary = m.status === 'completed' && m.result
+    ? formatMissionResult(m.result)
+    : m.goal;
+
   return {
     id: m.id,
     type: m.type,
@@ -53,10 +59,37 @@ function dbMissionToLegacy(m: DbMission): LegacyMission {
     listingTitle: '',
     createdAt: m.created_at,
     updatedAt: m.updated_at,
-    summary: m.goal,
+    summary,
     logs: [],
     actionCard: undefined,
   };
+}
+
+/** Format a mission result object into a human-readable summary string. */
+function formatMissionResult(result: Record<string, unknown>): string {
+  // Housing search report
+  const report = result.report as Record<string, unknown> | undefined;
+  if (report?.shortlist) {
+    const shortlist = report.shortlist as readonly { address: string; reason: string }[];
+    return shortlist
+      .map((item, i) => `${i + 1}. ${item.address}${item.reason ? ` — ${item.reason}` : ''}`)
+      .join('\n');
+  }
+
+  // Listing deep dive
+  if (report?.recommendation) {
+    return report.recommendation as string;
+  }
+
+  // Sublease post
+  if (result.listingUrl) {
+    return `Listing published: ${result.listingUrl as string}`;
+  }
+
+  // Fallback: stringify the top-level keys
+  return Object.keys(result).length > 0
+    ? `Mission completed with ${Object.keys(result).length} result field(s)`
+    : 'Mission completed';
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -195,16 +228,16 @@ export function ConciergeProvider({
 
       const body = (await res.json()) as {
         mission: Record<string, unknown>;
-        logs: readonly { created_at: string; status: string; step_name: string; message?: string }[];
+        logs: readonly { created_at: string; status: string; action: string; detail: string }[];
         currentDraft: Record<string, unknown> | null;
       };
 
-      // Map DB logs to LegacyMission ExecutionLog shape
+      // Map DB mission_logs to LegacyMission ExecutionLog shape
       const mappedLogs = (body.logs ?? []).map(log => ({
         timestamp: log.created_at,
-        action: log.step_name ?? 'step',
-        detail: log.message ?? '',
-        status: (log.status === 'completed' ? 'success' : log.status === 'failed' ? 'error' : 'pending') as 'success' | 'pending' | 'error',
+        action: log.action ?? 'step',
+        detail: log.detail ?? '',
+        status: (log.status === 'success' ? 'success' : log.status === 'error' ? 'error' : 'pending') as 'success' | 'pending' | 'error',
       }));
 
       // Enrich the selected mission with real logs
