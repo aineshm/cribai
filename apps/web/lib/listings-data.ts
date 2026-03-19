@@ -28,6 +28,8 @@ interface ListingRow {
   readonly description: string | null;
   readonly raw_data: Record<string, unknown> | null;
   readonly location: string | null;
+  readonly creator_id: string | null;
+  readonly contact_email: string | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -171,6 +173,8 @@ function toListingDetail(row: ListingRow): ListingDetail {
       ((row.raw_data?.specialOffers as readonly { description: string }[]) ?? [])
         .map((o) => o.description)
         .filter(Boolean),
+    creatorId: row.creator_id ?? null,
+    contactEmail: row.contact_email ?? null,
   };
 }
 
@@ -194,6 +198,8 @@ const EXPLORE_SELECT = [
   'description',
   'raw_data',
   'location',
+  'creator_id',
+  'contact_email',
 ].join(', ');
 
 /** Fetch active listings for the explore page (public, bypasses RLS) */

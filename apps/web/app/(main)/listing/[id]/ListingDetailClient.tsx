@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,18 +10,28 @@ import { ListingContent } from '@/components/listing/ListingContent';
 import { CTASidebar } from '@/components/listing/CTASidebar';
 import { MobileBottomBar } from '@/components/listing/MobileBottomBar';
 import { ListingViewStats } from '@/components/listing/ListingViewStats';
+import { PostedByBadge } from '@/components/listing/PostedByBadge';
+import { EditListingForm } from '@/components/listing/EditListingForm';
 import { trackEvent } from '@/lib/track-event';
 import type { ListingDetail } from '@/lib/listing-types';
 
 interface ListingDetailClientProps {
   readonly listing: ListingDetail;
   readonly campusSlug?: string;
+  readonly isCreatorOrAdmin?: boolean;
+  readonly currentUserId?: string | null;
+  readonly creatorName?: string | null;
 }
 
 export function ListingDetailClient({
-  listing,
+  listing: initialListing,
   campusSlug,
+  isCreatorOrAdmin = false,
+  currentUserId = null,
+  creatorName = null,
 }: ListingDetailClientProps) {
+  const [listing, setListing] = useState(initialListing);
+
   // Track listing view once per mount (dedup with ref to survive StrictMode double-mount)
   const hasTracked = useRef(false);
   useEffect(() => {
@@ -29,6 +39,10 @@ export function ListingDetailClient({
     hasTracked.current = true;
     trackEvent('listing_viewed', { listing_id: listing.id });
   }, [listing.id]);
+
+  const handleListingUpdated = useCallback((updated: Partial<ListingDetail>) => {
+    setListing(prev => ({ ...prev, ...updated }));
+  }, []);
 
   return (
     <motion.div
@@ -59,6 +73,19 @@ export function ListingDetailClient({
       <ListingViewStats listingId={listing.id} />
 
       <div className="mx-auto max-w-6xl px-4 py-6 lg:py-8">
+        {/* Posted by attribution + Creator edit controls */}
+        <div className="mb-4 space-y-3">
+          <PostedByBadge source={listing.source} creatorName={creatorName} />
+
+          {isCreatorOrAdmin && currentUserId && (
+            <EditListingForm
+              listing={listing}
+              userId={currentUserId}
+              onListingUpdated={handleListingUpdated}
+            />
+          )}
+        </div>
+
         {/* Photo Gallery */}
         {listing.photoUrls.length > 0 && (
           <PhotoGallery

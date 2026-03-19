@@ -45,4 +45,6 @@ export interface ListingDetail {
   readonly leaseTerm: string | null;
   readonly buildingPhone: string | null;
   readonly specialOffers: readonly string[];
+  readonly creatorId: string | null;
+  readonly contactEmail: string | null;
 }
