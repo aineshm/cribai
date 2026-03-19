@@ -129,7 +129,7 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
     } finally {
       setLoading(false);
     }
-  }, [intent, budget, bedrooms, location, moveInDate, goal, router]);
+  }, [intent, budget, bedrooms, location, listingId, moveInDate, goal, router]);
 
   if (!expanded) {
     return (

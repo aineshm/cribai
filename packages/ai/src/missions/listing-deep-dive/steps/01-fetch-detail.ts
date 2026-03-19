@@ -20,9 +20,11 @@ export const fetchDetailStep: MissionStep = {
         'id, address, rent_monthly, bedrooms, bathrooms, sqft, fairness_score, fairness_data, true_cost, true_cost_total, amenities, available_date, description, source, contact_email, photo_urls, raw_data',
       )
       .eq('id', listingId)
-      .eq('campus_id', ctx.campusId)
       .eq('is_active', true)
       .single();
+    // Note: campus_id filter intentionally omitted here — the mission's campus_id
+    // comes from the launcher (hardcoded uw-madison), not the listing. The compare
+    // step uses campus_id to scope comparisons, which is the correct boundary.
 
     if (error || !data) {
       return { output: { error: 'Listing not found or inactive' }, done: true };
