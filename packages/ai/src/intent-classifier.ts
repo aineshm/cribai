@@ -15,7 +15,7 @@ import { createGeminiClient } from './gemini-client';
 // ---------------------------------------------------------------------------
 
 const IntentResultSchema = z.object({
-  intent: z.enum(['housing_search', 'tour_outreach', 'lease_analysis', 'general_chat']),
+  intent: z.enum(['housing_search', 'tour_outreach', 'listing_deep_dive', 'sublease_post', 'lease_analysis', 'general_chat']),
   confidence: z.number().min(0).max(1),
   extracted_fields: z.record(z.unknown()),
 });
@@ -89,7 +89,7 @@ function buildClassifyPrompt(message: string): string {
 Message: "${message}"
 
 Return JSON with:
-- intent: one of housing_search | tour_outreach | lease_analysis | general_chat
+- intent: one of housing_search | tour_outreach | listing_deep_dive | sublease_post | lease_analysis | general_chat
 - confidence: 0.0–1.0 (how confident you are)
 - extracted_fields: relevant fields (e.g. bedrooms, budget, location, move_in_date)
 

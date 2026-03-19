@@ -10,7 +10,7 @@ interface MissionLauncherProps {
   readonly searchParams: Record<string, string | string[] | undefined>;
 }
 
-type MissionType = 'housing_search';
+type MissionType = 'housing_search' | 'listing_deep_dive' | 'sublease_post';
 
 function param(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? '' : value ?? '';
@@ -92,13 +92,24 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
           title,
           goal,
           campus_slug: 'uw-madison',
-          input: {
-            // Housing search executor reads camelCase keys (HousingSearchInput schema)
-            ...(budget ? { maxRent: Number(budget) } : {}),
-            ...(bedrooms ? { bedrooms: Number(bedrooms) } : {}),
-            ...(location ? { preferences: `near ${location}` } : {}),
-            ...(moveInDate ? { moveInDate } : {}),
-          },
+          input: intent === 'housing_search'
+            ? {
+                // Housing search executor reads camelCase keys (HousingSearchInput schema)
+                ...(budget ? { maxRent: Number(budget) } : {}),
+                ...(bedrooms ? { bedrooms: Number(bedrooms) } : {}),
+                ...(location ? { preferences: `near ${location}` } : {}),
+                ...(moveInDate ? { moveInDate } : {}),
+              }
+            : intent === 'listing_deep_dive'
+              ? { listingId: location } // Reuse location field as listing ID/address
+              : intent === 'sublease_post'
+                ? {
+                    address: location,
+                    bedrooms_total: bedrooms ? Number(bedrooms) : undefined,
+                    bedrooms_available: bedrooms ? Number(bedrooms) : undefined,
+                    rent_monthly: budget ? Number(budget) : undefined,
+                  }
+                : {},
         }),
       });
 
@@ -158,6 +169,8 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
             className={INPUT_CLASS}
           >
             <option value="housing_search">Housing Search</option>
+            <option value="listing_deep_dive">Listing Deep Dive</option>
+            <option value="sublease_post">Post Sublease</option>
             {/* Tour Outreach is NOT available here. It requires listing IDs,
                 student contact info, and availability — all gathered during a
                 chat conversation. Tour outreach missions are launched via CribAI's

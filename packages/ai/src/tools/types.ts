@@ -36,6 +36,10 @@ export interface ToolResult {
   readonly modelContext: string;
   readonly clientBlock: ChatBlock;
   readonly mapBlock?: ChatBlock;
+  readonly missionRequest?: {
+    readonly type: string;
+    readonly input: Readonly<Record<string, unknown>>;
+  };
 }
 
 export type ToolHandler = (

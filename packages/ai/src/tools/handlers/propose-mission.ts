@@ -9,7 +9,7 @@ import { z } from 'zod';
 import type { ToolContext, ToolResult } from '../types';
 
 const inputSchema = z.object({
-  intent: z.enum(['housing_search', 'tour_outreach']),
+  intent: z.enum(['housing_search', 'tour_outreach', 'listing_deep_dive', 'sublease_post']),
   bedrooms: z.number().int().min(0).max(10).optional(),
   max_rent: z.number().positive().max(20000).optional(),
   location: z.string().max(200).optional(),

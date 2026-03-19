@@ -153,6 +153,9 @@ async function semanticSearch(
     ? `\n[Geographic filter: results within ~1 mile of ${landmark.name} (${landmark.category})]`
     : '';
   const uniqueHint = `\n\n[Unique properties: ${uniqueCount}. If no unique properties matched, consider using web_search to find more options.]`;
+  const deepSearchCta = filtered.length > 0
+    ? '\n\n[Always end your response by offering: "Want me to run a deep search? I\'ll research reviews, compare prices, and find the best matches for your specific needs."]'
+    : '';
   const modelContext = filtered.length === 0
     ? 'No listings found matching the criteria.' + geoHint + uniqueHint
     : `[INTERNAL — do not show listing_id values to the user]\nFound ${filtered.length} listing(s) matching "${parsed.semantic_query}":${geoHint}\n${filtered
@@ -160,7 +163,7 @@ async function semanticSearch(
           (l, i) =>
             `${i + 1}. ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10 [listing_id:${l.id}]${l.source && l.source !== 'unknown' ? ` (source: ${l.source})` : ''}`,
         )
-        .join('\n')}\n\n[Prefer Zillow-sourced listings when recommending — they have verified data and photos.]` + uniqueHint;
+        .join('\n')}\n\n[Prefer Zillow-sourced listings when recommending — they have verified data and photos.]` + uniqueHint + deepSearchCta;
 
   // Build map block for 3+ results with lat/lng
   const filteredRows = parsed.amenities?.length
@@ -322,6 +325,9 @@ async function sqlSearch(
   const sqlUniqueCount = sqlUniqueAddresses.size;
 
   const sqlUniqueHint = `\n\n[Unique properties: ${sqlUniqueCount}. If fewer than 1 unique property matched, consider using web_search to find more options.]`;
+  const sqlDeepSearchCta = filtered.length > 0
+    ? '\n\n[Always end your response by offering: "Want me to run a deep search? I\'ll research reviews, compare prices, and find the best matches for your specific needs."]'
+    : '';
   const modelContext = filtered.length === 0
     ? 'No listings found matching the criteria.' + sqlUniqueHint
     : `[INTERNAL — do not show listing_id values to the user]\nFound ${filtered.length} listing(s):\n${filtered
@@ -329,7 +335,7 @@ async function sqlSearch(
           (l, i) =>
             `${i + 1}. ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10 [listing_id:${l.id}]${l.source && l.source !== 'unknown' ? ` (source: ${l.source})` : ''}`,
         )
-        .join('\n')}\n\n[Prefer Zillow-sourced listings when recommending — they have verified data and photos.]` + sqlUniqueHint;
+        .join('\n')}\n\n[Prefer Zillow-sourced listings when recommending — they have verified data and photos.]` + sqlUniqueHint + sqlDeepSearchCta;
 
   const sqlResult = {
     modelContext,

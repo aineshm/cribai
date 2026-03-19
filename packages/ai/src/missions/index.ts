@@ -33,5 +33,7 @@ export {
 } from './mission-repository';
 export type { InsertLogParams, InsertDraftParams, InsertSteeringParams } from './mission-repository';
 export { tourOutreachDefinition } from './tour-outreach-mission';
+export { LISTING_DEEP_DIVE_STEPS } from './listing-deep-dive/index';
+export { SUBLEASE_POST_STEPS } from './sublease-post/index';
 export { parseSteeringIntent } from './steering-parser';
 export type { SteeringUpdate } from './steering-parser';

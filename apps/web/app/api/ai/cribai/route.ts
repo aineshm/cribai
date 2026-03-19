@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
+import { after } from 'next/server';
 import { cookies } from 'next/headers';
 import { createSecretClient } from '@campusnest/supabase/server';
-import { CribAI, classifyIntent, shouldClassify } from '@campusnest/ai';
+import { CribAI, classifyIntent, shouldClassify, executeMission } from '@campusnest/ai';
 import type { ChatEvent } from '@campusnest/ai';
 import type { PageIndexNode } from '@campusnest/types';
 import { isDevAuthEnabled, getDevUserById, DEFAULT_DEV_USER, DEV_USER_COOKIE } from '../../../../lib/dev-auth';
@@ -272,7 +273,7 @@ export async function POST(request: NextRequest) {
     // --- Classify intent (before stream, non-blocking on error) -------------
     // Only propose missions for intents that have registered handlers.
     // lease_analysis can be classified but has no handler — skip it.
-    const REGISTERED_MISSION_INTENTS = new Set(['housing_search', 'tour_outreach']);
+    const REGISTERED_MISSION_INTENTS = new Set(['housing_search', 'tour_outreach', 'listing_deep_dive', 'sublease_post']);
 
     let intentProposal: { intent: string; confidence: number; extractedFields: Record<string, unknown> } | null = null;
     if (!isGuest && shouldClassify(trimmedQuery)) {
@@ -328,6 +329,37 @@ export async function POST(request: NextRequest) {
                 } catch {
                   // Not JSON or not a mission proposal — fall through to normal emit
                 }
+              }
+
+              // Detect mission_request from tool handlers and auto-create missions
+              if (chunk.type === 'mission_request' && userId) {
+                const serviceClient = createSecretClient();
+                const missionTitle = chunk.missionType.replace(/_/g, ' ');
+                const { data: mission } = await serviceClient
+                  .from('missions')
+                  .insert({
+                    user_id: userId,
+                    campus_id: campus.id,
+                    type: chunk.missionType,
+                    title: missionTitle.charAt(0).toUpperCase() + missionTitle.slice(1),
+                    goal: `Auto-created from ${chunk.missionType} tool`,
+                    input: chunk.input,
+                    status: 'pending',
+                  })
+                  .select('id')
+                  .single();
+
+                if (mission) {
+                  controller.enqueue(encoder.encode(sseEncode({
+                    type: 'mission_created',
+                    missionId: mission.id as string,
+                  })));
+
+                  after(async () => {
+                    await executeMission({ missionId: mission.id as string });
+                  });
+                }
+                continue;
               }
 
               // New engine yields ChatEvent objects — pass through

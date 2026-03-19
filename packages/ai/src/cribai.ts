@@ -26,6 +26,7 @@ export type ChatEvent =
   | { readonly type: 'tool_call'; readonly name: string; readonly args: Record<string, unknown> }
   | { readonly type: 'tool_result'; readonly name: string; readonly block: ChatBlock }
   | { readonly type: 'mission_proposal'; readonly intent: string; readonly confidence: number; readonly extractedFields: Record<string, unknown> }
+  | { readonly type: 'mission_request'; readonly missionType: string; readonly input: Readonly<Record<string, unknown>> }
   | { readonly type: 'mission_created'; readonly missionId: string }
   | { readonly type: 'done' };
 
@@ -244,6 +245,11 @@ export class CribAI {
           // Emit optional map block as a separate event (e.g., for semantic search results)
           if (result.mapBlock) {
             yield { type: 'tool_result', name: `${toolName}_map`, block: result.mapBlock };
+          }
+
+          // Emit mission_request if the tool wants to create a background mission
+          if (result.missionRequest) {
+            yield { type: 'mission_request', missionType: result.missionRequest.type, input: result.missionRequest.input };
           }
 
           functionResponseParts.push({

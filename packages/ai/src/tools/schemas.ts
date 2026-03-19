@@ -363,7 +363,7 @@ const proposeMission: FunctionDeclaration = {
     properties: {
       intent: {
         type: Type.STRING,
-        enum: ['housing_search', 'tour_outreach'],
+        enum: ['housing_search', 'tour_outreach', 'listing_deep_dive', 'sublease_post'],
         description: 'The type of mission to propose',
       },
       bedrooms: {

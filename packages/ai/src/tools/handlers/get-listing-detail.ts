@@ -62,5 +62,9 @@ export async function getListingDetail(
   return {
     modelContext,
     clientBlock: { type: 'listing_card', listings: [listing] },
+    missionRequest: {
+      type: 'listing_deep_dive',
+      input: { listingId: listing_id },
+    },
   };
 }
