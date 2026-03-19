@@ -240,7 +240,7 @@ async function sqlSearch(
     )
     .eq('campus_id', context.campusId)
     .eq('is_active', true)
-    .gt('rent_monthly', 0);
+    .gte('rent_monthly', 200);  // Filter spam listings
 
   // Apply map viewport bounds as geographic filter (~500m buffer)
   if (context.mapBounds) {

@@ -239,7 +239,7 @@ export async function fetchExploreListings(): Promise<readonly ExploreListing[]>
     .from('listings')
     .select(EXPLORE_SELECT)
     .eq('is_active', true)
-    .gt('rent_monthly', 0)
+    .gte('rent_monthly', 200)  // Filter out spam listings ($0, $1, $100 Craigslist junk)
     .order('fairness_score', { ascending: false, nullsFirst: false })
     .order('last_seen_at', { ascending: false })
     .limit(500);
