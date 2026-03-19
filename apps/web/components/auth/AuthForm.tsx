@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@campusnest/supabase/client';
-import { isEduEmail } from '@/lib/edu-validation';
+import { isAllowedEmail } from '@/lib/edu-validation';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -67,7 +67,7 @@ export function AuthForm() {
     setLoading(true);
     setError(null);
 
-    if (!isEduEmail(email)) {
+    if (!isAllowedEmail(email)) {
       setError('CribAI requires a .edu email address');
       setLoading(false);
       return;
