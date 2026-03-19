@@ -12,16 +12,27 @@ interface MissionLauncherProps {
 
 type MissionType = 'housing_search' | 'listing_deep_dive' | 'sublease_post';
 
+const VALID_INTENTS: readonly MissionType[] = ['housing_search', 'listing_deep_dive', 'sublease_post'];
+
 function param(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? '' : value ?? '';
 }
 
-function buildAutoGoal(fields: {
+function buildAutoGoal(intent: MissionType, fields: {
   bedrooms: string;
   budget: string;
   location: string;
   moveInDate: string;
 }): string {
+  if (intent === 'listing_deep_dive') return 'Deep dive analysis on a specific listing';
+  if (intent === 'sublease_post') {
+    const parts: string[] = ['Post sublease'];
+    if (fields.location) parts.push(`at ${fields.location}`);
+    if (fields.budget) parts.push(`$${fields.budget}/mo`);
+    return parts.join(' — ');
+  }
+
+  // housing_search
   const parts: string[] = ['Find'];
   if (fields.bedrooms) parts.push(`${fields.bedrooms}-bedroom`);
   parts.push('apartments');
@@ -42,7 +53,6 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const VALID_INTENTS: readonly MissionType[] = ['housing_search', 'listing_deep_dive', 'sublease_post'];
   const rawIntent = param(searchParams.intent);
   const [intent, setIntent] = useState<MissionType>(
     VALID_INTENTS.includes(rawIntent as MissionType) ? (rawIntent as MissionType) : 'housing_search',
@@ -58,9 +68,9 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
   // Auto-generate goal text when fields change (unless user manually edited)
   useEffect(() => {
     if (!goalTouchedRef.current) {
-      setGoal(buildAutoGoal({ bedrooms, budget, location, moveInDate }));
+      setGoal(buildAutoGoal(intent, { bedrooms, budget, location, moveInDate }));
     }
-  }, [bedrooms, budget, location, moveInDate]);
+  }, [intent, bedrooms, budget, location, moveInDate]);
 
   const handleGoalChange = useCallback((value: string) => {
     goalTouchedRef.current = true;
@@ -83,6 +93,26 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
 
       const intentLabel = intent.replace(/_/g, ' ');
       const title = intentLabel.charAt(0).toUpperCase() + intentLabel.slice(1);
+      // Ensure goal is never empty — fall back to title
+      const finalGoal = goal.trim() || title;
+
+      const input = intent === 'housing_search'
+        ? {
+            // All fields optional — allows broad searches with no filters
+            ...(budget ? { maxRent: Number(budget) } : {}),
+            ...(bedrooms ? { bedrooms: Number(bedrooms) } : {}),
+            ...(location ? { preferences: `near ${location}` } : {}),
+            ...(moveInDate ? { moveInDate } : {}),
+          }
+        : intent === 'listing_deep_dive'
+          ? { listingId }
+          : intent === 'sublease_post'
+            ? {
+                ...(location ? { address: location } : {}),
+                ...(bedrooms ? { bedrooms_total: Number(bedrooms), bedrooms_available: Number(bedrooms) } : {}),
+                ...(budget ? { rent_monthly: Number(budget) } : {}),
+              }
+            : {};
 
       const res = await fetch('/api/missions', {
         method: 'POST',
@@ -93,26 +123,9 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
         body: JSON.stringify({
           type: intent,
           title,
-          goal,
+          goal: finalGoal,
           campus_slug: 'uw-madison',
-          input: intent === 'housing_search'
-            ? {
-                // Housing search executor reads camelCase keys (HousingSearchInput schema)
-                ...(budget ? { maxRent: Number(budget) } : {}),
-                ...(bedrooms ? { bedrooms: Number(bedrooms) } : {}),
-                ...(location ? { preferences: `near ${location}` } : {}),
-                ...(moveInDate ? { moveInDate } : {}),
-              }
-            : intent === 'listing_deep_dive'
-              ? { listingId }
-              : intent === 'sublease_post'
-                ? {
-                    address: location,
-                    bedrooms_total: bedrooms ? Number(bedrooms) : undefined,
-                    bedrooms_available: bedrooms ? Number(bedrooms) : undefined,
-                    rent_monthly: budget ? Number(budget) : undefined,
-                  }
-                : {},
+          input,
         }),
       });
 
@@ -144,6 +157,8 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
     );
   }
 
+  const showHousingFields = intent === 'housing_search' || intent === 'sublease_post';
+
   return (
     <div className="rounded-xl border border-teal-200 bg-teal-50/30 p-5 space-y-4">
       {/* Header */}
@@ -168,17 +183,12 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
           <span className="text-xs font-medium text-gray-600">Mission Type</span>
           <select
             value={intent}
-            onChange={(e) => setIntent(e.target.value as MissionType)}
+            onChange={(e) => { setIntent(e.target.value as MissionType); goalTouchedRef.current = false; }}
             className={INPUT_CLASS}
           >
             <option value="housing_search">Housing Search</option>
             <option value="listing_deep_dive">Listing Deep Dive</option>
             <option value="sublease_post">Post Sublease</option>
-            {/* Tour Outreach is NOT available here. It requires listing IDs,
-                student contact info, and availability — all gathered during a
-                chat conversation. Tour outreach missions are launched via CribAI's
-                propose_mission tool in the chat flow, not this standalone form.
-                See: packages/ai/src/missions/tour-outreach-mission.ts */}
           </select>
         </label>
 
@@ -189,62 +199,80 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
               type="text"
               value={listingId}
               onChange={(e) => setListingId(e.target.value)}
-              placeholder="e.g., paste listing UUID from the listing page URL"
+              placeholder="Paste listing UUID from the listing page URL"
               className={INPUT_CLASS}
             />
           </label>
         )}
 
-        <label className="space-y-1">
-          <span className="text-xs font-medium text-gray-600">Max monthly rent</span>
-          <input
-            type="number"
-            value={budget}
-            onChange={(e) => setBudget(e.target.value)}
-            placeholder="e.g., 1200"
-            className={INPUT_CLASS}
-          />
-        </label>
+        {/* Housing/sublease fields — all optional for broad searches */}
+        {showHousingFields && (
+          <>
+            <label className="space-y-1">
+              <span className="text-xs font-medium text-gray-600">
+                Max monthly rent <span className="text-gray-400">(optional)</span>
+              </span>
+              <input
+                type="number"
+                value={budget}
+                onChange={(e) => setBudget(e.target.value)}
+                placeholder="e.g., 1200"
+                className={INPUT_CLASS}
+              />
+            </label>
 
-        <label className="space-y-1">
-          <span className="text-xs font-medium text-gray-600">Bedrooms</span>
-          <input
-            type="number"
-            value={bedrooms}
-            onChange={(e) => setBedrooms(e.target.value)}
-            placeholder="e.g., 2"
-            min={0}
-            className={INPUT_CLASS}
-          />
-        </label>
+            <label className="space-y-1">
+              <span className="text-xs font-medium text-gray-600">
+                Bedrooms <span className="text-gray-400">(optional)</span>
+              </span>
+              <input
+                type="number"
+                value={bedrooms}
+                onChange={(e) => setBedrooms(e.target.value)}
+                placeholder="e.g., 2"
+                min={0}
+                className={INPUT_CLASS}
+              />
+            </label>
 
-        <label className="space-y-1">
-          <span className="text-xs font-medium text-gray-600">Location</span>
-          <input
-            type="text"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            placeholder="e.g., near Engineering Hall"
-            className={INPUT_CLASS}
-          />
-        </label>
+            <label className="space-y-1">
+              <span className="text-xs font-medium text-gray-600">
+                {intent === 'sublease_post' ? 'Address' : 'Location'} <span className="text-gray-400">(optional)</span>
+              </span>
+              <input
+                type="text"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder={intent === 'sublease_post' ? 'e.g., 535 W Johnson St' : 'e.g., near Engineering Hall'}
+                className={INPUT_CLASS}
+              />
+            </label>
 
-        <label className="space-y-1">
-          <span className="text-xs font-medium text-gray-600">Move-in Date</span>
-          <input
-            type="date"
-            value={moveInDate}
-            onChange={(e) => setMoveInDate(e.target.value)}
-            className={INPUT_CLASS}
-          />
-        </label>
+            {intent === 'housing_search' && (
+              <label className="space-y-1">
+                <span className="text-xs font-medium text-gray-600">
+                  Move-in Date <span className="text-gray-400">(optional)</span>
+                </span>
+                <input
+                  type="date"
+                  value={moveInDate}
+                  onChange={(e) => setMoveInDate(e.target.value)}
+                  className={INPUT_CLASS}
+                />
+              </label>
+            )}
+          </>
+        )}
 
         <label className="space-y-1 col-span-1 sm:col-span-2">
-          <span className="text-xs font-medium text-gray-600">What should the agent do?</span>
+          <span className="text-xs font-medium text-gray-600">
+            What should the agent do? <span className="text-gray-400">(optional — auto-generated from filters)</span>
+          </span>
           <textarea
             value={goal}
             onChange={(e) => handleGoalChange(e.target.value)}
             rows={2}
+            placeholder="Describe your search in your own words, or leave blank for a broad search"
             className={INPUT_CLASS + ' resize-none'}
           />
         </label>
