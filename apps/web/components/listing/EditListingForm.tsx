@@ -37,8 +37,12 @@ export function EditListingForm({ listing, userId, onListingUpdated }: EditListi
       if (fields.bathrooms !== listing.baths) updateData.bathrooms = fields.bathrooms;
       if (fields.sqft !== listing.sqft) updateData.sqft = fields.sqft;
       if (fields.description !== listing.description) updateData.description = fields.description;
-      if (fields.available_date !== (listing.availableDate ?? '')) updateData.available_date = fields.available_date || undefined;
-      if (fields.contact_email !== (listing.contactEmail ?? '')) updateData.contact_email = fields.contact_email || undefined;
+      if (fields.available_date !== (listing.availableDate ?? '')) {
+        updateData.available_date = fields.available_date || null;
+      }
+      if (fields.contact_email !== (listing.contactEmail ?? '')) {
+        updateData.contact_email = fields.contact_email || null;
+      }
 
       if (Object.keys(updateData).length === 0) {
         setEditing(false);

@@ -49,6 +49,7 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
   const [bedrooms, setBedrooms] = useState(param(searchParams.bedrooms));
   const [location, setLocation] = useState(param(searchParams.location));
   const [moveInDate, setMoveInDate] = useState(param(searchParams.move_in_date));
+  const [listingId, setListingId] = useState(param(searchParams.listing_id));
   const [goal, setGoal] = useState('');
   const goalTouchedRef = useRef(false);
 
@@ -101,7 +102,7 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
                 ...(moveInDate ? { moveInDate } : {}),
               }
             : intent === 'listing_deep_dive'
-              ? { listingId: location } // Reuse location field as listing ID/address
+              ? { listingId }
               : intent === 'sublease_post'
                 ? {
                     address: location,
@@ -178,6 +179,19 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
                 See: packages/ai/src/missions/tour-outreach-mission.ts */}
           </select>
         </label>
+
+        {intent === 'listing_deep_dive' && (
+          <label className="space-y-1 col-span-1 sm:col-span-2">
+            <span className="text-xs font-medium text-gray-600">Listing ID (UUID)</span>
+            <input
+              type="text"
+              value={listingId}
+              onChange={(e) => setListingId(e.target.value)}
+              placeholder="e.g., paste listing UUID from the listing page URL"
+              className={INPUT_CLASS}
+            />
+          </label>
+        )}
 
         <label className="space-y-1">
           <span className="text-xs font-medium text-gray-600">Max monthly rent</span>

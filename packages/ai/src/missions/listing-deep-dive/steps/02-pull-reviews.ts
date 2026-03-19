@@ -33,8 +33,9 @@ export const pullReviewsStep: MissionStep = {
       date: r.created_at as string,
     }));
 
-    const avgRating = reviews.length > 0
-      ? reviews.reduce((sum, r) => sum + (r.rating ?? 0), 0) / reviews.filter(r => r.rating != null).length
+    const ratedReviews = reviews.filter(r => r.rating != null);
+    const avgRating = ratedReviews.length > 0
+      ? ratedReviews.reduce((sum, r) => sum + (r.rating ?? 0), 0) / ratedReviews.length
       : null;
 
     const reviewSummary = reviews.length > 0

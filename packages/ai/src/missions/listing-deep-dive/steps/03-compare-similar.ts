@@ -27,10 +27,12 @@ export const compareSimilarStep: MissionStep = {
     const rentMin = Math.max(0, rent * 0.7);
     const rentMax = rent * 1.3;
 
+    // Filter by same campus to avoid cross-market comparisons
     let query = ctx.supabase
       .from('listings')
       .select('id, address, rent_monthly, bedrooms, bathrooms, sqft, fairness_score, true_cost_total, amenities, source')
       .eq('is_active', true)
+      .eq('campus_id', ctx.campusId)
       .gte('rent_monthly', rentMin)
       .lte('rent_monthly', rentMax)
       .neq('id', listing.id)

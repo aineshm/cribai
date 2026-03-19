@@ -32,13 +32,13 @@ const updateSchema = z
   .object({
     address: z.string().min(5).max(200).optional(),
     rent_monthly: z.number().min(0).max(10000).optional(),
-    bedrooms: z.number().min(0).max(10).optional(),
-    bathrooms: z.number().min(0).max(10).optional(),
-    sqft: z.number().positive().optional(),
-    description: z.string().max(2000).optional(),
+    bedrooms: z.number().min(0).max(10).nullable().optional(),
+    bathrooms: z.number().min(0).max(10).nullable().optional(),
+    sqft: z.number().positive().nullable().optional(),
+    description: z.string().max(2000).nullable().optional(),
     amenities: z.array(z.string()).optional(),
-    available_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    contact_email: z.string().email().optional(),
+    available_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    contact_email: z.string().email().nullable().optional(),
     photo_urls: z.array(safePhotoUrl).max(10).optional(),
   })
   .strict();
