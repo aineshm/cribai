@@ -614,9 +614,12 @@ export function CribAIChat({
             type="text"
             value={input}
             onChange={e => {
-              setInput(e.target.value);
-              // Clear hidden listing context if user manually edits the input
-              pendingListingIdRef.current = null;
+              const newValue = e.target.value;
+              setInput(newValue);
+              // Clear listing context only if user fully clears the input
+              if (newValue.trim() === '') {
+                pendingListingIdRef.current = null;
+              }
             }}
             onKeyDown={handleKeyDown}
             placeholder={initialAddress ? `Ask about ${initialAddress}...` : "Ask about housing, compare apartments, schedule tours..."}
