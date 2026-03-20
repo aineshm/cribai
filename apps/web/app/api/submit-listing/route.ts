@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { createServerComponentClient, createSecretClient } from '@campusnest/supabase/server';
 import { listingSubmissionSchema } from '@campusnest/types';
 import { cookies } from 'next/headers';
+import { synthesizeListingText, generateEmbedding } from '@campusnest/ai';
 
 export async function POST(request: NextRequest) {
   // Authenticate user
@@ -109,6 +111,34 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
+
+  // Generate embedding async so the sublease is searchable immediately
+  after(async () => {
+    try {
+      const text = synthesizeListingText({
+        address,
+        rentMonthly: rent_monthly ?? null,
+        bedrooms: bedrooms ?? null,
+        bathrooms: bathrooms ?? null,
+        sqft: sqft ?? null,
+        amenities: amenities ?? [],
+        photoCount: photo_urls?.length ?? 0,
+      });
+      const embedding = await generateEmbedding(text);
+      if (embedding) {
+        await serviceClient
+          .from('listings')
+          .update({
+            embedding: `[${embedding.join(',')}]`,
+            embedding_text: text,
+            last_embedded_at: new Date().toISOString(),
+          })
+          .eq('id', listing.id);
+      }
+    } catch (err) {
+      console.error(`Failed to embed sublease ${listing.id}:`, err);
+    }
+  });
 
   return NextResponse.json(
     { listing: { id: listing.id, address: listing.address } },

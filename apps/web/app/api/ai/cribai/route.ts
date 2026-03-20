@@ -156,7 +156,7 @@ async function checkRateLimit(
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as Record<string, unknown>;
-    const { query, campusSlug, history, bounds } = body;
+    const { query, campusSlug, history, bounds, listingId } = body;
 
     // --- Input validation ---------------------------------------------------
     if (typeof query !== 'string' || typeof campusSlug !== 'string') {
@@ -299,12 +299,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // --- Pre-fetch listing context (when listingId is provided) ---------------
+    let listingContext = '';
+    if (typeof listingId === 'string' && listingId.length > 0) {
+      const { data: listing } = await supabase
+        .from('listings')
+        .select('id, address, rent_monthly, bedrooms, bathrooms, sqft, fairness_score, fairness_data, true_cost, true_cost_total, amenities, available_date, source, description')
+        .eq('id', listingId)
+        .eq('is_active', true)
+        .single();
+
+      if (listing) {
+        const trueCost = listing.true_cost as Record<string, number> | null;
+        const fairnessData = listing.fairness_data as Record<string, unknown> | null;
+        const amenities = Array.isArray(listing.amenities) ? listing.amenities : [];
+        listingContext = [
+          `\n\n[LISTING CONTEXT — the user is asking about this specific listing]`,
+          `Address: ${listing.address}`,
+          `Rent: $${listing.rent_monthly}/mo | ${listing.bedrooms ?? '?'} bed / ${listing.bathrooms ?? '?'} bath / ${listing.sqft ?? '?'} sqft`,
+          `Source: ${listing.source}`,
+          `Amenities: ${amenities.length > 0 ? amenities.join(', ') : 'none listed'}`,
+          `Available: ${listing.available_date ?? 'Not specified'}`,
+          listing.description ? `Description: ${listing.description}` : '',
+          trueCost ? `True Cost: rent=$${trueCost['rent'] ?? 0}, utilities=$${trueCost['utilities'] ?? 0}, total=$${trueCost['total'] ?? 0}/mo` : '',
+          fairnessData ? `Fairness: ${listing.fairness_score ?? 'N/A'}/10` : '',
+          `listing_id: ${listing.id}`,
+        ].filter(Boolean).join('\n');
+      }
+    }
+
     // --- Stream response with structured SSE events -------------------------
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          const chatArgs = { query: trimmedQuery, tree, conversationHistory };
+          const enrichedQuery = listingContext
+            ? `${trimmedQuery}${listingContext}`
+            : trimmedQuery;
+          const chatArgs = { query: enrichedQuery, tree, conversationHistory };
           let toolProposedMission = false;
 
           for await (const chunk of cribai.chat(chatArgs)) {

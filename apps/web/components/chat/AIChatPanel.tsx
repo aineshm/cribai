@@ -32,6 +32,7 @@ export function AIChatPanel() {
     isAuthenticated,
     pendingProposal,
     draftPrompt,
+    draftListingId,
     setPendingProposal,
     clearDraftPrompt,
   } = useChatContext();
@@ -91,6 +92,7 @@ export function AIChatPanel() {
             isAuthenticated={isAuthenticated}
             onMissionProposal={handleMissionProposal}
             inputSeed={draftPrompt}
+            listingIdSeed={draftListingId}
             onInputSeedConsumed={clearDraftPrompt}
             className="flex h-full flex-col bg-white"
           />

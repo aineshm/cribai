@@ -37,11 +37,13 @@ interface ChatContextValue {
   readonly pendingProposal: PendingProposal | null;
   readonly missionError: string | null;
   readonly draftPrompt: string | null;
+  readonly draftListingId: string | null;
   readonly setOpen: (open: boolean) => void;
   readonly confirmMission: () => Promise<void>;
   readonly dismissProposal: () => void;
   readonly setPendingProposal: (proposal: PendingProposal | null) => void;
   readonly setDraftPrompt: (prompt: string | null) => void;
+  readonly setDraftListingId: (id: string | null) => void;
   readonly clearDraftPrompt: () => void;
 }
 
@@ -70,6 +72,7 @@ export function ChatProvider({
   const [pendingProposal, setPendingProposal] = useState<PendingProposal | null>(null);
   const [missionError, setMissionError] = useState<string | null>(null);
   const [draftPrompt, setDraftPrompt] = useState<string | null>(null);
+  const [draftListingId, setDraftListingId] = useState<string | null>(null);
   const isConfirmingRef = useRef(false);
 
   /**
@@ -139,6 +142,7 @@ export function ChatProvider({
 
   const clearDraftPrompt = useCallback(() => {
     setDraftPrompt(null);
+    setDraftListingId(null);
   }, []);
 
   return (
@@ -151,11 +155,13 @@ export function ChatProvider({
         pendingProposal,
         missionError,
         draftPrompt,
+        draftListingId,
         setOpen,
         confirmMission,
         dismissProposal,
         setPendingProposal: setProposal,
         setDraftPrompt,
+        setDraftListingId,
         clearDraftPrompt,
       }}
     >

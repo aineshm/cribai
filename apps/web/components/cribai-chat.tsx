@@ -41,6 +41,8 @@ interface CribAIChatProps {
   readonly initialListingId?: string;
   readonly initialAddress?: string;
   readonly inputSeed?: string | null;
+  /** Hidden listing ID injected into the AI query (not shown to user). */
+  readonly listingIdSeed?: string | null;
   readonly conversationId?: string | null;
   readonly isAuthenticated?: boolean;
   readonly onConversationCreated?: (id: string) => void;
@@ -180,6 +182,7 @@ export function CribAIChat({
   initialListingId: _initialListingId,
   initialAddress,
   inputSeed,
+  listingIdSeed,
   conversationId: externalConversationId,
   isAuthenticated = false,
   onConversationCreated,
@@ -199,6 +202,7 @@ export function CribAIChat({
     externalConversationId ?? null,
   );
   const abortRef = useRef<AbortController | null>(null);
+  const pendingListingIdRef = useRef<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const supabaseRef = useRef(createClient());
 
@@ -255,8 +259,9 @@ export function CribAIChat({
     if (!inputSeed) return;
 
     setInput(inputSeed);
+    pendingListingIdRef.current = listingIdSeed ?? null;
     onInputSeedConsumed?.();
-  }, [inputSeed, onInputSeedConsumed]);
+  }, [inputSeed, listingIdSeed, onInputSeedConsumed]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -315,6 +320,10 @@ export function CribAIChat({
       // Notify parent that user sent a message (to lock map bounds)
       onMessageSent?.();
 
+      // Consume pending listing ID (hidden from user, sent as structured field)
+      const listingId = pendingListingIdRef.current;
+      pendingListingIdRef.current = null;
+
       const response = await fetch('/api/ai/cribai', {
         method: 'POST',
         headers,
@@ -323,6 +332,7 @@ export function CribAIChat({
           campusSlug,
           history,
           ...(mapBounds ? { bounds: mapBounds } : {}),
+          ...(listingId ? { listingId } : {}),
         }),
         signal: controller.signal,
       });

@@ -24,7 +24,7 @@ export function MobileBottomBar({
   campusSlug,
 }: MobileBottomBarProps) {
   const [tourModalOpen, setTourModalOpen] = useState(false);
-  const { setOpen: openChat, setDraftPrompt } = useChatContext();
+  const { setOpen: openChat, setDraftPrompt, setDraftListingId } = useChatContext();
 
   return (
     <>
@@ -58,6 +58,7 @@ export function MobileBottomBar({
             className="rounded-xl border-teal-200 text-teal-800 hover:bg-teal-50"
             onClick={() => {
               setDraftPrompt(`Tell me about ${listingTitle} at ${listingAddress}.`);
+              setDraftListingId(listingId);
               openChat(true);
             }}
           >

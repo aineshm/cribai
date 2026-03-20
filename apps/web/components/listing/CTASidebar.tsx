@@ -30,7 +30,7 @@ export function CTASidebar({
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [tourModalOpen, setTourModalOpen] = useState(false);
-  const { setOpen: openChat, setDraftPrompt } = useChatContext();
+  const { setOpen: openChat, setDraftPrompt, setDraftListingId } = useChatContext();
   const router = useRouter();
 
   useEffect(() => {
@@ -157,6 +157,7 @@ export function CTASidebar({
               className="h-12 w-full rounded-xl bg-amber-400 text-base font-bold text-amber-950 shadow-sm hover:bg-amber-500"
               onClick={() => {
                 setDraftPrompt(`Tell me about ${listingTitle} at ${listingAddress}.`);
+                setDraftListingId(listingId);
                 openChat(true);
               }}
             >

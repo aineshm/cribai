@@ -89,7 +89,7 @@ export default async function ProfilePage() {
     .select('id, address, rent_monthly, bedrooms, photo_urls, source, available_date')
     .eq('creator_id', resolvedUser.id)
     .eq('is_active', true)
-    .order('created_at', { ascending: false });
+    .order('first_seen_at', { ascending: false });
 
   const myListings = (postedRows ?? []).map((row) => {
     const photoUrls = (row.photo_urls as string[] | null) ?? [];
