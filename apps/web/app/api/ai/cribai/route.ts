@@ -306,6 +306,7 @@ export async function POST(request: NextRequest) {
         .from('listings')
         .select('id, address, rent_monthly, bedrooms, bathrooms, sqft, fairness_score, fairness_data, true_cost, true_cost_total, amenities, available_date, source, description')
         .eq('id', listingId)
+        .eq('campus_id', campus.id)
         .eq('is_active', true)
         .single();
 

@@ -613,7 +613,11 @@ export function CribAIChat({
           <input
             type="text"
             value={input}
-            onChange={e => setInput(e.target.value)}
+            onChange={e => {
+              setInput(e.target.value);
+              // Clear hidden listing context if user manually edits the input
+              pendingListingIdRef.current = null;
+            }}
             onKeyDown={handleKeyDown}
             placeholder={initialAddress ? `Ask about ${initialAddress}...` : "Ask about housing, compare apartments, schedule tours..."}
             className="flex-1 rounded-xl border border-[var(--surface-200)] bg-white px-4 py-2.5 text-sm placeholder:text-[var(--surface-400)] focus:border-[var(--primary-500)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]/20 transition-all duration-200"
