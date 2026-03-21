@@ -6,6 +6,8 @@ import {
   setCachedResults,
   type WebSearchResult,
 } from '../../lib/web-search-cache';
+import { synthesizeListingText } from '../../embeddings/synthesize-text';
+import { generateEmbedding } from '../../embeddings/generate-embedding';
 
 interface PersistWebListingParams {
   readonly address: string;
@@ -124,14 +126,35 @@ export async function persistWebListing(
       return null;
     }
 
-    // Reset last_embedded_at so the embedding pipeline re-processes this listing
-    const { error: updateError } = await context.supabase
-      .from('listings')
-      .update({ last_embedded_at: null })
-      .eq('id', data.id);
-
-    if (updateError) {
-      console.error('persistWebListing embedding reset failed:', updateError.message);
+    // Generate embedding inline so the listing is searchable immediately
+    try {
+      const text = synthesizeListingText({
+        address: params.address,
+        rentMonthly: params.rentMonthly ?? null,
+        bedrooms: params.bedrooms ?? null,
+        bathrooms: null,
+        sqft: null,
+        amenities: [],
+        photoCount: 0,
+      });
+      const embedding = await generateEmbedding(text);
+      if (embedding) {
+        await context.supabase
+          .from('listings')
+          .update({
+            embedding: `[${embedding.join(',')}]`,
+            embedding_text: text,
+            last_embedded_at: new Date().toISOString(),
+          })
+          .eq('id', data.id);
+      }
+    } catch (err) {
+      console.error(`persistWebListing embedding failed for ${data.id}:`, err);
+      // Fallback: reset last_embedded_at for batch pickup
+      await context.supabase
+        .from('listings')
+        .update({ last_embedded_at: null })
+        .eq('id', data.id);
     }
 
     return data.id;

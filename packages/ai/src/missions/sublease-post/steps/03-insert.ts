@@ -3,6 +3,8 @@
  */
 import { createHash } from 'node:crypto';
 import type { MissionStep, StepContext, StepResult } from '../../types';
+import { synthesizeListingText } from '../../../embeddings/synthesize-text';
+import { generateEmbedding } from '../../../embeddings/generate-embedding';
 
 interface ValidatedInput {
   readonly address: string;
@@ -92,6 +94,32 @@ export const insertListingStep: MissionStep = {
         return { output: { error: 'A listing with this address already exists.' }, done: true };
       }
       return { output: { error: 'Failed to create listing. Please try again.' }, done: true };
+    }
+
+    // Generate embedding so the sublease is searchable immediately
+    try {
+      const text = synthesizeListingText({
+        address: validatedInput.address,
+        rentMonthly: validatedInput.rent_monthly,
+        bedrooms: validatedInput.bedrooms_total ?? null,
+        bathrooms: validatedInput.bathrooms ?? null,
+        sqft: null,
+        amenities: [...validatedInput.amenities],
+        photoCount: 0,
+      });
+      const embedding = await generateEmbedding(text);
+      if (embedding) {
+        await ctx.supabase
+          .from('listings')
+          .update({
+            embedding: `[${embedding.join(',')}]`,
+            embedding_text: text,
+            last_embedded_at: new Date().toISOString(),
+          })
+          .eq('id', listing.id);
+      }
+    } catch (err) {
+      console.error(`[03-insert] Failed to embed ${listing.id}:`, err);
     }
 
     return {
