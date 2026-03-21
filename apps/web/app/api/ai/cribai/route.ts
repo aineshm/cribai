@@ -335,11 +335,25 @@ export async function POST(request: NextRequest) {
     }
 
     // If no explicit listingId but we have a conversation, check conversation.context
-    if (!listingContext && validConversationId) {
+    // SECURITY: Verify conversation belongs to authenticated user before reading
+    let verifiedConversationId: string | null = null;
+    if (validConversationId && userId) {
+      const { data: convOwnerCheck } = await supabase
+        .from('conversations')
+        .select('id, context')
+        .eq('id', validConversationId)
+        .eq('user_id', userId)
+        .single();
+      if (convOwnerCheck) {
+        verifiedConversationId = convOwnerCheck.id as string;
+      }
+    }
+
+    if (!listingContext && verifiedConversationId) {
       const { data: conv } = await supabase
         .from('conversations')
         .select('context')
-        .eq('id', validConversationId)
+        .eq('id', verifiedConversationId)
         .single();
 
       const ctxListingId = (conv?.context as Record<string, unknown>)?.listing_id;
@@ -494,7 +508,7 @@ export async function POST(request: NextRequest) {
           controller.close();
 
           // --- Server-side assistant persistence ---
-          if (validConversationId && userId && serverBlocks.length > 0) {
+          if (verifiedConversationId && userId && serverBlocks.length > 0) {
             const blocksToSave = serverBlocks.filter(b => b.type !== 'tool_loading');
             const resolvedListingId = typeof listingId === 'string' ? listingId : null;
 
@@ -503,7 +517,7 @@ export async function POST(request: NextRequest) {
                 const svc = createSecretClient();
 
                 await svc.from('messages').insert({
-                  conversation_id: validConversationId,
+                  conversation_id: verifiedConversationId,
                   role: 'assistant',
                   blocks: blocksToSave,
                   metadata: resolvedListingId ? { listing_id: resolvedListingId } : {},
@@ -525,7 +539,7 @@ export async function POST(request: NextRequest) {
                   updatePayload.context = { listing_id: resolvedListingId };
                 }
 
-                await svc.from('conversations').update(updatePayload).eq('id', validConversationId);
+                await svc.from('conversations').update(updatePayload).eq('id', verifiedConversationId);
               } catch (err) {
                 console.error('[cribai] after() persistence failed:', err);
               }
