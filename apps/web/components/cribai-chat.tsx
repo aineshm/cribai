@@ -333,6 +333,7 @@ export function CribAIChat({
           history,
           ...(mapBounds ? { bounds: mapBounds } : {}),
           ...(listingId ? { listingId } : {}),
+          ...(activeConvId ? { conversationId: activeConvId } : {}),
         }),
         signal: controller.signal,
       });
@@ -513,11 +514,8 @@ export function CribAIChat({
         }
       }
 
-      // Persist assistant response to DB after streaming completes
-      if (isAuthenticated && activeConvId && assistantBlocks.length > 0) {
-        const blocksToSave = assistantBlocks.filter(b => b.type !== 'tool_loading');
-        persistMessage(activeConvId, 'assistant', blocksToSave);
-      }
+      // Assistant messages are now persisted server-side via after() in /api/ai/cribai.
+      // Client only persists user messages (line 304-306 above).
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
       console.error('[CribAI] Stream error:', err);

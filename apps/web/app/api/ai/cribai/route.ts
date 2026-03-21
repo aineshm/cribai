@@ -156,7 +156,12 @@ async function checkRateLimit(
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as Record<string, unknown>;
-    const { query, campusSlug, history, bounds, listingId } = body;
+    const { query, campusSlug, history, bounds, listingId, conversationId } = body;
+
+    const validConversationId =
+      typeof conversationId === 'string' && /^[0-9a-f-]{36}$/i.test(conversationId)
+        ? conversationId
+        : null;
 
     // --- Input validation ---------------------------------------------------
     if (typeof query !== 'string' || typeof campusSlug !== 'string') {
@@ -329,6 +334,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // If no explicit listingId but we have a conversation, check conversation.context
+    if (!listingContext && validConversationId) {
+      const { data: conv } = await supabase
+        .from('conversations')
+        .select('context')
+        .eq('id', validConversationId)
+        .single();
+
+      const ctxListingId = (conv?.context as Record<string, unknown>)?.listing_id;
+      if (typeof ctxListingId === 'string' && ctxListingId.length > 0) {
+        const { data: listing } = await supabase
+          .from('listings')
+          .select('id, address, rent_monthly, bedrooms, bathrooms, sqft, fairness_score, fairness_data, true_cost, true_cost_total, amenities, available_date, source, description')
+          .eq('id', ctxListingId)
+          .eq('campus_id', campus.id)
+          .eq('is_active', true)
+          .single();
+
+        if (listing) {
+          const trueCost = listing.true_cost as Record<string, number> | null;
+          const fairnessData = listing.fairness_data as Record<string, unknown> | null;
+          const amenities = Array.isArray(listing.amenities) ? listing.amenities : [];
+          listingContext = [
+            `\n\n[LISTING CONTEXT — continuing conversation about this listing]`,
+            `Address: ${listing.address}`,
+            `Rent: $${listing.rent_monthly}/mo | ${listing.bedrooms ?? '?'} bed / ${listing.bathrooms ?? '?'} bath / ${listing.sqft ?? '?'} sqft`,
+            `Source: ${listing.source}`,
+            `Amenities: ${amenities.length > 0 ? amenities.join(', ') : 'none listed'}`,
+            `Available: ${listing.available_date ?? 'Not specified'}`,
+            listing.description ? `Description: ${listing.description}` : '',
+            trueCost ? `True Cost: rent=$${trueCost['rent'] ?? 0}, utilities=$${trueCost['utilities'] ?? 0}, total=$${trueCost['total'] ?? 0}/mo` : '',
+            fairnessData ? `Fairness: ${listing.fairness_score ?? 'N/A'}/10` : '',
+            `listing_id: ${listing.id}`,
+          ].filter(Boolean).join('\n');
+        }
+      }
+    }
+
     // --- Stream response with structured SSE events -------------------------
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
@@ -339,11 +382,14 @@ export async function POST(request: NextRequest) {
             : trimmedQuery;
           const chatArgs = { query: enrichedQuery, tree, conversationHistory };
           let toolProposedMission = false;
+          const serverBlocks: Array<Record<string, unknown>> = [];
+          let currentServerText = '';
 
           for await (const chunk of cribai.chat(chatArgs)) {
             if (typeof chunk === 'string') {
               // Old engine yields plain strings — wrap as TextEvent
               controller.enqueue(encoder.encode(sseEncode({ type: 'text', content: chunk })));
+              currentServerText += chunk;
             } else if (isStructuredEvent(chunk)) {
               // Suppress engine's done — we emit our own after mission_proposal
               if (chunk.type === 'done') continue;
@@ -404,9 +450,31 @@ export async function POST(request: NextRequest) {
                 continue;
               }
 
+              // Flush accumulated text before pushing a non-text block
+              if (chunk.type !== 'text' && currentServerText) {
+                serverBlocks.push({ type: 'text', content: currentServerText });
+                currentServerText = '';
+              }
+
+              // Track text content server-side
+              if (chunk.type === 'text' && 'content' in chunk) {
+                currentServerText += (chunk as { content?: string }).content ?? '';
+              }
+
+              // Track tool_result blocks server-side
+              if (chunk.type === 'tool_result' && 'block' in chunk && (chunk as { block?: unknown }).block) {
+                serverBlocks.push((chunk as { block: Record<string, unknown> }).block);
+              }
+
               // New engine yields ChatEvent objects — pass through
               controller.enqueue(encoder.encode(sseEncode(chunk)));
             }
+          }
+
+          // Flush any remaining accumulated text
+          if (currentServerText) {
+            serverBlocks.push({ type: 'text', content: currentServerText });
+            currentServerText = '';
           }
 
           // Emit classifier mission_proposal before done (skip if tool already proposed one)
@@ -424,6 +492,45 @@ export async function POST(request: NextRequest) {
           // Always emit since we suppress the engine's done above.
           controller.enqueue(encoder.encode(sseEncode({ type: 'done' })));
           controller.close();
+
+          // --- Server-side assistant persistence ---
+          if (validConversationId && userId && serverBlocks.length > 0) {
+            const blocksToSave = serverBlocks.filter(b => b.type !== 'tool_loading');
+            const resolvedListingId = typeof listingId === 'string' ? listingId : null;
+
+            after(async () => {
+              try {
+                const svc = createSecretClient();
+
+                await svc.from('messages').insert({
+                  conversation_id: validConversationId,
+                  role: 'assistant',
+                  blocks: blocksToSave,
+                  metadata: resolvedListingId ? { listing_id: resolvedListingId } : {},
+                });
+
+                const preview = blocksToSave
+                  .filter((b): b is { type: string; content: string } => b.type === 'text' && typeof b.content === 'string')
+                  .map(b => b.content)
+                  .join(' ')
+                  .slice(0, 100);
+
+                const updatePayload: Record<string, unknown> = {
+                  updated_at: new Date().toISOString(),
+                };
+                if (preview) {
+                  updatePayload.last_message_preview = preview.length >= 100 ? `${preview.slice(0, 97)}...` : preview;
+                }
+                if (resolvedListingId) {
+                  updatePayload.context = { listing_id: resolvedListingId };
+                }
+
+                await svc.from('conversations').update(updatePayload).eq('id', validConversationId);
+              } catch (err) {
+                console.error('[cribai] after() persistence failed:', err);
+              }
+            });
+          }
 
           // --- Log the query (fire-and-forget) ------------------------------
           if (userId) {

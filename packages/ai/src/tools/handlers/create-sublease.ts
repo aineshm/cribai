@@ -9,6 +9,8 @@ import { createHash } from 'node:crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { ToolContext, ToolResult } from '../types';
 import { geocodeAddress } from '../lib/geocode-address';
+import { synthesizeListingText } from '../../embeddings/synthesize-text';
+import { generateEmbedding } from '../../embeddings/generate-embedding';
 
 // --- Lazy singleton for service-role client ---
 
@@ -294,6 +296,32 @@ async function handlePublish(
     user_id: context.userId,
     listing_id: listingId,
   });
+
+  // Generate embedding so the sublease is searchable immediately
+  try {
+    const text = synthesizeListingText({
+      address: parsed.address,
+      rentMonthly: parsed.rent_monthly ?? null,
+      bedrooms: parsed.bedrooms_total ?? null,
+      bathrooms: parsed.bathrooms ?? null,
+      sqft: null,
+      amenities: parsed.amenities ?? [],
+      photoCount: 0,
+    });
+    const embedding = await generateEmbedding(text);
+    if (embedding) {
+      await serviceClient
+        .from('listings')
+        .update({
+          embedding: `[${embedding.join(',')}]`,
+          embedding_text: text,
+          last_embedded_at: new Date().toISOString(),
+        })
+        .eq('id', listingId);
+    }
+  } catch (err) {
+    console.error(`[create-sublease] Failed to embed ${listingId}:`, err);
+  }
 
   const modelContext = [
     'Sublease published successfully!',
