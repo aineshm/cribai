@@ -126,35 +126,43 @@ export async function persistWebListing(
       return null;
     }
 
-    // Generate embedding inline so the listing is searchable immediately
-    try {
-      const text = synthesizeListingText({
-        address: params.address,
-        rentMonthly: params.rentMonthly ?? null,
-        bedrooms: params.bedrooms ?? null,
-        bathrooms: null,
-        sqft: null,
-        amenities: [],
-        photoCount: 0,
-      });
-      const embedding = await generateEmbedding(text);
-      if (embedding) {
-        await context.supabase
-          .from('listings')
-          .update({
-            embedding: `[${embedding.join(',')}]`,
-            embedding_text: text,
-            last_embedded_at: new Date().toISOString(),
-          })
-          .eq('id', data.id);
+    // Only generate embedding if listing doesn't already have one
+    // (avoids redundant Gemini calls on cached/repeated web searches)
+    const { data: existing } = await context.supabase
+      .from('listings')
+      .select('last_embedded_at')
+      .eq('id', data.id)
+      .single();
+
+    if (!existing?.last_embedded_at) {
+      try {
+        const text = synthesizeListingText({
+          address: params.address,
+          rentMonthly: params.rentMonthly ?? null,
+          bedrooms: params.bedrooms ?? null,
+          bathrooms: null,
+          sqft: null,
+          amenities: [],
+          photoCount: 0,
+        });
+        const embedding = await generateEmbedding(text);
+        if (embedding) {
+          const { error: embedError } = await context.supabase
+            .from('listings')
+            .update({
+              embedding: `[${embedding.join(',')}]`,
+              embedding_text: text,
+              last_embedded_at: new Date().toISOString(),
+            })
+            .eq('id', data.id);
+
+          if (embedError) {
+            console.error(`persistWebListing embedding update failed for ${data.id}:`, embedError.message);
+          }
+        }
+      } catch (err) {
+        console.error(`persistWebListing embedding failed for ${data.id}:`, err);
       }
-    } catch (err) {
-      console.error(`persistWebListing embedding failed for ${data.id}:`, err);
-      // Fallback: reset last_embedded_at for batch pickup
-      await context.supabase
-        .from('listings')
-        .update({ last_embedded_at: null })
-        .eq('id', data.id);
     }
 
     return data.id;
