@@ -96,35 +96,11 @@ export async function parseSteeringIntent(
 function buildPrompt(
   rawInput: string,
   missionType: string,
-  currentInput: Readonly<Record<string, unknown>>,
+  _currentInput: Readonly<Record<string, unknown>>,
 ): string {
-  return `You are a mission parameter extractor for a student housing assistant.
-
-Mission type: ${missionType}
-Current parameters: ${JSON.stringify(currentInput, null, 2)}
-
-The user submitted this mid-mission correction:
-"${rawInput}"
-
-Extract ONLY the fields the user explicitly changed or mentioned.
-Do NOT echo back unchanged fields.
-Return valid JSON (all fields optional):
-{
-  "bedrooms": integer,
-  "maxRent": positive number,
-  "moveInDate": "YYYY-MM-DD",
-  "dealbreakers": ["string"],
-  "preferences": "string",
-  "topN": integer 1-10,
-  "availability": { "daysOfWeek": ["string"], "timeWindows": ["string"] },
-  "customNote": "string"
-}
-
-Examples:
-- "actually make it under $1200" → { "maxRent": 1200 }
-- "change to 1 bedroom" → { "bedrooms": 1 }
-- "I'm now free Wednesday evenings" → { "availability": { "daysOfWeek": ["Wednesday"], "timeWindows": ["evening"] } }
-- "ignore the gym requirement" → { "dealbreakers": [] }
-
-If nothing is actionable, return {}`;
+  return `Extract changed fields from this ${missionType} mission correction. Return ONLY changed fields as JSON.
+User said: "${rawInput}"
+Fields: bedrooms(int), maxRent(number), moveInDate(YYYY-MM-DD), dealbreakers([str]), preferences(str), topN(1-10), availability({daysOfWeek,timeWindows}), customNote(str)
+Examples: "under $1200" → {"maxRent":1200} | "1 bedroom" → {"bedrooms":1}
+If nothing actionable, return {}`;
 }

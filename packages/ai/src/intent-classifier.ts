@@ -84,18 +84,8 @@ export async function classifyIntent(message: string, apiKey?: string): Promise<
 
 /** Builds the classification prompt for Gemini. */
 function buildClassifyPrompt(message: string): string {
-  return `Classify this student housing message into exactly one intent.
-
+  return `Classify this student housing message. Return JSON: {intent, confidence, extracted_fields}.
+Intents: housing_search | tour_outreach | listing_deep_dive | sublease_post | lease_analysis | general_chat
 Message: "${message}"
-
-Return JSON with:
-- intent: one of housing_search | tour_outreach | listing_deep_dive | sublease_post | lease_analysis | general_chat
-- confidence: 0.0–1.0 (how confident you are)
-- extracted_fields: relevant fields (e.g. bedrooms, budget, location, move_in_date)
-
-Examples:
-- "Find me a 2BR under $1,500 near campus" → housing_search, confidence ~0.95, extracted_fields: {bedrooms: 2, max_rent: 1500}
-- "Book a tour for the Maple Ridge listing" → tour_outreach, confidence ~0.90
-- "What does this lease clause mean?" → lease_analysis, confidence ~0.85
-- "What time does the leasing office open?" → general_chat, confidence ~0.90`;
+Examples: "2BR under $1500" → {intent:"housing_search",confidence:0.95,extracted_fields:{bedrooms:2,max_rent:1500}} | "lease clause?" → {intent:"lease_analysis",confidence:0.85,extracted_fields:{}}`;
 }
