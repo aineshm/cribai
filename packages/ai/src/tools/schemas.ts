@@ -4,7 +4,7 @@ import type { ToolName } from './types';
 const searchListings: FunctionDeclaration = {
   name: 'search_listings',
   description:
-    'Search for student housing listings near campus. Use this when the user wants to DISCOVER new apartments — e.g., "find me a 2-bedroom" or "what\'s available under $1200". Supports semantic search for qualitative preferences like "quiet place with natural light". Do NOT use this tool when the user has already identified a specific listing and wants to take an action on it (like scheduling a tour, getting details, or comparing). In those cases, use the appropriate action tool directly.',
+    'Search for student housing listings AND subleases near campus. Use this when the user wants to find apartments or subleases — e.g., "find me a 2-bedroom", "show me subleases", "summer housing under $1200". Use semantic_query for natural language searches like "sublease summer" or "quiet place near campus". ALWAYS call this tool immediately when the user asks about listings or subleases — do not ask clarifying questions first.',
   parameters: {
     type: Type.OBJECT,
     properties: {
