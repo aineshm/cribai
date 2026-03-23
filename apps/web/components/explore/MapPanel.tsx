@@ -187,7 +187,7 @@ export function MapPanel({ listings, onBoundsChange, showSearchButton, onSearchA
               offset={28}
               closeOnClick={false}
               onClose={() => setSelectedId(null)}
-              className="[&_.mapboxgl-popup-content]:rounded-xl [&_.mapboxgl-popup-content]:p-0 [&_.mapboxgl-popup-content]:shadow-lg"
+              className="!z-50 [&_.mapboxgl-popup-content]:rounded-xl [&_.mapboxgl-popup-content]:p-0 [&_.mapboxgl-popup-content]:shadow-xl [&_.mapboxgl-popup-tip]:!border-t-white"
             >
               <a
                 href={`/listing/${listing.id}`}

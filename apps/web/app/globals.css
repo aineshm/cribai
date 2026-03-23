@@ -417,6 +417,11 @@ body {
   }
 }
 
+/* ─── Mapbox popup z-index fix — ensure popups render above markers ─── */
+.mapboxgl-popup {
+  z-index: 10 !important;
+}
+
 /* ─── Hide Scrollbar (for horizontal carousels) ─── */
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
