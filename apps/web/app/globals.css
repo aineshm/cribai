@@ -417,9 +417,9 @@ body {
   }
 }
 
-/* ─── Mapbox popup z-index fix — ensure popups render above markers ─── */
+/* ─── Mapbox popup z-index fix — ensure popups render above markers (selected marker is z-index:100) ─── */
 .mapboxgl-popup {
-  z-index: 10 !important;
+  z-index: 200 !important;
 }
 
 /* ─── Hide Scrollbar (for horizontal carousels) ─── */

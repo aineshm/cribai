@@ -96,9 +96,10 @@ export async function parseSteeringIntent(
 function buildPrompt(
   rawInput: string,
   missionType: string,
-  _currentInput: Readonly<Record<string, unknown>>,
+  currentInput: Readonly<Record<string, unknown>>,
 ): string {
   return `Extract changed fields from this ${missionType} mission correction. Return ONLY changed fields as JSON.
+Current: ${JSON.stringify(currentInput)}
 User said: "${rawInput}"
 Fields: bedrooms(int), maxRent(number), moveInDate(YYYY-MM-DD), dealbreakers([str]), preferences(str), topN(1-10), availability({daysOfWeek,timeWindows}), customNote(str)
 Examples: "under $1200" → {"maxRent":1200} | "1 bedroom" → {"bedrooms":1}
