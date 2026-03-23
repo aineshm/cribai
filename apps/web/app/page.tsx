@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
+import { LandingMobileMenu } from '@/components/layout/LandingMobileMenu';
 
 /** Force dynamic rendering — page checks auth via cookies. */
 export const dynamic = 'force-dynamic';
@@ -51,6 +52,12 @@ export default async function HomePage() {
             </span>
             <span className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight">CribAI</span>
           </Link>
+
+          <LandingMobileMenu
+            primaryHref={primaryHref}
+            primaryText={isAuthenticated ? 'Dashboard' : 'Get Started'}
+            agentHref={isAuthenticated ? '/messages' : '/login?returnTo=/messages'}
+          />
 
           <div className="hidden md:flex items-center gap-6 text-sm font-medium text-[var(--surface-600)]">
             <Link href="/explore" className="transition-colors hover:text-teal-800">

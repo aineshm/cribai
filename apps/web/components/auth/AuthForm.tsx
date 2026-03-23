@@ -66,11 +66,24 @@ export function AuthForm() {
     setLoading(true);
     setError(null);
 
+    const trimmed = email.trim();
+    if (!trimmed) {
+      setError('Please enter your email address.');
+      setLoading(false);
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setError('Please enter a valid email address.');
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch('/api/auth/validate-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: trimmed }),
       });
       const validation: { allowed: boolean; error?: string } = await res.json();
 
@@ -87,7 +100,7 @@ export function AuthForm() {
 
     const supabase = createClient();
     const { error: authError } = await supabase.auth.signInWithOtp({
-      email,
+      email: trimmed,
       options: { shouldCreateUser: true },
     });
 

@@ -71,6 +71,8 @@ interface CribAIChatProps {
   readonly onChatReset?: () => void;
   /** Optional CSS class for the outermost container (e.g. `h-full` when rendered inside a Sheet). */
   readonly className?: string;
+  /** Featured listings to display as mini-cards in the empty state */
+  readonly featuredListings?: readonly { id: string; title: string; address: string; price: number; photoUrl: string | null; beds: number | null }[];
 }
 
 const CHAT_STORAGE_KEY = 'cribai-chat-messages';
@@ -194,6 +196,7 @@ export function CribAIChat({
   onMapListings,
   onChatReset,
   className,
+  featuredListings,
 }: CribAIChatProps) {
   const [messages, setMessages] = useState<readonly Message[]>([]);
   const [input, setInput] = useState('');
@@ -547,11 +550,11 @@ export function CribAIChat({
         {messages.length === 0 && (
           <div className="flex h-full items-center justify-center text-[var(--surface-500)]">
             <div className="text-center animate-fade-in">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--primary-50)] to-[var(--primary-100)]">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-100 to-amber-50">
                 <Sparkles className="h-7 w-7 text-[var(--primary-600)]" strokeWidth={1.5} />
               </div>
               <p className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-700)]">Ask AI anything</p>
-              <p className="mt-2 text-sm text-[var(--surface-400)]">I can search listings, compare apartments, explain lease terms, and schedule tours.</p>
+              <p className="mt-2 text-sm text-[var(--surface-500)]">I can search listings, compare apartments, explain lease terms, and schedule tours.</p>
               <div className="mt-5 flex flex-wrap justify-center gap-2">
                 {[
                   'Find me a 2-bedroom under $1200',
@@ -563,13 +566,44 @@ export function CribAIChat({
                     key={suggestion}
                     type="button"
                     onClick={() => sendMessage(suggestion)}
-                    className="stagger-bounce rounded-full border border-[var(--surface-200)] bg-white px-4 py-2 text-xs text-[var(--surface-600)] shadow-sm hover:border-[var(--primary-400)] hover:text-[var(--primary-700)] hover:bg-[var(--primary-50)] hover:shadow-md transition-all duration-300"
+                    className="stagger-bounce rounded-full border border-[var(--surface-200)] bg-white px-4 py-2 text-sm text-[var(--surface-600)] shadow-sm hover:border-[var(--primary-400)] hover:text-[var(--primary-700)] hover:bg-[var(--primary-50)] hover:shadow-md transition-all duration-300"
                     style={{ '--stagger-index': i } as CSSProperties}
                   >
                     {suggestion}
                   </button>
                 ))}
               </div>
+              {featuredListings && featuredListings.length > 0 && (
+                <div className="mt-6 w-full max-w-lg mx-auto">
+                  <p className="text-xs font-medium text-[var(--surface-500)] uppercase tracking-wider mb-3">Popular near campus</p>
+                  <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-2 -mx-2 px-2">
+                    {featuredListings.map((listing) => (
+                      <a
+                        key={listing.id}
+                        href={`/listing/${listing.id}`}
+                        className="group flex-shrink-0 w-44 rounded-xl border border-[var(--surface-200)] bg-white overflow-hidden shadow-sm hover:shadow-md hover:border-[var(--primary-300)] transition-all duration-200 cursor-pointer"
+                      >
+                        {listing.photoUrl ? (
+                          <div className="h-24 bg-gray-100 overflow-hidden">
+                            <img src={listing.photoUrl} alt={listing.address} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                          </div>
+                        ) : (
+                          <div className="h-24 bg-gradient-to-br from-teal-50 to-teal-100 flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="text-teal-400"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                          </div>
+                        )}
+                        <div className="px-3 py-2">
+                          <p className="text-xs font-medium text-[var(--surface-800)] truncate">{listing.address}</p>
+                          <div className="flex items-center justify-between mt-1">
+                            <span className="text-sm font-bold text-teal-800">${listing.price.toLocaleString()}</span>
+                            {listing.beds && <span className="text-[10px] text-[var(--surface-500)]">{listing.beds} bed</span>}
+                          </div>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

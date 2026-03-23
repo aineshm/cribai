@@ -228,11 +228,19 @@ export function ExploreClient({ listings }: ExploreClientProps) {
             onMapListings={handleMapListings}
             onChatReset={resetAiResults}
             className="flex flex-1 flex-col min-h-0"
+            featuredListings={listings.slice(0, 6).map(l => ({
+              id: l.id,
+              title: l.title,
+              address: l.address,
+              price: l.price,
+              photoUrl: l.photoUrl,
+              beds: l.beds,
+            }))}
           />
         </div>
 
         {/* Right: Map Panel (always on desktop, togglable on mobile) */}
-        <div className={`flex flex-col md:block md:w-1/2 lg:w-5/12 ${
+        <div className={`flex flex-col flex-1 min-h-0 md:flex-none md:block md:w-1/2 lg:w-5/12 ${
           mobileView === 'map' ? 'block w-full' : 'hidden'
         }`}>
           {aiMapListings && (

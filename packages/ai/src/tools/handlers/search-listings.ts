@@ -94,6 +94,15 @@ async function semanticSearch(
     rpcParams.p_radius_m = DEFAULT_RADIUS_M;
   }
 
+  // Fallback: scope to campus area when no specific landmark is detected
+  // Prevents out-of-area results for generic queries like "2-bedroom under $1200"
+  if (!landmark && context.campusId) {
+    // UW-Madison campus center (also used in MapPanel.tsx DEFAULT_CENTER)
+    rpcParams.p_latitude = 43.0731;
+    rpcParams.p_longitude = -89.4012;
+    rpcParams.p_radius_m = 8000; // ~5 miles — covers all Madison neighborhoods
+  }
+
   const { data, error } = await context.supabase.rpc('match_listings_semantic', rpcParams);
 
   if (error) {

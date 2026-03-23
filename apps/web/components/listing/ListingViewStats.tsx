@@ -10,17 +10,20 @@ interface ViewStats {
 
 interface ListingViewStatsProps {
   readonly listingId: string;
+  readonly isCreatorOrAdmin?: boolean;
 }
 
 /**
  * Fetches and displays listing view statistics.
  * Only visible to the listing creator — the API returns 401/403 for
  * unauthenticated users or non-creators, in which case we render nothing.
+ * When isCreatorOrAdmin is false, skips the fetch entirely to avoid 401/403 console noise.
  */
-export function ListingViewStats({ listingId }: ListingViewStatsProps) {
+export function ListingViewStats({ listingId, isCreatorOrAdmin }: ListingViewStatsProps) {
   const [stats, setStats] = useState<ViewStats | null>(null);
 
   useEffect(() => {
+    if (!isCreatorOrAdmin) return; // Don't fetch if not creator — avoids 401/403 console noise
     let cancelled = false;
 
     async function fetchStats() {
@@ -41,7 +44,7 @@ export function ListingViewStats({ listingId }: ListingViewStatsProps) {
     return () => {
       cancelled = true;
     };
-  }, [listingId]);
+  }, [listingId, isCreatorOrAdmin]);
 
   // Don't render anything if user isn't the creator or stats unavailable
   if (!stats) return null;

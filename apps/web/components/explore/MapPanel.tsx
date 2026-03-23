@@ -104,14 +104,14 @@ export function MapPanel({ listings, onBoundsChange, showSearchButton, onSearchA
       variants={fadeIn}
       initial="initial"
       animate="animate"
-      className="relative h-full min-h-[400px] overflow-hidden rounded-[1.75rem] border border-[var(--surface-200)] shadow-[0_16px_40px_rgba(15,23,42,0.08)]"
+      className="relative h-full flex-1 min-h-[400px] overflow-hidden rounded-[1.75rem] border border-[var(--surface-200)] shadow-[0_16px_40px_rgba(15,23,42,0.08)]"
     >
       <div className="pointer-events-none absolute left-4 top-4 z-10 rounded-2xl bg-white/92 px-4 py-3 shadow-lg backdrop-blur">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-700">
           Live map
         </p>
         <p className="mt-1 text-sm text-[var(--surface-700)]">
-          {geoListings.length} geocoded matches syncing with your filters
+          {geoListings.length} listing{geoListings.length !== 1 ? 's' : ''} on map
         </p>
       </div>
 
@@ -148,6 +148,7 @@ export function MapPanel({ listings, onBoundsChange, showSearchButton, onSearchA
               longitude={listing.longitude!}
               onClick={() => handleMarkerClick(listing.id)}
               anchor="bottom"
+              style={{ zIndex: isSelected ? 100 : 1 }}
             >
               <button
                 type="button"
@@ -155,9 +156,9 @@ export function MapPanel({ listings, onBoundsChange, showSearchButton, onSearchA
                 className="flex flex-col items-center cursor-pointer bg-transparent border-none p-0"
               >
                 <div
-                  className={`whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-semibold shadow-lg transition-colors ${
+                  className={`whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-semibold shadow-lg transition-all hover:scale-110 hover:z-50 ${
                     isSelected
-                      ? 'bg-[var(--surface-900)] text-white'
+                      ? 'bg-[var(--surface-900)] text-white scale-110'
                       : 'bg-teal-800 text-white'
                   }`}
                 >
