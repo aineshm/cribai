@@ -36,14 +36,23 @@ interface ListingRow {
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
-/** Derive a human-readable title from raw_data.buildingName or address */
+/** Derive a human-readable title from listing data */
 function deriveTitle(row: ListingRow): string {
   const buildingName = row.raw_data?.buildingName as string | undefined;
   if (buildingName) return buildingName;
 
-  // Fall back to a shortened address (street portion only)
-  const parts = row.address.split(',');
-  return parts[0]?.trim() ?? row.address;
+  // For subleases, build a descriptive title from beds + street
+  const street = row.address.split(',')[0]?.trim() ?? row.address;
+  if (row.source === 'sublease') {
+    const beds = row.bedrooms === null || row.bedrooms === undefined
+      ? ''
+      : row.bedrooms === 0
+        ? 'Studio'
+        : `${row.bedrooms}BR`;
+    return beds ? `${beds} Sublease at ${street}` : `Sublease at ${street}`;
+  }
+
+  return street;
 }
 
 /** Extract a numeric score from raw_data walk/bike/transit objects */

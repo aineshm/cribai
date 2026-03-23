@@ -57,7 +57,7 @@ export function MobileBottomBar({
             size="sm"
             className="rounded-xl border-teal-200 text-teal-800 hover:bg-teal-50"
             onClick={() => {
-              setDraftPrompt(`Tell me about ${listingTitle} at ${listingAddress}.`);
+              setDraftPrompt(`Tell me about this listing at ${listingAddress}.`);
               setDraftListingId(listingId);
               openChat(true);
             }}

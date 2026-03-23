@@ -156,7 +156,7 @@ export function CTASidebar({
             <Button
               className="h-12 w-full rounded-xl bg-amber-400 text-base font-bold text-amber-950 shadow-sm hover:bg-amber-500"
               onClick={() => {
-                setDraftPrompt(`Tell me about ${listingTitle} at ${listingAddress}.`);
+                setDraftPrompt(`Tell me about this listing at ${listingAddress}.`);
                 setDraftListingId(listingId);
                 openChat(true);
               }}
