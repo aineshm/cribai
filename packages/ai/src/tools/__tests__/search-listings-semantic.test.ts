@@ -249,10 +249,33 @@ describe('searchListings semantic search', () => {
     expect(result.modelContext).toContain('Geographic filter');
   });
 
-  it('does not pass geo params when no landmark detected', async () => {
+  it('applies campus center fallback when no landmark and no mapBounds', async () => {
     vi.mocked(resolveLandmarkFromQuery).mockResolvedValueOnce(null);
 
     const context = createMockContext();
+    const rpcMock = vi.fn().mockResolvedValue({
+      data: [SAMPLE_RPC_RESULT_1],
+      error: null,
+    });
+    (context.supabase as unknown as { rpc: typeof rpcMock }).rpc = rpcMock;
+
+    await searchListings(
+      { semantic_query: 'cheap apartments' },
+      context,
+    );
+
+    const rpcArgs = rpcMock.mock.calls[0]![1] as Record<string, unknown>;
+    expect(rpcArgs).toHaveProperty('p_latitude', 43.0731);
+    expect(rpcArgs).toHaveProperty('p_longitude', -89.4012);
+    expect(rpcArgs).toHaveProperty('p_radius_m', 8000);
+  });
+
+  it('skips campus fallback when mapBounds are present', async () => {
+    vi.mocked(resolveLandmarkFromQuery).mockResolvedValueOnce(null);
+
+    const context = createMockContext({
+      mapBounds: { minLat: 43.0, maxLat: 43.1, minLng: -89.5, maxLng: -89.3 },
+    });
     const rpcMock = vi.fn().mockResolvedValue({
       data: [SAMPLE_RPC_RESULT_1],
       error: null,

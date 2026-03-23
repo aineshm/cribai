@@ -121,7 +121,7 @@ export function AuthForm() {
 
     const supabase = createClient();
     const { error: verifyError } = await supabase.auth.verifyOtp({
-      email,
+      email: email.trim(),
       token: otp,
       type: 'email',
     });

@@ -96,7 +96,8 @@ async function semanticSearch(
 
   // Fallback: scope to campus area when no specific landmark is detected
   // Prevents out-of-area results for generic queries like "2-bedroom under $1200"
-  if (!landmark && context.campusId) {
+  // Skip when mapBounds exist — user has panned the map, so respect their viewport
+  if (!landmark && context.campusId && !context.mapBounds) {
     // UW-Madison campus center (also used in MapPanel.tsx DEFAULT_CENTER)
     rpcParams.p_latitude = 43.0731;
     rpcParams.p_longitude = -89.4012;
