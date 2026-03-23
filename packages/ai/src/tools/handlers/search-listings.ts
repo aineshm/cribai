@@ -173,7 +173,7 @@ async function semanticSearch(
           (l, i) =>
             `${i + 1}. ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10 [listing_id:${l.id}]${l.source && l.source !== 'unknown' ? ` (source: ${l.source})` : ''}`,
         )
-        .join('\n')}\n\n[Prefer Zillow-sourced listings when recommending — they have verified data and photos.]` + uniqueHint + deepSearchCta;
+        .join('\n')}\n\n[Prefer Zillow-sourced and student sublease listings when recommending — they have richer data. Craigslist listings may have sparse details.]` + uniqueHint + deepSearchCta;
 
   // Build map block for 3+ results with lat/lng
   const filteredRows = parsed.amenities?.length
@@ -345,7 +345,7 @@ async function sqlSearch(
           (l, i) =>
             `${i + 1}. ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10 [listing_id:${l.id}]${l.source && l.source !== 'unknown' ? ` (source: ${l.source})` : ''}`,
         )
-        .join('\n')}\n\n[Prefer Zillow-sourced listings when recommending — they have verified data and photos.]` + sqlUniqueHint + sqlDeepSearchCta;
+        .join('\n')}\n\n[Prefer Zillow-sourced and student sublease listings when recommending — they have richer data. Craigslist listings may have sparse details.]` + sqlUniqueHint + sqlDeepSearchCta;
 
   const sqlResult = {
     modelContext,
