@@ -37,12 +37,21 @@ interface ListingRow {
 /* ------------------------------------------------------------------ */
 
 /** Derive a human-readable title from listing data */
+/** Strip junk text from scraped titles/addresses (e.g. "google map🔗") */
+function sanitizeText(text: string): string {
+  return text
+    .replace(/google\s*map[🔗\uD83D\uDD17]?/gi, '')
+    .replace(/[\u{1F300}-\u{1FFFF}]/gu, '') // strip all emoji
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 function deriveTitle(row: ListingRow): string {
   const buildingName = row.raw_data?.buildingName as string | undefined;
-  if (buildingName) return buildingName;
+  if (buildingName) return sanitizeText(buildingName);
 
   // For subleases, build a descriptive title from beds + street
-  const street = row.address.split(',')[0]?.trim() ?? row.address;
+  const street = sanitizeText(row.address.split(',')[0]?.trim() ?? row.address);
   if (row.source === 'sublease') {
     const beds = row.bedrooms === null || row.bedrooms === undefined
       ? ''
@@ -68,12 +77,41 @@ function extractScore(
   return typeof scoreVal === 'number' ? scoreVal : null;
 }
 
-/** Normalize amenity strings for display (capitalize, deduplicate) */
+/** Known amenity key → human-readable label */
+const AMENITY_LABELS: Record<string, string> = {
+  'w/d_in_unit': 'Washer/Dryer In Unit',
+  'w/d in unit': 'Washer/Dryer In Unit',
+  'off-street_parking': 'Off-Street Parking',
+  'off_street_parking': 'Off-Street Parking',
+  'cats_are_ok_-_purrr': 'Cats OK',
+  'cats_are_ok': 'Cats OK',
+  'dogs_are_ok_-_wooof': 'Dogs OK',
+  'no_smoking': 'No Smoking',
+  'rent_period:': 'Rent Period',
+  'rent_period': 'Rent Period',
+  'in_unit_laundry': 'In-Unit Laundry',
+  'street_parking': 'Street Parking',
+  'ev_charging': 'EV Charging',
+  'air_conditioning': 'Air Conditioning',
+  'wheelchair_accessible': 'Wheelchair Accessible',
+};
+
+/** Normalize amenity strings for display */
 function normalizeAmenities(raw: readonly string[] | null): readonly string[] {
   if (!raw || raw.length === 0) return [];
   return raw
     .filter((a) => a && a !== 'unknown')
-    .map((a) => a.charAt(0).toUpperCase() + a.slice(1));
+    .map((a) => {
+      const lower = a.toLowerCase().trim();
+      if (AMENITY_LABELS[lower]) return AMENITY_LABELS[lower];
+      return a
+        .replace(/[_-]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .split(' ')
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ');
+    });
 }
 
 /** Build a description from available raw_data fields */
@@ -88,9 +126,9 @@ function buildDescription(row: ListingRow): string {
   if (beds !== null || baths !== null) {
     const bedStr = beds === 0 ? 'Studio' : `${beds}-bedroom`;
     const bathStr = baths ? `, ${baths}-bathroom` : '';
-    parts.push(`${bedStr}${bathStr} apartment at ${row.address}.`);
+    parts.push(`${bedStr}${bathStr} apartment at ${sanitizeText(row.address)}.`);
   } else {
-    parts.push(`Apartment at ${row.address}.`);
+    parts.push(`Apartment at ${sanitizeText(row.address)}.`);
   }
 
   if (sqft) parts.push(`${sqft.toLocaleString()} sqft.`);

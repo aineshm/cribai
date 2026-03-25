@@ -56,6 +56,39 @@ function iconForAmenity(name: string): LucideIcon | null {
   return null;
 }
 
+/** Known raw keys → human-readable display labels */
+const LABEL_MAP: Record<string, string> = {
+  'w/d_in_unit': 'Washer/Dryer In Unit',
+  'w/d in unit': 'Washer/Dryer In Unit',
+  'off-street_parking': 'Off-Street Parking',
+  'off_street_parking': 'Off-Street Parking',
+  'cats_are_ok_-_purrr': 'Cats OK',
+  'cats_are_ok': 'Cats OK',
+  'dogs_are_ok_-_wooof': 'Dogs OK',
+  'no_smoking': 'No Smoking',
+  'rent_period:': 'Rent Period',
+  'rent_period': 'Rent Period',
+  'furnished': 'Furnished',
+  'ev_charging': 'EV Charging',
+  'air_conditioning': 'Air Conditioning',
+  'in_unit_laundry': 'In-Unit Laundry',
+  'street_parking': 'Street Parking',
+  'wheelchair_accessible': 'Wheelchair Accessible',
+};
+
+function formatAmenityLabel(raw: string): string {
+  const lower = raw.toLowerCase().trim();
+  if (LABEL_MAP[lower]) return LABEL_MAP[lower];
+  // Fallback: replace underscores/hyphens with spaces, title case
+  return raw
+    .replace(/[_-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+}
+
 interface AmenitiesGridProps {
   readonly amenities: readonly string[];
 }
@@ -81,7 +114,7 @@ export function AmenitiesGrid({ amenities }: AmenitiesGridProps) {
             ) : (
               <div className="size-5 rounded bg-[var(--primary-100)] shrink-0" />
             )}
-            <span className="text-sm text-foreground capitalize">{name}</span>
+            <span className="text-sm text-foreground">{formatAmenityLabel(name)}</span>
           </motion.div>
         );
       })}
