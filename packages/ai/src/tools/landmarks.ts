@@ -104,6 +104,23 @@ export function findBestLandmarkMatch(
   return bestMatch;
 }
 
+// UW-Madison campus center coordinates (shared with MapPanel.tsx DEFAULT_CENTER)
+const CAMPUS_CENTER: LandmarkMatch = {
+  name: 'UW-Madison Campus',
+  latitude: 43.0731,
+  longitude: -89.4012,
+  category: 'landmark',
+} as const;
+
+// Generic campus references that should resolve to campus center
+const GENERIC_CAMPUS_PHRASES = new Set([
+  'campus',
+  'main campus',
+  'uw campus',
+  'uw-madison campus',
+  'the campus',
+]);
+
 /**
  * Detect a landmark reference in a search query and resolve to coordinates.
  * Fetches landmarks for the given campus from Supabase, then matches against the query.
@@ -116,6 +133,13 @@ export async function resolveLandmarkFromQuery(
   const locationPhrase = extractLocationPhrase(query);
   if (!locationPhrase) {
     return null;
+  }
+
+  // Short-circuit: generic "campus" references resolve to campus center
+  // without a DB query. This prevents null results when the landmarks table
+  // doesn't contain a generic "Campus" entry.
+  if (GENERIC_CAMPUS_PHRASES.has(locationPhrase.toLowerCase())) {
+    return CAMPUS_CENTER;
   }
 
   const { data, error } = await supabase

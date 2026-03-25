@@ -95,11 +95,11 @@ export async function POST(request: NextRequest) {
 
   const { data: listing, error: listingError } = await queryClient
     .from('listings')
-    .select('id, address, campus_id, is_active')
+    .select('id, address, campus_id')
     .eq('id', parsed.data.listingId)
     .single();
 
-  if (listingError || !listing || !listing.is_active) {
+  if (listingError || !listing) {
     return NextResponse.json(
       { error: 'Listing not found or no longer available.' },
       { status: 404 },

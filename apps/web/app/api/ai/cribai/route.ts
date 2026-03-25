@@ -338,12 +338,21 @@ export async function POST(request: NextRequest) {
     // SECURITY: Verify conversation belongs to authenticated user before reading
     let verifiedConversationId: string | null = null;
     if (validConversationId && userId) {
-      const { data: convOwnerCheck } = await supabase
-        .from('conversations')
-        .select('id, context')
-        .eq('id', validConversationId)
-        .eq('user_id', userId)
-        .single();
+      // Retry loop: handles write-read consistency race when a conversation
+      // was just created and the INSERT hasn't fully committed yet.
+      let convOwnerCheck: { id: unknown; context: unknown } | null = null;
+      for (let attempt = 0; attempt < 3 && !convOwnerCheck; attempt++) {
+        const { data } = await supabase
+          .from('conversations')
+          .select('id, context')
+          .eq('id', validConversationId)
+          .eq('user_id', userId)
+          .single();
+        convOwnerCheck = data;
+        if (!convOwnerCheck && attempt < 2) {
+          await new Promise(r => setTimeout(r, 50 * Math.pow(3, attempt)));
+        }
+      }
       if (convOwnerCheck) {
         verifiedConversationId = convOwnerCheck.id as string;
       }

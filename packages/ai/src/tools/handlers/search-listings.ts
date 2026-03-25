@@ -107,6 +107,15 @@ async function semanticSearch(
   const { data, error } = await context.supabase.rpc('match_listings_semantic', rpcParams);
 
   if (error) {
+    console.error('[search-listings] semantic RPC failed:', {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+      hasLandmark: !!landmark,
+      landmarkName: landmark?.name ?? null,
+      hasGeoParams: 'p_latitude' in rpcParams,
+    });
     return {
       modelContext: 'Search is temporarily unavailable. Try rephrasing your request or I can search by specific filters instead.',
       clientBlock: { type: 'listing_card' as const, listings: [] },

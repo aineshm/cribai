@@ -46,6 +46,12 @@ describe('extractLocationPhrase', () => {
     expect(extractLocationPhrase('2 bedroom studio downtown')).toBeNull();
   });
 
+  it('extracts generic "campus" from proximity queries', () => {
+    expect(extractLocationPhrase('apartments near campus')).toBe('campus');
+    expect(extractLocationPhrase('housing close to main campus')).toBe('main campus');
+    expect(extractLocationPhrase('places near the campus')).toBe('campus');
+  });
+
   it('returns null for short pronouns like "near me"', () => {
     expect(extractLocationPhrase('apartments near me')).toBeNull();
     expect(extractLocationPhrase('find something by us')).toBeNull();
@@ -162,6 +168,67 @@ describe('resolveLandmarkFromQuery', () => {
     );
 
     expect(result).toBeNull();
+  });
+
+  it('returns campus center for generic "near campus" without DB query', async () => {
+    const supabase = {
+      from: vi.fn(),
+    } as unknown as Parameters<typeof resolveLandmarkFromQuery>[2];
+
+    const result = await resolveLandmarkFromQuery(
+      'find apartments near campus',
+      'test-campus-id',
+      supabase,
+    );
+
+    expect(result).toEqual({
+      name: 'UW-Madison Campus',
+      latitude: 43.0731,
+      longitude: -89.4012,
+      category: 'landmark',
+    });
+    // Should NOT query DB — short-circuit for generic campus phrases
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('returns campus center for "near the campus" variant', async () => {
+    const supabase = {
+      from: vi.fn(),
+    } as unknown as Parameters<typeof resolveLandmarkFromQuery>[2];
+
+    const result = await resolveLandmarkFromQuery(
+      'apartments close to the campus',
+      'test-campus-id',
+      supabase,
+    );
+
+    expect(result).toEqual({
+      name: 'UW-Madison Campus',
+      latitude: 43.0731,
+      longitude: -89.4012,
+      category: 'landmark',
+    });
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('returns campus center for "near main campus"', async () => {
+    const supabase = {
+      from: vi.fn(),
+    } as unknown as Parameters<typeof resolveLandmarkFromQuery>[2];
+
+    const result = await resolveLandmarkFromQuery(
+      'housing near main campus',
+      'test-campus-id',
+      supabase,
+    );
+
+    expect(result).toEqual({
+      name: 'UW-Madison Campus',
+      latitude: 43.0731,
+      longitude: -89.4012,
+      category: 'landmark',
+    });
+    expect(supabase.from).not.toHaveBeenCalled();
   });
 
   it('returns null on DB error', async () => {

@@ -61,7 +61,6 @@ export async function scheduleTour(
     .select('id, address')
     .eq('id', parsed.listing_id)
     .eq('campus_id', context.campusId)
-    .eq('is_active', true)
     .single();
 
   if (listingError || !listing) {
