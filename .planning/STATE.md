@@ -3,141 +3,108 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Agent Platform
 status: completed
-stopped_at: Completed Phase 29 Plan 01 - intent classifier + ChatEvent mission events
-last_updated: "2026-03-12T17:19:57.197Z"
-last_activity: 2026-03-11 -- Completed 20-01 (main)/layout.tsx with ConciergeShell + ConciergeNavButton
+stopped_at: Post-v2.0 polish — AI behavior tuning, prompt condensing, UI/UX fixes
+last_updated: "2026-03-24"
+last_activity: 2026-03-24 -- Documentation sync across product + ops repos
 progress:
   total_phases: 5
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 1
-  percent: 50
+  completed_phases: 5
+  total_plans: 14
+  completed_plans: 14
+  percent: 100
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-12)
+See: .planning/PROJECT.md
 
 **Core value:** Students can find off-campus housing through conversational AI search that understands what they actually want
-**Current focus:** v1.1 archived — planning next milestone with `/gsd:new-milestone`
+**Current focus:** v2.0 shipped. Post-launch polish + outreach execution (Summer Sublease Sprint)
 
 ## Current Position
 
-Phase: 20 of 20 (Concierge Mount + Design Cleanup) -- IN PROGRESS
-Plan: 1 of 2 in current phase (complete)
-Status: Plan 20-01 complete — (main) layout mounted; ready for 20-02
-Last activity: 2026-03-11 -- Completed 20-01 (main)/layout.tsx with ConciergeShell + ConciergeNavButton
+Milestone: v2.0 Agent Platform — COMPLETE (shipped 2026-03-19)
+Post-v2.0: 14 polish commits (2026-03-20 to 2026-03-24)
+Status: Engineering complete. Sprint focus is outreach + user acquisition.
+Last activity: 2026-03-24 — Documentation sync
 
-Progress: [█████░░░░░] 50%  (v1.2: 4/8 plans)
+Progress: [██████████] 100%  (v2.0: all phases complete)
+
+## What Shipped in v2.0
+
+- MissionExecutor: autonomous background tasks (housing search, tour outreach, listing deep dive, sublease post)
+- 13 function-calling AI tools with Gemini 2.5 Flash
+- HITL approval before external actions
+- Chat-to-Mission bridge: intent classifier triggers mission proposals
+- Server-side chat persistence (3-lite): assistant messages persisted via after()
+- Conversation context JSONB for cross-message listing awareness
+- Sublease marketplace: post via chat or PostWizard, edit/photos for creators
+- CribAI rebrand (CampusNest → CribAI) across all surfaces
+- Chat inbox at /chat, nav restructured (Explore + Chat)
+- Inline embedding generation for all listing insertion paths
+- 2,509 real listings (Zillow), UW-Madison campus
+- Migrations 001-030 applied to production Supabase
+
+## Post-v2.0 Polish (2026-03-20 to 2026-03-24)
+
+14 commits focused on:
+
+### AI Behavior Tuning
+- Force action-first behavior — search immediately, never interview the user
+- System prompt: action-first, sublease awareness, seasonal dates
+- Search modelContext: prefer Zillow + sublease over Craigslist
+- Condense Gemini prompts for speed/cost (42 lines removed)
+- Restore currentInput in steering prompt
+
+### UI/UX Fixes
+- UI/UX audit: 10 fixes across explore, listing, auth, map, landing
+- Better listing titles + cleaner "Ask AI" prompt
+- Map popup z-index: listing card renders above markers (3 commits)
+- Landing page mobile menu (LandingMobileMenu.tsx)
+
+### Data Quality
+- Increase explore listing limit from 500 to 3000 (subleases cut off at rank 544)
+- Skip embedding for already-embedded web-search listings
+- OTP email trim, skip geo fallback with mapBounds
+
+### Security
+- Verify conversation ownership before read/write (Codex P1)
 
 ## Performance Metrics
 
-**Velocity (v1.0 reference):**
-- Total plans completed: 29
-- Average duration: ~5 min/plan
-- Total execution time: ~2.4 hours
+**Velocity (all milestones):**
 
-**v1.2 By Phase:**
+| Milestone | Phases | Plans | Shipped |
+|-----------|--------|-------|---------|
+| v1.0 MVP | 9 | 29 | 2026-03-10 |
+| v1.1 UI/UX | 13 | 17 | 2026-03-12 |
+| v2.0 Agent | 5 | ~14 | 2026-03-19 |
+| Post-v2.0 Polish | — | 14 commits | 2026-03-24 |
 
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 16-missions-db-schema | 1/1 | 5min | 5min |
-| 17-real-tool-integrations | 2/2 | 6min | 3min |
-
-*Updated after each plan completion*
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 19-auth-flow-route-protection | 1/1 | 35min | 35min |
-| 20-concierge-mount-design-cleanup | 1/2 | 8min | 8min |
-| Phase 19 P02 | 95 | 2 tasks | 7 files |
-| Phase 20-concierge-mount-design-cleanup P02 | 8min | 2 tasks | 11 files |
-| Phase 18 P01 | 8 | 2 tasks | 7 files |
-| Phase 18-explore-page-wiring P02 | 12 | 3 tasks | 9 files |
-| Phase 22-token-cleanup-chat-multi-campus P01 | 1 | 2 tasks | 1 files |
-| Phase 22-token-cleanup-chat-multi-campus P02 | 2min | 2 tasks | 3 files |
-| Phase 21-app-navigation-auth-state P01 | 3 | 2 tasks | 8 files |
-| Phase 21-app-navigation-auth-state P02 | 4min | 2 tasks | 3 files |
-| Phase 23-chat-campus-context-profile-persistence P01 | 2min | 2 tasks | 2 files |
-| Phase 24-listing-ai-summary-verification-sweep P02 | 20min | 3 tasks | 3 files |
-| Phase 24-listing-ai-summary-verification-sweep P01 | 8min | 2 tasks | 4 files |
-| Phase 23-chat-campus-context-profile-persistence P02 | 7min | 2 tasks | 3 files |
-| Phase 24 P03 | 15min | 3 tasks | 4 files |
-| Phase 29 P01 | 12min | 6 tasks | 6 files |
+**Total:** 607 commits, 30 migrations, ~770 unit tests + 89 E2E tests
 
 ## Accumulated Context
 
-### Decisions
+### Key Decisions (Post-v2.0)
 
-Recent decisions affecting v1.2 work:
-
-- [v1.2]: Mission executor uses Next.js `after()` (not Edge Functions -- Deno blocks @google/genai)
-- [v1.2]: Gemini cannot combine `tools` + `responseSchema` -- use function calling only for steering
-- [v1.2]: Supabase Realtime: one channel per user (not per mission) -- 200 concurrent limit
-- [v1.2]: PM contact: draft-only, no outbound email (ToS/legal)
-- [v1.2]: Google Places for reviews (Yelp ToS prohibits off-platform display)
-- [v1.2]: Walk Score API for neighborhood walkability
-- [v1.2]: DB schema is critical path -- blocks executor, Realtime, HITL, steering
-- [16-01]: Used .strict() on Zod schemas to reject unknown keys and catch mock-only field usage
-- [16-01]: Exported LegacyMission for backward compat with mock-backed components (Phase 20 reconciles)
-- [16-01]: pg_cron first use -- expire-stale-missions every 6h, purge-cron-job-details daily 4 AM
-- [17-01]: Walk Score returns null-score result on failure instead of throwing (graceful degradation)
-- [17-01]: Google Places throws on non-OK response for explicit error handling by callers
-- [17-01]: Cache uses upsert with onConflict: 'key' for idempotent writes
-- [17-02]: Reviews: Gemini summary only for 3+ reviews (avoids unnecessary API call)
-- [17-02]: Neighborhood: default Madison WI coords when only address provided (no geocoding needed)
-- [17-02]: All handlers return error ToolResult for missing API keys (graceful degradation)
-- [Phase 20-01]: (main) layout server component — ConciergeShell handles client boundary internally
-- [Phase 20-01]: Nav inside ConciergeShell (not sibling) — ConciergeNavButton requires ConciergeProvider ancestor
-- [Phase 19]: Used protectedFlatRoutes array in middleware so future flat routes can be added in one place
-- [Phase 19]: Fixed 'next' -> 'returnTo' for campus routes — consistent param name throughout the app
-- [Phase 19]: Profile Server Component reads Supabase session with x-dev-user-json header fallback to avoid redirect loop in dev
-- [Phase 19]: Name resolution: full_name ?? display_name ?? email-prefix covers real Supabase and dev-auth shapes
-- [Phase 19]: SavedListings Link inside motion.div (not wrapping it) to preserve stagger animation
-- [Phase 20-02]: Heart button fill/stroke state now managed via Tailwind classes (fill-red-500/stroke-red-500) rather than inline SVG attributes
-- [Phase 20-02]: MapPin uses fill=currentColor + strokeWidth=0 to reproduce filled-pin appearance from original Heroicon
-- [Phase 18]: campusSlug hardcoded to uw-madison in ChatProvider for Phase 18 scope
-- [Phase 18]: AIChatButton/AIChatPanel moved to explore page directly (not usePathname guard)
-- [Phase 18]: ChatProvider stays in root layout for context availability even when panel is page-scoped
-- [Phase 18-02]: Global framer-motion mock via Proxy in vitest.setup.ts converts motion.X to plain HTML elements
-- [Phase 18-02]: Pre-existing test failures in freshness-badge, map-block, ProfilePage are out of scope for plan 18-02
-- [Phase 22-01]: Deleted design-tokens.ts without replacement — globals.css @theme inline is the sole design token source (DESIGN-05)
-- [Phase 22-01]: No TypeScript bridge needed — Tailwind utility classes generated from @theme inline block at build time
-- [Phase 22]: ChatProvider uses explicit campusSlug prop (not useCampus hook) — hook throws outside campus route tree
-- [Phase 22]: Campus layout mounts inner ChatProvider with real slug; root layout ChatProvider with empty string covers explore page (innermost-wins pattern)
-- [Phase 21-app-navigation-auth-state]: MobileStickyBar accepts optional visible prop to bypass IntersectionObserver in tests — zero production behavior change
-- [Phase 21-app-navigation-auth-state]: Server Component page.tsx can import 'use client' child components — valid Next.js 15 pattern
-- [Phase 21-02]: Inline Tailwind classes in page.tsx nav link — buttonVariants cannot be called from Server Components (was causing 500 error)
-- [Phase 21-02]: Authenticated E2E state not tested — requires Supabase session cookies; unit tests in Plan 01 cover conditional rendering
-- [Phase 23-01]: (main)/layout.tsx derives campusSlug from user_metadata.campus_slug, falls back to first campus_configs row, then 'uw-madison' literal — unblocking EXPL-04 and DETAIL-05
-- [Phase 24-listing-ai-summary-verification-sweep]: [Phase 24-02]: COMPAT-01 recorded as SATISFIED — git tag v1.0-mvp confirmed present via git tag -l
-- [Phase 24-listing-ai-summary-verification-sweep]: [Phase 24-02]: Phase 13 status set to passed — DETAIL-03 AI prose pending Phase 24-01 is a planned gap, not an oversight
-- [Phase 24-listing-ai-summary-verification-sweep]: aiSummary is optional (readonly aiSummary?: string) — no existing consumers broken
-- [Phase 24-listing-ai-summary-verification-sweep]: Prose renders above structured grid inside CardContent — no extra motion.div wrapper needed
-- [Phase 23-02]: handleProfileComplete uses useCallback async pattern — persists full_name/university/graduation_year to Supabase user_metadata before navigating (AUTH-05)
-- [Phase 23-02]: redirect tests required waitFor upgrade after handleProfileComplete became async — synchronous expect(mockPush) fired before promise resolved
-- [Phase 24]: REQUIREMENTS.md updated atomically — all 34 v1.1 requirements now Satisfied, verification sweep complete
-- [Phase 24]: Phase 24-03: ProfilePage.test.tsx framer-motion layoutId failures are known test infrastructure limitation, not a PROF-02 gap
-- [Phase 29]: Intent classifier uses JSON mode only (no tools) — Gemini cannot combine responseMimeType + tools config
-- [Phase 29]: classifyIntent never throws — all errors return FALLBACK (general_chat, confidence 0)
-- [Phase 29]: mission_proposal SSE emitted only when confidence > 0.75 and intent != general_chat
-
-### Pending Todos
-
-None yet.
+- Action-first AI: CribAI searches immediately on any housing query, never asks clarifying questions first
+- Craigslist deprioritized in search results (data quality issues, prefer Zillow + sublease)
+- Explore listing limit raised to 3000 (subleases were invisible beyond rank 544)
+- Gemini prompts condensed: shorter system prompt + intent classifier + steering parser
+- Map popup z-index layering: `.mapboxgl-popup` at z-50, listing cards render above markers
 
 ### Blockers/Concerns
 
-- Walk Score API key not yet provisioned -- validate before Phase 17 integration testing
-- GOOGLE_PLACES_API_KEY needed for Phase 17 integration testing
-- `after()` duration under real Gemini latency unknown -- validate in Phase 18
-- Supabase Realtime private channel JWT pattern needs SDK version verification before Phase 20
+- after() panel-close behavior on Vercel needs manual validation (best-effort completion)
+- Scraper batch embedding needs raw_title column fix (migration 017 not on prod) — existing listings have embeddings
+- GOOGLE_PLACES_API_KEY not provisioned (reviews tool degrades gracefully)
+- WALKSCORE_API_KEY permanently unavailable (requires business account)
 
 ## Session Continuity
 
-Last session: 2026-03-12T17:19:49.044Z
-Stopped at: Completed Phase 29 Plan 01 - intent classifier + ChatEvent mission events
+Last session: 2026-03-24
+Stopped at: Documentation sync across product + ops repos
 Resume file: None
-Next: Plan 20-02 (design cleanup)
+Next: Outreach execution (Reddit, FB, GroupMe) — engineering is done
