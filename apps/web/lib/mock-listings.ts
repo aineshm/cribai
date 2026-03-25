@@ -29,13 +29,13 @@ export interface Listing {
 const gradients = [
   'from-primary-200 to-primary-400',
   'from-secondary-200 to-secondary-400',
-  'from-teal-200 to-emerald-400',
-  'from-amber-200 to-orange-400',
+  'from-red-200 to-emerald-400',
+  'from-slate-200 to-orange-400',
   'from-rose-200 to-pink-400',
   'from-sky-200 to-blue-400',
   'from-violet-200 to-purple-400',
   'from-lime-200 to-green-400',
-  'from-cyan-200 to-teal-400',
+  'from-cyan-200 to-red-400',
   'from-fuchsia-200 to-pink-400',
 ] as const;
 

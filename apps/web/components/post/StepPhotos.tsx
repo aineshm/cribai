@@ -127,7 +127,7 @@ export function StepPhotos({ formData, updateFormData }: StepPhotosProps) {
       )}
 
       {formData.photos.length > 0 && formData.photos.length < 3 && (
-        <p className="text-xs text-amber-600">
+        <p className="text-xs text-slate-600">
           You have {formData.photos.length} photo
           {formData.photos.length === 1 ? '' : 's'}. We recommend at least 3.
         </p>

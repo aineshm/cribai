@@ -74,7 +74,7 @@ function DropdownFilter({ label, icon: Icon, options, value, onChange, formatVal
             size="sm"
             className={`shrink-0 gap-1.5 rounded-full border px-4 py-2 text-sm font-medium shadow-sm transition-colors ${
               isActive
-                ? 'border-teal-800 bg-teal-800 text-white hover:bg-teal-900 hover:text-white'
+                ? 'border-red-800 bg-red-800 text-white hover:bg-red-900 hover:text-white'
                 : 'border-[var(--surface-200)] bg-white text-[var(--surface-700)] hover:bg-[var(--surface-50)]'
             }`}
           >
@@ -106,7 +106,7 @@ function DropdownFilter({ label, icon: Icon, options, value, onChange, formatVal
               <DropdownMenuRadioItem
                 key={option.label}
                 value={optionValue}
-                className="rounded-xl px-3 py-2.5 text-sm font-medium text-[var(--surface-700)] data-[highlighted]:bg-teal-50 data-[highlighted]:text-teal-900"
+                className="rounded-xl px-3 py-2.5 text-sm font-medium text-[var(--surface-700)] data-[highlighted]:bg-red-50 data-[highlighted]:text-red-900"
               >
                 {option.label}
               </DropdownMenuRadioItem>

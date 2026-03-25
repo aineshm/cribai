@@ -35,7 +35,7 @@ function ContextBar({ context, onReset }: { readonly context: SearchContext; rea
 
   return (
     <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar border-b border-gray-100 bg-gray-50/80 px-4 py-2 backdrop-blur-sm">
-      <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-teal-50 px-3 py-1 text-xs font-medium text-teal-800">
+      <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-800">
         <Sparkles className="size-3" />
         {chips.length > 0 ? 'Filters' : 'Active Context'}
       </span>
@@ -46,7 +46,7 @@ function ContextBar({ context, onReset }: { readonly context: SearchContext; rea
             key={chip.key}
             className="flex shrink-0 items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs text-gray-600 border border-gray-200"
           >
-            <Icon className="size-3 text-teal-600" />
+            <Icon className="size-3 text-red-600" />
             {chip.label}
           </span>
         );
@@ -175,7 +175,7 @@ export function ExploreClient({ listings }: ExploreClientProps) {
   const activeBounds = lockedBounds ?? mapBounds;
 
   return (
-    <div className="app-mobile-pane flex flex-col overflow-hidden bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-teal-50/30 via-white to-white">
+    <div className="app-mobile-pane flex flex-col overflow-hidden bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-red-50/30 via-white to-white">
       {/* Mobile view toggle — hidden on desktop */}
       <div className="flex md:hidden border-b border-gray-100">
         <ContextBar context={searchContext} onReset={resetAiResults} />
@@ -184,7 +184,7 @@ export function ExploreClient({ listings }: ExploreClientProps) {
             type="button"
             onClick={() => setMobileView('chat')}
             className={`flex items-center gap-1.5 px-4 min-h-[44px] text-xs font-medium transition-colors ${
-              mobileView === 'chat' ? 'text-teal-800 bg-teal-50' : 'text-gray-400'
+              mobileView === 'chat' ? 'text-red-800 bg-red-50' : 'text-gray-400'
             }`}
           >
             <MessageSquare className="size-3.5" />
@@ -194,7 +194,7 @@ export function ExploreClient({ listings }: ExploreClientProps) {
             type="button"
             onClick={() => setMobileView('map')}
             className={`flex items-center gap-1.5 px-4 min-h-[44px] text-xs font-medium transition-colors ${
-              mobileView === 'map' ? 'text-teal-800 bg-teal-50' : 'text-gray-400'
+              mobileView === 'map' ? 'text-red-800 bg-red-50' : 'text-gray-400'
             }`}
           >
             <MapIcon className="size-3.5" />
@@ -244,15 +244,15 @@ export function ExploreClient({ listings }: ExploreClientProps) {
           mobileView === 'map' ? 'block w-full' : 'hidden'
         }`}>
           {aiMapListings && (
-            <div className="flex items-center justify-between border-b border-gray-100 bg-teal-50/80 px-4 py-2 backdrop-blur-sm">
-              <span className="flex items-center gap-1.5 text-xs text-teal-800">
+            <div className="flex items-center justify-between border-b border-gray-100 bg-red-50/80 px-4 py-2 backdrop-blur-sm">
+              <span className="flex items-center gap-1.5 text-xs text-red-800">
                 <Sparkles className="size-3" />
                 Showing {aiMapListings.length} AI result{aiMapListings.length !== 1 ? 's' : ''}
               </span>
               <button
                 type="button"
                 onClick={resetAiResults}
-                className="flex items-center gap-1 text-xs font-medium text-teal-700 hover:text-teal-900 transition-colors"
+                className="flex items-center gap-1 text-xs font-medium text-red-700 hover:text-red-900 transition-colors"
               >
                 Show all
                 <X className="size-3" />

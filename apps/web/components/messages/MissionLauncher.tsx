@@ -44,7 +44,7 @@ function buildAutoGoal(intent: MissionType, fields: {
 }
 
 const INPUT_CLASS =
-  'rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none w-full';
+  'rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none w-full';
 
 export function MissionLauncher({ searchParams }: MissionLauncherProps) {
   const router = useRouter();
@@ -155,7 +155,7 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
       <button
         type="button"
         onClick={() => setExpanded(true)}
-        className="flex items-center gap-2 px-4 py-3 text-sm font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 rounded-xl border border-teal-200 transition-colors w-full"
+        className="flex items-center gap-2 px-4 py-3 text-sm font-medium text-red-800 bg-red-50 hover:bg-red-100 rounded-xl border border-red-200 transition-colors w-full"
       >
         <PlusCircle className="size-4" />
         New Mission
@@ -166,11 +166,11 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
   const showHousingFields = intent === 'housing_search' || intent === 'sublease_post' || intent === 'tour_outreach';
 
   return (
-    <div className="rounded-xl border border-teal-200 bg-teal-50/30 p-5 space-y-4">
+    <div className="rounded-xl border border-red-200 bg-red-50/30 p-5 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Sparkles className="size-4 text-teal-700" />
+          <Sparkles className="size-4 text-red-700" />
           <h3 className="text-sm font-bold text-gray-900">Start a Mission</h3>
         </div>
         <button
@@ -295,7 +295,7 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
         <p className="text-sm text-gray-600">
           <a
             href="/login?returnTo=/messages"
-            className="font-medium text-teal-700 underline underline-offset-2 hover:text-teal-900"
+            className="font-medium text-red-700 underline underline-offset-2 hover:text-red-900"
           >
             Sign in
           </a>{' '}
@@ -308,7 +308,7 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
         type="button"
         onClick={handleSubmit}
         disabled={loading}
-        className="w-full bg-teal-800 hover:bg-teal-900 disabled:opacity-60 text-white rounded-lg py-2.5 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+        className="w-full bg-red-800 hover:bg-red-900 disabled:opacity-60 text-white rounded-lg py-2.5 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
       >
         {loading ? (
           <>

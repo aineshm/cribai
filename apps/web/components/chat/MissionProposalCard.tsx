@@ -45,13 +45,13 @@ export function MissionProposalCard() {
   };
 
   return (
-    <div className="flex w-full items-center justify-between bg-teal-50/80 border border-teal-200 rounded-lg px-4 py-2.5">
+    <div className="flex w-full items-center justify-between bg-red-50/80 border border-red-200 rounded-lg px-4 py-2.5">
       <div className="flex items-center gap-2">
-        <Sparkles className="size-4 text-teal-700" />
+        <Sparkles className="size-4 text-red-700" />
         <span className="text-sm font-medium text-gray-900">{label} mission ready</span>
       </div>
       <div className="flex items-center gap-3">
-        <button type="button" onClick={handleReview} className="text-sm font-semibold text-teal-800 hover:text-teal-900">
+        <button type="button" onClick={handleReview} className="text-sm font-semibold text-red-800 hover:text-red-900">
           Review &amp; Start &rarr;
         </button>
         <button type="button" onClick={dismissProposal} className="text-gray-400 hover:text-gray-600" aria-label="Dismiss">

@@ -197,7 +197,7 @@ export function PostWizard({ userEmail }: PostWizardProps) {
                 <Button
                   size="lg"
                   onClick={handleNext}
-                  className="gap-2 rounded-xl bg-teal-800 py-4 font-bold text-white shadow-lg hover:bg-teal-900"
+                  className="gap-2 rounded-xl bg-red-800 py-4 font-bold text-white shadow-lg hover:bg-red-900"
                 >
                   Next
                   <ChevronRight className="size-4" />

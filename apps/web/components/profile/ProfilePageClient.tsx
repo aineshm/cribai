@@ -151,7 +151,7 @@ function ChatHistoryTab() {
   if (loading) {
     return (
       <div className="flex justify-center py-16">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-teal-800 border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-red-800 border-t-transparent" />
       </div>
     );
   }
@@ -159,8 +159,8 @@ function ChatHistoryTab() {
   if (conversations.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-teal-50 mb-4">
-          <Sparkles className="size-7 text-teal-600" />
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 mb-4">
+          <Sparkles className="size-7 text-red-600" />
         </div>
         <p className="font-[family-name:var(--font-display)] text-lg font-bold text-gray-900">
           No conversations yet
@@ -170,7 +170,7 @@ function ChatHistoryTab() {
         </p>
         <a
           href="/explore"
-          className="mt-4 inline-flex items-center gap-2 rounded-xl bg-teal-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-teal-900 transition-colors"
+          className="mt-4 inline-flex items-center gap-2 rounded-xl bg-red-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-900 transition-colors"
         >
           Open Discover
         </a>
@@ -185,10 +185,10 @@ function ChatHistoryTab() {
           key={conv.id}
           type="button"
           onClick={() => router.push(`/chat?conversation=${conv.id}`)}
-          className="w-full text-left p-4 rounded-2xl border border-gray-100 bg-white hover:border-teal-200 hover:bg-teal-50/30 transition-all"
+          className="w-full text-left p-4 rounded-2xl border border-gray-100 bg-white hover:border-red-200 hover:bg-red-50/30 transition-all"
         >
           <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-teal-700">
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-700">
               <MessageSquare className="size-4" />
             </div>
             <div className="min-w-0 flex-1">

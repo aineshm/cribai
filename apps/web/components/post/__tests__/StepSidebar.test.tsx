@@ -41,7 +41,7 @@ describe('StepSidebar desktop navigation', () => {
       />
     );
     const detailsButton = screen.getByRole('button', { name: 'Details' });
-    expect(detailsButton.className).toContain('text-teal-800');
+    expect(detailsButton.className).toContain('text-red-800');
     expect(detailsButton.className).toContain('font-bold');
   });
 

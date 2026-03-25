@@ -43,11 +43,11 @@ export default async function HomePage() {
   const primaryText = isAuthenticated ? 'Go to Explore' : "Get Started (it's free)";
 
   return (
-    <div className="min-h-[100dvh] overflow-x-hidden bg-white text-[var(--surface-900)]">
-      <nav className="sticky top-0 z-50 border-b border-black/5 bg-white/90 backdrop-blur-md">
+    <div className="min-h-[100dvh] overflow-x-hidden bg-gradient-to-b from-white via-stone-50 to-white text-[var(--surface-900)]">
+      <nav className="sticky top-0 z-50 border-b border-red-900/20 bg-red-900/95 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-2 text-teal-800">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-800 text-white shadow-sm">
+          <Link href="/" className="flex items-center gap-2 text-white">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 text-white shadow-sm">
               <Home className="size-5" strokeWidth={2.5} />
             </span>
             <span className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight">CribAI</span>
@@ -59,16 +59,16 @@ export default async function HomePage() {
             agentHref={isAuthenticated ? '/messages' : '/login?returnTo=/messages'}
           />
 
-          <div className="hidden md:flex items-center gap-6 text-sm font-medium text-[var(--surface-600)]">
-            <Link href="/explore" className="transition-colors hover:text-teal-800">
+          <div className="hidden md:flex items-center gap-6 text-sm font-medium text-red-100">
+            <Link href="/explore" className="transition-colors hover:text-white">
               Browse
             </Link>
-            <Link href={isAuthenticated ? '/messages' : '/login?returnTo=/messages'} className="transition-colors hover:text-teal-800">
+            <Link href={isAuthenticated ? '/messages' : '/login?returnTo=/messages'} className="transition-colors hover:text-white">
               Agent
             </Link>
             <Link
               href={primaryHref}
-              className="rounded-xl bg-teal-800 px-5 py-2.5 text-white shadow-sm transition-colors hover:bg-teal-900"
+              className="rounded-xl bg-white px-5 py-2.5 text-red-900 font-semibold shadow-sm transition-colors hover:bg-red-50"
             >
               {isAuthenticated ? 'Dashboard' : 'Get Started'}
             </Link>
@@ -77,20 +77,21 @@ export default async function HomePage() {
       </nav>
 
       <main>
-        <section className="relative mx-auto grid w-full max-w-7xl gap-12 overflow-hidden px-4 pt-16 pb-20 sm:px-6 lg:grid-cols-2 lg:px-8 lg:pt-24">
-          <div className="absolute top-8 right-[-10%] h-72 w-72 rounded-full bg-teal-100 blur-3xl" />
-          <div className="absolute bottom-0 left-[-8%] h-56 w-56 rounded-full bg-amber-100 blur-3xl" />
+        <section className="relative overflow-hidden pt-16 pb-20 lg:pt-24">
+          <div className="absolute -top-10 -right-20 h-[28rem] w-[28rem] rounded-full bg-red-100/60 blur-[100px]" />
+          <div className="absolute -bottom-10 -left-20 h-80 w-80 rounded-full bg-stone-200/50 blur-[80px]" />
+          <div className="relative mx-auto grid w-full max-w-7xl gap-12 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
 
           <div className="relative flex flex-col gap-6">
-            <div className="inline-flex w-max items-center gap-2 rounded-full border border-teal-100 bg-teal-50 px-3 py-1.5 text-sm font-medium text-teal-800">
-              <Sparkles className="size-4 text-amber-500" />
+            <div className="inline-flex w-max items-center gap-2 rounded-full border border-red-100 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-800">
+              <Sparkles className="size-4 text-slate-500" />
               <span>AI-powered apartment search for students</span>
             </div>
 
             <div className="space-y-4">
               <h1 className="font-[family-name:var(--font-display)] max-w-2xl text-5xl font-extrabold leading-[1.05] tracking-tight text-[var(--surface-900)] sm:text-6xl">
                 Find your perfect college apartment
-                <span className="text-teal-800"> with AI that actually understands.</span>
+                <span className="text-red-800"> with AI that actually understands.</span>
               </h1>
               <p className="max-w-xl text-lg leading-8 text-[var(--surface-600)]">
                 Skip the endless scrolling and sketchy listings. Describe your budget, commute,
@@ -101,7 +102,7 @@ export default async function HomePage() {
             <div className="flex flex-col gap-4 sm:flex-row">
               <Link
                 href={primaryHref}
-                className="inline-flex items-center justify-center rounded-2xl bg-teal-800 px-8 py-3.5 text-lg font-semibold text-white shadow-lg shadow-teal-900/15 transition-all hover:-translate-y-0.5 hover:bg-teal-900"
+                className="inline-flex items-center justify-center rounded-2xl bg-red-800 px-8 py-3.5 text-lg font-semibold text-white shadow-lg shadow-red-900/15 transition-all hover:-translate-y-0.5 hover:bg-red-900"
               >
                 {primaryText}
               </Link>
@@ -121,14 +122,14 @@ export default async function HomePage() {
             {/* Mobile-only chat bubble card — social proof visible above the fold */}
             <div className="lg:hidden rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-sm">
               <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100">
-                  <Sparkles className="size-4 text-amber-600" />
+                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100">
+                  <Sparkles className="size-4 text-slate-600" />
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-900">
                     &ldquo;I need a 2-bedroom under $800/mo that allows cats, near Engineering.&rdquo;
                   </p>
-                  <div className="mt-1.5 flex items-center gap-2 text-sm font-bold text-teal-700">
+                  <div className="mt-1.5 flex items-center gap-2 text-sm font-bold text-red-700">
                     <span>Found 12 matching listings</span>
                     <ArrowRight className="size-4" />
                   </div>
@@ -149,15 +150,15 @@ export default async function HomePage() {
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(15,23,42,0.08),rgba(15,23,42,0.12))]" />
             <div className="absolute bottom-6 left-6 right-6 rounded-[1.5rem] border border-white/20 bg-white/95 p-4 shadow-xl backdrop-blur-sm">
               <div className="flex items-start gap-4">
-                <div className="mt-1 flex h-10 w-10 items-center justify-center rounded-full bg-amber-100">
-                  <Sparkles className="size-5 text-amber-600" />
+                <div className="mt-1 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100">
+                  <Sparkles className="size-5 text-slate-600" />
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-900">
                     &ldquo;I need a 2-bedroom under $800/mo that allows cats, within a 10-minute
                     walk to the Engineering building.&rdquo;
                   </p>
-                  <div className="mt-2 flex items-center gap-2 text-sm font-bold text-teal-700">
+                  <div className="mt-2 flex items-center gap-2 text-sm font-bold text-red-700">
                     <span>Found 12 matching listings</span>
                     <ArrowRight className="size-4" />
                   </div>
@@ -165,16 +166,17 @@ export default async function HomePage() {
               </div>
             </div>
           </div>
+          </div>
         </section>
 
-        <section className="border-y border-[var(--surface-200)] bg-[var(--surface-50)] py-10">
+        <section className="border-y border-red-900/10 bg-red-900 py-10">
           <div className="mx-auto max-w-7xl px-4 text-center sm:px-6 lg:px-8">
-            <p className="mb-6 text-sm font-semibold uppercase tracking-[0.24em] text-[var(--surface-500)]">
+            <p className="mb-6 text-sm font-semibold uppercase tracking-[0.24em] text-red-200">
               Starting at UW-Madison
             </p>
-            <div className="flex flex-wrap justify-center gap-8 text-xl font-semibold text-[var(--surface-400)]">
-              <span className="text-teal-800">UW-Madison</span>
-              <span className="text-sm self-center text-[var(--surface-400)]">More campuses coming soon</span>
+            <div className="flex flex-wrap justify-center gap-8 text-xl font-semibold text-red-200">
+              <span className="text-white">UW-Madison</span>
+              <span className="text-sm self-center text-red-300">More campuses coming soon</span>
             </div>
           </div>
         </section>
@@ -193,21 +195,21 @@ export default async function HomePage() {
             {[
               {
                 icon: Search,
-                tone: 'bg-teal-800 text-white',
+                tone: 'bg-red-800 text-white',
                 title: 'AI-powered search',
                 description:
                   'Describe your needs in plain English and get ranked matches by budget, vibe, commute, and lease fit.',
               },
               {
                 icon: ShieldCheck,
-                tone: 'bg-amber-400 text-amber-950',
+                tone: 'bg-slate-400 text-slate-950',
                 title: 'Verified student network',
                 description:
                   'CribAI is built around `.edu` trust, real tenant context, and safer landlord discovery.',
               },
               {
                 icon: Building,
-                tone: 'bg-teal-100 text-teal-800',
+                tone: 'bg-red-100 text-red-800',
                 title: 'End-to-end support',
                 description:
                   'Search, compare, ask AI, schedule tours, and post summer subleases from one place.',
@@ -234,8 +236,8 @@ export default async function HomePage() {
           </div>
         </section>
 
-        <section className="relative overflow-hidden bg-teal-900 py-24 text-white">
-          <div className="absolute top-0 right-[-10%] h-80 w-80 rounded-full bg-teal-800 blur-3xl" />
+        <section className="relative overflow-hidden bg-red-900 py-24 text-white">
+          <div className="absolute top-0 right-[-10%] h-80 w-80 rounded-full bg-red-800 blur-3xl" />
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <h2 className="mb-16 text-center font-[family-name:var(--font-display)] text-4xl font-bold">How CribAI works</h2>
             <div className="grid gap-10 md:grid-cols-3">
@@ -245,11 +247,11 @@ export default async function HomePage() {
                 ['03', 'Match, tour, and sign', 'Review curated listings, ask follow-up questions, and move fast.'],
               ].map(([step, title, description]) => (
                 <div key={step} className="relative text-center">
-                  <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full border-4 border-teal-900 bg-teal-800 text-3xl font-semibold text-amber-300 shadow-xl">
+                  <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full border-4 border-red-900 bg-red-800 text-3xl font-semibold text-slate-300 shadow-xl">
                     {step}
                   </div>
                   <h3 className="text-2xl font-semibold">{title}</h3>
-                  <p className="mt-3 text-[15px] leading-7 text-teal-100">{description}</p>
+                  <p className="mt-3 text-[15px] leading-7 text-red-100">{description}</p>
                 </div>
               ))}
             </div>
@@ -258,11 +260,11 @@ export default async function HomePage() {
 
         <footer className="bg-[var(--surface-50)] pt-20 pb-10">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="mb-20 rounded-[2rem] bg-amber-400 px-8 py-14 text-center shadow-xl shadow-amber-500/20 md:px-16">
-              <h2 className="font-[family-name:var(--font-display)] text-4xl font-bold text-[var(--surface-900)] sm:text-5xl">
+            <div className="mb-20 rounded-[2rem] bg-gradient-to-br from-red-800 to-red-950 px-8 py-14 text-center shadow-xl shadow-red-900/20 md:px-16">
+              <h2 className="font-[family-name:var(--font-display)] text-4xl font-bold text-white sm:text-5xl">
                 Ready to find your nest?
               </h2>
-              <p className="mx-auto mt-5 max-w-2xl text-lg text-amber-950/80">
+              <p className="mx-auto mt-5 max-w-2xl text-lg text-red-100">
                 Join the first wave of students using CribAI to find better-fit apartments
                 and summer subleases faster.
               </p>
@@ -276,18 +278,18 @@ export default async function HomePage() {
 
             <div className="flex flex-col items-center justify-between gap-5 text-sm text-[var(--surface-500)] md:flex-row">
               <div className="flex items-center gap-2">
-                <MapPin className="size-4 text-teal-800" />
+                <MapPin className="size-4 text-red-800" />
                 <span className="font-semibold text-[var(--surface-900)]">CribAI</span>
                 <span>© 2026. Built by students, for students.</span>
               </div>
               <div className="flex gap-6">
-                <Link href="/privacy" className="transition-colors hover:text-teal-800">
+                <Link href="/privacy" className="transition-colors hover:text-red-800">
                   Privacy
                 </Link>
-                <Link href="/terms" className="transition-colors hover:text-teal-800">
+                <Link href="/terms" className="transition-colors hover:text-red-800">
                   Terms
                 </Link>
-                <Link href="/explore" className="transition-colors hover:text-teal-800">
+                <Link href="/explore" className="transition-colors hover:text-red-800">
                   Explore
                 </Link>
               </div>

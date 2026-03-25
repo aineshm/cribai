@@ -44,7 +44,7 @@ export function LandingMobileMenu({ primaryHref, primaryText, agentHref }: Landi
             </Link>
             <Link
               href={primaryHref}
-              className="rounded-xl bg-teal-800 px-5 py-2.5 text-center text-sm font-medium text-white shadow-sm transition-colors hover:bg-teal-900"
+              className="rounded-xl bg-red-800 px-5 py-2.5 text-center text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-900"
               onClick={() => setOpen(false)}
             >
               {primaryText}

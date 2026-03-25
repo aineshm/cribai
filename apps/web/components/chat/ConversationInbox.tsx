@@ -86,7 +86,7 @@ export function ConversationInbox({
         <h1 className="text-lg font-semibold text-gray-900">Your Conversations</h1>
         <button
           onClick={onNewChat}
-          className="flex items-center gap-1.5 rounded-full bg-teal-800 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-900"
+          className="flex items-center gap-1.5 rounded-full bg-red-800 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-900"
         >
           <Plus className="size-4" />
           New Chat
@@ -109,7 +109,7 @@ export function ConversationInbox({
           <p className="text-sm text-gray-500">Could not load conversations</p>
           <button
             onClick={fetchConversations}
-            className="mt-3 text-sm font-medium text-teal-700 transition-colors hover:text-teal-800"
+            className="mt-3 text-sm font-medium text-red-700 transition-colors hover:text-red-800"
           >
             Tap to retry
           </button>
@@ -130,7 +130,7 @@ export function ConversationInbox({
           </p>
           <button
             onClick={onNewChat}
-            className="mt-5 flex items-center gap-1.5 rounded-full bg-teal-800 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-teal-900"
+            className="mt-5 flex items-center gap-1.5 rounded-full bg-red-800 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-900"
           >
             <Plus className="size-4" />
             New Chat

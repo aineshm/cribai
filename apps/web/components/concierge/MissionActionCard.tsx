@@ -150,9 +150,9 @@ function DraftReadyCard({ data }: { readonly data: Record<string, unknown> }) {
   };
 
   return (
-    <Card className="border-none bg-amber-50 ring-1 ring-amber-200">
+    <Card className="border-none bg-slate-50 ring-1 ring-slate-200">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-sm text-amber-900">
+        <CardTitle className="flex items-center gap-2 text-sm text-slate-900">
           <Edit3 className="size-4" />
           {count > 1 ? `${count} Drafts Ready for Review` : 'Draft Ready for Review'}
         </CardTitle>
@@ -161,9 +161,9 @@ function DraftReadyCard({ data }: { readonly data: Record<string, unknown> }) {
         {emails ? (
           <div className="space-y-2">
             {emails.map((email, i) => (
-              <div key={i} className="rounded bg-amber-100/50 px-2 py-1.5">
-                <p className="text-xs font-medium text-amber-700">{email.subject}</p>
-                <p className="mt-0.5 line-clamp-2 text-xs text-amber-800 leading-relaxed">
+              <div key={i} className="rounded bg-slate-100/50 px-2 py-1.5">
+                <p className="text-xs font-medium text-slate-700">{email.subject}</p>
+                <p className="mt-0.5 line-clamp-2 text-xs text-slate-800 leading-relaxed">
                   {email.text}
                 </p>
               </div>
@@ -171,8 +171,8 @@ function DraftReadyCard({ data }: { readonly data: Record<string, unknown> }) {
           </div>
         ) : (
           <div>
-            <p className="text-xs font-medium text-amber-700">{subject}</p>
-            <p className="mt-1 text-xs text-amber-800 leading-relaxed line-clamp-3">
+            <p className="text-xs font-medium text-slate-700">{subject}</p>
+            <p className="mt-1 text-xs text-slate-800 leading-relaxed line-clamp-3">
               {preview}
             </p>
           </div>
@@ -180,7 +180,7 @@ function DraftReadyCard({ data }: { readonly data: Record<string, unknown> }) {
         <div className="flex gap-2">
           <Button
             size="sm"
-            className="bg-amber-600 text-white hover:bg-amber-700"
+            className="bg-slate-600 text-white hover:bg-slate-700"
             onClick={handleApprove}
             disabled={sending}
           >
@@ -231,7 +231,7 @@ function NegotiationUpdateCard({
           <ArrowLeftRight className="size-4 text-muted-foreground" />
           <div className="text-center">
             <p className="text-xs text-muted-foreground">Counter</p>
-            <p className="text-lg font-semibold text-amber-600">
+            <p className="text-lg font-semibold text-slate-600">
               ${counterPrice.toLocaleString()}
             </p>
           </div>

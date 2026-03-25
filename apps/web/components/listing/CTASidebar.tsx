@@ -145,7 +145,7 @@ export function CTASidebar({
 
             {/* Primary CTA */}
             <Button
-              className="h-12 w-full rounded-xl bg-teal-800 text-base font-bold shadow-lg hover:bg-teal-900"
+              className="h-12 w-full rounded-xl bg-red-800 text-base font-bold shadow-lg hover:bg-red-900"
               onClick={() => setTourModalOpen(true)}
             >
               <Calendar className="size-4" />
@@ -154,7 +154,7 @@ export function CTASidebar({
 
             {/* Secondary CTA — amber accent */}
             <Button
-              className="h-12 w-full rounded-xl bg-amber-400 text-base font-bold text-amber-950 shadow-sm hover:bg-amber-500"
+              className="h-12 w-full rounded-xl bg-slate-400 text-base font-bold text-slate-950 shadow-sm hover:bg-slate-500"
               onClick={() => {
                 setDraftPrompt(`Tell me about this listing at ${listingAddress}.`);
                 setDraftListingId(listingId);

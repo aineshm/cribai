@@ -29,7 +29,7 @@ const STATUS_COLORS: Record<MissionStatus, string> = {
   running: 'bg-blue-500',
   active: 'bg-green-500',
   paused: 'bg-yellow-500',
-  waiting_approval: 'bg-amber-500',
+  waiting_approval: 'bg-slate-500',
   scheduled: 'bg-blue-500',
   completed: 'bg-gray-400',
   failed: 'bg-red-500',

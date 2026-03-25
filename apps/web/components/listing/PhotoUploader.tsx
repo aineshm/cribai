@@ -115,7 +115,7 @@ export function PhotoUploader({
 
       {/* Upload button */}
       {remainingSlots > 0 && (
-        <label className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 rounded-xl border border-dashed border-teal-300 cursor-pointer transition-colors">
+        <label className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-red-800 bg-red-50 hover:bg-red-100 rounded-xl border border-dashed border-red-300 cursor-pointer transition-colors">
           {uploading ? (
             <>
               <Loader2 className="size-4 animate-spin" />

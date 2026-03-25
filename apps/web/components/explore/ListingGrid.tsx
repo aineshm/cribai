@@ -13,7 +13,7 @@ export function ListingGrid({ listings }: ListingGridProps) {
   if (listings.length === 0) {
     return (
       <div className="rounded-[1.75rem] border border-dashed border-[var(--surface-300)] bg-white p-8 text-center shadow-sm">
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-teal-700">
+        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-red-700">
           No direct matches
         </p>
         <h3 className="mt-3 text-2xl font-semibold text-[var(--surface-900)]">

@@ -49,7 +49,7 @@ export function ListingContent({ listing }: ListingContentProps) {
         className="rounded-[1.75rem] border border-[var(--surface-200)] bg-white p-6 shadow-[0_16px_36px_rgba(15,23,42,0.05)]"
         variants={staggerItem}
       >
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-700">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-red-700">
           CribAI listing
         </p>
         <h1 className="mt-3 text-2xl font-bold text-foreground font-[family-name:var(--font-display)] md:text-3xl">
@@ -65,7 +65,7 @@ export function ListingContent({ listing }: ListingContentProps) {
         <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-foreground">
           {listing.beds !== null && (
             <div className="flex items-center gap-1.5 rounded-full bg-[var(--surface-50)] px-3 py-2">
-              <Bed className="size-4 text-teal-700" />
+              <Bed className="size-4 text-red-700" />
               <span>
                 {listing.subleaseDetails?.bedroomsAvailable != null
                   ? `${listing.subleaseDetails.bedroomsAvailable} of ${listing.beds} bed${listing.beds !== 1 ? 's' : ''} available`
@@ -75,7 +75,7 @@ export function ListingContent({ listing }: ListingContentProps) {
           )}
           {listing.baths !== null && (
             <div className="flex items-center gap-1.5 rounded-full bg-[var(--surface-50)] px-3 py-2">
-              <Bath className="size-4 text-teal-700" />
+              <Bath className="size-4 text-red-700" />
               <span>
                 {listing.baths} bath{listing.baths !== 1 ? 's' : ''}
               </span>
@@ -83,7 +83,7 @@ export function ListingContent({ listing }: ListingContentProps) {
           )}
           {listing.sqft !== null && (
             <div className="flex items-center gap-1.5 rounded-full bg-[var(--surface-50)] px-3 py-2">
-              <Maximize className="size-4 text-teal-700" />
+              <Maximize className="size-4 text-red-700" />
               <span>{listing.sqft.toLocaleString()} sqft</span>
             </div>
           )}
@@ -99,11 +99,11 @@ export function ListingContent({ listing }: ListingContentProps) {
 
         {/* Source + available date badges */}
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="capitalize border-teal-200 bg-teal-50 text-teal-800">
+          <Badge variant="outline" className="capitalize border-red-200 bg-red-50 text-red-800">
             {listing.source}
           </Badge>
           {listing.availableDate && (
-            <Badge variant="outline" className="gap-1 border-amber-200 bg-amber-50 text-amber-800">
+            <Badge variant="outline" className="gap-1 border-slate-200 bg-slate-50 text-slate-800">
               <Calendar className="size-3" />
               Available {listing.availableDate}
             </Badge>
@@ -197,7 +197,7 @@ export function ListingContent({ listing }: ListingContentProps) {
           <Separator />
           <motion.div className="space-y-3" variants={staggerItem}>
             <SectionHeading>Lease Details</SectionHeading>
-            <Card className="rounded-[1.5rem] border-teal-100 bg-teal-50/80">
+            <Card className="rounded-[1.5rem] border-red-100 bg-red-50/80">
               <CardContent className="p-4">
                 <p className="text-sm text-foreground">
                   <span className="font-medium">Lease Term:</span> {listing.leaseTerm}
@@ -214,9 +214,9 @@ export function ListingContent({ listing }: ListingContentProps) {
           <Separator />
           <motion.div className="space-y-3" variants={staggerItem}>
             <SectionHeading>Special Offers</SectionHeading>
-            <Card className="rounded-[1.5rem] border-amber-100 bg-amber-50/80">
+            <Card className="rounded-[1.5rem] border-slate-100 bg-slate-50/80">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-sm text-amber-800">
+                <CardTitle className="flex items-center gap-2 text-sm text-slate-800">
                   <Tag className="size-4" />
                   Current Promotions
                 </CardTitle>
@@ -242,7 +242,7 @@ export function ListingContent({ listing }: ListingContentProps) {
           {listing.contactEmail && (
             <a
               href={`mailto:${listing.contactEmail}`}
-              className="inline-flex items-center gap-2 rounded-xl bg-teal-800 px-4 py-2 text-sm text-white transition-colors hover:bg-teal-900"
+              className="inline-flex items-center gap-2 rounded-xl bg-red-800 px-4 py-2 text-sm text-white transition-colors hover:bg-red-900"
             >
               <Mail className="size-4" />
               {listing.contactEmail}
@@ -251,7 +251,7 @@ export function ListingContent({ listing }: ListingContentProps) {
           {listing.buildingPhone && (
             <a
               href={`tel:${listing.buildingPhone}`}
-              className="inline-flex items-center gap-2 rounded-xl bg-teal-800 px-4 py-2 text-sm text-white transition-colors hover:bg-teal-900"
+              className="inline-flex items-center gap-2 rounded-xl bg-red-800 px-4 py-2 text-sm text-white transition-colors hover:bg-red-900"
             >
               <Phone className="size-4" />
               {listing.buildingPhone}
@@ -325,7 +325,7 @@ function DetailChip({
 }) {
   return (
     <div className="flex items-start gap-2.5 rounded-xl border border-[var(--surface-200)] bg-[var(--surface-50)] p-3">
-      <Icon className="size-4 text-teal-700 mt-0.5 shrink-0" />
+      <Icon className="size-4 text-red-700 mt-0.5 shrink-0" />
       <div>
         <p className="text-xs text-muted-foreground">{label}</p>
         <p className="text-sm font-medium text-foreground capitalize">{value}</p>

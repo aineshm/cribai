@@ -17,7 +17,7 @@ import type { ExecutionLog, ExecutionLogStatus } from '@/lib/concierge-types';
 /** Maps each log status to a Tailwind background colour for the timeline dot. */
 const LOG_STATUS_COLORS: Record<ExecutionLogStatus, string> = {
   success: 'bg-green-500',
-  pending: 'bg-amber-500',
+  pending: 'bg-slate-500',
   error: 'bg-red-500',
   running: 'bg-blue-500',
 };

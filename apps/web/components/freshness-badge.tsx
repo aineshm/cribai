@@ -24,7 +24,7 @@ export function getFreshnessLabel(lastSeenAt: string): string {
 
 const levelStyles: Record<FreshnessLevel, string> = {
   fresh: 'bg-emerald-50 text-emerald-700',
-  aging: 'bg-amber-50 text-amber-700',
+  aging: 'bg-slate-50 text-slate-700',
   stale: 'bg-red-50 text-red-700',
 };
 

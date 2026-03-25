@@ -139,7 +139,7 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
                           ? 'bg-emerald-50 text-emerald-700'
                           : tour.status === 'cancelled'
                             ? 'bg-red-50 text-red-700'
-                            : 'bg-amber-50 text-amber-700'
+                            : 'bg-slate-50 text-slate-700'
                       }`}
                     >
                       {tour.status}

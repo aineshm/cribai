@@ -46,7 +46,7 @@ export function ViewToggle({ activeView, onViewChange }: ViewToggleProps) {
             {isActive && (
               <motion.div
                 layoutId="viewToggleIndicator"
-                className="absolute inset-0 -z-10 rounded-full bg-teal-50 shadow-sm"
+                className="absolute inset-0 -z-10 rounded-full bg-red-50 shadow-sm"
                 transition={springConfig.snappy}
               />
             )}

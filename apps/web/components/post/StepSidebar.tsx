@@ -38,9 +38,9 @@ export function StepSidebar({
                   className={cn(
                     'flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold transition-all',
                     isCompleted &&
-                      'bg-teal-800 text-white shadow-sm',
+                      'bg-red-800 text-white shadow-sm',
                     isCurrent &&
-                      'border-2 border-amber-400 bg-white text-teal-800 ring-4 ring-amber-400/20',
+                      'border-2 border-slate-400 bg-white text-red-800 ring-4 ring-slate-400/20',
                     isUpcoming &&
                       'border-2 border-gray-200 text-gray-400'
                   )}
@@ -58,7 +58,7 @@ export function StepSidebar({
                     className={cn(
                       'h-8 w-0.5 transition-colors',
                       isCompleted
-                        ? 'bg-teal-800'
+                        ? 'bg-red-800'
                         : 'bg-gray-200'
                     )}
                   />
@@ -71,7 +71,7 @@ export function StepSidebar({
                 onClick={() => onStepClick(index)}
                 className={cn(
                   'mt-1 text-sm font-medium transition-colors',
-                  isCurrent && 'text-teal-800 font-bold',
+                  isCurrent && 'text-red-800 font-bold',
                   isCompleted && 'text-gray-900',
                   isUpcoming && 'text-gray-400'
                 )}

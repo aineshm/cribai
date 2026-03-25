@@ -13,14 +13,14 @@ const ACTIVE_STATUSES = new Set(['pending', 'running', 'waiting_approval']);
 function statusIcon(status: string) {
   switch (status) {
     case 'completed':
-      return <CheckCircle2 className="size-4 text-teal-600" />;
+      return <CheckCircle2 className="size-4 text-red-600" />;
     case 'waiting_approval':
-      return <FileText className="size-4 text-amber-500" />;
+      return <FileText className="size-4 text-slate-500" />;
     case 'running':
       return (
         <span className="relative flex size-4 items-center justify-center">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal-400 opacity-50" />
-          <span className="relative inline-flex size-2 rounded-full bg-teal-600" />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-50" />
+          <span className="relative inline-flex size-2 rounded-full bg-red-600" />
         </span>
       );
     case 'failed':
@@ -43,9 +43,9 @@ function statusLabel(status: string): string {
 
 function statusLabelColor(status: string): string {
   switch (status) {
-    case 'completed': return 'text-teal-700';
-    case 'waiting_approval': return 'text-amber-600 font-semibold';
-    case 'running': return 'text-teal-600';
+    case 'completed': return 'text-red-700';
+    case 'waiting_approval': return 'text-slate-600 font-semibold';
+    case 'running': return 'text-red-600';
     case 'failed': return 'text-red-600';
     default: return 'text-gray-500';
   }
@@ -159,7 +159,7 @@ export function MessagesPageClient({
         {/* Header */}
         <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100 p-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-800 text-white">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-800 text-white">
               <Bot className="size-5" />
             </div>
             <div>
@@ -168,7 +168,7 @@ export function MessagesPageClient({
               </h1>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span
-                  className={`h-2 w-2 rounded-full ${isWorking ? 'bg-amber-400 animate-pulse' : 'bg-gray-300'}`}
+                  className={`h-2 w-2 rounded-full ${isWorking ? 'bg-slate-400 animate-pulse' : 'bg-gray-300'}`}
                 />
                 <span className="text-xs text-gray-500">
                   {isWorking ? 'Working' : 'Idle'}
@@ -179,17 +179,17 @@ export function MessagesPageClient({
 
           {/* Pending Review Banner */}
           {pendingApproval.length > 0 && (
-            <div className="mt-4 flex items-center justify-between rounded-xl bg-amber-50 border border-amber-200 px-4 py-3">
+            <div className="mt-4 flex items-center justify-between rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
               <div className="flex items-center gap-2">
-                <AlertCircle className="size-4 text-amber-500 shrink-0" />
-                <span className="text-sm font-medium text-amber-800">
+                <AlertCircle className="size-4 text-slate-500 shrink-0" />
+                <span className="text-sm font-medium text-slate-800">
                   Review required ({pendingApproval.length})
                 </span>
               </div>
               <button
                 type="button"
                 onClick={handleReviewFirst}
-                className="flex items-center gap-1 text-xs font-semibold text-amber-700 hover:text-amber-900 transition-colors"
+                className="flex items-center gap-1 text-xs font-semibold text-slate-700 hover:text-slate-900 transition-colors"
               >
                 Review <ArrowRight className="size-3" />
               </button>
@@ -227,8 +227,8 @@ export function MessagesPageClient({
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
           {displayedMissions.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-teal-50 mb-4">
-                <Sparkles className="size-7 text-teal-600" />
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 mb-4">
+                <Sparkles className="size-7 text-red-600" />
               </div>
               <p className="font-[family-name:var(--font-display)] text-lg font-bold text-gray-900">
                 {tab === 'active' ? 'Agent is idle' : 'No past missions'}
@@ -241,7 +241,7 @@ export function MessagesPageClient({
               {tab === 'active' && (
                 <a
                   href="/explore"
-                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-teal-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-teal-900 transition-colors"
+                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-red-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-900 transition-colors"
                 >
                   Open Discover <ArrowRight className="size-4" />
                 </a>
@@ -266,8 +266,8 @@ export function MessagesPageClient({
         ) : (
           <div className="flex flex-1 items-center justify-center text-center">
             <div>
-              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-teal-50 mb-4">
-                <Bot className="size-10 text-teal-600" />
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-red-50 mb-4">
+                <Bot className="size-10 text-red-600" />
               </div>
               <p className="font-[family-name:var(--font-display)] text-xl font-bold text-gray-900">
                 Select a mission
@@ -299,7 +299,7 @@ function MissionTaskCard({
       aria-pressed={isSelected}
       className={`w-full text-left p-4 rounded-2xl border transition-all ${
         isSelected
-          ? 'bg-white border-teal-200 shadow-sm ring-1 ring-teal-800/10'
+          ? 'bg-white border-red-200 shadow-sm ring-1 ring-red-800/10'
           : 'bg-white/60 border-transparent hover:bg-white hover:border-gray-200'
       }`}
     >
@@ -352,7 +352,7 @@ function MissionDetailPanel({ mission }: { readonly mission: LegacyMission }) {
         {/* Agent Summary */}
         <div className="rounded-2xl border border-gray-100 bg-gray-50 p-6">
           <div className="flex items-center gap-2 mb-3">
-            <Sparkles className="size-4 text-teal-700" />
+            <Sparkles className="size-4 text-red-700" />
             <h3 className="font-[family-name:var(--font-display)] font-bold text-gray-900">
               Agent Summary
             </h3>
@@ -379,7 +379,7 @@ function MissionDetailPanel({ mission }: { readonly mission: LegacyMission }) {
                     {mission.logs.map((log, i) => {
                       const tagColor = log.status === 'success' ? 'text-green-400'
                         : log.status === 'error' ? 'text-red-400'
-                        : 'text-amber-400';
+                        : 'text-slate-400';
                       return (
                         <p key={i} className="text-gray-300">
                           <span className={tagColor}>[{log.status.toUpperCase()}]</span>{' '}

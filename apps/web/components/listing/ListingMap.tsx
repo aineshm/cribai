@@ -32,10 +32,10 @@ export function ListingMap({ latitude, longitude, address, price }: ListingMapPr
       >
         <Marker latitude={latitude} longitude={longitude} anchor="bottom">
           <div className="flex flex-col items-center">
-            <div className="rounded-lg bg-teal-800 px-2 py-1 text-xs font-bold text-white shadow-md">
+            <div className="rounded-lg bg-red-800 px-2 py-1 text-xs font-bold text-white shadow-md">
               ${price.toLocaleString()}/mo
             </div>
-            <MapPin className="size-6 text-teal-800 drop-shadow-md -mt-0.5" fill="currentColor" />
+            <MapPin className="size-6 text-red-800 drop-shadow-md -mt-0.5" fill="currentColor" />
           </div>
         </Marker>
       </Map>

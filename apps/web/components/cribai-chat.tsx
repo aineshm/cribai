@@ -550,7 +550,7 @@ export function CribAIChat({
         {messages.length === 0 && (
           <div className="flex h-full items-center justify-center text-[var(--surface-500)]">
             <div className="text-center animate-fade-in">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-100 to-amber-50">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-red-100 to-slate-50">
                 <Sparkles className="h-7 w-7 text-[var(--primary-600)]" strokeWidth={1.5} />
               </div>
               <p className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-700)]">Ask AI anything</p>
@@ -588,14 +588,14 @@ export function CribAIChat({
                             <img src={listing.photoUrl} alt={listing.address} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300" />
                           </div>
                         ) : (
-                          <div className="h-24 bg-gradient-to-br from-teal-50 to-teal-100 flex items-center justify-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="text-teal-400"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                          <div className="h-24 bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="text-red-400"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
                           </div>
                         )}
                         <div className="px-3 py-2">
                           <p className="text-xs font-medium text-[var(--surface-800)] truncate">{listing.address}</p>
                           <div className="flex items-center justify-between mt-1">
-                            <span className="text-sm font-bold text-teal-800">${listing.price.toLocaleString()}</span>
+                            <span className="text-sm font-bold text-red-800">${listing.price.toLocaleString()}</span>
                             {listing.beds && <span className="text-[10px] text-[var(--surface-500)]">{listing.beds} bed</span>}
                           </div>
                         </div>
@@ -615,7 +615,7 @@ export function CribAIChat({
             <div
               className={`space-y-2 px-4 py-3 ${
                 msg.role === 'user'
-                  ? 'max-w-[80%] rounded-2xl rounded-br-sm bg-teal-800 text-white shadow-md'
+                  ? 'max-w-[80%] rounded-2xl rounded-br-sm bg-red-800 text-white shadow-md'
                   : 'max-w-[85%] lg:max-w-[70%] rounded-2xl rounded-bl-sm bg-gray-100/80 text-gray-800 border border-gray-200/50'
               }`}
             >

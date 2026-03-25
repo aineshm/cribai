@@ -414,7 +414,7 @@ describe('ExecutionLogs (AGENT-03)', () => {
     render(<ExecutionLogs logs={sampleLogs} />);
     const toggleButton = screen.getByRole('button', { name: /Execution Logs/ });
     fireEvent.click(toggleButton);
-    const pendingDots = document.querySelectorAll('.bg-amber-500');
+    const pendingDots = document.querySelectorAll('.bg-slate-500');
     expect(pendingDots.length).toBeGreaterThan(0);
   });
 
@@ -660,7 +660,7 @@ describe('MissionCard (AGENT-01)', () => {
 
   it('renders an amber status dot for waiting_approval missions', () => {
     render(<MissionCard mission={waitingApprovalMission} onClick={vi.fn()} />);
-    const amberDot = document.querySelector('.bg-amber-500');
+    const amberDot = document.querySelector('.bg-slate-500');
     expect(amberDot).toBeInTheDocument();
   });
 

@@ -46,7 +46,7 @@ export function MobileBottomBar({
           {/* Action Buttons */}
           <Button
             size="sm"
-            className="rounded-xl bg-teal-800 hover:bg-teal-900"
+            className="rounded-xl bg-red-800 hover:bg-red-900"
             onClick={() => setTourModalOpen(true)}
           >
             <Calendar className="size-4" />
@@ -55,7 +55,7 @@ export function MobileBottomBar({
           <Button
             variant="outline"
             size="sm"
-            className="rounded-xl border-teal-200 text-teal-800 hover:bg-teal-50"
+            className="rounded-xl border-red-200 text-red-800 hover:bg-red-50"
             onClick={() => {
               setDraftPrompt(`Tell me about this listing at ${listingAddress}.`);
               setDraftListingId(listingId);

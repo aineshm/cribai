@@ -17,8 +17,8 @@ interface ListingCardProps {
 const GRADIENTS = [
   'from-primary-200 to-primary-400',
   'from-secondary-200 to-secondary-400',
-  'from-teal-200 to-emerald-400',
-  'from-amber-200 to-orange-400',
+  'from-red-200 to-emerald-400',
+  'from-slate-200 to-orange-400',
   'from-rose-200 to-pink-400',
   'from-sky-200 to-blue-400',
   'from-violet-200 to-purple-400',
@@ -73,8 +73,8 @@ export function ListingCard({ listing }: ListingCardProps) {
 
           <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap items-center gap-2">
             {listing.source === 'sublease' && (
-              <Badge className="border-none bg-white/92 text-teal-800 shadow-sm backdrop-blur-sm">
-                <Sparkles className="mr-1 size-3 text-amber-500" />
+              <Badge className="border-none bg-white/92 text-red-800 shadow-sm backdrop-blur-sm">
+                <Sparkles className="mr-1 size-3 text-slate-500" />
                 Student sublease
               </Badge>
             )}
@@ -83,7 +83,7 @@ export function ListingCard({ listing }: ListingCardProps) {
                 variant="outline"
                 className="border-white/50 bg-white/82 text-[var(--surface-700)] backdrop-blur-sm"
               >
-                <Footprints className="mr-1 size-3 text-teal-700" />
+                <Footprints className="mr-1 size-3 text-red-700" />
                 Walk {listing.walkScore}
               </Badge>
             )}
@@ -92,7 +92,7 @@ export function ListingCard({ listing }: ListingCardProps) {
           <CardContent className="space-y-3 p-4">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-red-700">
                   CribAI match
                 </p>
                 <h3 className="mt-1 line-clamp-2 text-base font-semibold leading-snug text-[var(--surface-900)]">
@@ -108,23 +108,23 @@ export function ListingCard({ listing }: ListingCardProps) {
             </div>
 
             <div className="flex items-center gap-1.5 text-sm text-[var(--surface-500)]">
-              <MapPin className="size-3.5 shrink-0 text-teal-700" />
+              <MapPin className="size-3.5 shrink-0 text-red-700" />
               <span className="truncate">{listing.address}</span>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <span className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-50)] px-3 py-1.5 font-medium text-[var(--surface-700)]">
-                <Bed className="size-3.5 text-teal-700" />
+                <Bed className="size-3.5 text-red-700" />
                 {bedLabel}
               </span>
               {bathLabel && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-50)] px-3 py-1.5 font-medium text-[var(--surface-700)]">
-                  <Bath className="size-3.5 text-teal-700" />
+                  <Bath className="size-3.5 text-red-700" />
                   {bathLabel}
                 </span>
               )}
               {sourceLabel && listing.source !== 'sublease' && (
-                <span className="inline-flex rounded-full bg-amber-50 px-3 py-1.5 font-medium capitalize text-amber-800">
+                <span className="inline-flex rounded-full bg-slate-50 px-3 py-1.5 font-medium capitalize text-slate-800">
                   {sourceLabel}
                 </span>
               )}
@@ -136,8 +136,8 @@ export function ListingCard({ listing }: ListingCardProps) {
                 View full details
               </span>
               {listing.walkScore !== null && (
-                <span className="flex shrink-0 items-center gap-1 rounded-full bg-teal-50 px-2.5 py-1 font-medium text-teal-800">
-                  <Footprints className="size-3 text-amber-500" />
+                <span className="flex shrink-0 items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 font-medium text-red-800">
+                  <Footprints className="size-3 text-slate-500" />
                   Walk score {listing.walkScore}
                 </span>
               )}

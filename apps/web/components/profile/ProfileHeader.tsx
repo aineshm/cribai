@@ -32,11 +32,11 @@ export function ProfileHeader({
   return (
     <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm sm:p-8">
       <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
-        <Avatar className="size-24 shrink-0 bg-teal-800 text-3xl font-bold">
+        <Avatar className="size-24 shrink-0 bg-red-800 text-3xl font-bold">
           {avatarUrl ? (
             <AvatarImage src={avatarUrl} alt={`${name}'s profile photo`} />
           ) : null}
-          <AvatarFallback className="bg-teal-800 text-2xl font-bold text-white">
+          <AvatarFallback className="bg-red-800 text-2xl font-bold text-white">
             {initials}
           </AvatarFallback>
         </Avatar>
@@ -47,7 +47,7 @@ export function ProfileHeader({
               {name}
             </h1>
             {isVerified && (
-              <span className="flex items-center gap-1 rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800">
+              <span className="flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800">
                 <CheckCircle2 className="size-3.5" />
                 Verified Student
               </span>
@@ -58,11 +58,11 @@ export function ProfileHeader({
 
           <div className="mt-3 flex flex-wrap items-center justify-center gap-4 text-sm text-gray-500 sm:justify-start">
             <span className="flex items-center gap-1.5">
-              <GraduationCap className="size-4 text-teal-700" />
+              <GraduationCap className="size-4 text-red-700" />
               {university} &middot; Class of {graduationYear}
             </span>
             <span className="flex items-center gap-1.5">
-              <CalendarDays className="size-4 text-teal-700" />
+              <CalendarDays className="size-4 text-red-700" />
               Member since {memberSince}
             </span>
           </div>

@@ -79,7 +79,7 @@ export function EditListingForm({ listing, userId, onListingUpdated }: EditListi
     }
   }, [fields, listing, onListingUpdated]);
 
-  const INPUT_CLASS = 'rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none w-full';
+  const INPUT_CLASS = 'rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none w-full';
 
   if (!editing) {
     return (
@@ -87,7 +87,7 @@ export function EditListingForm({ listing, userId, onListingUpdated }: EditListi
         <button
           type="button"
           onClick={() => setEditing(true)}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 rounded-xl border border-teal-200 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-800 bg-red-50 hover:bg-red-100 rounded-xl border border-red-200 transition-colors"
         >
           <Pencil className="size-3.5" />
           Edit Listing
@@ -105,7 +105,7 @@ export function EditListingForm({ listing, userId, onListingUpdated }: EditListi
   }
 
   return (
-    <div className="rounded-xl border border-teal-200 bg-teal-50/30 p-5 space-y-4">
+    <div className="rounded-xl border border-red-200 bg-red-50/30 p-5 space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold text-gray-900">Edit Listing</h3>
         <button
@@ -216,7 +216,7 @@ export function EditListingForm({ listing, userId, onListingUpdated }: EditListi
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="flex-1 bg-teal-800 hover:bg-teal-900 disabled:opacity-60 text-white rounded-lg py-2.5 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+          className="flex-1 bg-red-800 hover:bg-red-900 disabled:opacity-60 text-white rounded-lg py-2.5 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
         >
           {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
           Save Changes

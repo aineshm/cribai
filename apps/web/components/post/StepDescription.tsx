@@ -66,7 +66,7 @@ export function StepDescription({
           <span
             className={`text-xs ${
               charCount > MAX_CHARS * 0.9
-                ? 'text-amber-600'
+                ? 'text-slate-600'
                 : 'text-muted-foreground'
             }`}
           >

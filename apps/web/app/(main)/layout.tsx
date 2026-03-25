@@ -67,9 +67,9 @@ export default async function MainLayout({
             <div className="mx-auto flex max-w-7xl items-center justify-between gap-6">
               <Link
                 href="/"
-                className="flex items-center gap-2 text-teal-800 transition-opacity hover:opacity-90"
+                className="flex items-center gap-2 text-red-800 transition-opacity hover:opacity-90"
               >
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-800 text-white shadow-sm">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-800 text-white shadow-sm">
                   <Home className="size-5" strokeWidth={2.5} />
                 </span>
                 <span className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight text-[var(--surface-900)]">
@@ -84,7 +84,7 @@ export default async function MainLayout({
                     <input
                       type="text"
                       placeholder={`Search near ${campusSlug === 'uw-madison' ? 'UW-Madison' : campusSlug}...`}
-                      className="w-full rounded-full border border-[var(--surface-200)] bg-[var(--surface-50)] py-2 pl-10 pr-4 text-sm text-[var(--surface-700)] focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/15"
+                      className="w-full rounded-full border border-[var(--surface-200)] bg-[var(--surface-50)] py-2 pl-10 pr-4 text-sm text-[var(--surface-700)] focus:border-red-700 focus:outline-none focus:ring-2 focus:ring-red-700/15"
                     />
                   </div>
                 </div>
@@ -95,27 +95,27 @@ export default async function MainLayout({
                   <>
                     <Link
                       href="/explore"
-                      className="hidden md:inline text-sm font-medium text-[var(--surface-600)] transition-colors hover:text-teal-800"
+                      className="hidden md:inline text-sm font-medium text-[var(--surface-600)] transition-colors hover:text-red-800"
                     >
                       Discover
                     </Link>
                     <Link
                       href="/messages"
-                      className="hidden md:flex items-center gap-1 text-sm font-medium text-[var(--surface-600)] transition-colors hover:text-teal-800"
+                      className="hidden md:flex items-center gap-1 text-sm font-medium text-[var(--surface-600)] transition-colors hover:text-red-800"
                     >
-                      <Sparkles className="size-4 text-amber-500" />
+                      <Sparkles className="size-4 text-slate-500" />
                       Agent
                     </Link>
                     <Link
                       href="/chat"
-                      className="hidden md:flex items-center gap-1.5 text-sm font-semibold text-teal-800 transition-colors hover:text-teal-900"
+                      className="hidden md:flex items-center gap-1.5 text-sm font-semibold text-red-800 transition-colors hover:text-red-900"
                     >
                       <MessageSquare className="size-4" />
                       Chat
                     </Link>
                     <Link
                       href="/profile"
-                      className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-100 text-sm font-semibold text-teal-800 shadow-sm transition-colors hover:bg-teal-200"
+                      className="flex h-9 w-9 items-center justify-center rounded-full bg-red-100 text-sm font-semibold text-red-800 shadow-sm transition-colors hover:bg-red-200"
                       aria-label="Open profile"
                     >
                       {(resolvedUser?.user_metadata?.full_name as string | undefined)?.slice(0, 1) ?? 'U'}

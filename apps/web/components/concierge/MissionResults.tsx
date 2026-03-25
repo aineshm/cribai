@@ -29,9 +29,9 @@ export function MissionResults({ result }: MissionResultsProps) {
     // Empty housing search — no matches found
     if (report && report.totalSearched != null) {
       return (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
-          <h4 className="text-sm font-bold text-amber-800 mb-1">No Matches Found</h4>
-          <p className="text-xs text-amber-700">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+          <h4 className="text-sm font-bold text-slate-800 mb-1">No Matches Found</h4>
+          <p className="text-xs text-slate-700">
             Searched {report.totalSearched as number} listing(s) but none matched your criteria. Try broadening your search.
           </p>
         </div>
@@ -76,7 +76,7 @@ export function MissionResults({ result }: MissionResultsProps) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h4 className="flex items-center gap-2 text-sm font-bold text-gray-900">
-          <Trophy className="size-4 text-amber-500" />
+          <Trophy className="size-4 text-slate-500" />
           Top {items.length} Results
         </h4>
         {totalSearched > 0 && (
@@ -91,11 +91,11 @@ export function MissionResults({ result }: MissionResultsProps) {
           <Link
             key={item.listingId}
             href={`/listing/${item.listingId}`}
-            className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 bg-white hover:border-teal-200 hover:bg-teal-50/30 transition-all"
+            className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 bg-white hover:border-red-200 hover:bg-red-50/30 transition-all"
           >
             {/* Rank badge */}
             <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold ${
-              item.rank === 1 ? 'bg-amber-100 text-amber-700' :
+              item.rank === 1 ? 'bg-slate-100 text-slate-700' :
               item.rank === 2 ? 'bg-gray-100 text-gray-600' :
               'bg-gray-50 text-gray-500'
             }`}>
@@ -112,7 +112,7 @@ export function MissionResults({ result }: MissionResultsProps) {
                 </span>
                 {item.reviewRating != null && (
                   <span className="flex items-center gap-1">
-                    <Star className="size-3 text-amber-500" fill="currentColor" />
+                    <Star className="size-3 text-slate-500" fill="currentColor" />
                     {item.reviewRating.toFixed(1)}
                   </span>
                 )}
