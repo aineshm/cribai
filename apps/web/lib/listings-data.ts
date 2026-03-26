@@ -6,7 +6,8 @@
 
 import { createSecretClient } from '@campusnest/supabase/server';
 import { parseWkbPoint } from '@campusnest/utils';
-import type { ExploreListing, ListingDetail, SubleaseDetails } from './listing-types';
+import { findNearestLandmark } from './campus-landmarks';
+import type { ExploreListing, FairnessData, ListingDetail, PropertyDetails, SubleaseDetails } from './listing-types';
 
 /* ------------------------------------------------------------------ */
 /*  Raw DB row shapes (snake_case from Supabase)                      */
@@ -32,6 +33,8 @@ interface ListingRow {
   readonly longitude: number | null;
   readonly creator_id: string | null;
   readonly contact_email: string | null;
+  readonly true_cost_total: number | null;
+  readonly fairness_data: Record<string, unknown> | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -174,6 +177,32 @@ function buildDescription(row: ListingRow): string {
   return parts.join(' ');
 }
 
+/** Parse fairness_data JSONB into typed FairnessData or null */
+function parseFairnessData(raw: Record<string, unknown> | null): FairnessData | null {
+  if (!raw) return null;
+  const comparableCount = typeof raw.comparableCount === 'number' ? raw.comparableCount : null;
+  const percentile = typeof raw.percentile === 'number' ? raw.percentile : null;
+  const predictedRent = typeof raw.predictedRent === 'number' ? raw.predictedRent : null;
+  const delta = typeof raw.delta === 'number' ? raw.delta : null;
+
+  if (comparableCount === null || percentile === null || predictedRent === null || delta === null) {
+    return null;
+  }
+
+  const breakdown = raw.breakdown as Record<string, unknown> | undefined;
+  const parsedBreakdown = breakdown && typeof breakdown.score === 'number'
+    ? {
+        mean: typeof breakdown.mean === 'number' ? breakdown.mean : 0,
+        median: typeof breakdown.median === 'number' ? breakdown.median : 0,
+        min: typeof breakdown.min === 'number' ? breakdown.min : 0,
+        max: typeof breakdown.max === 'number' ? breakdown.max : 0,
+        score: breakdown.score,
+      }
+    : undefined;
+
+  return { comparableCount, percentile, predictedRent, delta, breakdown: parsedBreakdown };
+}
+
 /** Extract sublease-specific fields from raw_data */
 function extractSubleaseDetails(rawData: Record<string, unknown> | null): SubleaseDetails {
   if (!rawData) {
@@ -192,6 +221,54 @@ function extractSubleaseDetails(rawData: Record<string, unknown> | null): Sublea
     roommateInfo: typeof rawData.roommate_info === 'string' ? rawData.roommate_info : null,
     genderRestriction: typeof rawData.gender_restriction === 'string' ? rawData.gender_restriction : null,
     unitNumber: typeof rawData.unit_number === 'string' ? rawData.unit_number : null,
+  };
+}
+
+/** Extract property details from raw_data for scraped listings */
+function extractPropertyDetails(rawData: Record<string, unknown> | null): PropertyDetails {
+  if (!rawData) {
+    return {
+      depositFeeMin: null, depositFeeMax: null, applicationFee: null,
+      petPolicy: null, walkScoreDescription: null, bikeScoreDescription: null,
+      transitScoreDescription: null, isStudentHousing: null,
+    };
+  }
+  // Zillow stores fee/deposit info under buildingAttributes; check both locations
+  const attrs = rawData.buildingAttributes as Record<string, unknown> | undefined;
+
+  const depositMin = typeof rawData.depositFeeMin === 'number'
+    ? rawData.depositFeeMin
+    : typeof attrs?.depositFeeMin === 'number' ? attrs.depositFeeMin : null;
+  const depositMax = typeof rawData.depositFeeMax === 'number'
+    ? rawData.depositFeeMax
+    : typeof attrs?.depositFeeMax === 'number' ? attrs.depositFeeMax : null;
+  const appFee = typeof rawData.applicationFee === 'number'
+    ? rawData.applicationFee
+    : typeof attrs?.applicationFee === 'number' ? attrs.applicationFee : null;
+
+  // Build a short pet policy string from petPolicies array
+  let petPolicy: string | null = null;
+  const petPolicies = (rawData.petPolicies ?? attrs?.petPolicies) as readonly string[] | undefined;
+  if (petPolicies && petPolicies.length > 0) {
+    const labels = petPolicies.map((p: string) =>
+      p.replace(/([A-Z])/g, ' $1').trim(),
+    );
+    petPolicy = labels.join(', ');
+  }
+
+  const walkObj = rawData.walkScore as Record<string, unknown> | undefined;
+  const bikeObj = rawData.bikeScore as Record<string, unknown> | undefined;
+  const transitObj = rawData.transitScore as Record<string, unknown> | undefined;
+
+  return {
+    depositFeeMin: depositMin as number | null,
+    depositFeeMax: depositMax as number | null,
+    applicationFee: appFee as number | null,
+    petPolicy,
+    walkScoreDescription: typeof walkObj?.description === 'string' ? walkObj.description : null,
+    bikeScoreDescription: typeof bikeObj?.description === 'string' ? bikeObj.description : null,
+    transitScoreDescription: typeof transitObj?.description === 'string' ? transitObj.description : null,
+    isStudentHousing: typeof rawData.isStudentHousing === 'boolean' ? rawData.isStudentHousing : null,
   };
 }
 
@@ -226,6 +303,15 @@ function toExploreListing(row: ListingRow): ExploreListing {
 }
 
 function toListingDetail(row: ListingRow): ListingDetail {
+  // Resolve coordinates once for reuse (latitude/longitude + nearestLandmark)
+  const lat = row.latitude != null ? Number(row.latitude) : null;
+  const lng = row.longitude != null ? Number(row.longitude) : null;
+  const coords = (lat != null && lng != null)
+    ? { latitude: lat, longitude: lng }
+    : parseWkbPoint(row.location);
+  const resolvedLat = coords?.latitude ?? null;
+  const resolvedLng = coords?.longitude ?? null;
+
   return {
     id: row.id,
     title: deriveTitle(row),
@@ -252,16 +338,15 @@ function toListingDetail(row: ListingRow): ListingDetail {
         .filter(Boolean),
     creatorId: row.creator_id ?? null,
     contactEmail: row.contact_email ?? null,
-    ...(() => {
-      const lat = row.latitude != null ? Number(row.latitude) : null;
-      const lng = row.longitude != null ? Number(row.longitude) : null;
-      const coords = (lat != null && lng != null) ? { latitude: lat, longitude: lng } : parseWkbPoint(row.location);
-      return {
-        latitude: coords?.latitude ?? null,
-        longitude: coords?.longitude ?? null,
-      };
-    })(),
+    latitude: resolvedLat,
+    longitude: resolvedLng,
+    nearestLandmark: (resolvedLat != null && resolvedLng != null)
+      ? findNearestLandmark(resolvedLat, resolvedLng)
+      : null,
+    trueCostTotal: row.true_cost_total ? Number(row.true_cost_total) : null,
+    fairnessData: parseFairnessData(row.fairness_data),
     subleaseDetails: row.source === 'sublease' ? extractSubleaseDetails(row.raw_data) : null,
+    propertyDetails: row.source !== 'sublease' ? extractPropertyDetails(row.raw_data) : null,
   };
 }
 
@@ -289,6 +374,8 @@ const EXPLORE_SELECT = [
   'longitude',
   'creator_id',
   'contact_email',
+  'true_cost_total',
+  'fairness_data',
 ].join(', ');
 
 /** Fetch active listings for the explore page (public, bypasses RLS) */

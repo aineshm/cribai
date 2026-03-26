@@ -19,12 +19,19 @@ import {
   Car,
   Sofa,
   Clock,
+  DollarSign,
+  PawPrint,
+  Banknote,
+  GraduationCap,
+  FileText,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { staggerContainer, staggerItem } from '@/lib/animations';
 import { AmenitiesGrid } from './AmenitiesGrid';
+import { TrueCostSection } from './TrueCostSection';
+import { getCategoryLabel } from '@/lib/campus-landmarks';
 import type { ListingDetail } from '@/lib/listing-types';
 
 interface ListingContentProps {
@@ -60,6 +67,19 @@ export function ListingContent({ listing }: ListingContentProps) {
           <MapPin className="size-4 shrink-0" />
           <span>{listing.address}</span>
         </div>
+
+        {listing.nearestLandmark && (
+          <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="ml-6 text-red-700 font-medium">
+              Near {listing.nearestLandmark.name}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              ({listing.nearestLandmark.walkMinutes > 0
+                ? `~${listing.nearestLandmark.walkMinutes} min walk`
+                : 'less than 1 min walk'})
+            </span>
+          </div>
+        )}
 
         {/* Beds / Baths / Sqft */}
         <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-foreground">
@@ -116,6 +136,16 @@ export function ListingContent({ listing }: ListingContentProps) {
         </div>
       </motion.div>
 
+      {/* True Cost Breakdown */}
+      <Separator />
+      <TrueCostSection
+        price={listing.price}
+        amenities={listing.amenities}
+        trueCostTotal={listing.trueCostTotal}
+        fairnessScore={listing.fairnessData?.breakdown?.score ?? listing.fairnessScore}
+        fairnessData={listing.fairnessData}
+      />
+
       {/* Description — hidden when empty or just an address restatement */}
       {listing.description && listing.description.length > 50 && (
         <>
@@ -159,23 +189,94 @@ export function ListingContent({ listing }: ListingContentProps) {
         </>
       )}
 
-      {/* Walk / Bike / Transit Scores */}
-      {hasScores && (
+      {/* Property Details (non-sublease listings) */}
+      {listing.propertyDetails && hasPropertyDetails(listing.propertyDetails) && (
         <>
           <Separator />
-          <motion.div className="space-y-3" variants={staggerItem}>
-            <SectionHeading>Location Scores</SectionHeading>
-            <div className="grid grid-cols-3 gap-3">
-              {listing.walkScore !== null && (
-                <ScoreCard icon={Footprints} label="Walk Score" score={listing.walkScore} />
+          <motion.div className="space-y-3 rounded-[1.75rem] border border-[var(--surface-200)] bg-white p-6 shadow-[0_14px_34px_rgba(15,23,42,0.04)]" variants={staggerItem}>
+            <SectionHeading>Property Details</SectionHeading>
+            <div className="grid grid-cols-2 gap-3">
+              {listing.leaseTerm && (
+                <DetailChip icon={FileText} label="Lease Term" value={listing.leaseTerm} />
               )}
-              {listing.bikeScore !== null && (
-                <ScoreCard icon={Bike} label="Bike Score" score={listing.bikeScore} />
+              {listing.propertyDetails.depositFeeMin !== null && (
+                <DetailChip
+                  icon={Banknote}
+                  label="Security Deposit"
+                  value={formatDepositRange(listing.propertyDetails.depositFeeMin, listing.propertyDetails.depositFeeMax)}
+                />
               )}
-              {listing.transitScore !== null && (
-                <ScoreCard icon={Bus} label="Transit Score" score={listing.transitScore} />
+              {listing.propertyDetails.applicationFee !== null && (
+                <DetailChip icon={DollarSign} label="Application Fee" value={`$${listing.propertyDetails.applicationFee}`} />
+              )}
+              {listing.propertyDetails.petPolicy && (
+                <DetailChip icon={PawPrint} label="Pets" value={listing.propertyDetails.petPolicy} />
+              )}
+              {listing.propertyDetails.isStudentHousing === true && (
+                <DetailChip icon={GraduationCap} label="Housing Type" value="Student Housing" />
               )}
             </div>
+          </motion.div>
+        </>
+      )}
+
+      {/* Location & Scores */}
+      {(listing.nearestLandmark || hasScores) && (
+        <>
+          <Separator />
+          <motion.div className="space-y-4 rounded-[1.75rem] border border-[var(--surface-200)] bg-white p-6 shadow-[0_14px_34px_rgba(15,23,42,0.04)]" variants={staggerItem}>
+            <SectionHeading>Location</SectionHeading>
+
+            {listing.nearestLandmark && (
+              <div className="flex items-start gap-3 rounded-xl border border-red-100 bg-red-50/60 p-4">
+                <MapPin className="size-5 text-red-700 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    Near {listing.nearestLandmark.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {getCategoryLabel(listing.nearestLandmark.category)}
+                    {' \u00b7 '}
+                    {listing.nearestLandmark.distanceKm < 0.1
+                      ? 'Less than 100m away'
+                      : `${(listing.nearestLandmark.distanceKm * 1000).toFixed(0)}m away`}
+                    {' \u00b7 '}
+                    {listing.nearestLandmark.walkMinutes > 0
+                      ? `~${listing.nearestLandmark.walkMinutes} min walk`
+                      : '< 1 min walk'}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {hasScores && (
+              <div className="grid grid-cols-3 gap-3">
+                {listing.walkScore !== null && (
+                  <ScoreCard
+                    icon={Footprints}
+                    label="Walk Score"
+                    score={listing.walkScore}
+                    description={listing.propertyDetails?.walkScoreDescription ?? undefined}
+                  />
+                )}
+                {listing.bikeScore !== null && (
+                  <ScoreCard
+                    icon={Bike}
+                    label="Bike Score"
+                    score={listing.bikeScore}
+                    description={listing.propertyDetails?.bikeScoreDescription ?? undefined}
+                  />
+                )}
+                {listing.transitScore !== null && (
+                  <ScoreCard
+                    icon={Bus}
+                    label="Transit Score"
+                    score={listing.transitScore}
+                    description={listing.propertyDetails?.transitScoreDescription ?? undefined}
+                  />
+                )}
+              </div>
+            )}
           </motion.div>
         </>
       )}
@@ -191,8 +292,8 @@ export function ListingContent({ listing }: ListingContentProps) {
         </>
       )}
 
-      {/* Lease Term */}
-      {listing.leaseTerm && (
+      {/* Lease Term — only show standalone card when there's no Property Details section */}
+      {listing.leaseTerm && !listing.propertyDetails && (
         <>
           <Separator />
           <motion.div className="space-y-3" variants={staggerItem}>
@@ -293,10 +394,12 @@ function ScoreCard({
   icon: Icon,
   label,
   score,
+  description,
 }: {
   readonly icon: React.ElementType;
   readonly label: string;
   readonly score: number;
+  readonly description?: string;
 }) {
   const color =
     score >= 70
@@ -310,6 +413,9 @@ function ScoreCard({
       <Icon className={`size-5 ${color}`} />
       <span className={`text-xl font-bold ${color}`}>{score}</span>
       <span className="text-xs text-muted-foreground">{label}</span>
+      {description && (
+        <span className="text-[10px] text-muted-foreground text-center leading-tight">{description}</span>
+      )}
     </div>
   );
 }
@@ -332,4 +438,22 @@ function DetailChip({
       </div>
     </div>
   );
+}
+
+/** Check whether a PropertyDetails object has any non-null fields worth displaying */
+function hasPropertyDetails(details: NonNullable<ListingDetail['propertyDetails']>): boolean {
+  return (
+    details.depositFeeMin !== null ||
+    details.applicationFee !== null ||
+    details.petPolicy !== null ||
+    details.isStudentHousing === true
+  );
+}
+
+/** Format a deposit range like "$500" or "$500 - $2,410" */
+function formatDepositRange(min: number, max: number | null): string {
+  if (max !== null && max !== min) {
+    return `$${min.toLocaleString()} - $${max.toLocaleString()}`;
+  }
+  return `$${min.toLocaleString()}`;
 }
