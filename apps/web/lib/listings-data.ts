@@ -302,7 +302,7 @@ export async function fetchExploreListings(): Promise<readonly ExploreListing[]>
     .gte('rent_monthly', 200)  // Filter out spam listings ($0, $1, $100 Craigslist junk)
     .order('fairness_score', { ascending: false, nullsFirst: false })
     .order('last_seen_at', { ascending: false })
-    .limit(3000);
+    .range(0, 2999);
 
   if (error) {
     console.error('[listings-data] fetchExploreListings error:', error);
