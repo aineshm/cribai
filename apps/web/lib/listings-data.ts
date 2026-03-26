@@ -300,6 +300,7 @@ export async function fetchExploreListings(): Promise<readonly ExploreListing[]>
     .select(EXPLORE_SELECT)
     .eq('is_active', true)
     .gte('rent_monthly', 200)  // Filter out spam listings ($0, $1, $100 Craigslist junk)
+    .not('location', 'is', null)  // Only listings with coordinates (map + grid need them)
     .order('fairness_score', { ascending: false, nullsFirst: false })
     .order('last_seen_at', { ascending: false })
     .range(0, 2999);
