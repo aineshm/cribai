@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, type CSSProperties } from 'react';
 import { createClient } from '@campusnest/supabase/client';
-import { Sparkles, Send } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { ChatBlockRenderer } from './chat/chat-block-renderer';
 import type { ChatBlock } from './chat/chat-block-renderer';
 
@@ -641,7 +641,7 @@ export function CribAIChat({
 
       {/* Input */}
       <div className="safe-area-pb border-t border-[var(--surface-200)]/60 p-4 glass rounded-b-2xl">
-        <div className="flex gap-2">
+        <div className="flex">
           <input
             type="text"
             value={input}
@@ -655,28 +655,10 @@ export function CribAIChat({
             }}
             onKeyDown={handleKeyDown}
             placeholder={initialAddress ? `Ask about ${initialAddress}...` : "Ask about housing, compare apartments, schedule tours..."}
-            className="flex-1 rounded-xl border border-[var(--surface-200)] bg-white px-4 py-2.5 text-sm placeholder:text-[var(--surface-400)] focus:border-[var(--primary-500)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]/20 transition-all duration-200"
+            className="w-full rounded-xl border border-[var(--surface-200)] bg-white px-4 py-2.5 text-sm placeholder:text-[var(--surface-400)] focus:border-[var(--primary-500)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]/20 transition-all duration-200"
             disabled={isStreaming}
-            aria-label="Chat message input"
+            aria-label="Chat message input — press Enter to send"
           />
-          <button
-            onClick={() => sendMessage()}
-            disabled={isStreaming || !input.trim()}
-            className="rounded-xl bg-[var(--primary-600)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--primary-700)] hover:shadow-lg hover:shadow-[var(--primary-600)]/20 disabled:opacity-50 disabled:shadow-none transition-all duration-300"
-            aria-label={isStreaming ? 'Thinking' : 'Send message'}
-          >
-            {isStreaming ? (
-              <span className="inline-flex items-center gap-1.5">
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-white/80 animate-pulse" />
-                Thinking
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5">
-                Send
-                <Send className="h-4 w-4" strokeWidth={2} />
-              </span>
-            )}
-          </button>
         </div>
       </div>
     </div>

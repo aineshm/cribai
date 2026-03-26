@@ -77,7 +77,7 @@ export default async function HomePage() {
       </nav>
 
       <main>
-        <section className="relative overflow-hidden pt-16 pb-20 lg:pt-24">
+        <section className="relative pt-16 pb-20 lg:pt-24">
           <div className="absolute -top-10 -right-20 h-[28rem] w-[28rem] rounded-full bg-red-100/60 blur-[100px]" />
           <div className="absolute -bottom-10 -left-20 h-80 w-80 rounded-full bg-stone-200/50 blur-[80px]" />
           <div className="relative mx-auto grid w-full max-w-7xl gap-12 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
