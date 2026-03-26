@@ -28,6 +28,8 @@ interface ListingRow {
   readonly description: string | null;
   readonly raw_data: Record<string, unknown> | null;
   readonly location: string | null;
+  readonly latitude: number | null;
+  readonly longitude: number | null;
   readonly creator_id: string | null;
   readonly contact_email: string | null;
 }
@@ -48,7 +50,10 @@ function sanitizeText(text: string): string {
 
 function deriveTitle(row: ListingRow): string {
   const buildingName = row.raw_data?.buildingName as string | undefined;
-  if (buildingName) return sanitizeText(buildingName);
+  if (buildingName) {
+    const clean = sanitizeText(buildingName);
+    if (clean) return clean;
+  }
 
   // For subleases, build a descriptive title from beds + street
   const street = sanitizeText(row.address.split(',')[0]?.trim() ?? row.address);
@@ -195,7 +200,11 @@ function extractSubleaseDetails(rawData: Record<string, unknown> | null): Sublea
 /* ------------------------------------------------------------------ */
 
 function toExploreListing(row: ListingRow): ExploreListing {
-  const coords = parseWkbPoint(row.location);
+  // Prefer DB generated columns (latitude/longitude) over WKB parsing — more reliable
+  const lat = row.latitude != null ? Number(row.latitude) : null;
+  const lng = row.longitude != null ? Number(row.longitude) : null;
+  // Fallback to WKB parsing only if generated columns are missing
+  const coords = (lat != null && lng != null) ? { latitude: lat, longitude: lng } : parseWkbPoint(row.location);
   return {
     id: row.id,
     title: deriveTitle(row),
@@ -244,7 +253,9 @@ function toListingDetail(row: ListingRow): ListingDetail {
     creatorId: row.creator_id ?? null,
     contactEmail: row.contact_email ?? null,
     ...(() => {
-      const coords = parseWkbPoint(row.location);
+      const lat = row.latitude != null ? Number(row.latitude) : null;
+      const lng = row.longitude != null ? Number(row.longitude) : null;
+      const coords = (lat != null && lng != null) ? { latitude: lat, longitude: lng } : parseWkbPoint(row.location);
       return {
         latitude: coords?.latitude ?? null,
         longitude: coords?.longitude ?? null,
@@ -274,6 +285,8 @@ const EXPLORE_SELECT = [
   'description',
   'raw_data',
   'location',
+  'latitude',
+  'longitude',
   'creator_id',
   'contact_email',
 ].join(', ');
