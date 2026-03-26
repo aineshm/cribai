@@ -86,6 +86,7 @@ export class ZillowScraper extends BaseScraper {
       const amenities = extractAmenities(building);
       const sourceUrl = `https://www.zillow.com${building.bdpUrl}`;
 
+      const buildingAttrs = building.buildingAttributes as Record<string, unknown> | undefined;
       const rawData: Record<string, unknown> = {
         buildingName: building.buildingName,
         walkScore: building.walkScore ?? null,
@@ -94,6 +95,10 @@ export class ZillowScraper extends BaseScraper {
         specialOffers: building.specialOffers ?? null,
         buildingPhoneNumber: building.buildingPhoneNumber ?? null,
         isStudentHousing: building.isStudentHousing ?? null,
+        depositFeeMin: (buildingAttrs?.depositFeeMin as number) ?? null,
+        depositFeeMax: (buildingAttrs?.depositFeeMax as number) ?? null,
+        applicationFee: (buildingAttrs?.applicationFee as number) ?? null,
+        petPolicies: (buildingAttrs?.petPolicies as readonly string[]) ?? null,
         scrapedAt: new Date().toISOString(),
       };
 
