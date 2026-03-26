@@ -72,7 +72,13 @@ async function semanticSearch(
     context.supabase,
   );
 
-  const queryVector = await generateQueryEmbedding(parsed.semantic_query!);
+  let queryVector: readonly number[];
+  try {
+    queryVector = await generateQueryEmbedding(parsed.semantic_query!);
+  } catch (err) {
+    console.error('[search-listings] embedding generation failed, falling back to SQL:', err);
+    return sqlSearch(parsed, limit, context);
+  }
 
   // Default radius: ~1 mile (1600m). Increase for broader landmarks like "State Street"
   const DEFAULT_RADIUS_M = 1600;

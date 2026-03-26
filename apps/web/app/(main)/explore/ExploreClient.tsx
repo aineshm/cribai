@@ -227,6 +227,7 @@ export function ExploreClient({ listings }: ExploreClientProps) {
             onSearchContext={handleSearchContext}
             onMapListings={handleMapListings}
             onChatReset={resetAiResults}
+            suppressInlineMap
             className="flex flex-1 flex-col min-h-0"
             featuredListings={listings.slice(0, 6).map(l => ({
               id: l.id,

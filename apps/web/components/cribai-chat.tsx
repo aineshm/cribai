@@ -73,6 +73,8 @@ interface CribAIChatProps {
   readonly className?: string;
   /** Featured listings to display as mini-cards in the empty state */
   readonly featuredListings?: readonly { id: string; title: string; address: string; price: number; photoUrl: string | null; beds: number | null }[];
+  /** When true, suppress inline map blocks in AI responses (e.g. explore page already has a persistent MapPanel). */
+  readonly suppressInlineMap?: boolean;
 }
 
 const CHAT_STORAGE_KEY = 'cribai-chat-messages';
@@ -197,6 +199,7 @@ export function CribAIChat({
   onChatReset,
   className,
   featuredListings,
+  suppressInlineMap,
 }: CribAIChatProps) {
   const [messages, setMessages] = useState<readonly Message[]>([]);
   const [input, setInput] = useState('');
@@ -624,6 +627,7 @@ export function CribAIChat({
                   key={j}
                   block={block}
                   campusSlug={campusSlug}
+                  suppressInlineMap={suppressInlineMap}
                 />
               ))}
               {msg.blocks.length === 0 && (

@@ -29,9 +29,11 @@ function assertUnreachable(value: never): never {
 interface ChatBlockRendererProps {
   readonly block: ChatBlock;
   readonly campusSlug: string;
+  /** When true, skip rendering inline map blocks (e.g. explore page already has a persistent MapPanel). */
+  readonly suppressInlineMap?: boolean;
 }
 
-export const ChatBlockRenderer = memo(function ChatBlockRenderer({ block, campusSlug }: ChatBlockRendererProps) {
+export const ChatBlockRenderer = memo(function ChatBlockRenderer({ block, campusSlug, suppressInlineMap }: ChatBlockRendererProps) {
   switch (block.type) {
     case 'text':
       return (
@@ -86,6 +88,7 @@ export const ChatBlockRenderer = memo(function ChatBlockRenderer({ block, campus
       return <ChatToolIndicator toolName={block.toolName} />;
 
     case 'map':
+      if (suppressInlineMap) return null;
       return <ChatMapBlock block={block} campusSlug={campusSlug} />;
 
     case 'web_result':
