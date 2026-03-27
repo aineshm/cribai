@@ -60,7 +60,7 @@ export async function getListingDetail(
   ].join('\n');
 
   return {
-    modelContext: modelContext + '\n\n[If the user wants a comprehensive analysis, suggest: "Want me to run a deep dive? I\'ll research reviews, compare similar listings, and calculate the true cost."]',
+    modelContext,
     clientBlock: { type: 'listing_card', listings: [listing] },
   };
 }
