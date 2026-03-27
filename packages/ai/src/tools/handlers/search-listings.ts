@@ -178,8 +178,8 @@ async function semanticSearch(
     ? `\n[Geographic filter: results within ~1 mile of ${landmark.name} (${landmark.category})]`
     : '';
   const uniqueHint = `\n\n[Unique properties: ${uniqueCount}. If no unique properties matched, consider using web_search to find more options.]`;
-  const deepSearchCta = filtered.length > 0
-    ? '\n\n[Always end your response by offering: "Want me to run a deep search? I\'ll research reviews, compare prices, and find the best matches for your specific needs."]'
+  const toolChainCta = filtered.length > 0
+    ? '\n\n[If the user\'s question requires deeper analysis of specific listings, call get_listing_detail or compare_listings on results above.]'
     : '';
   const modelContext = filtered.length === 0
     ? 'No listings found matching the criteria.' + geoHint + uniqueHint
@@ -188,7 +188,7 @@ async function semanticSearch(
           (l, i) =>
             `${i + 1}. ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10 [listing_id:${l.id}]${l.source && l.source !== 'unknown' ? ` (source: ${l.source})` : ''}`,
         )
-        .join('\n')}\n\n[Prefer Zillow-sourced and student sublease listings when recommending — they have richer data. Craigslist listings may have sparse details.]` + uniqueHint + deepSearchCta;
+        .join('\n')}\n\n[Prefer Zillow-sourced and student sublease listings when recommending — they have richer data. Craigslist listings may have sparse details.]` + uniqueHint + toolChainCta;
 
   // Build map block for 3+ results with lat/lng
   const filteredRows = parsed.amenities?.length
@@ -350,8 +350,8 @@ async function sqlSearch(
   const sqlUniqueCount = sqlUniqueAddresses.size;
 
   const sqlUniqueHint = `\n\n[Unique properties: ${sqlUniqueCount}. If fewer than 1 unique property matched, consider using web_search to find more options.]`;
-  const sqlDeepSearchCta = filtered.length > 0
-    ? '\n\n[Always end your response by offering: "Want me to run a deep search? I\'ll research reviews, compare prices, and find the best matches for your specific needs."]'
+  const sqlToolChainCta = filtered.length > 0
+    ? '\n\n[If the user\'s question requires deeper analysis of specific listings, call get_listing_detail or compare_listings on results above.]'
     : '';
   const modelContext = filtered.length === 0
     ? 'No listings found matching the criteria.' + sqlUniqueHint
@@ -360,7 +360,7 @@ async function sqlSearch(
           (l, i) =>
             `${i + 1}. ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10 [listing_id:${l.id}]${l.source && l.source !== 'unknown' ? ` (source: ${l.source})` : ''}`,
         )
-        .join('\n')}\n\n[Prefer Zillow-sourced and student sublease listings when recommending — they have richer data. Craigslist listings may have sparse details.]` + sqlUniqueHint + sqlDeepSearchCta;
+        .join('\n')}\n\n[Prefer Zillow-sourced and student sublease listings when recommending — they have richer data. Craigslist listings may have sparse details.]` + sqlUniqueHint + sqlToolChainCta;
 
   const sqlResult = {
     modelContext,

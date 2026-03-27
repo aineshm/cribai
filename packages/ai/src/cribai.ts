@@ -1,10 +1,13 @@
 import type { GoogleGenAI, Content, FunctionCall, Part } from '@google/genai';
 import type { ChatBlock, PageIndexNode } from '@campusnest/types';
+import { streamText, stepCountIs } from 'ai';
 import { createGeminiClient } from './gemini-client';
+import { createAiSdkProvider } from './ai-sdk-provider';
 import { logTokenUsage } from './cost-logger';
 import { PageIndexTraverser } from './pageindex-traverser';
 import { getToolDeclarations } from './tools/schemas';
 import { executeTool } from './tools/executor';
+import { buildAiSdkTools } from './tools/ai-sdk-tools';
 import type { ToolContext, ToolName } from './tools/types';
 
 export interface CribAIConfig {
@@ -13,6 +16,8 @@ export interface CribAIConfig {
   readonly toolContext?: ToolContext;
   readonly allowedTools?: readonly ToolName[];
   readonly maxToolCalls?: number;
+  /** When true, use Vercel AI SDK with maxSteps multi-tool chaining instead of manual Gemini loop */
+  readonly useAiSdk?: boolean;
 }
 
 export interface ChatInput {
@@ -47,7 +52,7 @@ const TOOL_SUMMARIES: Record<ToolName, string> = {
   get_landlord_info:
     'get_landlord_info — landlord information and review summary for a property',
   get_saved_listings:
-    'get_saved_listings — retrieve the user’s favorited listings',
+    'get_saved_listings — retrieve the user\'s favorited listings',
   web_search:
     'web_search — search the web when local DB results are insufficient',
   get_reviews:
@@ -87,6 +92,16 @@ When a user asks about listings, subleases, apartments, prices, or neighborhoods
 - "near State Street" → search_listings(address="State Street")
 After results, offer to refine.
 
+RULE #2 — CHAIN TOOLS TO FULLY ANSWER:
+You MUST call multiple tools when the question requires it. Do NOT stop after search_listings if the user asked about value, price fairness, neighborhoods, or details of specific listings.
+
+STOP ONLY when you have all data needed for a complete answer. Decision tree:
+- Got search results + user asked about a specific listing's value → call get_listing_detail
+- Got search results + user asked to compare → call compare_listings
+- Got listing detail + user asked about neighborhood → call get_neighborhood_info
+- Got listing detail + user asked about reviews → call get_reviews
+- Got search results + user just wants to browse → respond with text (no more tools needed)
+
 Context:
 - 2,500+ Zillow listings + student subleases, all searchable via search_listings
 - Subleases are .edu-verified, posted by students. Treat equally with Zillow listings.
@@ -118,12 +133,16 @@ export class CribAI {
   private readonly toolContext: ToolContext | undefined;
   private readonly allowedTools: readonly ToolName[];
   private readonly maxToolCalls: number;
+  private readonly geminiApiKey: string | undefined;
+  private readonly useAiSdk: boolean;
 
   constructor(config: CribAIConfig) {
     this.ai = createGeminiClient(config.geminiApiKey);
     this.traverser = new PageIndexTraverser({ geminiApiKey: config.geminiApiKey });
     this.campusName = config.campusName;
     this.toolContext = config.toolContext;
+    this.geminiApiKey = config.geminiApiKey;
+    this.useAiSdk = config.useAiSdk ?? false;
     this.allowedTools =
       config.allowedTools ??
       config.toolContext?.allowedToolNames ??
@@ -132,12 +151,97 @@ export class CribAI {
       config.maxToolCalls ??
       (
         !config.toolContext?.userId && config.toolContext?.allowedToolNames
-          ? 2
+          ? 3
           : DEFAULT_MAX_TOOL_CALLS
       );
   }
 
   async *chat(input: ChatInput): AsyncGenerator<ChatEvent> {
+    if (this.useAiSdk) {
+      yield* this.chatAiSdk(input);
+      return;
+    }
+    yield* this.chatLegacy(input);
+  }
+
+  /**
+   * AI SDK engine: uses Vercel AI SDK streamText with maxSteps for automatic multi-tool chaining.
+   * Gemini handles the tool loop internally — no manual re-invocation needed.
+   */
+  private async *chatAiSdk(input: ChatInput): AsyncGenerator<ChatEvent> {
+    const contextChunks = await this.traverser.traverse(input.tree, input.query);
+
+    const contextBlock = contextChunks.length > 0
+      ? `\n\nRelevant housing data for ${this.campusName}:\n${contextChunks.join('\n\n')}`
+      : `\n\nNo specific listing data available yet for ${this.campusName}. Answer based on general knowledge.`;
+
+    const eventQueue: ChatEvent[] = [];
+    const tools = this.toolContext
+      ? buildAiSdkTools(this.toolContext, this.allowedTools, (evt) => eventQueue.push(evt))
+      : {};
+
+    const messages: { role: 'user' | 'assistant'; content: string }[] = [
+      ...(input.conversationHistory ?? []).map(msg => ({
+        role: (msg.role === 'model' ? 'assistant' : msg.role) as 'user' | 'assistant',
+        content: msg.content,
+      })),
+      { role: 'user' as const, content: input.query },
+    ];
+
+    const systemPrompt = buildSystemPrompt(
+      this.allowedTools,
+      !this.toolContext?.userId,
+    );
+
+    const provider = createAiSdkProvider(this.geminiApiKey);
+    const abortController = new AbortController();
+    const timeout = setTimeout(() => abortController.abort(), TOTAL_TIMEOUT_MS);
+
+    try {
+      const result = streamText({
+        model: provider('gemini-2.5-flash'),
+        system: systemPrompt + contextBlock,
+        messages,
+        tools,
+        stopWhen: stepCountIs(this.maxToolCalls),
+        abortSignal: abortController.signal,
+      });
+
+      for await (const chunk of result.fullStream) {
+        // Drain queued tool events before yielding stream chunks
+        while (eventQueue.length > 0) {
+          yield eventQueue.shift()!;
+        }
+
+        if (chunk.type === 'text-delta') {
+          yield { type: 'text', content: chunk.text };
+        } else if (chunk.type === 'finish-step') {
+          logTokenUsage('gemini-2.5-flash', {
+            promptTokenCount: chunk.usage.inputTokens,
+            candidatesTokenCount: chunk.usage.outputTokens,
+          });
+        }
+      }
+
+      // Drain any remaining queued events
+      while (eventQueue.length > 0) {
+        yield eventQueue.shift()!;
+      }
+    } catch (_err) {
+      if (abortController.signal.aborted) {
+        yield { type: 'text', content: '\n\n(Response timed out. Please try a simpler question.)' };
+      } else {
+        throw _err;
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    yield { type: 'done' };
+  }
+
+  /** Legacy engine: manual Gemini streaming loop with sequential tool execution. */
+  private async *chatLegacy(input: ChatInput): AsyncGenerator<ChatEvent> {
     const startTime = Date.now();
     const contextChunks = await this.traverser.traverse(input.tree, input.query);
 

@@ -38,6 +38,10 @@ interface UsageMetadata {
   readonly candidatesTokenCount?: number;
   readonly totalTokenCount?: number;
   readonly cachedContentTokenCount?: number;
+  /** Vercel AI SDK format */
+  readonly promptTokens?: number;
+  /** Vercel AI SDK format */
+  readonly completionTokens?: number;
 }
 
 export function logTokenUsage(
@@ -46,8 +50,8 @@ export function logTokenUsage(
 ): TokenUsage | null {
   if (!usageMetadata) return null;
 
-  const inputTokens = usageMetadata.promptTokenCount ?? 0;
-  const outputTokens = usageMetadata.candidatesTokenCount ?? 0;
+  const inputTokens = usageMetadata.promptTokenCount ?? usageMetadata.promptTokens ?? 0;
+  const outputTokens = usageMetadata.candidatesTokenCount ?? usageMetadata.completionTokens ?? 0;
   const cachedTokens = usageMetadata.cachedContentTokenCount ?? 0;
   const nonCachedInput = inputTokens - cachedTokens;
 
