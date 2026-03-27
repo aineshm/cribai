@@ -1,4 +1,5 @@
 import type { GoogleGenAI, Content, FunctionCall, Part } from '@google/genai';
+import { FunctionCallingConfigMode } from '@google/genai';
 import type { ChatBlock, PageIndexNode } from '@campusnest/types';
 import { createGeminiClient } from './gemini-client';
 import { logTokenUsage } from './cost-logger';
@@ -47,7 +48,7 @@ const TOOL_SUMMARIES: Record<ToolName, string> = {
   get_landlord_info:
     'get_landlord_info — landlord information and review summary for a property',
   get_saved_listings:
-    'get_saved_listings — retrieve the user’s favorited listings',
+    "get_saved_listings — retrieve the user's favorited listings",
   web_search:
     'web_search — search the web when local DB results are insufficient',
   get_reviews:
@@ -87,6 +88,16 @@ When a user asks about listings, subleases, apartments, prices, or neighborhoods
 - "near State Street" → search_listings(address="State Street")
 After results, offer to refine.
 
+RULE #2 — CHAIN TOOLS TO FULLY ANSWER:
+You MUST call multiple tools when the question requires it. Do NOT stop after search_listings if the user asked about value, price fairness, neighborhoods, or details of specific listings.
+
+STOP ONLY when you have all data needed for a complete answer. Decision tree:
+- Got search results + user asked about a specific listing's value → call get_listing_detail
+- Got search results + user asked to compare → call compare_listings
+- Got listing detail + user asked about neighborhood → call get_neighborhood_info
+- Got listing detail + user asked about reviews → call get_reviews
+- Got search results + user just wants to browse → respond with text (no more tools needed)
+
 Context:
 - 2,500+ Zillow listings + student subleases, all searchable via search_listings
 - Subleases are .edu-verified, posted by students. Treat equally with Zillow listings.
@@ -111,6 +122,62 @@ Guidelines:
 - Lease questions: use explain_lease_term + legal disclaimer.${guestGuardrail}`;
 }
 
+interface ToolExecSuccess {
+  readonly status: 'fulfilled';
+  readonly toolName: string;
+  readonly toolArgs: Record<string, unknown>;
+  readonly result: Awaited<ReturnType<typeof executeTool>>;
+}
+
+interface ToolExecFailure {
+  readonly status: 'rejected';
+  readonly toolName: string;
+  readonly toolArgs: Record<string, unknown>;
+  readonly error: string;
+}
+
+type ToolExecResult = ToolExecSuccess | ToolExecFailure;
+
+async function executeToolsParallel(
+  calls: readonly FunctionCall[],
+  context: ToolContext,
+  maxConcurrency: number,
+): Promise<readonly ToolExecResult[]> {
+  const results: ToolExecResult[] = [];
+  for (let i = 0; i < calls.length; i += maxConcurrency) {
+    const batch = calls.slice(i, i + maxConcurrency);
+    const settled = await Promise.allSettled(
+      batch.map(async (fc) => {
+        const toolName = fc.name ?? 'unknown';
+        const toolArgs = (fc.args ?? {}) as Record<string, unknown>;
+        const result = await executeTool(toolName, toolArgs, context);
+        return { toolName, toolArgs, result };
+      }),
+    );
+    for (const [idx, outcome] of settled.entries()) {
+      const fc = batch[idx];
+      const toolName = fc!.name ?? 'unknown';
+      const toolArgs = (fc!.args ?? {}) as Record<string, unknown>;
+      if (outcome!.status === 'fulfilled') {
+        const fulfilled = outcome as PromiseFulfilledResult<{ toolName: string; toolArgs: Record<string, unknown>; result: Awaited<ReturnType<typeof executeTool>> }>;
+        results.push({
+          status: 'fulfilled',
+          toolName: fulfilled.value.toolName,
+          toolArgs: fulfilled.value.toolArgs,
+          result: fulfilled.value.result,
+        });
+      } else {
+        const rejected = outcome as PromiseRejectedResult;
+        const errorMessage = rejected.reason instanceof Error
+          ? rejected.reason.message
+          : 'Tool execution failed';
+        results.push({ status: 'rejected', toolName, toolArgs, error: errorMessage });
+      }
+    }
+  }
+  return results;
+}
+
 export class CribAI {
   private readonly ai: GoogleGenAI;
   private readonly traverser: PageIndexTraverser;
@@ -132,7 +199,7 @@ export class CribAI {
       config.maxToolCalls ??
       (
         !config.toolContext?.userId && config.toolContext?.allowedToolNames
-          ? 2
+          ? 3
           : DEFAULT_MAX_TOOL_CALLS
       );
   }
@@ -179,18 +246,21 @@ export class CribAI {
         config: {
           systemInstruction: systemPrompt + contextBlock,
           tools: toolsConfig,
+          ...(toolsConfig ? { toolConfig: { functionCallingConfig: { mode: FunctionCallingConfigMode.AUTO } } } : {}),
         },
         contents,
       });
 
       let hasToolCalls = false;
       const functionCalls: FunctionCall[] = [];
+      const textParts: string[] = [];
       let lastUsageMetadata: Record<string, unknown> | undefined;
 
       for await (const chunk of response) {
         // Yield text parts
         if (chunk.text) {
           yield { type: 'text', content: chunk.text };
+          textParts.push(chunk.text);
         }
 
         // Collect function calls from this chunk
@@ -221,79 +291,81 @@ export class CribAI {
         break;
       }
 
-      // Process tool calls
+      // Process tool calls in parallel (capped at 3 concurrent)
+      const budgetRemaining = this.maxToolCalls - toolCallCount;
+      const withinBudget = functionCalls.slice(0, budgetRemaining);
+      const budgetExhausted = withinBudget.length < functionCalls.length;
+
+      // Check timeout before executing tools
+      const toolRemainingMs = TOTAL_TIMEOUT_MS - (Date.now() - startTime);
+      if (toolRemainingMs <= 0) {
+        yield { type: 'text', content: '\n\n(Response timed out. Please try a simpler question.)' };
+        break;
+      }
+
+      // Execute all within-budget tool calls in parallel (max 3 concurrent)
+      const toolExecutions = await executeToolsParallel(
+        withinBudget,
+        this.toolContext,
+        3,
+      );
+      toolCallCount += withinBudget.length;
+
+      // Yield events and build function response parts in order
       const functionResponseParts: Part[] = [];
+      for (const exec of toolExecutions) {
+        yield { type: 'tool_call', name: exec.toolName, args: exec.toolArgs };
 
-      let budgetExhausted = false;
-      for (const fc of functionCalls) {
-        if (toolCallCount >= this.maxToolCalls) {
-          yield { type: 'text', content: '\n\n(Reached maximum tool calls. Wrapping up.)' };
-          budgetExhausted = true;
-          break;
-        }
-
-        toolCallCount++;
-        const toolName = fc.name ?? 'unknown';
-        const toolArgs = (fc.args ?? {}) as Record<string, unknown>;
-
-        // Check timeout before executing tool
-        const toolRemainingMs = TOTAL_TIMEOUT_MS - (Date.now() - startTime);
-        if (toolRemainingMs <= 0) {
-          yield { type: 'text', content: '\n\n(Response timed out. Please try a simpler question.)' };
-          budgetExhausted = true;
-          break;
-        }
-
-        yield { type: 'tool_call', name: toolName, args: toolArgs };
-
-        try {
-          const result = await executeTool(toolName, toolArgs, this.toolContext);
-          yield { type: 'tool_result', name: toolName, block: result.clientBlock };
-
-          // Emit optional map block as a separate event (e.g., for semantic search results)
-          if (result.mapBlock) {
-            yield { type: 'tool_result', name: `${toolName}_map`, block: result.mapBlock };
+        if (exec.status === 'fulfilled') {
+          yield { type: 'tool_result', name: exec.toolName, block: exec.result.clientBlock };
+          if (exec.result.mapBlock) {
+            yield { type: 'tool_result', name: `${exec.toolName}_map`, block: exec.result.mapBlock };
           }
-
-          // Emit mission_request if the tool wants to create a background mission
-          if (result.missionRequest) {
-            yield { type: 'mission_request', missionType: result.missionRequest.type, input: result.missionRequest.input };
+          if (exec.result.missionRequest) {
+            yield { type: 'mission_request', missionType: exec.result.missionRequest.type, input: exec.result.missionRequest.input };
           }
-
           functionResponseParts.push({
             functionResponse: {
-              name: toolName,
-              response: { result: result.modelContext },
+              name: exec.toolName,
+              response: { result: exec.result.modelContext },
             },
           });
-        } catch (err) {
-          const errorMessage = err instanceof Error ? err.message : 'Tool execution failed';
+        } else {
           yield {
             type: 'tool_result',
-            name: toolName,
-            block: { type: 'text', content: `Error: ${errorMessage}` } as ChatBlock,
+            name: exec.toolName,
+            block: { type: 'text', content: `Error: ${exec.error}` } as ChatBlock,
           };
           functionResponseParts.push({
             functionResponse: {
-              name: toolName,
-              response: { error: errorMessage },
+              name: exec.toolName,
+              response: { error: exec.error },
             },
           });
         }
       }
 
-      // Append the model's function call turn + our function response turn to contents
-      contents.push({
-        role: 'model',
-        parts: functionCalls.map(fc => ({ functionCall: fc })) as Part[],
-      });
+      if (budgetExhausted) {
+        yield { type: 'text', content: '\n\n(Reached maximum tool calls. Wrapping up.)' };
+      }
 
+      // Append the model's turn (text + function calls) to contents
+      const modelParts: Part[] = [];
+      const collectedText = textParts.join('');
+      if (collectedText) {
+        modelParts.push({ text: collectedText });
+      }
+      modelParts.push(...functionCalls.map(fc => ({ functionCall: fc })) as Part[]);
+      contents.push({ role: 'model', parts: modelParts });
+
+      // Append function responses + continuation prompt to contents
+      const continuationPrompt = `[SYSTEM: Tool results above. Original question: "${input.query}". You have ${this.maxToolCalls - toolCallCount} tool calls remaining. If you need more data to fully answer, call another tool. Only respond with text when you have enough data for a complete answer.]`;
       contents.push({
         role: 'user',
-        parts: functionResponseParts,
+        parts: [...functionResponseParts, { text: continuationPrompt }],
       });
 
-      // If budget exhausted inside the inner loop, break the outer loop too
+      // If budget exhausted, break the outer loop
       if (budgetExhausted) break;
 
       // Loop back to get Gemini's response incorporating tool results
