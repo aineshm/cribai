@@ -45,6 +45,60 @@ export async function updateMissionStatus(
   }
 }
 
+/** Claim the next runnable mission row by lease. */
+export async function claimNextMission(
+  supabase: SupabaseClient,
+  leaseSeconds = 300,
+): Promise<Mission | null> {
+  const { data, error } = await supabase.rpc('claim_next_mission_job', {
+    p_lease_seconds: leaseSeconds,
+  });
+
+  if (error) {
+    throw new Error(`Failed to claim mission: ${error.message}`);
+  }
+
+  const claimed = Array.isArray(data) ? data[0] : null;
+  return claimed ? (claimed as Mission) : null;
+}
+
+/** Extend the lease for a running mission. */
+export async function heartbeatMissionLease(
+  supabase: SupabaseClient,
+  missionId: string,
+  leaseSeconds = 300,
+): Promise<void> {
+  const { error } = await supabase
+    .from('missions')
+    .update({
+      leased_until: new Date(Date.now() + leaseSeconds * 1000).toISOString(),
+      last_heartbeat_at: new Date().toISOString(),
+    })
+    .eq('id', missionId);
+
+  if (error) {
+    throw new Error(`Failed to heartbeat mission lease: ${error.message}`);
+  }
+}
+
+/** Clear the lease on a mission when it is no longer actively running. */
+export async function clearMissionLease(
+  supabase: SupabaseClient,
+  missionId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('missions')
+    .update({
+      leased_until: null,
+      last_heartbeat_at: null,
+    })
+    .eq('id', missionId);
+
+  if (error) {
+    throw new Error(`Failed to clear mission lease: ${error.message}`);
+  }
+}
+
 /** Persist accumulated state and step index after a step completes. */
 export async function updateMissionState(
   supabase: SupabaseClient,
@@ -62,6 +116,107 @@ export async function updateMissionState(
   }
 }
 
+/** Persist step attempt counters after a retryable failure. */
+export async function updateMissionStepAttempts(
+  supabase: SupabaseClient,
+  missionId: string,
+  stepAttempts: Readonly<Record<string, number>>,
+): Promise<void> {
+  const { error } = await supabase
+    .from('missions')
+    .update({ step_attempts: stepAttempts })
+    .eq('id', missionId);
+
+  if (error) {
+    throw new Error(`Failed to update mission step attempts: ${error.message}`);
+  }
+}
+
+/** Requeue a mission after a retryable failure. */
+export async function markMissionRetrying(
+  supabase: SupabaseClient,
+  missionId: string,
+  lastError: string,
+  stepAttempts: Readonly<Record<string, number>>,
+): Promise<void> {
+  const { error } = await supabase
+    .from('missions')
+    .update({
+      status: 'retrying',
+      last_error: lastError,
+      leased_until: null,
+      last_heartbeat_at: null,
+      step_attempts: stepAttempts,
+    })
+    .eq('id', missionId);
+
+  if (error) {
+    throw new Error(`Failed to mark mission retrying: ${error.message}`);
+  }
+}
+
+/** Mark a mission as queued and clear any stale lease metadata. */
+export async function markMissionQueued(
+  supabase: SupabaseClient,
+  missionId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('missions')
+    .update({
+      status: 'queued',
+      leased_until: null,
+      last_heartbeat_at: null,
+      last_error: null,
+    })
+    .eq('id', missionId);
+
+  if (error) {
+    throw new Error(`Failed to mark mission queued: ${error.message}`);
+  }
+}
+
+/** Fail a mission and persist the last error for inspection. */
+export async function markMissionFailed(
+  supabase: SupabaseClient,
+  missionId: string,
+  lastError: string,
+  stepAttempts?: Readonly<Record<string, number>>,
+): Promise<void> {
+  const { error } = await supabase
+    .from('missions')
+    .update({
+      status: 'failed',
+      last_error: lastError,
+      leased_until: null,
+      last_heartbeat_at: null,
+      ...(stepAttempts ? { step_attempts: stepAttempts } : {}),
+    })
+    .eq('id', missionId);
+
+  if (error) {
+    throw new Error(`Failed to mark mission failed: ${error.message}`);
+  }
+}
+
+/** Pause execution for HITL approval and clear the active lease. */
+export async function markMissionWaitingApproval(
+  supabase: SupabaseClient,
+  missionId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('missions')
+    .update({
+      status: 'waiting_approval',
+      leased_until: null,
+      last_heartbeat_at: null,
+    })
+    .eq('id', missionId);
+
+  if (error) {
+    throw new Error(`Failed to mark mission waiting approval: ${error.message}`);
+  }
+}
+
 /** Set the final result on a completed mission. */
 export async function setMissionResult(
   supabase: SupabaseClient,
@@ -75,6 +230,28 @@ export async function setMissionResult(
 
   if (error) {
     throw new Error(`Failed to set mission result: ${error.message}`);
+  }
+}
+
+/** Complete a mission with its final result and clear lease metadata. */
+export async function completeMission(
+  supabase: SupabaseClient,
+  missionId: string,
+  result: Readonly<Record<string, unknown>>,
+): Promise<void> {
+  const { error } = await supabase
+    .from('missions')
+    .update({
+      status: 'completed',
+      result,
+      leased_until: null,
+      last_heartbeat_at: null,
+      last_error: null,
+    })
+    .eq('id', missionId);
+
+  if (error) {
+    throw new Error(`Failed to complete mission: ${error.message}`);
   }
 }
 

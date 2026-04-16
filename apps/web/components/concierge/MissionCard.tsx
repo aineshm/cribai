@@ -25,14 +25,17 @@ import type { MissionStatus, MissionType } from '@/lib/concierge-types';
 
 /** Tailwind background colour for the status dot overlaid on the icon badge. */
 const STATUS_COLORS: Record<MissionStatus, string> = {
+  queued: 'bg-slate-400',
   pending: 'bg-slate-400',
   running: 'bg-blue-500',
+  retrying: 'bg-amber-500',
   active: 'bg-green-500',
   paused: 'bg-yellow-500',
   waiting_approval: 'bg-slate-500',
   scheduled: 'bg-blue-500',
   completed: 'bg-gray-400',
   failed: 'bg-red-500',
+  cancelled: 'bg-gray-400',
   expired: 'bg-gray-300',
 };
 
@@ -45,6 +48,8 @@ const TYPE_ICONS: Record<MissionType, React.ComponentType<{ className?: string }
   listing_comparison: GitCompare,
   housing_search: Search,
   tour_outreach: Mail,
+  listing_deep_dive: FileText,
+  sublease_post: MessageSquare,
 };
 
 /**

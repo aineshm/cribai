@@ -21,8 +21,10 @@ const ACTIVE_POLL_INTERVAL_MS = 12_000;
 
 /** Mission statuses that indicate work is still in progress. */
 const ACTIVE_STATUSES: ReadonlySet<string> = new Set([
+  'queued',
   'pending',
   'running',
+  'retrying',
   'waiting_approval',
 ]);
 

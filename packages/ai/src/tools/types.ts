@@ -1,4 +1,4 @@
-import type { ChatBlock } from '@campusnest/types';
+import type { ChatBlock, ConversationState } from '@campusnest/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type ToolName =
@@ -32,10 +32,12 @@ export interface ToolContext {
   readonly mapBounds?: MapBounds;
 }
 
-export interface ToolResult {
+export interface ToolResult<TMachine = Record<string, unknown>> {
+  readonly machineData?: TMachine;
   readonly modelContext: string;
   readonly clientBlock: ChatBlock;
   readonly mapBlock?: ChatBlock;
+  readonly statePatch?: Partial<ConversationState>;
   readonly missionRequest?: {
     readonly type: string;
     readonly input: Readonly<Record<string, unknown>>;

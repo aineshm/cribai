@@ -100,6 +100,7 @@ interface SSEEvent {
   readonly content?: string;
   readonly name?: string;
   readonly args?: Record<string, unknown>;
+  readonly machineData?: Record<string, unknown>;
   readonly block?: ChatBlock;
   readonly message?: string;
   readonly text?: string;
@@ -443,18 +444,24 @@ export function CribAIChat({
               updateAssistantMessage(assistantBlocks);
 
               // Extract search context from search_listings tool args
-              if (event.name === 'search_listings' && event.args && onSearchContext) {
-                const args = event.args;
-                const budget = args.max_rent
-                  ? `Under $${Number(args.max_rent).toLocaleString()}`
-                  : args.min_rent
-                    ? `From $${Number(args.min_rent).toLocaleString()}`
+              if (event.name === 'search_listings' && onSearchContext) {
+                const normalizedArgs =
+                  (event.machineData?.normalizedArgs as Record<string, unknown> | undefined) ??
+                  event.args;
+                if (!normalizedArgs) {
+                  break;
+                }
+
+                const budget = normalizedArgs.max_rent
+                  ? `Under $${Number(normalizedArgs.max_rent).toLocaleString()}`
+                  : normalizedArgs.min_rent
+                    ? `From $${Number(normalizedArgs.min_rent).toLocaleString()}`
                     : undefined;
-                const bedrooms = args.bedrooms !== undefined
-                  ? (args.bedrooms === 0 ? 'Studio' : `${args.bedrooms} bed`)
+                const bedrooms = normalizedArgs.bedrooms !== undefined
+                  ? (normalizedArgs.bedrooms === 0 ? 'Studio' : `${normalizedArgs.bedrooms} bed`)
                   : undefined;
-                const amenities = Array.isArray(args.amenities) && args.amenities.length > 0
-                  ? (args.amenities as string[])
+                const amenities = Array.isArray(normalizedArgs.amenities) && normalizedArgs.amenities.length > 0
+                  ? (normalizedArgs.amenities as string[])
                   : undefined;
                 onSearchContext({ budget, bedrooms, amenities });
               }
@@ -520,8 +527,8 @@ export function CribAIChat({
         }
       }
 
-      // Assistant messages are now persisted server-side via after() in /api/ai/cribai.
-      // Client only persists user messages (line 304-306 above).
+      // Assistant messages are persisted server-side by /api/ai/cribai.
+      // Client only persists user messages.
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
       console.error('[CribAI] Stream error:', err);

@@ -1,8 +1,11 @@
 /**
+ * GET /api/listings/[id] — Fetch public listing detail.
  * PATCH /api/listings/[id] — Update listing fields.
- * Requires authentication. Only the listing creator or admin can edit.
+ *
+ * GET is public. PATCH requires authentication and listing ownership/admin.
  */
-import { NextResponse } from 'next/server';
+import { fetchListingById } from '@/lib/listings-data';
+import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { createServerComponentClient, createSecretClient } from '@campusnest/supabase/server';
@@ -42,6 +45,24 @@ const updateSchema = z
     photo_urls: z.array(safePhotoUrl).max(10).optional(),
   })
   .strict();
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+
+  if (!UUID_RE.test(id)) {
+    return NextResponse.json({ error: 'Invalid listing id' }, { status: 400 });
+  }
+
+  const listing = await fetchListingById(id);
+  if (!listing) {
+    return NextResponse.json({ error: 'Listing not found' }, { status: 404 });
+  }
+
+  return NextResponse.json({ listing });
+}
 
 export async function PATCH(
   request: Request,

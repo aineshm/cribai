@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerComponentClient, createSecretClient } from '@campusnest/supabase/server';
+import { createEmptyConversationState, normalizeConversationState } from '@campusnest/types';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { isDevAuthEnabled, getDevUserById, DEFAULT_DEV_USER, DEV_USER_COOKIE } from '../../../lib/dev-auth';
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
 
   let query = queryClient
     .from('conversations')
-    .select('id, title, last_message_preview, created_at, updated_at')
+    .select('id, title, last_message_preview, conversation_state, created_at, updated_at')
     .eq('user_id', user.id)
     .order('updated_at', { ascending: false })
     .limit(20);
@@ -61,6 +62,7 @@ export async function GET(request: NextRequest) {
     id: row.id as string,
     title: row.title as string,
     lastMessagePreview: row.last_message_preview as string | null,
+    conversationState: normalizeConversationState(row.conversation_state),
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   }));
@@ -101,6 +103,7 @@ export async function POST(request: NextRequest) {
       user_id: userId,
       campus_id: campusId,
       title: title ?? 'New Conversation',
+      conversation_state: createEmptyConversationState(),
     })
     .select('id, title')
     .single();

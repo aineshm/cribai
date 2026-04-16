@@ -34,18 +34,21 @@ import type {
 
 describe('missionStatusSchema', () => {
   const ALL_STATUSES: readonly MissionStatus[] = [
+    'queued',
     'pending',
     'running',
+    'retrying',
     'active',
     'paused',
     'waiting_approval',
     'scheduled',
     'completed',
     'failed',
+    'cancelled',
     'expired',
   ];
 
-  it('accepts all 9 valid statuses', () => {
+  it('accepts all valid statuses', () => {
     for (const status of ALL_STATUSES) {
       expect(missionStatusSchema.parse(status)).toBe(status);
     }
@@ -60,8 +63,8 @@ describe('missionStatusSchema', () => {
     expect(() => missionStatusSchema.parse('unknown')).toThrow();
   });
 
-  it('has exactly 9 members', () => {
-    expect(missionStatusSchema.options).toHaveLength(9);
+  it('has exactly 12 members', () => {
+    expect(missionStatusSchema.options).toHaveLength(12);
   });
 });
 
@@ -76,16 +79,18 @@ describe('missionTypeSchema', () => {
     'listing_comparison',
     'housing_search',
     'tour_outreach',
+    'listing_deep_dive',
+    'sublease_post',
   ];
 
-  it('accepts all 7 valid types', () => {
+  it('accepts all valid types', () => {
     for (const type of ALL_TYPES) {
       expect(missionTypeSchema.parse(type)).toBe(type);
     }
   });
 
-  it('has exactly 7 members', () => {
-    expect(missionTypeSchema.options).toHaveLength(7);
+  it('has exactly 9 members', () => {
+    expect(missionTypeSchema.options).toHaveLength(9);
   });
 
   it('rejects invalid type', () => {
@@ -150,6 +155,11 @@ describe('missionSchema', () => {
     state: {},
     result: null,
     current_step_index: 0,
+    attempt_count: 0,
+    leased_until: null,
+    last_heartbeat_at: null,
+    last_error: null,
+    step_attempts: {},
     campus_id: '44444444-4444-4444-4444-444444444444',
     expires_at: '2026-03-11T09:00:00Z',
     created_at: '2026-03-10T09:00:00Z',
@@ -172,12 +182,18 @@ describe('missionSchema', () => {
       listing_id: null,
       idempotency_key: null,
       result: null,
+      leased_until: null,
+      last_heartbeat_at: null,
+      last_error: null,
       campus_id: null,
       expires_at: null,
     });
     expect(result.listing_id).toBeNull();
     expect(result.idempotency_key).toBeNull();
     expect(result.result).toBeNull();
+    expect(result.leased_until).toBeNull();
+    expect(result.last_heartbeat_at).toBeNull();
+    expect(result.last_error).toBeNull();
     expect(result.campus_id).toBeNull();
     expect(result.expires_at).toBeNull();
   });

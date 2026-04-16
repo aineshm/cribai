@@ -22,27 +22,33 @@ import type { LegacyMission, MissionStatus } from '@/lib/concierge-types';
 
 /** Human-readable label for each mission status, shown in the header badge. */
 const STATUS_LABELS: Record<MissionStatus, string> = {
+  queued: 'Queued',
   pending: 'Pending',
   running: 'Running',
+  retrying: 'Retrying',
   active: 'Active',
   paused: 'Paused',
   waiting_approval: 'Waiting Approval',
   scheduled: 'Scheduled',
   completed: 'Completed',
   failed: 'Failed',
+  cancelled: 'Cancelled',
   expired: 'Expired',
 };
 
 /** Badge variant per status — maps to shadcn/ui Badge colour styles. */
 const STATUS_BADGE_VARIANT: Record<MissionStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  queued: 'secondary',
   pending: 'secondary',
   running: 'default',
+  retrying: 'secondary',
   active: 'default',
   paused: 'secondary',
   waiting_approval: 'secondary',
   scheduled: 'default',
   completed: 'outline',
   failed: 'destructive',
+  cancelled: 'outline',
   expired: 'outline',
 };
 
@@ -55,7 +61,11 @@ interface MissionDetailProps {
 export function MissionDetail({ mission, onBack }: MissionDetailProps) {
   // Only show the steering input bar when the user can still influence execution
   const isActiveOrWaiting =
-    mission.status === 'active' || mission.status === 'waiting_approval';
+    mission.status === 'queued' ||
+    mission.status === 'pending' ||
+    mission.status === 'running' ||
+    mission.status === 'retrying' ||
+    mission.status === 'waiting_approval';
 
   return (
     <motion.div

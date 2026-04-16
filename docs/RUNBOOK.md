@@ -200,6 +200,111 @@ psql $SUPABASE_CONNECTION_STRING \
 | API Error Rate | <0.1% | Vercel Logs |
 | Anthropic API Quota | <80% | Anthropic Console |
 
+## Mission Worker
+
+The mission queue is intentionally lightweight right now. Missions can be created as `queued`, and a small Node worker drains the queue by polling Supabase, claiming work, and running the executor.
+
+### Start The Worker
+
+```bash
+# Long-running polling worker
+pnpm worker:missions
+
+# Single tick only (safe for local debugging)
+pnpm worker:missions -- --once
+```
+
+### Environment Knobs
+
+```bash
+# Poll every 5s by default
+MISSION_WORKER_INTERVAL_MS=5000
+
+# Emit an "idle" log at most once per minute
+MISSION_WORKER_IDLE_LOG_INTERVAL_MS=60000
+
+# Claim up to 5 queued missions per poll
+MISSION_WORKER_MAX_JOBS_PER_TICK=5
+
+# Lease each claimed mission for 5 minutes
+MISSION_WORKER_LEASE_SECONDS=300
+
+# Equivalent to passing --once
+MISSION_WORKER_RUN_ONCE=true
+```
+
+### Expected Logs
+
+The worker logs newline-delimited JSON so it is easy to grep and ship later.
+
+Common events:
+
+- `worker_started`
+- `tick_started`
+- `tick_processed`
+- `tick_idle`
+- `tick_error`
+- `shutdown_requested`
+- `worker_stopped`
+- `worker_fatal`
+
+Example:
+
+```json
+{"ts":"2026-04-16T15:02:11.913Z","source":"mission-worker","event":"tick_processed","pid":92114,"host":"mbp","tickId":"1713279731913-k3j2pk","durationMs":1842,"processed":2,"claimedMissionIds":["...","..."],"claimedMissions":[{"id":"...","type":"housing_search","startFromStep":0}]}
+```
+
+### How To Iterate Safely
+
+```bash
+# 1. Create or queue a mission in the UI
+
+# 2. Run one worker tick
+pnpm worker:missions -- --once
+
+# 3. Inspect mission rows
+psql $SUPABASE_CONNECTION_STRING -c "select id, type, status, current_step_index, last_error, attempt_count from missions order by updated_at desc limit 10;"
+
+# 4. Repeat until behavior looks right
+```
+
+### Debugging Notes
+
+- If missions stay in `queued`, the worker is not running or cannot claim jobs.
+- If missions move to `retrying`, inspect `last_error` and the worker `tick_error` logs.
+- If missions stick in `running`, check `leased_until` and whether the worker exited mid-step.
+- For UI-only/manual operation, queued missions can remain visible in the `Queue` tab until the user moves them to `Past`.
+
+### GitHub Actions Stopgap
+
+If you want a free or near-free stopgap before moving to Oracle, the repo now includes [.github/workflows/missions-worker.yml](/Users/aineshmohan/Developer/ai-real-estate-agent/.github/workflows/missions-worker.yml:1).
+
+- Schedule: every 5 minutes
+- Runtime shape: one `--once` worker tick per run
+- Overlap protection: GitHub Actions `concurrency` keeps runs from stacking on top of each other
+- Manual trigger: `Actions` -> `Missions Worker` -> `Run workflow`
+
+Required GitHub secrets:
+
+- `SUPABASE_URL`
+- `SUPABASE_SECRET_KEY`
+
+Mission-type-specific secrets the workflow will also pass through if present:
+
+- `ANTHROPIC_API_KEY`
+- `GEMINI_API_KEY`
+- `GOOGLE_CLOUD_PROJECT`
+- `GOOGLE_CLOUD_LOCATION`
+- `GOOGLE_APPLICATION_CREDENTIALS_JSON`
+- `GOOGLE_PLACES_API_KEY`
+- `RESEND_API_KEY`
+
+Notes:
+
+- `housing_search` and `listing_deep_dive` typically need LLM credentials.
+- `sublease_post` may need Google Places and Resend depending on the step path.
+- If a secret is missing for a given mission type, the worker will log the failure and the mission will move to `retrying` or `failed` based on the executor rules.
+
 ## Common Issues
 
 ### Application Won't Start

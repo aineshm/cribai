@@ -88,6 +88,41 @@ export const webResultBlockSchema = z.object({
   results: z.array(webResultItemSchema),
 });
 
+export const conversationModeSchema = z.enum([
+  'browse',
+  'search',
+  'listing_detail',
+  'compare',
+  'action',
+  'mission',
+]);
+
+export const conversationStateSchema = z.object({
+  version: z.literal(1),
+  mode: conversationModeSchema,
+  selectedListingId: z.string().uuid().nullable(),
+  comparedListingIds: z.array(z.string().uuid()),
+  lastSearch: z.object({
+    args: z.record(z.string(), z.unknown()),
+    resultListingIds: z.array(z.string().uuid()),
+    generatedAt: z.string().nullable(),
+    source: z.enum(['chat_search', 'explore_search', 'listing_cta']).nullable(),
+  }),
+  activeFilters: z.object({
+    bedrooms: z.number().nullable().optional(),
+    minRent: z.number().nullable().optional(),
+    maxRent: z.number().nullable().optional(),
+    amenities: z.array(z.string()).optional(),
+    address: z.string().nullable().optional(),
+    semanticQuery: z.string().nullable().optional(),
+    source: z.string().nullable().optional(),
+  }),
+  pendingAction: z.object({
+    kind: z.enum(['tour', 'contact_pm', 'sublease_publish', 'mission']).nullable(),
+    payload: z.record(z.string(), z.unknown()).nullable(),
+  }),
+});
+
 export const chatBlockSchema = z.discriminatedUnion('type', [
   textBlockSchema,
   listingCardBlockSchema,
@@ -110,6 +145,65 @@ export type ToolLoadingBlock = z.infer<typeof toolLoadingBlockSchema>;
 export type MapBlock = z.infer<typeof mapBlockSchema>;
 export type MapListing = z.infer<typeof mapListingSchema>;
 export type WebResultBlock = z.infer<typeof webResultBlockSchema>;
+export type ConversationMode = z.infer<typeof conversationModeSchema>;
+export type ConversationState = z.infer<typeof conversationStateSchema>;
+
+export function createEmptyConversationState(): ConversationState {
+  return {
+    version: 1,
+    mode: 'browse',
+    selectedListingId: null,
+    comparedListingIds: [],
+    lastSearch: {
+      args: {},
+      resultListingIds: [],
+      generatedAt: null,
+      source: null,
+    },
+    activeFilters: {},
+    pendingAction: {
+      kind: null,
+      payload: null,
+    },
+  };
+}
+
+export function normalizeConversationState(value: unknown): ConversationState {
+  const parsed = conversationStateSchema.safeParse(value);
+  return parsed.success ? parsed.data : createEmptyConversationState();
+}
+
+export function mergeConversationState(
+  base: ConversationState,
+  patch?: Partial<ConversationState> | null,
+): ConversationState {
+  if (!patch) {
+    return base;
+  }
+
+  return {
+    ...base,
+    ...patch,
+    lastSearch: patch.lastSearch
+      ? {
+          ...base.lastSearch,
+          ...patch.lastSearch,
+        }
+      : base.lastSearch,
+    activeFilters: patch.activeFilters
+      ? {
+          ...base.activeFilters,
+          ...patch.activeFilters,
+        }
+      : base.activeFilters,
+    pendingAction: patch.pendingAction
+      ? {
+          ...base.pendingAction,
+          ...patch.pendingAction,
+        }
+      : base.pendingAction,
+  };
+}
 
 // ============================================================
 // Conversation persistence types
@@ -119,6 +213,7 @@ export const conversationSchema = z.object({
   id: z.string().uuid(),
   title: z.string(),
   lastMessagePreview: z.string().nullable(),
+  conversationState: conversationStateSchema.default(createEmptyConversationState()),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

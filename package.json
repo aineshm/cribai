@@ -8,6 +8,7 @@
     "test": "turbo test",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
+    "worker:missions": "tsx packages/ai/src/missions/worker-loop.ts",
     "clean": "turbo clean",
     "review": "codex review --base main",
     "review:staged": "codex review --uncommitted",

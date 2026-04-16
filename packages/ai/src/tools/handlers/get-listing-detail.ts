@@ -60,7 +60,21 @@ export async function getListingDetail(
   ].join('\n');
 
   return {
+    machineData: {
+      listingId: listing.id,
+      address: listing.address,
+      fairnessScore: listing.fairnessScore,
+      fairnessData,
+      trueCost,
+      trueCostTotal: listing.trueCostTotal,
+      availableDate: data.available_date ?? null,
+    },
     modelContext: modelContext + '\n\n[If the user wants a comprehensive analysis, suggest: "Want me to run a deep dive? I\'ll research reviews, compare similar listings, and calculate the true cost."]',
     clientBlock: { type: 'listing_card', listings: [listing] },
+    statePatch: {
+      mode: 'listing_detail',
+      selectedListingId: listing.id,
+      comparedListingIds: [],
+    },
   };
 }

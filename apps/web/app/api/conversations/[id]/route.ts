@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerComponentClient, createSecretClient } from '@campusnest/supabase/server';
+import { normalizeConversationState } from '@campusnest/types';
 import { isDevAuthEnabled, getDevUserById, DEFAULT_DEV_USER, DEV_USER_COOKIE } from '../../../../lib/dev-auth';
 import { cookies } from 'next/headers';
 
@@ -31,7 +32,7 @@ export async function GET(
   // RLS ensures only the owner can read their conversation (prod); service-role bypasses in dev
   const { data: conversation, error: convError } = await queryClient
     .from('conversations')
-    .select('id, title, last_message_preview, created_at, updated_at')
+    .select('id, title, last_message_preview, conversation_state, created_at, updated_at')
     .eq('id', id)
     .eq('user_id', userId)
     .single();
@@ -64,6 +65,7 @@ export async function GET(
       id: conversation.id as string,
       title: conversation.title as string,
       lastMessagePreview: conversation.last_message_preview as string | null,
+      conversationState: normalizeConversationState(conversation.conversation_state),
       createdAt: conversation.created_at as string,
       updatedAt: conversation.updated_at as string,
     },

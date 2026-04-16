@@ -1,35 +1,61 @@
 /**
- * MissionExecutor — sequential step pipeline runner.
+ * MissionExecutor — sequential step pipeline runner with queue semantics.
  *
- * Runs inside Next.js `after()` so it executes asynchronously after the
- * HTTP response is sent. Uses a service-role Supabase client (no cookie
- * context) to persist state after each step. Supports HITL (human-in-the-loop)
- * pausing via draft creation and resume via current_step_index.
+ * Uses a service-role Supabase client to persist state after each step and
+ * cooperates with the durable worker by maintaining mission leases, retry
+ * status, and resumable HITL pauses.
  */
 
 import { createSecretClient } from '@campusnest/supabase/server';
+import type { Mission } from '@campusnest/types';
 import type { ExecuteOptions, StepContext } from './types';
 import { getMissionDefinition } from './registry';
 import {
+  clearMissionLease,
+  completeMission,
   getMission,
+  heartbeatMissionLease,
   updateMissionStatus,
   updateMissionState,
-  setMissionResult,
+  markMissionFailed,
   insertMissionLog,
   insertMissionDraft,
   getCampusSlug,
   getAllUnappliedSteerings,
+  markMissionRetrying,
+  markMissionWaitingApproval,
   markSteeringApplied,
   updateMissionInput,
 } from './mission-repository';
 import { parseSteeringIntent } from './steering-parser';
 
+const DEFAULT_LEASE_SECONDS = 300;
+const MAX_STEP_RETRIES = 2;
+
+function parseStepAttempts(value: unknown): Record<string, number> {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+
+  return Object.entries(value as Record<string, unknown>).reduce<Record<string, number>>(
+    (acc, [key, count]) => {
+      if (typeof count === 'number' && Number.isFinite(count) && count >= 0) {
+        acc[key] = Math.trunc(count);
+      }
+      return acc;
+    },
+    {},
+  );
+}
+
+function isRetryableError(message: string): boolean {
+  return !/(invalid|not found|forbidden|unauthorized|signed in|permission|zod|validation)/i.test(
+    message,
+  );
+}
+
 /**
  * Execute a mission's step pipeline sequentially.
- *
- * Designed to run inside Next.js `after()` — uses service-role client
- * (no cookie context), persists state after each step, and handles
- * HITL pause/resume via draft + current_step_index.
  *
  * This function never throws — all errors are caught, logged, and
  * reflected in the mission's status.
@@ -47,7 +73,7 @@ export async function executeMission(options: ExecuteOptions): Promise<void> {
   }
 
   // ── Guard: only run if pending or running ──────────────
-  if (mission.status !== 'pending' && mission.status !== 'running') {
+  if (!['queued', 'retrying', 'pending', 'running'].includes(mission.status)) {
     console.warn(
       `[executor] Skipping mission ${options.missionId} — status is '${mission.status}'`,
     );
@@ -67,8 +93,9 @@ export async function executeMission(options: ExecuteOptions): Promise<void> {
     return;
   }
 
-  // ── Set status to running ──────────────────────────────
+  // ── Refresh the lease and set status to running ────────
   await updateMissionStatus(supabase, options.missionId, 'running');
+  await heartbeatMissionLease(supabase, options.missionId, DEFAULT_LEASE_SECONDS);
 
   // ── Resolve campus context ─────────────────────────────
   const campusSlug = mission.campus_id
@@ -80,9 +107,14 @@ export async function executeMission(options: ExecuteOptions): Promise<void> {
   const startIndex = options.startFromStep ?? mission.current_step_index;
   // Spread to create a mutable copy — each step's output is merged immutably
   let state: Readonly<Record<string, unknown>> = { ...mission.state };
+  let stepAttempts = parseStepAttempts(
+    (mission as Mission & { readonly step_attempts?: unknown }).step_attempts,
+  );
 
   for (let i = startIndex; i < definition.steps.length; i++) {
     const step = definition.steps[i]!;
+
+    await heartbeatMissionLease(supabase, options.missionId, DEFAULT_LEASE_SECONDS);
 
     // Log step start
     await insertMissionLog(supabase, {
@@ -212,7 +244,7 @@ export async function executeMission(options: ExecuteOptions): Promise<void> {
           draft_type: result.draft.draftType,
           payload: result.draft.payload as Record<string, unknown>,
         });
-        await updateMissionStatus(supabase, options.missionId, 'waiting_approval');
+        await markMissionWaitingApproval(supabase, options.missionId);
         return;
       }
 
@@ -222,21 +254,44 @@ export async function executeMission(options: ExecuteOptions): Promise<void> {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
+      const nextStepAttempts = {
+        ...stepAttempts,
+        [step.id]: (stepAttempts[step.id] ?? 0) + 1,
+      };
+      stepAttempts = nextStepAttempts;
+      const currentStepAttempts = nextStepAttempts[step.id] ?? 0;
+      const retryable = isRetryableError(message) && currentStepAttempts <= MAX_STEP_RETRIES;
 
       await insertMissionLog(supabase, {
         mission_id: options.missionId,
         action: step.id,
-        detail: `Failed: ${message}`,
+        detail: retryable
+          ? `Retry scheduled: ${message}`
+          : `Failed: ${message}`,
         status: 'error',
         tool_name: step.tool ?? null,
       });
 
-      await updateMissionStatus(supabase, options.missionId, 'failed');
+      if (retryable) {
+        await markMissionRetrying(
+          supabase,
+          options.missionId,
+          message,
+          nextStepAttempts,
+        );
+      } else {
+        await markMissionFailed(
+          supabase,
+          options.missionId,
+          message,
+          nextStepAttempts,
+        );
+      }
       return;
     }
   }
 
   // ── Mission complete ───────────────────────────────────
-  await setMissionResult(supabase, options.missionId, state);
-  await updateMissionStatus(supabase, options.missionId, 'completed');
+  await completeMission(supabase, options.missionId, state);
+  await clearMissionLease(supabase, options.missionId);
 }
