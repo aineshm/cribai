@@ -16,7 +16,7 @@ Operations guide for deployment, monitoring, troubleshooting, and incident respo
 
 ### Prerequisites
 
-- Node.js 22.x installed
+- Node.js 24.x installed
 - pnpm 9.15.4 installed
 - All environment variables set (see [ENV.md](./ENV.md))
 - Supabase project configured with migrations applied
@@ -52,7 +52,7 @@ vercel env pull
 
 # 4. Set secrets in Vercel dashboard
 # Go to Project → Settings → Environment Variables
-# Add: SUPABASE_SECRET_KEY, ANTHROPIC_API_KEY, etc.
+# Add: SUPABASE_SECRET_KEY, GEMINI_API_KEY or GOOGLE_CLOUD_PROJECT, etc.
 ```
 
 #### Deploy to Vercel
@@ -138,7 +138,9 @@ Set in Vercel dashboard (Settings → Environment Variables):
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc...
 SUPABASE_SECRET_KEY=eyJhbGc... [SECRET]
-ANTHROPIC_API_KEY=sk-ant-... [SECRET]
+GEMINI_API_KEY=... [SECRET, if not using Vertex AI]
+GOOGLE_CLOUD_PROJECT=... [SECRET/CONFIG, if using Vertex AI]
+GOOGLE_APPLICATION_CREDENTIALS_JSON=... [SECRET, if using Vertex AI JSON credentials]
 STRIPE_SECRET_KEY=sk_live_... [SECRET, Phase 2+]
 STRIPE_WEBHOOK_SECRET=whsec_live_... [SECRET, Phase 2+]
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
@@ -186,7 +188,7 @@ psql $SUPABASE_CONNECTION_STRING \
 
 - **Vercel**: https://vercel.com/dashboard
 - **Supabase**: https://app.supabase.com/projects
-- **Anthropic**: https://console.anthropic.com/usage
+- **Google AI / Vertex AI**: https://console.cloud.google.com/apis/dashboard
 - **Stripe**: https://dashboard.stripe.com/
 
 ### Key Metrics to Monitor
@@ -198,7 +200,7 @@ psql $SUPABASE_CONNECTION_STRING \
 | Database Connections | <20 | Supabase Dashboard |
 | Scraper Success Rate | >95% | GitHub Actions logs |
 | API Error Rate | <0.1% | Vercel Logs |
-| Anthropic API Quota | <80% | Anthropic Console |
+| Gemini API Quota | <80% | Google Cloud Console |
 
 ## Mission Worker
 
@@ -277,7 +279,7 @@ psql $SUPABASE_CONNECTION_STRING -c "select id, type, status, current_step_index
 
 ### GitHub Actions Stopgap
 
-If you want a free or near-free stopgap before moving to Oracle, the repo now includes [.github/workflows/missions-worker.yml](/Users/aineshmohan/Developer/ai-real-estate-agent/.github/workflows/missions-worker.yml:1).
+If you want a free or near-free stopgap before moving to a real worker host, the repo includes [.github/workflows/missions-worker.yml](/Users/aineshmohan/Developer/ai-real-estate-agent/.github/workflows/missions-worker.yml:1).
 
 - Schedule: every 5 minutes
 - Runtime shape: one `--once` worker tick per run
@@ -291,7 +293,6 @@ Required GitHub secrets:
 
 Mission-type-specific secrets the workflow will also pass through if present:
 
-- `ANTHROPIC_API_KEY`
 - `GEMINI_API_KEY`
 - `GOOGLE_CLOUD_PROJECT`
 - `GOOGLE_CLOUD_LOCATION`
@@ -304,6 +305,44 @@ Notes:
 - `housing_search` and `listing_deep_dive` typically need LLM credentials.
 - `sublease_post` may need Google Places and Resend depending on the step path.
 - If a secret is missing for a given mission type, the worker will log the failure and the mission will move to `retrying` or `failed` based on the executor rules.
+
+### Oracle VM Status
+
+The Oracle VM path is prepared but not active as of 2026-04-22.
+
+Current verified state:
+
+- OCI CLI is authenticated locally.
+- Tenancy is subscribed only to `us-chicago-1`.
+- Chicago network exists and is usable:
+  - VCN: `worker-vcn`
+  - public subnet: `worker-public-subnet`
+  - internet gateway: `worker-igw`
+  - default route: `0.0.0.0/0 -> worker-igw`
+  - SSH `22` allowed by the security list
+- SSH keypair exists locally:
+  - private key: `~/.ssh/oracle-worker`
+  - public key: `~/.ssh/oracle-worker.pub`
+- `VM.Standard.A1.Flex` is currently `OUT_OF_HOST_CAPACITY` in all Chicago availability domains.
+- No Oracle worker VM has been launched.
+
+When capacity exists, launch:
+
+- Region: `us-chicago-1` unless another subscribed region is available
+- Shape: `VM.Standard.A1.Flex`
+- Size: `1 OCPU / 6 GB RAM` or smaller if capacity requires it
+- Image: Ubuntu ARM or Oracle Linux ARM
+- Network: `worker-vcn` / `worker-public-subnet`
+- Public IP: enabled
+- SSH key: contents of `~/.ssh/oracle-worker.pub`
+
+After SSH works:
+
+```bash
+ssh -i ~/.ssh/oracle-worker ubuntu@PUBLIC_IP
+```
+
+Then install the runtime, clone the repo, configure `.env.worker`, run `pnpm worker:missions -- --once`, and only then add cron.
 
 ## Common Issues
 
@@ -356,24 +395,17 @@ curl -I $NEXT_PUBLIC_SUPABASE_URL
 **Symptoms**: "Invalid API key" or timeout errors
 
 ```bash
-# 1. Verify API key format
-echo $ANTHROPIC_API_KEY | head -c 10  # Should be "sk-ant-..."
+# 1. Verify Gemini configuration
+echo $GEMINI_API_KEY | head -c 6
+echo $GOOGLE_CLOUD_PROJECT
 
 # 2. Check quota usage
-# https://console.anthropic.com/usage
+# Google AI Studio or Google Cloud Vertex AI quota dashboard
 
 # 3. Check rate limits
 # View logs for HTTP 429 responses
 
-# 4. Test API manually
-curl https://api.anthropic.com/v1/messages \
-  -H "x-api-key: $ANTHROPIC_API_KEY" \
-  -H "anthropic-version: 2023-06-01" \
-  -H "content-type: application/json" \
-  -d '{"model":"claude-3-5-sonnet-20241022","max_tokens":100,"messages":[{"role":"user","content":"test"}]}'
-
-# 5. Regenerate key if compromised
-# https://console.anthropic.com/account/api-keys
+# 4. Regenerate key or rotate service account credentials if compromised
 ```
 
 ### Database Too Many Connections
@@ -532,7 +564,7 @@ psql $SUPABASE_CONNECTION_STRING \
 ```bash
 # 1. IMMEDIATELY rotate exposed secrets
 # - SUPABASE_SECRET_KEY
-# - ANTHROPIC_API_KEY
+# - GEMINI_API_KEY / GOOGLE_APPLICATION_CREDENTIALS_JSON
 # - STRIPE_SECRET_KEY
 
 # 2. Update all references
@@ -542,7 +574,7 @@ gh secret set [SECRET_NAME] -b "[NEW_VALUE]"
 # 3. Check access logs
 # Supabase: Authentication → Audit logs
 # Vercel: Logs for suspicious activity
-# Anthropic: API usage dashboard
+# Google AI / Vertex AI: API usage dashboard
 
 # 4. Revoke old keys
 # Remove from all platforms
@@ -564,12 +596,12 @@ git log -S "whsec_" --oneline
 
 #### Daily
 - [ ] Monitor error rates (Vercel dashboard)
-- [ ] Check API quota usage (Anthropic console)
+- [ ] Check Gemini API quota usage (Google Cloud Console)
 
 #### Weekly
 - [ ] Review scraper success logs
 - [ ] Check database size and connections
-- [ ] Monitor cost trends (Vercel, Supabase, Anthropic)
+- [ ] Monitor cost trends (Vercel, Supabase, Google AI / Vertex AI)
 
 #### Monthly
 - [ ] Review and rotate secrets if recommended
@@ -678,7 +710,7 @@ dig your-domain.com @8.8.8.8 +short
 | Engineering Lead | Slack | During business hours |
 | On-Call | Pagerduty | 24/7 |
 | Supabase Support | support@supabase.io | Business hours |
-| Anthropic Support | support@anthropic.com | Business hours |
+| Google Cloud Support | Google Cloud Console → Support | Business hours |
 | Vercel Support | Vercel Dashboard → Help | Business hours |
 
 ### Escalation Process
@@ -691,15 +723,96 @@ dig your-domain.com @8.8.8.8 +short
 6. **Document** (GitHub issue with timeline)
 7. **Post-mortem** (within 1 week for P1/P2)
 
+## Runtime Rebuild Migration Rollback
+
+Applies to: migrations `032_conversation_state.sql`, `033_mission_runtime_queue.sql`, `034_harden_security_definer_functions.sql`.
+
+### Apply order
+
+1. `032_conversation_state.sql` — adds `conversations.conversation_state JSONB` column with default empty object
+2. `033_mission_runtime_queue.sql` — adds queue/lease/retry columns to `missions`, creates `claim_next_mission()` helper, indexes for queue scans
+3. `034_harden_security_definer_functions.sql` — revokes broad EXECUTE on the helper RPCs added in 033, pins `search_path`
+
+Apply via:
+
+```bash
+supabase db push                                     # against linked project
+# or, against a specific project:
+supabase db push --linked --project-ref <ref>
+```
+
+### Verification queries (post-apply)
+
+Run in Supabase SQL editor:
+
+```sql
+-- 032
+SELECT column_name, data_type, column_default
+FROM information_schema.columns
+WHERE table_name = 'conversations' AND column_name = 'conversation_state';
+-- expect: conversation_state | jsonb | '{}'::jsonb
+
+-- 033
+SELECT column_name FROM information_schema.columns
+WHERE table_name = 'missions'
+  AND column_name IN ('lease_until', 'heartbeat_at', 'attempt_count', 'last_error', 'step_attempts');
+-- expect: 5 rows
+
+SELECT proname, prosecdef FROM pg_proc
+WHERE proname IN ('claim_next_mission');
+-- expect: claim_next_mission | true
+
+-- 034
+SELECT proname, proacl FROM pg_proc
+WHERE proname = 'claim_next_mission';
+-- expect proacl to NOT include public/anon/authenticated EXECUTE
+```
+
+### Rollback order (REVERSE)
+
+If any of the above verifications fail OR if production soak watch trips a rollback trigger:
+
+```sql
+-- Undo 034 — restore previous EXECUTE grants and search_path
+-- (file's own DOWN block; if missing, manually re-grant by running the GRANT statements removed by 034)
+GRANT EXECUTE ON FUNCTION public.claim_next_mission TO service_role;
+-- (do NOT restore EXECUTE for anon/authenticated; that was the bug)
+
+-- Undo 033 — drop helpers and queue columns
+DROP FUNCTION IF EXISTS public.claim_next_mission(text, integer);
+ALTER TABLE missions
+  DROP COLUMN IF EXISTS lease_until,
+  DROP COLUMN IF EXISTS heartbeat_at,
+  DROP COLUMN IF EXISTS attempt_count,
+  DROP COLUMN IF EXISTS last_error,
+  DROP COLUMN IF EXISTS step_attempts;
+DROP INDEX IF EXISTS missions_queue_scan_idx;  -- name from migration 033
+
+-- Undo 032 — drop conversation_state column
+ALTER TABLE conversations DROP COLUMN IF EXISTS conversation_state;
+```
+
+### Rollback triggers (Day 4 soak watch)
+
+Revert deploy + execute migration rollback if **either** is true within the soak window:
+
+- mission queue stalls for >30 min (no `running` → `completed` transitions, queue depth growing)
+- chat error rate >5% (5xx responses from `/api/ai/cribai`)
+
+### Worker stop (incident response)
+
+- disable workflow: GitHub UI → Actions → `missions-worker` → ⋮ → Disable workflow
+- or remove cron from `.github/workflows/missions-worker.yml` and push
+
 ## References
 
 - [Vercel Documentation](https://vercel.com/docs)
 - [Supabase Docs](https://supabase.com/docs)
-- [Anthropic API Docs](https://docs.anthropic.com)
+- [Gemini API Docs](https://ai.google.dev/gemini-api/docs)
 - [Next.js Deployment](https://nextjs.org/docs/deployment)
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/)
 
 ---
 
-**Last Updated**: 2025-03-04
+**Last Updated**: 2026-04-22
 **Maintainers**: Engineering Team

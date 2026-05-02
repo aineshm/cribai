@@ -44,20 +44,32 @@ cp .env.example .env.local
   - GitHub Actions workflows
   - Scraper service
 
-### Anthropic Claude API
+### Google Gemini API
 
-**ANTHROPIC_API_KEY**
+**GEMINI_API_KEY**
 - **Type**: String (Token)
-- **Required**: Yes (for AI features)
+- **Required**: Yes for AI Studio auth; alternatively set `GOOGLE_CLOUD_PROJECT` for Vertex AI
 - **Scope**: Backend only
-- **Description**: API key for Anthropic Claude models
+- **Description**: API key for Gemini models via Google AI Studio
 - **Security**: SECRETS ONLY - Never expose publicly
-- **Where to get**: [Anthropic Console](https://console.anthropic.com) → API Keys
+- **Where to get**: Google AI Studio → API Keys
 - **Used by**:
-  - CribAI (PageIndex + streaming chat)
-  - Text analysis in pricing engine
-  - Content generation
-- **Rate limits**: Check Anthropic dashboard for your plan
+  - CribAI
+  - embedding generation
+  - mission steering/content generation
+- **Rate limits**: Check Google AI Studio or Google Cloud quota dashboard
+
+**GOOGLE_CLOUD_PROJECT**
+- **Type**: String
+- **Required**: Required only for Vertex AI auth
+- **Scope**: Backend only
+- **Description**: Google Cloud project for Vertex AI Gemini access
+
+**GOOGLE_APPLICATION_CREDENTIALS_JSON**
+- **Type**: JSON string
+- **Required**: Optional, used when Vertex AI credentials are provided inline
+- **Scope**: Backend only
+- **Security**: SECRETS ONLY - Never expose publicly
 
 ### Stripe (Phase 2)
 
@@ -97,8 +109,8 @@ NEXT_PUBLIC_SUPABASE_URL=https://dev-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_dev_anon_key
 SUPABASE_SECRET_KEY=your_dev_service_role_key
 
-# Claude - Use development key (lower limits recommended)
-ANTHROPIC_API_KEY=your_dev_anthropic_key
+# Gemini - Use development key or Vertex AI project credentials
+GEMINI_API_KEY=your_dev_gemini_key
 
 # Stripe - Use test keys
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
@@ -114,7 +126,7 @@ Set in `.env.staging` or via deployment platform environment variables:
 # Same structure as production but with staging credentials
 NEXT_PUBLIC_SUPABASE_URL=https://staging-project.supabase.co
 SUPABASE_SECRET_KEY=staging_service_role_key
-ANTHROPIC_API_KEY=staging_anthropic_key
+GEMINI_API_KEY=staging_gemini_key
 ```
 
 ### Production
@@ -144,7 +156,8 @@ Never put secrets here (API keys, service role keys, webhook secrets).
 
 Variables without prefix are server-only:
 - `SUPABASE_SECRET_KEY` - Admin access, never expose
-- `ANTHROPIC_API_KEY` - Rate limited, authentication required
+- `GEMINI_API_KEY` - Rate limited, authentication required
+- `GOOGLE_APPLICATION_CREDENTIALS_JSON` - service-account credentials, never expose
 - `STRIPE_SECRET_KEY` - Full payment access, never expose
 - `STRIPE_WEBHOOK_SECRET` - Webhook verification, never expose
 
@@ -173,20 +186,16 @@ export SUPABASE_SECRET_KEY="your_service_role_key"
 curl -i $NEXT_PUBLIC_SUPABASE_URL
 ```
 
-### 2. Anthropic Claude API
+### 2. Google Gemini API
 
 ```bash
-# Get API key from console.anthropic.com
-# Click "Create Key" button
+# Get API key from Google AI Studio, or configure Vertex AI
 
-export ANTHROPIC_API_KEY="sk-ant-..."
+export GEMINI_API_KEY="..."
 
-# Verify API works
-curl https://api.anthropic.com/v1/messages \
-  -H "x-api-key: $ANTHROPIC_API_KEY" \
-  -H "anthropic-version: 2023-06-01" \
-  -H "content-type: application/json" \
-  -d '{"model":"claude-3-5-sonnet-20241022","max_tokens":1024,"messages":[{"role":"user","content":"hello"}]}'
+# Or for Vertex AI
+export GOOGLE_CLOUD_PROJECT="your-project"
+export GOOGLE_CLOUD_LOCATION="us-central1"
 ```
 
 ### 3. Stripe (Phase 2)
@@ -219,7 +228,7 @@ if (!process.env.SUPABASE_SECRET_KEY) {
 ### packages/ai
 
 ```typescript
-// Validates ANTHROPIC_API_KEY when making requests
+// Requires GEMINI_API_KEY or GOOGLE_CLOUD_PROJECT for model calls
 ```
 
 ### apps/web
@@ -269,13 +278,14 @@ curl -i $NEXT_PUBLIC_SUPABASE_URL
 # Test with correct key
 ```
 
-### "Invalid API key" from Anthropic
+### "Invalid API key" from Gemini
 
 ```bash
-# Verify key format starts with sk-ant-
-echo $ANTHROPIC_API_KEY | head -c 10
+# Verify one Gemini auth path is configured
+echo $GEMINI_API_KEY | head -c 6
+echo $GOOGLE_CLOUD_PROJECT
 
-# Check key is active in console.anthropic.com
+# Check key is active in Google AI Studio or Vertex AI credentials are valid
 # Regenerate if needed
 ```
 
@@ -334,6 +344,6 @@ Environments: Production, Preview, Development
 ## References
 
 - [Supabase API Documentation](https://supabase.com/docs/guides/api)
-- [Anthropic API Reference](https://docs.anthropic.com)
+- [Gemini API Documentation](https://ai.google.dev/gemini-api/docs)
 - [Stripe API Documentation](https://stripe.com/docs/api)
 - [Next.js Environment Variables](https://nextjs.org/docs/basic-features/environment-variables)
