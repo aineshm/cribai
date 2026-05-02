@@ -804,6 +804,20 @@ Revert deploy + execute migration rollback if **either** is true within the soak
 - disable workflow: GitHub UI → Actions → `missions-worker` → ⋮ → Disable workflow
 - or remove cron from `.github/workflows/missions-worker.yml` and push
 
+### Feature flag stance
+
+Decided 2026-05-01: **ALWAYS-ON, no env var flag.**
+
+Rationale: the deterministic runtime is invoked unconditionally in `apps/web/app/api/ai/cribai/route.ts` via `maybeHandleDeterministicTurn` (defined in `apps/web/lib/cribai-runtime.ts`). When no deterministic intent matches (compare/detail/tour/etc), it returns `null` and the route falls through to the existing Gemini function-calling loop. There is no env var, build-time flag, or kill switch — gating lives in the intent matchers themselves. Adding a flag now would be cosmetic since the schema changes from migrations 032/033 are not feature-flaggable at runtime.
+
+Rollback path if behavior is wrong in prod:
+
+1. **Deploy revert** — Vercel UI → previous deploy → "Promote to Production" (reverts code to pre-merge SHA in <1 min)
+2. **Migration rollback** — execute the SQL in "Rollback order (REVERSE)" above (034 → 033 → 032)
+3. **Worker stop** — disable `missions-worker` workflow per "Worker stop (incident response)"
+
+No quick-toggle env var exists — full rollback requires the deploy revert + migration rollback combo.
+
 ## References
 
 - [Vercel Documentation](https://vercel.com/docs)

@@ -65,7 +65,7 @@ Definition of done: see spec section 6.
 - No production mission worker is running
 - Oracle free-tier worker blocked by `VM.Standard.A1.Flex` capacity in `us-chicago-1`
 - Golden flows from handoff spec not yet rerun against staging or prod
-- 5 stale concierge UI tests fail; stance pending Day 1 Track D
+- ~~5 stale concierge UI tests fail~~ ✅ Track D complete 2026-05-02: 2 fixed (cribai-chat input label regex), 3 skipped with TODO (MissionSuggestions badge status mismatch + 2 MessagesPageClient tab semantics)
 
 ## Performance Metrics (cumulative)
 
@@ -79,7 +79,7 @@ Definition of done: see spec section 6.
 
 ## Session Continuity
 
-Last session: 2026-05-01
-Stopped at: Sprint close-out plan adopted; spec + plan committed to runtime-rebuild
+Last session: 2026-05-02
+Stopped at: Day 1 local edits done — Track D ✅ (feature flag stance: ALWAYS-ON, recorded in RUNBOOK; 5 stale tests resolved). Track C2/C4 ✅ (Codex gpt-5.5 high; MEMORY.md). Track A2/A3 ✅ (STATE.md milestone shift; RUNBOOK rollback section). Awaiting user approval for Track A4 (commit + push), Track B (ops repo), Track C6 (Notion).
 Resume file: `docs/superpowers/plans/2026-05-01-runtime-rebuild-close-out.md`
-Next: Execute the plan track-by-track. Tracks A/B/C/D can run in parallel sessions.
+Next: User approves Track A4 push to land Day 1 product-repo work; then proceed to Track E (Day 2 — code commits + draft PR).
