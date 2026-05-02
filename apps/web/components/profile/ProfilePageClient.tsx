@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
 import { SavedListings } from '@/components/profile/SavedListings';
@@ -168,12 +169,12 @@ function ChatHistoryTab() {
         <p className="mt-2 text-sm text-gray-500 max-w-xs">
           Start chatting on Discover to find apartments and your conversations will appear here.
         </p>
-        <a
+        <Link
           href="/explore"
           className="mt-4 inline-flex items-center gap-2 rounded-xl bg-red-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-900 transition-colors"
         >
           Open Discover
-        </a>
+        </Link>
       </div>
     );
   }

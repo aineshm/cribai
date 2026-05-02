@@ -30,12 +30,12 @@ export function MyListings({ listings }: MyListingsProps) {
         <p className="mt-2 text-sm text-gray-500 max-w-xs">
           Post a sublease through CribAI chat and it will appear here.
         </p>
-        <a
+        <Link
           href="/chat"
           className="mt-4 inline-flex items-center gap-2 rounded-xl bg-red-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-900 transition-colors"
         >
           Open Chat
-        </a>
+        </Link>
       </div>
     );
   }

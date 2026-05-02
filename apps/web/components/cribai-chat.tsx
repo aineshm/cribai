@@ -122,7 +122,7 @@ function parseSSEEvent(data: string): SSEEvent | null {
 /** Save a message to the conversation in the database */
 async function persistMessage(
   conversationId: string,
-  role: 'user' | 'assistant',
+  role: 'user',
   blocks: readonly ChatBlock[],
 ): Promise<boolean> {
   try {

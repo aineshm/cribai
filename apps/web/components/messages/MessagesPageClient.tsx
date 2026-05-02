@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useState } from 'react';
+import Link from 'next/link';
 import {
   AlertCircle,
   ArrowRight,
@@ -310,12 +311,12 @@ export function MessagesPageClient({
                   : 'Archived missions will appear here.'}
               </p>
               {tab === 'queue' && (
-                <a
+                <Link
                   href="/explore"
                   className="mt-4 inline-flex items-center gap-2 rounded-xl bg-red-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-900"
                 >
                   Open Discover <ArrowRight className="size-4" />
-                </a>
+                </Link>
               )}
             </div>
           )}
