@@ -10,7 +10,7 @@ interface WorkerConfig {
   readonly runOnce: boolean;
 }
 
-function getNumberEnv(name: string, fallback: number, minimum: number): number {
+function getNumberEnv(name: string, fallback: number, minimum: number, maximum?: number): number {
   const raw = process.env[name];
   if (!raw) {
     return fallback;
@@ -21,15 +21,16 @@ function getNumberEnv(name: string, fallback: number, minimum: number): number {
     return fallback;
   }
 
-  return Math.max(minimum, parsed);
+  const bounded = Math.max(minimum, parsed);
+  return maximum === undefined ? bounded : Math.min(bounded, maximum);
 }
 
 function getConfig(): WorkerConfig {
   return {
     intervalMs: getNumberEnv('MISSION_WORKER_INTERVAL_MS', 5000, 1000),
     idleLogIntervalMs: getNumberEnv('MISSION_WORKER_IDLE_LOG_INTERVAL_MS', 60000, 5000),
-    maxJobsPerTick: getNumberEnv('MISSION_WORKER_MAX_JOBS_PER_TICK', 5, 1),
-    leaseSeconds: getNumberEnv('MISSION_WORKER_LEASE_SECONDS', 300, 30),
+    maxJobsPerTick: getNumberEnv('MISSION_WORKER_MAX_JOBS_PER_TICK', 5, 1, 10),
+    leaseSeconds: getNumberEnv('MISSION_WORKER_LEASE_SECONDS', 300, 30, 1800),
     runOnce:
       process.argv.includes('--once') ||
       process.env.MISSION_WORKER_RUN_ONCE === '1' ||

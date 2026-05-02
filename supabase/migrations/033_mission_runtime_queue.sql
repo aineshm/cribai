@@ -41,10 +41,14 @@ CREATE OR REPLACE FUNCTION claim_next_mission_job(
 RETURNS SETOF missions
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   claimed missions%ROWTYPE;
+  lease_seconds INTEGER;
 BEGIN
+  lease_seconds := LEAST(GREATEST(p_lease_seconds, 30), 1800);
+
   WITH candidate AS (
     SELECT id
     FROM missions
@@ -68,7 +72,7 @@ BEGIN
   UPDATE missions AS m
   SET status = 'running',
       attempt_count = COALESCE(m.attempt_count, 0) + 1,
-      leased_until = now() + make_interval(secs => GREATEST(p_lease_seconds, 30)),
+      leased_until = now() + make_interval(secs => lease_seconds),
       last_heartbeat_at = now(),
       last_error = NULL,
       updated_at = now()
@@ -84,3 +88,7 @@ BEGIN
 END;
 $$;
 
+REVOKE EXECUTE ON FUNCTION claim_next_mission_job(INTEGER) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION claim_next_mission_job(INTEGER) FROM anon;
+REVOKE EXECUTE ON FUNCTION claim_next_mission_job(INTEGER) FROM authenticated;
+GRANT EXECUTE ON FUNCTION claim_next_mission_job(INTEGER) TO service_role;

@@ -3,6 +3,10 @@ import type { Mission } from '@campusnest/types';
 import { claimNextMission } from './mission-repository';
 import { executeMission } from './executor';
 
+const MAX_JOBS_PER_RUN = 10;
+const MIN_LEASE_SECONDS = 30;
+const MAX_LEASE_SECONDS = 1800;
+
 export interface MissionQueueRunResult {
   readonly claimedMissionIds: readonly string[];
   readonly claimedMissions: readonly {
@@ -26,8 +30,11 @@ export async function runMissionQueueOnce(
   options: RunMissionQueueOptions = {},
 ): Promise<MissionQueueRunResult> {
   const supabase = createSecretClient();
-  const maxJobs = Math.max(1, options.maxJobs ?? 1);
-  const leaseSeconds = Math.max(30, options.leaseSeconds ?? 300);
+  const maxJobs = Math.min(Math.max(Math.floor(options.maxJobs ?? 1), 1), MAX_JOBS_PER_RUN);
+  const leaseSeconds = Math.min(
+    Math.max(Math.floor(options.leaseSeconds ?? 300), MIN_LEASE_SECONDS),
+    MAX_LEASE_SECONDS,
+  );
   const claimedMissionIds: string[] = [];
   const claimedMissions: Array<{
     readonly id: string;

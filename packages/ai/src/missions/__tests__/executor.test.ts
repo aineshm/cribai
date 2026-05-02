@@ -19,14 +19,20 @@ vi.mock('@campusnest/supabase/server', () => ({
 }));
 
 vi.mock('../mission-repository', () => ({
+  clearMissionLease: vi.fn(),
+  completeMission: vi.fn(),
   getMission: vi.fn(),
+  heartbeatMissionLease: vi.fn(),
   updateMissionStatus: vi.fn(),
   updateMissionState: vi.fn(),
+  markMissionFailed: vi.fn(),
   setMissionResult: vi.fn(),
   insertMissionLog: vi.fn(),
   insertMissionDraft: vi.fn(),
   getCampusSlug: vi.fn(),
   getAllUnappliedSteerings: vi.fn(),
+  markMissionRetrying: vi.fn(),
+  markMissionWaitingApproval: vi.fn(),
   markSteeringApplied: vi.fn(),
   updateMissionInput: vi.fn(),
 }));
@@ -41,14 +47,20 @@ vi.mock('../registry', () => ({
 
 import { executeMission } from '../executor';
 import {
+  clearMissionLease,
+  completeMission,
   getMission,
+  heartbeatMissionLease,
   updateMissionStatus,
   updateMissionState,
+  markMissionFailed,
   setMissionResult,
   insertMissionLog,
   insertMissionDraft,
   getCampusSlug,
   getAllUnappliedSteerings,
+  markMissionRetrying,
+  markMissionWaitingApproval,
   markSteeringApplied,
   updateMissionInput,
 } from '../mission-repository';
@@ -59,8 +71,14 @@ import { parseSteeringIntent } from '../steering-parser';
 // Gives us strongly-typed .mockResolvedValue / .mockReturnValue calls
 
 const mockGetMission = vi.mocked(getMission);
+const mockHeartbeatMissionLease = vi.mocked(heartbeatMissionLease);
+const mockClearMissionLease = vi.mocked(clearMissionLease);
+const mockCompleteMission = vi.mocked(completeMission);
 const mockUpdateStatus = vi.mocked(updateMissionStatus);
 const mockUpdateState = vi.mocked(updateMissionState);
+const mockMarkMissionFailed = vi.mocked(markMissionFailed);
+const mockMarkMissionRetrying = vi.mocked(markMissionRetrying);
+const mockMarkMissionWaitingApproval = vi.mocked(markMissionWaitingApproval);
 const mockSetResult = vi.mocked(setMissionResult);
 const mockInsertLog = vi.mocked(insertMissionLog);
 const mockInsertDraft = vi.mocked(insertMissionDraft);
@@ -122,8 +140,14 @@ describe('executeMission', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetCampusSlug.mockResolvedValue('uw-madison');
+    mockHeartbeatMissionLease.mockResolvedValue(undefined);
+    mockClearMissionLease.mockResolvedValue(undefined);
+    mockCompleteMission.mockResolvedValue(undefined);
     mockUpdateStatus.mockResolvedValue(undefined);
     mockUpdateState.mockResolvedValue(undefined);
+    mockMarkMissionFailed.mockResolvedValue(undefined);
+    mockMarkMissionRetrying.mockResolvedValue(undefined);
+    mockMarkMissionWaitingApproval.mockResolvedValue(undefined);
     mockSetResult.mockResolvedValue(undefined);
     mockInsertLog.mockResolvedValue({} as any);
     mockInsertDraft.mockResolvedValue({} as any);
@@ -144,19 +168,18 @@ describe('executeMission', () => {
 
     await executeMission({ missionId: 'mission-1' });
 
-    // Status set to running, then completed
+    // Status set to running, then completion persists final result + clears lease.
     expect(mockUpdateStatus).toHaveBeenCalledWith(expect.anything(), 'mission-1', 'running');
-    expect(mockUpdateStatus).toHaveBeenCalledWith(expect.anything(), 'mission-1', 'completed');
 
     // State persisted after each step
     expect(mockUpdateState).toHaveBeenCalledTimes(3);
 
-    // Result set on completion
-    expect(mockSetResult).toHaveBeenCalledWith(
+    expect(mockCompleteMission).toHaveBeenCalledWith(
       expect.anything(),
       'mission-1',
       expect.objectContaining({ search_done: true, rank_done: true, report_done: true }),
     );
+    expect(mockClearMissionLease).toHaveBeenCalledWith(expect.anything(), 'mission-1');
   });
 
   it('accumulates state immutably across steps', async () => {
@@ -188,7 +211,7 @@ describe('executeMission', () => {
   it('marks mission as failed when a step throws', async () => {
     const steps = [
       makeStep('good'),
-      makeStep('bad', async () => { throw new Error('step exploded'); }),
+      makeStep('bad', async () => { throw new Error('validation failed'); }),
       makeStep('unreached'),
     ];
 
@@ -197,14 +220,19 @@ describe('executeMission', () => {
 
     await executeMission({ missionId: 'mission-1' });
 
-    expect(mockUpdateStatus).toHaveBeenCalledWith(expect.anything(), 'mission-1', 'failed');
+    expect(mockMarkMissionFailed).toHaveBeenCalledWith(
+      expect.anything(),
+      'mission-1',
+      'validation failed',
+      expect.objectContaining({ bad: 1 }),
+    );
 
     // Error should be logged
     const errorLog = mockInsertLog.mock.calls.find(
       (call) => (call[1] as any).status === 'error',
     );
     expect(errorLog).toBeDefined();
-    expect((errorLog![1] as any).detail).toContain('step exploded');
+    expect((errorLog![1] as any).detail).toContain('validation failed');
 
     // Step 3 should not have run (only 2 success + 2 running logs + 1 error log = 5)
     // Actually: step1 running + step1 success + step2 running + step2 error = 4
@@ -237,10 +265,9 @@ describe('executeMission', () => {
         payload: { listings: ['a', 'b'] },
       }),
     );
-    expect(mockUpdateStatus).toHaveBeenCalledWith(
+    expect(mockMarkMissionWaitingApproval).toHaveBeenCalledWith(
       expect.anything(),
       'mission-1',
-      'waiting_approval',
     );
 
     // Step 3 should not have run
@@ -315,7 +342,11 @@ describe('executeMission', () => {
 
     await executeMission({ missionId: 'mission-1' });
 
-    expect(mockUpdateStatus).toHaveBeenCalledWith(expect.anything(), 'mission-1', 'completed');
+    expect(mockCompleteMission).toHaveBeenCalledWith(
+      expect.anything(),
+      'mission-1',
+      expect.objectContaining({ result: 'done' }),
+    );
     // Only 1 step should have been executed
     const runningLogs = mockInsertLog.mock.calls.filter(
       (call) => (call[1] as any).status === 'running',
@@ -474,7 +505,11 @@ describe('executeMission', () => {
 
     expect(mockMarkSteeringApplied).not.toHaveBeenCalled();
     // Mission still completes normally
-    expect(mockUpdateStatus).toHaveBeenCalledWith(expect.anything(), 'mission-1', 'completed');
+    expect(mockCompleteMission).toHaveBeenCalledWith(
+      expect.anything(),
+      'mission-1',
+      expect.objectContaining({ step1_done: true, step2_done: true }),
+    );
   });
 
   it('does not kill mission when getAllUnappliedSteerings throws', async () => {
@@ -488,8 +523,12 @@ describe('executeMission', () => {
     await executeMission({ missionId: 'mission-1' });
 
     // Mission completes despite steering DB error
-    expect(mockUpdateStatus).toHaveBeenCalledWith(expect.anything(), 'mission-1', 'completed');
-    expect(mockUpdateStatus).not.toHaveBeenCalledWith(expect.anything(), 'mission-1', 'failed');
+    expect(mockCompleteMission).toHaveBeenCalledWith(
+      expect.anything(),
+      'mission-1',
+      expect.objectContaining({ only_done: true }),
+    );
+    expect(mockMarkMissionFailed).not.toHaveBeenCalled();
   });
 
   it('applies steering only once across multiple steps', async () => {
@@ -604,7 +643,11 @@ describe('executeMission', () => {
     expect((tooLateLog![1] as any).detail).toContain('change to $900');
 
     // Mission still completes
-    expect(mockUpdateStatus).toHaveBeenCalledWith(expect.anything(), 'mission-1', 'completed');
+    expect(mockCompleteMission).toHaveBeenCalledWith(
+      expect.anything(),
+      'mission-1',
+      expect.objectContaining({ final_done: true }),
+    );
   });
 
   it('does not mark steering applied when result.done signals early termination', async () => {

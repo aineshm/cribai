@@ -27,7 +27,7 @@ describe('CribAIChat input seeding', () => {
       />,
     );
 
-    expect(screen.getByLabelText('Chat message input')).toHaveValue('Tell me about this listing.');
+    expect(screen.getByLabelText(/^Chat message input/i)).toHaveValue('Tell me about this listing.');
     expect(onInputSeedConsumed).toHaveBeenCalledTimes(1);
   });
 
@@ -42,7 +42,7 @@ describe('CribAIChat input seeding', () => {
       />,
     );
 
-    const input = screen.getByLabelText('Chat message input');
+    const input = screen.getByLabelText(/^Chat message input/i);
     await user.clear(input);
     await user.type(input, 'typed draft that should be replaced');
     expect(input).toHaveValue('typed draft that should be replaced');
@@ -55,7 +55,7 @@ describe('CribAIChat input seeding', () => {
       />,
     );
 
-    expect(screen.getByLabelText('Chat message input')).toHaveValue('Second listing prompt');
+    expect(screen.getByLabelText(/^Chat message input/i)).toHaveValue('Second listing prompt');
     expect(onInputSeedConsumed).toHaveBeenCalledTimes(2);
   });
 });
