@@ -202,8 +202,8 @@ Applies to: migrations `032_conversation_state.sql`, `033_mission_runtime_queue.
 
 ### Apply order
 
-1. `032_conversation_state.sql` — adds `conversations.conversation_state JSONB` column with default empty object
-2. `033_mission_runtime_queue.sql` — adds queue/lease/retry columns to `missions`, creates `claim_next_mission()` helper, indexes for queue scans
+1. `032_conversation_state.sql` — adds `conversations.conversation_state JSONB` column with a versioned state default
+2. `033_mission_runtime_queue.sql` — adds queue/lease/retry columns to `missions`, creates `claim_next_mission_job()` helper, indexes for queue scans
 3. `034_harden_security_definer_functions.sql` — revokes broad EXECUTE on the helper RPCs added in 033, pins `search_path`
 
 Apply via:
@@ -220,24 +220,24 @@ Run in Supabase SQL editor:
 
 ```sql
 -- 032
-SELECT column_name, data_type, column_default
+SELECT column_name, data_type, is_nullable, column_default IS NOT NULL AS has_default
 FROM information_schema.columns
 WHERE table_name = 'conversations' AND column_name = 'conversation_state';
--- expect: conversation_state | jsonb | '{}'::jsonb
+-- expect: conversation_state | jsonb | NO | true
 
 -- 033
 SELECT column_name FROM information_schema.columns
 WHERE table_name = 'missions'
-  AND column_name IN ('lease_until', 'heartbeat_at', 'attempt_count', 'last_error', 'step_attempts');
+  AND column_name IN ('leased_until', 'last_heartbeat_at', 'attempt_count', 'last_error', 'step_attempts');
 -- expect: 5 rows
 
 SELECT proname, prosecdef FROM pg_proc
-WHERE proname IN ('claim_next_mission');
--- expect: claim_next_mission | true
+WHERE proname IN ('claim_next_mission_job');
+-- expect: claim_next_mission_job | true
 
 -- 034
 SELECT proname, proacl FROM pg_proc
-WHERE proname = 'claim_next_mission';
+WHERE proname = 'claim_next_mission_job';
 -- expect proacl to NOT include public/anon/authenticated EXECUTE
 ```
 
@@ -248,18 +248,18 @@ If any of the above verifications fail OR if production soak watch trips a rollb
 ```sql
 -- Undo 034 — restore previous EXECUTE grants and search_path
 -- (file's own DOWN block; if missing, manually re-grant by running the GRANT statements removed by 034)
-GRANT EXECUTE ON FUNCTION public.claim_next_mission TO service_role;
+GRANT EXECUTE ON FUNCTION public.claim_next_mission_job(INTEGER) TO service_role;
 -- (do NOT restore EXECUTE for anon/authenticated; that was the bug)
 
 -- Undo 033 — drop helpers and queue columns
-DROP FUNCTION IF EXISTS public.claim_next_mission(text, integer);
+DROP FUNCTION IF EXISTS public.claim_next_mission_job(INTEGER);
 ALTER TABLE missions
-  DROP COLUMN IF EXISTS lease_until,
-  DROP COLUMN IF EXISTS heartbeat_at,
+  DROP COLUMN IF EXISTS leased_until,
+  DROP COLUMN IF EXISTS last_heartbeat_at,
   DROP COLUMN IF EXISTS attempt_count,
   DROP COLUMN IF EXISTS last_error,
   DROP COLUMN IF EXISTS step_attempts;
-DROP INDEX IF EXISTS missions_queue_scan_idx;  -- name from migration 033
+DROP INDEX IF EXISTS idx_missions_queue_claim;  -- name from migration 033
 
 -- Undo 032 — drop conversation_state column
 ALTER TABLE conversations DROP COLUMN IF EXISTS conversation_state;
@@ -641,7 +641,7 @@ Then stage the D2 test edits (file list depends on D2 outcome).
 git commit -m "$(cat <<'EOF'
 fix(security): harden SECURITY DEFINER RPCs + cap public write surfaces
 
-- migration 034: revoke broad EXECUTE on claim_next_mission and other
+- migration 034: revoke broad EXECUTE on claim_next_mission_job and other
   queue helpers, pin search_path to prevent injection
 - /api/missions/run-next: cap batch size and lease duration so admin
   inputs cannot create oversized claims
