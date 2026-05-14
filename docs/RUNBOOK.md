@@ -725,13 +725,14 @@ dig your-domain.com @8.8.8.8 +short
 
 ## Runtime Rebuild Migration Rollback
 
-Applies to: migrations `032_conversation_state.sql`, `033_mission_runtime_queue.sql`, `034_harden_security_definer_functions.sql`.
+Applies to: migrations `032_conversation_state.sql`, `033_mission_runtime_queue.sql`, `034_harden_security_definer_functions.sql`, `035_fix_security_advisor_gaps.sql`.
 
 ### Apply order
 
 1. `032_conversation_state.sql` — adds `conversations.conversation_state JSONB` column with a versioned state default
 2. `033_mission_runtime_queue.sql` — adds queue/lease/retry columns to `missions`, creates `claim_next_mission_job()` helper, indexes for queue scans
 3. `034_harden_security_definer_functions.sql` — revokes broad EXECUTE on the helper RPCs added in 033, pins `search_path`
+4. `035_fix_security_advisor_gaps.sql` — adds explicit RLS policies for advisor-flagged tables, best-effort handles extension-owned `spatial_ref_sys`, removes broad storage object listing, and finishes SECURITY DEFINER execute lockdown
 
 Apply via:
 
@@ -766,6 +767,29 @@ WHERE proname IN ('claim_next_mission_job');
 SELECT proname, proacl FROM pg_proc
 WHERE proname = 'claim_next_mission_job';
 -- expect proacl to NOT include public/anon/authenticated EXECUTE
+
+-- 035
+SELECT schemaname, tablename, policyname
+FROM pg_policies
+WHERE schemaname = 'public'
+  AND tablename IN ('agent_runs', 'api_cache', 'campus_landmarks', 'spatial_ref_sys')
+ORDER BY tablename, policyname;
+-- expect policies for agent_runs, api_cache, and campus_landmarks.
+-- spatial_ref_sys policy appears only when the migration role can alter the PostGIS-owned table.
+
+SELECT relname, relrowsecurity
+FROM pg_class
+WHERE relname = 'spatial_ref_sys';
+-- expect: spatial_ref_sys | true when the migration role owns the PostGIS table.
+-- Supabase MCP may emit a NOTICE and leave this false because PostGIS owns the table.
+
+-- Owner-gated PostGIS residuals
+-- If the advisor still reports spatial_ref_sys or public.st_estimatedextent,
+-- confirm their owner. On Supabase they can be owned by supabase_admin,
+-- which the MCP postgres role cannot alter directly.
+SELECT relname, pg_get_userbyid(relowner) AS owner
+FROM pg_class
+WHERE relname = 'spatial_ref_sys';
 ```
 
 ### Rollback order (REVERSE)
@@ -773,6 +797,10 @@ WHERE proname = 'claim_next_mission_job';
 If any of the above verifications fail OR if production soak watch trips a rollback trigger:
 
 ```sql
+-- Undo 035 only if the advisor fix itself caused a regression
+-- Recreate broad listing-photo object listing only if clients unexpectedly depend on storage.objects LIST.
+-- Prefer fixing the client to use stored public URLs.
+
 -- Undo 034 — restore previous EXECUTE grants and search_path
 -- (file's own DOWN block; if missing, manually re-grant by running the GRANT statements removed by 034)
 GRANT EXECUTE ON FUNCTION public.claim_next_mission_job(INTEGER) TO service_role;

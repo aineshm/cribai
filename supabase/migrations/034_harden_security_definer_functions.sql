@@ -29,6 +29,15 @@ ALTER FUNCTION handle_new_user()
   SECURITY DEFINER
   SET search_path = public, pg_temp;
 
-ALTER FUNCTION auth.custom_claims(uuid)
-  SECURITY DEFINER
-  SET search_path = public, pg_temp;
+DO $$
+BEGIN
+  BEGIN
+    ALTER FUNCTION auth.custom_claims(uuid)
+      SECURITY DEFINER
+      SET search_path = public, pg_temp;
+  EXCEPTION
+    WHEN undefined_function OR insufficient_privilege THEN
+      RAISE NOTICE 'Skipping auth.custom_claims hardening; function is absent or auth schema is not writable from this migration role.';
+  END;
+END;
+$$;
