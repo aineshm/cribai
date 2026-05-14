@@ -725,7 +725,7 @@ dig your-domain.com @8.8.8.8 +short
 
 ## Runtime Rebuild Migration Rollback
 
-Applies to: migrations `032_conversation_state.sql`, `033_mission_runtime_queue.sql`, `034_harden_security_definer_functions.sql`, `035_fix_security_advisor_gaps.sql`.
+Applies to: migrations `032_conversation_state.sql`, `033_mission_runtime_queue.sql`, `034_harden_security_definer_functions.sql`, `035_fix_security_advisor_gaps.sql`, `036_harden_semantic_rpc_overload.sql`.
 
 ### Apply order
 
@@ -733,6 +733,7 @@ Applies to: migrations `032_conversation_state.sql`, `033_mission_runtime_queue.
 2. `033_mission_runtime_queue.sql` — adds queue/lease/retry columns to `missions`, creates `claim_next_mission_job()` helper, indexes for queue scans
 3. `034_harden_security_definer_functions.sql` — revokes broad EXECUTE on the helper RPCs added in 033, pins `search_path`
 4. `035_fix_security_advisor_gaps.sql` — adds explicit RLS policies for advisor-flagged tables, best-effort handles extension-owned `spatial_ref_sys`, removes broad storage object listing, and finishes SECURITY DEFINER execute lockdown
+5. `036_harden_semantic_rpc_overload.sql` — pins `search_path` for the legacy 7-argument semantic search RPC overload when present
 
 Apply via:
 
@@ -790,6 +791,16 @@ WHERE relname = 'spatial_ref_sys';
 SELECT relname, pg_get_userbyid(relowner) AS owner
 FROM pg_class
 WHERE relname = 'spatial_ref_sys';
+
+-- 036
+SELECT p.oid::regprocedure AS function_identity, p.proconfig
+FROM pg_proc p
+JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'public'
+  AND p.proname = 'match_listings_semantic'
+ORDER BY function_identity::text;
+-- expect any present match_listings_semantic overloads to include
+-- search_path=public, extensions, pg_temp in proconfig.
 ```
 
 ### Rollback order (REVERSE)
