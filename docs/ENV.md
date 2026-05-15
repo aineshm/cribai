@@ -48,7 +48,7 @@ cp .env.example .env.local
 
 **GEMINI_API_KEY**
 - **Type**: String (Token)
-- **Required**: Yes for AI Studio auth; alternatively set `GOOGLE_CLOUD_PROJECT` for Vertex AI
+- **Required**: Yes for AI Studio auth; alternatively set `GOOGLE_GENAI_USE_VERTEXAI=true` and `GOOGLE_CLOUD_PROJECT` for Vertex AI
 - **Scope**: Backend only
 - **Description**: API key for Gemini models via Google AI Studio
 - **Security**: SECRETS ONLY - Never expose publicly
@@ -63,7 +63,13 @@ cp .env.example .env.local
 - **Type**: String
 - **Required**: Required only for Vertex AI auth
 - **Scope**: Backend only
-- **Description**: Google Cloud project for Vertex AI Gemini access
+- **Description**: Google Cloud project for Vertex AI Gemini access. If `GEMINI_API_KEY` is also present, Vertex is used only when `GOOGLE_GENAI_USE_VERTEXAI=true`.
+
+**GOOGLE_GENAI_USE_VERTEXAI**
+- **Type**: Boolean string
+- **Required**: Required only to force Vertex AI when `GEMINI_API_KEY` is also present
+- **Scope**: Backend only
+- **Description**: Set to `true` to use Vertex AI auth instead of AI Studio API-key auth.
 
 **GOOGLE_APPLICATION_CREDENTIALS_JSON**
 - **Type**: JSON string
