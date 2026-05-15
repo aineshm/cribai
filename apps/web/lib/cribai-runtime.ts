@@ -69,11 +69,11 @@ function looksLikeCompareTurn(query: string): boolean {
 }
 
 function looksLikeSearchTurn(query: string): boolean {
-  return /\b(find|show|search|browse|looking for|need)\b|\b(apartments?|listings|subleases?|housing|studio|bedroom|rent|budget)\b/i.test(query);
+  return /\b(find|show|search|browse|looking for|need)\b|\b(apartments?|listing|subleases?|housing|studio|bedroom|rent|budget)\b/i.test(query);
 }
 
-function looksLikeExplicitSearchTurn(query: string): boolean {
-  return /\b(find|show|search|browse|looking for|need)\b|\b(listings|apartments|subleases|housing)\b/i.test(query);
+function looksLikeListingDetailTurn(query: string): boolean {
+  return /\b(this|current)\s+(listing|place|apartment|unit|home)\b|\b(tell me|details?|info|information|what do you think|thoughts)\b.*\b(listing|place|apartment|unit|home)\b|\blisting\s+at\b/i.test(query);
 }
 
 function resolveOrdinalIndexes(query: string): number[] {
@@ -117,9 +117,13 @@ function parseSearchArgs(query: string): Record<string, unknown> {
   const lower = query.toLowerCase();
   const args: Record<string, unknown> = {};
 
-  const bedroomMatch = lower.match(/\b(studio|[0-9]+)\s*(?:bed|br|bedroom)s?\b/);
-  if (bedroomMatch) {
-    args.bedrooms = bedroomMatch[1] === 'studio' ? 0 : Number(bedroomMatch[1]);
+  if (/\bstudio\b/.test(lower)) {
+    args.bedrooms = 0;
+  } else {
+    const bedroomMatch = lower.match(/\b([0-9]+)\s*(?:bed|br|bedroom)s?\b/);
+    if (bedroomMatch) {
+      args.bedrooms = Number(bedroomMatch[1]);
+    }
   }
 
   const maxRentMatch = lower.match(/(?:under|below|max(?:imum)?|less than)\s*\$?\s*([0-9]{3,5})/);
@@ -404,7 +408,7 @@ export async function maybeHandleDeterministicTurn(
 
   if (listingId || nextState.selectedListingId || (nextState.lastSearch.resultListingIds.length > 0 && resolveOrdinalIndexes(query).length > 0 && !looksLikeSearchTurn(query))) {
     const resolvedListingId = listingId ?? resolveReferencedListingIds(query, nextState, 1)[0] ?? nextState.selectedListingId;
-    if (resolvedListingId && !looksLikeExplicitSearchTurn(query)) {
+    if (resolvedListingId && (looksLikeListingDetailTurn(query) || !looksLikeSearchTurn(query))) {
       const detail = await runToolWithEvents(
         'get_listing_detail',
         { listing_id: resolvedListingId },

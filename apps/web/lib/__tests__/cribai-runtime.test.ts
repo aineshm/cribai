@@ -90,4 +90,48 @@ describe('maybeHandleDeterministicTurn', () => {
       toolContext(),
     );
   });
+
+  it('keeps studio searches filtered while a listing is selected', async () => {
+    const listingId = '11111111-1111-1111-1111-111111111111';
+    const state = mergeConversationState(createEmptyConversationState(), {
+      selectedListingId: listingId,
+      mode: 'listing_detail',
+    });
+
+    const result = await maybeHandleDeterministicTurn({
+      query: 'studio under 1500',
+      listingId,
+      conversationState: state,
+      toolContext: toolContext(),
+    });
+
+    expect(result?.flow).toBe('search');
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'search_listings',
+      expect.objectContaining({ bedrooms: 0, max_rent: 1500 }),
+      toolContext(),
+    );
+  });
+
+  it('routes broad filter searches to search even with current listing context', async () => {
+    const listingId = '11111111-1111-1111-1111-111111111111';
+    const state = mergeConversationState(createEmptyConversationState(), {
+      selectedListingId: listingId,
+      mode: 'listing_detail',
+    });
+
+    const result = await maybeHandleDeterministicTurn({
+      query: '1 bedroom under 1500',
+      listingId,
+      conversationState: state,
+      toolContext: toolContext(),
+    });
+
+    expect(result?.flow).toBe('search');
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'search_listings',
+      expect.objectContaining({ bedrooms: 1, max_rent: 1500 }),
+      toolContext(),
+    );
+  });
 });
