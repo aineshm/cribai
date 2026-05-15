@@ -69,7 +69,11 @@ function looksLikeCompareTurn(query: string): boolean {
 }
 
 function looksLikeSearchTurn(query: string): boolean {
-  return /\b(find|show|search|browse|looking for|need)\b|\b(apartment|listing|sublease|housing|studio|bedroom|rent|budget)\b/i.test(query);
+  return /\b(find|show|search|browse|looking for|need)\b|\b(apartments?|listings|subleases?|housing|studio|bedroom|rent|budget)\b/i.test(query);
+}
+
+function looksLikeExplicitSearchTurn(query: string): boolean {
+  return /\b(find|show|search|browse|looking for|need)\b|\b(listings|apartments|subleases|housing)\b/i.test(query);
 }
 
 function resolveOrdinalIndexes(query: string): number[] {
@@ -113,7 +117,7 @@ function parseSearchArgs(query: string): Record<string, unknown> {
   const lower = query.toLowerCase();
   const args: Record<string, unknown> = {};
 
-  const bedroomMatch = lower.match(/\b(studio|[0-9]+)\s*(?:bed|br|bedroom)?\b/);
+  const bedroomMatch = lower.match(/\b(studio|[0-9]+)\s*(?:bed|br|bedroom)s?\b/);
   if (bedroomMatch) {
     args.bedrooms = bedroomMatch[1] === 'studio' ? 0 : Number(bedroomMatch[1]);
   }
@@ -400,7 +404,7 @@ export async function maybeHandleDeterministicTurn(
 
   if (listingId || nextState.selectedListingId || (nextState.lastSearch.resultListingIds.length > 0 && resolveOrdinalIndexes(query).length > 0 && !looksLikeSearchTurn(query))) {
     const resolvedListingId = listingId ?? resolveReferencedListingIds(query, nextState, 1)[0] ?? nextState.selectedListingId;
-    if (resolvedListingId && !looksLikeSearchTurn(query)) {
+    if (resolvedListingId && !looksLikeExplicitSearchTurn(query)) {
       const detail = await runToolWithEvents(
         'get_listing_detail',
         { listing_id: resolvedListingId },
