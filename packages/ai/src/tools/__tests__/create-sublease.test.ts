@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createMockContext } from './helpers';
 
 // Mock geocoding
@@ -50,6 +50,10 @@ describe('createSublease', () => {
     mockGeocode.mockResolvedValue({ latitude: 43.0731, longitude: -89.4012 });
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   // --- Auth ---
 
   it('throws when userId is not present', async () => {
@@ -90,6 +94,40 @@ describe('createSublease', () => {
     const result = await createSublease(validArgs, context);
 
     expect(result.modelContext).toContain('could not verify the exact location');
+  });
+
+  it('preserves same-day availability dates in Phase 1', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-15T12:00:00Z'));
+    const context = createMockContext();
+
+    const result = await createSublease(
+      {
+        ...validArgs,
+        available_from: '2026-05-15',
+        available_to: '2026-05-15',
+      },
+      context,
+    );
+
+    expect(result.modelContext).toContain('Dates: 2026-05-15 to 2026-05-15');
+  });
+
+  it('normalizes leap-day dates when correcting past years', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-15T12:00:00Z'));
+    const context = createMockContext();
+
+    const result = await createSublease(
+      {
+        ...validArgs,
+        available_from: '2024-02-29',
+        available_to: '2024-02-29',
+      },
+      context,
+    );
+
+    expect(result.modelContext).toContain('Dates: 2027-03-01 to 2027-03-01');
   });
 
   // --- Phase 2: Publish ---

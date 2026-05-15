@@ -146,6 +146,7 @@ jobs:
         id: embed
         env:
           GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
+          GOOGLE_GENAI_USE_VERTEXAI: 'true'
           GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
