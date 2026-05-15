@@ -46,4 +46,20 @@ describe('createGeminiClient', () => {
       location: 'us-east5',
     });
   });
+
+  it('uses the default Vertex AI location when the env var is empty', async () => {
+    process.env.GEMINI_API_KEY = 'test-api-key';
+    process.env.GOOGLE_CLOUD_PROJECT = 'test-project';
+    process.env.GOOGLE_CLOUD_LOCATION = '';
+    process.env.GOOGLE_GENAI_USE_VERTEXAI = 'true';
+
+    const { createGeminiClient } = await import('../gemini-client');
+    createGeminiClient();
+
+    expect(mockGoogleGenAI).toHaveBeenCalledWith({
+      vertexai: true,
+      project: 'test-project',
+      location: 'us-central1',
+    });
+  });
 });

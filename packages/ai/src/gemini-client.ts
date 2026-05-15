@@ -40,7 +40,7 @@ function ensureVertexCredentials(): void {
 
 export function createGeminiClient(apiKeyOverride?: string): GoogleGenAI {
   const project = process.env.GOOGLE_CLOUD_PROJECT;
-  const location = process.env.GOOGLE_CLOUD_LOCATION ?? 'us-central1';
+  const location = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
   const apiKey = apiKeyOverride ?? process.env.GEMINI_API_KEY;
   const useVertex = process.env.GOOGLE_GENAI_USE_VERTEXAI === 'true';
 
