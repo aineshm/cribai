@@ -69,11 +69,11 @@ function looksLikeCompareTurn(query: string): boolean {
 }
 
 function looksLikeSearchTurn(query: string): boolean {
-  return /\b(find|show|search|browse|looking for|need)\b|\b(apartments?|listing|subleases?|housing|studio|bedroom|rent|budget)\b/i.test(query);
+  return /\b(find|show|search|browse|looking for|need)\b|\b(apartments?|listings?|subleases?|housing|studio|bedroom|rent|budget)\b/i.test(query);
 }
 
 function looksLikeListingDetailTurn(query: string): boolean {
-  return /\b(this|current)\s+(listing|place|apartment|unit|home)\b|\b(tell me|details?|info|information|what do you think|thoughts)\b.*\b(listing|place|apartment|unit|home)\b|\blisting\s+at\b/i.test(query);
+  return /\b(this|current)\s+(listing|place|apartment|unit|home)\b|\b(tell me|details?|info|information|what do you think|thoughts)\b.*\b(listing|place|apartment|unit|home)\b|\blisting\s+at\b|\b(what(?:'s| is)|how many|does it|is it|are there|when is|what are)\b.*\b(rent|price|bedrooms?|bathrooms?|sqft|square feet|amenities|available|fairness|utilities|parking|address)\b/i.test(query);
 }
 
 function resolveOrdinalIndexes(query: string): number[] {
@@ -117,13 +117,11 @@ function parseSearchArgs(query: string): Record<string, unknown> {
   const lower = query.toLowerCase();
   const args: Record<string, unknown> = {};
 
-  if (/\bstudio\b/.test(lower)) {
+  const bedroomMatch = lower.match(/\b([0-9]+)\s*(?:bed|br|bedroom)s?\b/);
+  if (bedroomMatch) {
+    args.bedrooms = Number(bedroomMatch[1]);
+  } else if (/\bstudio\b(?!\s+city\b)/.test(lower)) {
     args.bedrooms = 0;
-  } else {
-    const bedroomMatch = lower.match(/\b([0-9]+)\s*(?:bed|br|bedroom)s?\b/);
-    if (bedroomMatch) {
-      args.bedrooms = Number(bedroomMatch[1]);
-    }
   }
 
   const maxRentMatch = lower.match(/(?:under|below|max(?:imum)?|less than)\s*\$?\s*([0-9]{3,5})/);
@@ -284,6 +282,31 @@ async function runToolWithEvents(
   };
 }
 
+async function buildDetailTurn(
+  resolvedListingId: string,
+  nextState: ConversationState,
+  toolContext: ToolContext,
+): Promise<DeterministicTurnResult> {
+  const detail = await runToolWithEvents(
+    'get_listing_detail',
+    { listing_id: resolvedListingId },
+    toolContext,
+  );
+  const mergedState = mergeToolState(nextState, detail.statePatch);
+  const listingBlock = getListingBlock(detail.blocks);
+  const textBlock: ChatBlock = {
+    type: 'text',
+    content: buildDetailText(listingBlock ?? { type: 'listing_card', listings: [] }),
+  };
+  return {
+    flow: 'detail',
+    toolCount: 1,
+    conversationState: mergedState,
+    blocks: [...detail.blocks, textBlock],
+    events: [...detail.events, { type: 'text', content: textBlock.content }],
+  };
+}
+
 export async function maybeHandleDeterministicTurn(
   args: DeterministicTurnArgs,
 ): Promise<DeterministicTurnResult | null> {
@@ -406,28 +429,10 @@ export async function maybeHandleDeterministicTurn(
     }
   }
 
-  if (listingId || nextState.selectedListingId || (nextState.lastSearch.resultListingIds.length > 0 && resolveOrdinalIndexes(query).length > 0 && !looksLikeSearchTurn(query))) {
-    const resolvedListingId = listingId ?? resolveReferencedListingIds(query, nextState, 1)[0] ?? nextState.selectedListingId;
-    if (resolvedListingId && (looksLikeListingDetailTurn(query) || !looksLikeSearchTurn(query))) {
-      const detail = await runToolWithEvents(
-        'get_listing_detail',
-        { listing_id: resolvedListingId },
-        toolContext,
-      );
-      nextState = mergeToolState(nextState, detail.statePatch);
-      const listingBlock = getListingBlock(detail.blocks);
-      const textBlock: ChatBlock = {
-        type: 'text',
-        content: buildDetailText(listingBlock ?? { type: 'listing_card', listings: [] }),
-      };
-      return {
-        flow: 'detail',
-        toolCount: 1,
-        conversationState: nextState,
-        blocks: [...detail.blocks, textBlock],
-        events: [...detail.events, { type: 'text', content: textBlock.content }],
-      };
-    }
+  const resolvedDetailListingId =
+    listingId ?? resolveReferencedListingIds(query, nextState, 1)[0] ?? nextState.selectedListingId;
+  if (resolvedDetailListingId && looksLikeListingDetailTurn(query)) {
+    return buildDetailTurn(resolvedDetailListingId, nextState, toolContext);
   }
 
   if (looksLikeSearchTurn(query)) {
@@ -449,6 +454,10 @@ export async function maybeHandleDeterministicTurn(
       blocks: [...search.blocks, textBlock],
       events: [...search.events, { type: 'text', content: textBlock.content }],
     };
+  }
+
+  if (resolvedDetailListingId) {
+    return buildDetailTurn(resolvedDetailListingId, nextState, toolContext);
   }
 
   return null;

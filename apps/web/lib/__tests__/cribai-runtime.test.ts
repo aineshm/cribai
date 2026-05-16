@@ -134,4 +134,62 @@ describe('maybeHandleDeterministicTurn', () => {
       toolContext(),
     );
   });
+
+  it('routes current-listing attribute questions to listing detail', async () => {
+    const listingId = '11111111-1111-1111-1111-111111111111';
+    const state = mergeConversationState(createEmptyConversationState(), {
+      selectedListingId: listingId,
+      mode: 'listing_detail',
+    });
+
+    const result = await maybeHandleDeterministicTurn({
+      query: "what's the rent?",
+      listingId,
+      conversationState: state,
+      toolContext: toolContext(),
+    });
+
+    expect(result?.flow).toBe('detail');
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'get_listing_detail',
+      { listing_id: listingId },
+      toolContext(),
+    );
+  });
+
+  it('keeps plural listing searches as search while a listing is selected', async () => {
+    const listingId = '11111111-1111-1111-1111-111111111111';
+    const state = mergeConversationState(createEmptyConversationState(), {
+      selectedListingId: listingId,
+      mode: 'listing_detail',
+    });
+
+    const result = await maybeHandleDeterministicTurn({
+      query: 'listings under 1500',
+      listingId,
+      conversationState: state,
+      toolContext: toolContext(),
+    });
+
+    expect(result?.flow).toBe('search');
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'search_listings',
+      expect.objectContaining({ max_rent: 1500 }),
+      toolContext(),
+    );
+  });
+
+  it('does not let landmark names containing studio override bedroom filters', async () => {
+    await maybeHandleDeterministicTurn({
+      query: '2 bedroom near Studio City under 2500',
+      conversationState: createEmptyConversationState(),
+      toolContext: toolContext(),
+    });
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'search_listings',
+      expect.objectContaining({ bedrooms: 2, max_rent: 2500 }),
+      toolContext(),
+    );
+  });
 });
