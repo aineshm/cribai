@@ -72,6 +72,10 @@ function looksLikeSearchTurn(query: string): boolean {
   return /\b(find|show|search|browse|looking for|need)\b|\b(apartments?|listings?|subleases?|housing|studio|bedroom|rent|budget)\b/i.test(query);
 }
 
+function looksLikeBroadSearchTurn(query: string): boolean {
+  return /\b(apartments?|listings|subleases?|housing)\b|\b[0-9]+\s*(?:bed|br|bedroom)s?\b|\b(studio)\b(?!\s+city\b)|\b(?:under|below|max(?:imum)?|less than|over|above|min(?:imum)?|at least)\s*\$?\s*[0-9]{3,5}\b/i.test(query);
+}
+
 function looksLikeListingDetailTurn(query: string): boolean {
   return /\b(this|current)\s+(listing|place|apartment|unit|home)\b|\b(tell me|details?|info|information|what do you think|thoughts)\b.*\b(listing|place|apartment|unit|home)\b|\blisting\s+at\b|\b(what(?:'s| is)|how many|does it|is it|are there|when is|what are)\b.*\b(rent|price|bedrooms?|bathrooms?|sqft|square feet|amenities|available|fairness|utilities|parking|address)\b/i.test(query);
 }
@@ -111,6 +115,23 @@ function resolveReferencedListingIds(
   }
 
   return resultIds.slice(0, count);
+}
+
+function resolveDetailListingId(
+  query: string,
+  state: ConversationState,
+  listingId?: string | null,
+): string | null {
+  if (listingId) {
+    return listingId;
+  }
+
+  const ordinals = resolveOrdinalIndexes(query);
+  if (ordinals.length > 0) {
+    return resolveReferencedListingIds(query, state, 1)[0] ?? null;
+  }
+
+  return state.selectedListingId ?? null;
 }
 
 function parseSearchArgs(query: string): Record<string, unknown> {
@@ -429,9 +450,12 @@ export async function maybeHandleDeterministicTurn(
     }
   }
 
-  const resolvedDetailListingId =
-    listingId ?? resolveReferencedListingIds(query, nextState, 1)[0] ?? nextState.selectedListingId;
-  if (resolvedDetailListingId && looksLikeListingDetailTurn(query)) {
+  const resolvedDetailListingId = resolveDetailListingId(query, nextState, listingId);
+  if (
+    resolvedDetailListingId &&
+    looksLikeListingDetailTurn(query) &&
+    !looksLikeBroadSearchTurn(query)
+  ) {
     return buildDetailTurn(resolvedDetailListingId, nextState, toolContext);
   }
 

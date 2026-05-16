@@ -192,4 +192,76 @@ describe('maybeHandleDeterministicTurn', () => {
       toolContext(),
     );
   });
+
+  it('keeps broad attribute-shaped searches as search while a listing is selected', async () => {
+    const listingId = '11111111-1111-1111-1111-111111111111';
+    const state = mergeConversationState(createEmptyConversationState(), {
+      selectedListingId: listingId,
+      mode: 'listing_detail',
+    });
+
+    const result = await maybeHandleDeterministicTurn({
+      query: 'what are 2 bedroom apartments with parking under 1500',
+      listingId,
+      conversationState: state,
+      toolContext: toolContext(),
+    });
+
+    expect(result?.flow).toBe('search');
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'search_listings',
+      expect.objectContaining({
+        bedrooms: 2,
+        max_rent: 1500,
+        amenities: expect.arrayContaining(['parking']),
+      }),
+      toolContext(),
+    );
+  });
+
+  it('keeps explicit current-listing commands on listing detail', async () => {
+    const listingId = '11111111-1111-1111-1111-111111111111';
+    const state = mergeConversationState(createEmptyConversationState(), {
+      selectedListingId: listingId,
+      mode: 'listing_detail',
+    });
+
+    const result = await maybeHandleDeterministicTurn({
+      query: 'show this listing',
+      listingId,
+      conversationState: state,
+      toolContext: toolContext(),
+    });
+
+    expect(result?.flow).toBe('detail');
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'get_listing_detail',
+      { listing_id: listingId },
+      toolContext(),
+    );
+  });
+
+  it('falls through generic follow-ups after search results without an explicit listing reference', async () => {
+    const state = mergeConversationState(createEmptyConversationState(), {
+      mode: 'search',
+      lastSearch: {
+        args: {},
+        resultListingIds: [
+          '11111111-1111-1111-1111-111111111111',
+          '22222222-2222-2222-2222-222222222222',
+        ],
+        generatedAt: '2026-05-16T00:00:00.000Z',
+        source: 'chat_search',
+      },
+    });
+
+    const result = await maybeHandleDeterministicTurn({
+      query: 'can you explain the scoring?',
+      conversationState: state,
+      toolContext: toolContext(),
+    });
+
+    expect(result).toBeNull();
+    expect(mockExecuteTool).not.toHaveBeenCalled();
+  });
 });
