@@ -76,8 +76,12 @@ function looksLikeBroadSearchTurn(query: string): boolean {
   return /\b(apartments?|listings|subleases?|housing)\b|\b[0-9]+\s*(?:bed|br|bedroom)s?\b|\b(studio)\b(?!\s+city\b)|\b(?:under|below|max(?:imum)?|less than|over|above|min(?:imum)?|at least)\s*\$?\s*[0-9]{3,5}\b/i.test(query);
 }
 
+function hasExplicitListingReference(query: string): boolean {
+  return /\b(this|current)\s+(listing|place|apartment|unit|home)\b|\b(tell me|details?|info|information|what do you think|thoughts|show)\b.*\b(listing|place|apartment|unit|home)\b|\blisting\s+at\b/i.test(query);
+}
+
 function looksLikeListingDetailTurn(query: string): boolean {
-  return /\b(this|current)\s+(listing|place|apartment|unit|home)\b|\b(tell me|details?|info|information|what do you think|thoughts)\b.*\b(listing|place|apartment|unit|home)\b|\blisting\s+at\b|\b(what(?:'s| is)|how many|does it|is it|are there|when is|what are)\b.*\b(rent|price|bedrooms?|bathrooms?|sqft|square feet|amenities|available|fairness|utilities|parking|address)\b/i.test(query);
+  return hasExplicitListingReference(query) || /\b(what(?:'s| is)|how many|does it|is it|are there|when is|what are)\b.*\b(rent|price|bedrooms?|bathrooms?|sqft|square feet|amenities|available|fairness|utilities|parking|address)\b/i.test(query);
 }
 
 function resolveOrdinalIndexes(query: string): number[] {
@@ -454,7 +458,7 @@ export async function maybeHandleDeterministicTurn(
   if (
     resolvedDetailListingId &&
     looksLikeListingDetailTurn(query) &&
-    !looksLikeBroadSearchTurn(query)
+    (hasExplicitListingReference(query) || !looksLikeBroadSearchTurn(query))
   ) {
     return buildDetailTurn(resolvedDetailListingId, nextState, toolContext);
   }

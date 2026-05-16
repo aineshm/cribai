@@ -241,6 +241,44 @@ describe('maybeHandleDeterministicTurn', () => {
     );
   });
 
+  it('keeps explicit current-listing questions on detail even with broad search terms', async () => {
+    const listingId = '11111111-1111-1111-1111-111111111111';
+    const state = mergeConversationState(createEmptyConversationState(), {
+      selectedListingId: listingId,
+      mode: 'listing_detail',
+    });
+
+    const amenitiesResult = await maybeHandleDeterministicTurn({
+      query: 'what amenities does this apartment have?',
+      listingId,
+      conversationState: state,
+      toolContext: toolContext(),
+    });
+
+    expect(amenitiesResult?.flow).toBe('detail');
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'get_listing_detail',
+      { listing_id: listingId },
+      toolContext(),
+    );
+
+    mockExecuteTool.mockClear();
+
+    const budgetResult = await maybeHandleDeterministicTurn({
+      query: 'is this listing under 1500?',
+      listingId,
+      conversationState: state,
+      toolContext: toolContext(),
+    });
+
+    expect(budgetResult?.flow).toBe('detail');
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'get_listing_detail',
+      { listing_id: listingId },
+      toolContext(),
+    );
+  });
+
   it('falls through generic follow-ups after search results without an explicit listing reference', async () => {
     const state = mergeConversationState(createEmptyConversationState(), {
       mode: 'search',
