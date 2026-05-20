@@ -328,6 +328,68 @@ function enqueueEvent(
   controller.enqueue(encoder.encode(sseEncode(event)));
 }
 
+function isListingSpecificQuery(query: string): boolean {
+  const q = query.toLowerCase();
+
+  // Generic search keywords or general prompts that indicate a broad search or navigation
+  const genericTriggers = [
+    'find', 'search', 'show me', 'list of', 'apartments near', 'subleases near',
+    'sublets near', 'available subleases', 'available apartments', 'any listings',
+    'browse', 'where can i live', 'looking for a', 'apartments in', 'subleases in',
+    'show listings', 'search listings', 'show map', 'view map', 'what\'s available',
+    'anything near', 'matching'
+  ];
+
+  if (genericTriggers.some(trigger => q.includes(trigger))) {
+    return false;
+  }
+
+  // General chat/greetings that are definitely not listing specific
+  const genericChat = [
+    'hello', 'hi ', 'hey ', 'who are you', 'how do i use', 'what can you do',
+    'how does this work', 'how to use', 'help', 'what is cribai'
+  ];
+  if (genericChat.some(trigger => q.startsWith(trigger) || q === trigger.trim())) {
+    return false;
+  }
+
+  // Listing-specific references or attributes (rent, deposit, utilities, furniture, amenities)
+  const listingKeywords = [
+    'this listing', 'this place', 'this apartment', 'this sublease', 'this room',
+    'it have', 'is it', 'rent here', 'parking here', 'laundry here', 'deposit here',
+    'amenities here', 'utilities included', 'pets allowed', 'how much is the rent',
+    'security deposit', 'landlord', 'contact info', 'subleaser', 'walk to campus',
+    'commute time', 'furnished', 'roommate', 'is the price', 'square footage', 'sqft',
+    'ac ', 'air conditioning', 'parking spot', 'balcony', 'lease start', 'lease end',
+    'rent of', 'rent for', 'deposit for', 'utilities for', 'details of', 'details for',
+    'tell me about it', 'tell me about this', 'tell me more about this'
+  ];
+
+  if (listingKeywords.some(keyword => q.includes(keyword))) {
+    return true;
+  }
+
+  // Also check for very specific isolated attribute questions
+  const isolatedAttributes = [
+    /^(how much is( the)? rent)\??$/i,
+    /^(is( there)? parking( included)?)\??$/i,
+    /^(is( it)? furnished)\??$/i,
+    /^(what is the deposit)\??$/i,
+    /^(when is it available)\??$/i,
+    /^(who is the landlord)\??$/i,
+    /^(how many bedrooms)\??$/i,
+    /^(how many bathrooms)\??$/i,
+    /^(is laundry available)\??$/i,
+    /^(are pets allowed)\??$/i
+  ];
+
+  if (isolatedAttributes.some(rx => rx.test(q))) {
+    return true;
+  }
+
+  return false;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as Record<string, unknown>;
@@ -412,10 +474,18 @@ export async function POST(request: NextRequest) {
         ? (verifiedConversation.context.listing_id as string)
         : null;
     const explicitListingId = typeof listingId === 'string' && listingId.length > 0 ? listingId : null;
-    const effectiveListingId =
+    let effectiveListingId =
       explicitListingId ?? conversationState.selectedListingId ?? legacyConversationListingId;
 
-    if (effectiveListingId) {
+    const listingSpecific = explicitListingId !== null || isListingSpecificQuery(trimmedQuery);
+
+    if (!listingSpecific) {
+      effectiveListingId = null;
+      conversationState = mergeConversationState(conversationState, {
+        selectedListingId: null,
+        mode: conversationState.mode === 'listing_detail' ? 'browse' : conversationState.mode,
+      });
+    } else if (effectiveListingId) {
       conversationState = mergeConversationState(conversationState, {
         selectedListingId: effectiveListingId,
         mode: conversationState.mode === 'browse' ? 'listing_detail' : conversationState.mode,

@@ -49,10 +49,10 @@ export class LoginPage {
   constructor(page: Page) {
     this.page = page;
 
-    // Split layout — branded left panel (bg-teal-900, hidden lg:flex)
-    // Target by its distinctive background class and teal-900 color
-    this.brandPanel = page.locator('.bg-teal-900').first();
-    this.brandHeading = page.locator('.bg-teal-900').getByText('CribAI').first();
+    // Split layout — branded left panel (bg-red-900, hidden lg:flex)
+    // Target by its distinctive background class and red-900 color
+    this.brandPanel = page.locator('.bg-red-900').first();
+    this.brandHeading = page.locator('.bg-red-900').getByText('CribAI').first();
 
     // Email step locators
     this.heading = page.getByRole('heading', { name: 'Sign in to CribAI' });

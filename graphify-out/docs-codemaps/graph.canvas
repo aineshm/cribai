@@ -1,0 +1,1308 @@
+{
+  "nodes": [
+    {
+      "id": "g0",
+      "type": "group",
+      "label": "mission queue",
+      "x": 0,
+      "y": 0,
+      "width": 880,
+      "height": 620,
+      "color": "1"
+    },
+    {
+      "id": "n_section_frontend.md-component-hierarchy",
+      "type": "file",
+      "file": "graphify/obsidian/Component Hierarchy.md",
+      "x": 20,
+      "y": 80,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_frontend.md-design-system-globals-css",
+      "type": "file",
+      "file": "graphify/obsidian/Design System (globals.css).md",
+      "x": 220,
+      "y": 80,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_file_frontend.md",
+      "type": "file",
+      "file": "graphify/obsidian/Frontend (appsweb).md",
+      "x": 420,
+      "y": 80,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_backend.md-key-classes",
+      "type": "file",
+      "file": "graphify/obsidian/Key Classes.md",
+      "x": 20,
+      "y": 160,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_oracle-cloud-worker",
+      "type": "file",
+      "file": "graphify/obsidian/Oracle Cloud worker.md",
+      "x": 220,
+      "y": 160,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_frontend.md-page-tree",
+      "type": "file",
+      "file": "graphify/obsidian/Page Tree.md",
+      "x": 420,
+      "y": 160,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_architecture.md-runtime-rebuild-status",
+      "type": "file",
+      "file": "graphify/obsidian/Runtime Rebuild Status.md",
+      "x": 20,
+      "y": 240,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_frontend.md-runtime-rebuild-ui-contracts",
+      "type": "file",
+      "file": "graphify/obsidian/Runtime-Rebuild UI Contracts.md",
+      "x": 220,
+      "y": 240,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_supabase-migration-033",
+      "type": "file",
+      "file": "graphify/obsidian/Supabase migration 033.md",
+      "x": 420,
+      "y": 240,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_toolresult-machinedata",
+      "type": "file",
+      "file": "graphify/obsidian/ToolResult.machineData.md",
+      "x": 20,
+      "y": 320,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_mission-queue",
+      "type": "file",
+      "file": "graphify/obsidian/mission queue.md",
+      "x": 220,
+      "y": 320,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_mission-status-ui",
+      "type": "file",
+      "file": "graphify/obsidian/mission status UI.md",
+      "x": 420,
+      "y": 320,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_statepatch",
+      "type": "file",
+      "file": "graphify/obsidian/statePatch.md",
+      "x": 20,
+      "y": 400,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_typed-chat-blocks",
+      "type": "file",
+      "file": "graphify/obsidian/typed chat blocks.md",
+      "x": 220,
+      "y": 400,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "g1",
+      "type": "group",
+      "label": "mission worker",
+      "x": 960,
+      "y": 0,
+      "width": 880,
+      "height": 520,
+      "color": "2"
+    },
+    {
+      "id": "n_file_dependencies.md",
+      "type": "file",
+      "file": "graphify/obsidian/Dependencies.md",
+      "x": 980,
+      "y": 80,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_dependencies.md-external-services",
+      "type": "file",
+      "file": "graphify/obsidian/External Services.md",
+      "x": 1180,
+      "y": 80,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_github-actions-worker",
+      "type": "file",
+      "file": "graphify/obsidian/GitHub Actions worker.md",
+      "x": 1380,
+      "y": 80,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_google-gemini",
+      "type": "file",
+      "file": "graphify/obsidian/Google Gemini.md",
+      "x": 980,
+      "y": 160,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_dependencies.md-key-npm-dependencies",
+      "type": "file",
+      "file": "graphify/obsidian/Key NPM Dependencies.md",
+      "x": 1180,
+      "y": 160,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_backend.md-mission-worker-entrypoints",
+      "type": "file",
+      "file": "graphify/obsidian/Mission Worker Entrypoints.md",
+      "x": 1380,
+      "y": 160,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_dependencies.md-runtime-worker-dependencies",
+      "type": "file",
+      "file": "graphify/obsidian/Runtime Worker Dependencies.md",
+      "x": 980,
+      "y": 240,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_dependencies.md-shared-libraries-workspace-packages",
+      "type": "file",
+      "file": "graphify/obsidian/Shared Libraries (workspace packages).md",
+      "x": 1180,
+      "y": 240,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_supabase-postgresql",
+      "type": "file",
+      "file": "graphify/obsidian/Supabase PostgreSQL.md",
+      "x": 1380,
+      "y": 240,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_vercel",
+      "type": "file",
+      "file": "graphify/obsidian/Vercel.md",
+      "x": 980,
+      "y": 320,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_mission-worker",
+      "type": "file",
+      "file": "graphify/obsidian/mission worker.md",
+      "x": 1180,
+      "y": 320,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "g2",
+      "type": "group",
+      "label": "Data",
+      "x": 1920,
+      "y": 0,
+      "width": 880,
+      "height": 520,
+      "color": "3"
+    },
+    {
+      "id": "n_file_data.md",
+      "type": "file",
+      "file": "graphify/obsidian/Data.md",
+      "x": 1940,
+      "y": 80,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_data.md-key-indexes",
+      "type": "file",
+      "file": "graphify/obsidian/Key Indexes.md",
+      "x": 2140,
+      "y": 80,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_data.md-queue-helpers",
+      "type": "file",
+      "file": "graphify/obsidian/Queue Helpers.md",
+      "x": 2340,
+      "y": 80,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_data.md-rls-enabled-on-all-tables",
+      "type": "file",
+      "file": "graphify/obsidian/RLS Enabled on all tables.md",
+      "x": 1940,
+      "y": 160,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_backend.md-runtime-tables-and-migrations",
+      "type": "file",
+      "file": "graphify/obsidian/Runtime Tables And Migrations.md",
+      "x": 2140,
+      "y": 160,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_data.md-schema-supabase-migrations-001-initial-schema-sql",
+      "type": "file",
+      "file": "graphify/obsidian/Schema (supabasemigrations001_initial_schema.sql).md",
+      "x": 2340,
+      "y": 160,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_data.md-seed-supabase-seed-001-campus-configs-sql-uw-madison-ut-austin",
+      "type": "file",
+      "file": "graphify/obsidian/Seed supabaseseed001_campus_configs.sql (UW-Madison, UT Austin).md",
+      "x": 1940,
+      "y": 240,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_supabase-migration-032",
+      "type": "file",
+      "file": "graphify/obsidian/Supabase migration 032.md",
+      "x": 2140,
+      "y": 240,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_claim-next-mission-job",
+      "type": "file",
+      "file": "graphify/obsidian/claim_next_mission_job.md",
+      "x": 2340,
+      "y": 240,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_lease-retry-metadata",
+      "type": "file",
+      "file": "graphify/obsidian/leaseretry metadata.md",
+      "x": 1940,
+      "y": 320,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "g3",
+      "type": "group",
+      "label": "deterministic chat runtime",
+      "x": 0,
+      "y": 700,
+      "width": 660,
+      "height": 420,
+      "color": "4"
+    },
+    {
+      "id": "n_file_architecture.md",
+      "type": "file",
+      "file": "graphify/obsidian/Architecture.md",
+      "x": 20,
+      "y": 780,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_architecture.md-build-pipeline-turbo-json",
+      "type": "file",
+      "file": "graphify/obsidian/Build Pipeline (turbo.json).md",
+      "x": 220,
+      "y": 780,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_architecture.md-monorepo-layout-pnpm-9-turborepo",
+      "type": "file",
+      "file": "graphify/obsidian/Monorepo Layout (pnpm 9 + Turborepo).md",
+      "x": 420,
+      "y": 780,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_next-js-16",
+      "type": "file",
+      "file": "graphify/obsidian/Next.js 16.md",
+      "x": 20,
+      "y": 860,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_postgis",
+      "type": "file",
+      "file": "graphify/obsidian/PostGIS.md",
+      "x": 220,
+      "y": 860,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_root_code-maps",
+      "type": "file",
+      "file": "graphify/obsidian/Runtime Rebuild Code Maps.md",
+      "x": 420,
+      "y": 860,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_architecture.md-system-diagram",
+      "type": "file",
+      "file": "graphify/obsidian/System Diagram.md",
+      "x": 20,
+      "y": 940,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_deterministic-chat-runtime",
+      "type": "file",
+      "file": "graphify/obsidian/deterministic chat runtime.md",
+      "x": 220,
+      "y": 940,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_pgvector",
+      "type": "file",
+      "file": "graphify/obsidian/pgvector.md",
+      "x": 420,
+      "y": 940,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "g4",
+      "type": "group",
+      "label": "conversation_state",
+      "x": 960,
+      "y": 700,
+      "width": 660,
+      "height": 420,
+      "color": "5"
+    },
+    {
+      "id": "n_section_backend.md-api-routes-apps-web-app-api",
+      "type": "file",
+      "file": "graphify/obsidian/API Routes (appswebappapi).md",
+      "x": 980,
+      "y": 780,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_cribai-model-fallback",
+      "type": "file",
+      "file": "graphify/obsidian/CribAI model fallback.md",
+      "x": 1180,
+      "y": 780,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_architecture.md-data-flow",
+      "type": "file",
+      "file": "graphify/obsidian/Data Flow.md",
+      "x": 1380,
+      "y": 780,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_frontend.md-state-management",
+      "type": "file",
+      "file": "graphify/obsidian/State Management.md",
+      "x": 980,
+      "y": 860,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_conversation-state",
+      "type": "file",
+      "file": "graphify/obsidian/conversation_state.md",
+      "x": 1180,
+      "y": 860,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_explore-viewport-api",
+      "type": "file",
+      "file": "graphify/obsidian/explore viewport API.md",
+      "x": 1380,
+      "y": 860,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_public-listing-detail-api",
+      "type": "file",
+      "file": "graphify/obsidian/public listing detail API.md",
+      "x": 980,
+      "y": 940,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_concept_search-listings-api",
+      "type": "file",
+      "file": "graphify/obsidian/search listings API.md",
+      "x": 1180,
+      "y": 940,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "g5",
+      "type": "group",
+      "label": "Backend",
+      "x": 1920,
+      "y": 700,
+      "width": 600,
+      "height": 400,
+      "color": "6"
+    },
+    {
+      "id": "n_file_backend.md",
+      "type": "file",
+      "file": "graphify/obsidian/Backend.md",
+      "x": 1940,
+      "y": 780,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_backend.md-edge-functions-supabase-functions",
+      "type": "file",
+      "file": "graphify/obsidian/Edge Functions (supabasefunctions).md",
+      "x": 2140,
+      "y": 780,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_backend.md-scraper-pipeline-services-scraper",
+      "type": "file",
+      "file": "graphify/obsidian/Scraper Pipeline (servicesscraper).md",
+      "x": 2340,
+      "y": 780,
+      "width": 180,
+      "height": 60
+    },
+    {
+      "id": "n_section_backend.md-supabase-clients-packages-supabase",
+      "type": "file",
+      "file": "graphify/obsidian/Supabase Clients (packagessupabase).md",
+      "x": 1940,
+      "y": 860,
+      "width": 180,
+      "height": 60
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_root_code-maps_file_architecture.md",
+      "fromNode": "n_root_code-maps",
+      "toNode": "n_file_architecture.md",
+      "label": "references [EXTRACTED]"
+    },
+    {
+      "id": "e_root_code-maps_file_backend.md",
+      "fromNode": "n_root_code-maps",
+      "toNode": "n_file_backend.md",
+      "label": "references [EXTRACTED]"
+    },
+    {
+      "id": "e_root_code-maps_file_data.md",
+      "fromNode": "n_root_code-maps",
+      "toNode": "n_file_data.md",
+      "label": "references [EXTRACTED]"
+    },
+    {
+      "id": "e_root_code-maps_file_dependencies.md",
+      "fromNode": "n_root_code-maps",
+      "toNode": "n_file_dependencies.md",
+      "label": "references [EXTRACTED]"
+    },
+    {
+      "id": "e_root_code-maps_file_frontend.md",
+      "fromNode": "n_root_code-maps",
+      "toNode": "n_file_frontend.md",
+      "label": "references [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_cribai-model-fallback_section_architecture.md-data-flow",
+      "fromNode": "n_concept_cribai-model-fallback",
+      "toNode": "n_section_architecture.md-data-flow",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_cribai-model-fallback_section_backend.md-api-routes-apps-web-app-api",
+      "fromNode": "n_concept_cribai-model-fallback",
+      "toNode": "n_section_backend.md-api-routes-apps-web-app-api",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_cribai-model-fallback_concept_google-gemini",
+      "fromNode": "n_concept_cribai-model-fallback",
+      "toNode": "n_concept_google-gemini",
+      "label": "powers [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_github-actions-worker_section_architecture.md-system-diagram",
+      "fromNode": "n_concept_github-actions-worker",
+      "toNode": "n_section_architecture.md-system-diagram",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_github-actions-worker_section_backend.md-mission-worker-entrypoints",
+      "fromNode": "n_concept_github-actions-worker",
+      "toNode": "n_section_backend.md-mission-worker-entrypoints",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_github-actions-worker_section_dependencies.md-external-services",
+      "fromNode": "n_concept_github-actions-worker",
+      "toNode": "n_section_dependencies.md-external-services",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_github-actions-worker_concept_mission-worker",
+      "fromNode": "n_concept_github-actions-worker",
+      "toNode": "n_concept_mission-worker",
+      "label": "can_run [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_google-gemini_section_dependencies.md-external-services",
+      "fromNode": "n_concept_google-gemini",
+      "toNode": "n_section_dependencies.md-external-services",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_google-gemini_section_dependencies.md-key-npm-dependencies",
+      "fromNode": "n_concept_google-gemini",
+      "toNode": "n_section_dependencies.md-key-npm-dependencies",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_google-gemini_section_dependencies.md-runtime-worker-dependencies",
+      "fromNode": "n_concept_google-gemini",
+      "toNode": "n_section_dependencies.md-runtime-worker-dependencies",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_next-js-16_section_architecture.md-system-diagram",
+      "fromNode": "n_concept_next-js-16",
+      "toNode": "n_section_architecture.md-system-diagram",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_next-js-16_section_architecture.md-monorepo-layout-pnpm-9-turborepo",
+      "fromNode": "n_concept_next-js-16",
+      "toNode": "n_section_architecture.md-monorepo-layout-pnpm-9-turborepo",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_next-js-16_concept_deterministic-chat-runtime",
+      "fromNode": "n_concept_next-js-16",
+      "toNode": "n_concept_deterministic-chat-runtime",
+      "label": "hosts [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_oracle-cloud-worker_section_architecture.md-runtime-rebuild-status",
+      "fromNode": "n_concept_oracle-cloud-worker",
+      "toNode": "n_section_architecture.md-runtime-rebuild-status",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_oracle-cloud-worker_section_dependencies.md-external-services",
+      "fromNode": "n_concept_oracle-cloud-worker",
+      "toNode": "n_section_dependencies.md-external-services",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_oracle-cloud-worker_section_frontend.md-component-hierarchy",
+      "fromNode": "n_concept_oracle-cloud-worker",
+      "toNode": "n_section_frontend.md-component-hierarchy",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_oracle-cloud-worker_concept_mission-worker",
+      "fromNode": "n_concept_oracle-cloud-worker",
+      "toNode": "n_concept_mission-worker",
+      "label": "planned_host_for [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_postgis_section_architecture.md-system-diagram",
+      "fromNode": "n_concept_postgis",
+      "toNode": "n_section_architecture.md-system-diagram",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_postgis_section_dependencies.md-external-services",
+      "fromNode": "n_concept_postgis",
+      "toNode": "n_section_dependencies.md-external-services",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_supabase-postgresql_section_architecture.md-system-diagram",
+      "fromNode": "n_concept_supabase-postgresql",
+      "toNode": "n_section_architecture.md-system-diagram",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_supabase-postgresql_section_architecture.md-monorepo-layout-pnpm-9-turborepo",
+      "fromNode": "n_concept_supabase-postgresql",
+      "toNode": "n_section_architecture.md-monorepo-layout-pnpm-9-turborepo",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_supabase-postgresql_section_backend.md-api-routes-apps-web-app-api",
+      "fromNode": "n_concept_supabase-postgresql",
+      "toNode": "n_section_backend.md-api-routes-apps-web-app-api",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_supabase-postgresql_section_dependencies.md-external-services",
+      "fromNode": "n_concept_supabase-postgresql",
+      "toNode": "n_section_dependencies.md-external-services",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_supabase-postgresql_section_dependencies.md-shared-libraries-workspace-packages",
+      "fromNode": "n_concept_supabase-postgresql",
+      "toNode": "n_section_dependencies.md-shared-libraries-workspace-packages",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_supabase-postgresql_section_dependencies.md-key-npm-dependencies",
+      "fromNode": "n_concept_supabase-postgresql",
+      "toNode": "n_section_dependencies.md-key-npm-dependencies",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_supabase-postgresql_section_dependencies.md-runtime-worker-dependencies",
+      "fromNode": "n_concept_supabase-postgresql",
+      "toNode": "n_section_dependencies.md-runtime-worker-dependencies",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_supabase-postgresql_section_frontend.md-state-management",
+      "fromNode": "n_concept_supabase-postgresql",
+      "toNode": "n_section_frontend.md-state-management",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_supabase-postgresql_concept_conversation-state",
+      "fromNode": "n_concept_supabase-postgresql",
+      "toNode": "n_concept_conversation-state",
+      "label": "stores [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_supabase-postgresql_concept_mission-queue",
+      "fromNode": "n_concept_supabase-postgresql",
+      "toNode": "n_concept_mission-queue",
+      "label": "stores [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_supabase-migration-032_section_architecture.md-runtime-rebuild-status",
+      "fromNode": "n_concept_supabase-migration-032",
+      "toNode": "n_section_architecture.md-runtime-rebuild-status",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_supabase-migration-032_section_backend.md-runtime-tables-and-migrations",
+      "fromNode": "n_concept_supabase-migration-032",
+      "toNode": "n_section_backend.md-runtime-tables-and-migrations",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_supabase-migration-032_concept_conversation-state",
+      "fromNode": "n_concept_supabase-migration-032",
+      "toNode": "n_concept_conversation-state",
+      "label": "adds [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_supabase-migration-033_section_architecture.md-runtime-rebuild-status",
+      "fromNode": "n_concept_supabase-migration-033",
+      "toNode": "n_section_architecture.md-runtime-rebuild-status",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_supabase-migration-033_section_backend.md-runtime-tables-and-migrations",
+      "fromNode": "n_concept_supabase-migration-033",
+      "toNode": "n_section_backend.md-runtime-tables-and-migrations",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_supabase-migration-033_concept_mission-queue",
+      "fromNode": "n_concept_supabase-migration-033",
+      "toNode": "n_concept_mission-queue",
+      "label": "adds_runtime_fields_to [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_toolresult-machinedata_section_architecture.md-data-flow",
+      "fromNode": "n_concept_toolresult-machinedata",
+      "toNode": "n_section_architecture.md-data-flow",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_toolresult-machinedata_section_architecture.md-runtime-rebuild-status",
+      "fromNode": "n_concept_toolresult-machinedata",
+      "toNode": "n_section_architecture.md-runtime-rebuild-status",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_toolresult-machinedata_section_backend.md-key-classes",
+      "fromNode": "n_concept_toolresult-machinedata",
+      "toNode": "n_section_backend.md-key-classes",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_toolresult-machinedata_section_frontend.md-runtime-rebuild-ui-contracts",
+      "fromNode": "n_concept_toolresult-machinedata",
+      "toNode": "n_section_frontend.md-runtime-rebuild-ui-contracts",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_toolresult-machinedata_concept_deterministic-chat-runtime",
+      "fromNode": "n_concept_toolresult-machinedata",
+      "toNode": "n_concept_deterministic-chat-runtime",
+      "label": "consumes [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_toolresult-machinedata_concept_statepatch",
+      "fromNode": "n_concept_toolresult-machinedata",
+      "toNode": "n_concept_statepatch",
+      "label": "pairs_with [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_toolresult-machinedata_concept_typed-chat-blocks",
+      "fromNode": "n_concept_toolresult-machinedata",
+      "toNode": "n_concept_typed-chat-blocks",
+      "label": "renders_as [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_vercel_section_dependencies.md-external-services",
+      "fromNode": "n_concept_vercel",
+      "toNode": "n_section_dependencies.md-external-services",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_claim-next-mission-job_section_backend.md-runtime-tables-and-migrations",
+      "fromNode": "n_concept_claim-next-mission-job",
+      "toNode": "n_section_backend.md-runtime-tables-and-migrations",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_claim-next-mission-job_section_data.md-queue-helpers",
+      "fromNode": "n_concept_claim-next-mission-job",
+      "toNode": "n_section_data.md-queue-helpers",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_claim-next-mission-job_concept_mission-worker",
+      "fromNode": "n_concept_claim-next-mission-job",
+      "toNode": "n_concept_mission-worker",
+      "label": "claims_with [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_conversation-state_section_architecture.md-data-flow",
+      "fromNode": "n_concept_conversation-state",
+      "toNode": "n_section_architecture.md-data-flow",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_conversation-state_section_architecture.md-runtime-rebuild-status",
+      "fromNode": "n_concept_conversation-state",
+      "toNode": "n_section_architecture.md-runtime-rebuild-status",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_conversation-state_section_backend.md-api-routes-apps-web-app-api",
+      "fromNode": "n_concept_conversation-state",
+      "toNode": "n_section_backend.md-api-routes-apps-web-app-api",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_conversation-state_section_backend.md-runtime-tables-and-migrations",
+      "fromNode": "n_concept_conversation-state",
+      "toNode": "n_section_backend.md-runtime-tables-and-migrations",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_conversation-state_section_data.md-schema-supabase-migrations-001-initial-schema-sql",
+      "fromNode": "n_concept_conversation-state",
+      "toNode": "n_section_data.md-schema-supabase-migrations-001-initial-schema-sql",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_conversation-state_section_frontend.md-state-management",
+      "fromNode": "n_concept_conversation-state",
+      "toNode": "n_section_frontend.md-state-management",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_conversation-state_concept_deterministic-chat-runtime",
+      "fromNode": "n_concept_conversation-state",
+      "toNode": "n_concept_deterministic-chat-runtime",
+      "label": "drives [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_deterministic-chat-runtime_section_architecture.md-system-diagram",
+      "fromNode": "n_concept_deterministic-chat-runtime",
+      "toNode": "n_section_architecture.md-system-diagram",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_deterministic-chat-runtime_section_architecture.md-monorepo-layout-pnpm-9-turborepo",
+      "fromNode": "n_concept_deterministic-chat-runtime",
+      "toNode": "n_section_architecture.md-monorepo-layout-pnpm-9-turborepo",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_deterministic-chat-runtime_section_architecture.md-data-flow",
+      "fromNode": "n_concept_deterministic-chat-runtime",
+      "toNode": "n_section_architecture.md-data-flow",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_deterministic-chat-runtime_section_architecture.md-runtime-rebuild-status",
+      "fromNode": "n_concept_deterministic-chat-runtime",
+      "toNode": "n_section_architecture.md-runtime-rebuild-status",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_deterministic-chat-runtime_section_backend.md-api-routes-apps-web-app-api",
+      "fromNode": "n_concept_deterministic-chat-runtime",
+      "toNode": "n_section_backend.md-api-routes-apps-web-app-api",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_explore-viewport-api_section_architecture.md-data-flow",
+      "fromNode": "n_concept_explore-viewport-api",
+      "toNode": "n_section_architecture.md-data-flow",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_explore-viewport-api_section_architecture.md-runtime-rebuild-status",
+      "fromNode": "n_concept_explore-viewport-api",
+      "toNode": "n_section_architecture.md-runtime-rebuild-status",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_explore-viewport-api_section_backend.md-api-routes-apps-web-app-api",
+      "fromNode": "n_concept_explore-viewport-api",
+      "toNode": "n_section_backend.md-api-routes-apps-web-app-api",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_explore-viewport-api_section_frontend.md-state-management",
+      "fromNode": "n_concept_explore-viewport-api",
+      "toNode": "n_section_frontend.md-state-management",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_explore-viewport-api_concept_search-listings-api",
+      "fromNode": "n_concept_explore-viewport-api",
+      "toNode": "n_concept_search-listings-api",
+      "label": "shares_listing_payload_shape_with [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_lease-retry-metadata_section_backend.md-runtime-tables-and-migrations",
+      "fromNode": "n_concept_lease-retry-metadata",
+      "toNode": "n_section_backend.md-runtime-tables-and-migrations",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_lease-retry-metadata_section_data.md-schema-supabase-migrations-001-initial-schema-sql",
+      "fromNode": "n_concept_lease-retry-metadata",
+      "toNode": "n_section_data.md-schema-supabase-migrations-001-initial-schema-sql",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_lease-retry-metadata_section_data.md-key-indexes",
+      "fromNode": "n_concept_lease-retry-metadata",
+      "toNode": "n_section_data.md-key-indexes",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_lease-retry-metadata_concept_mission-queue",
+      "fromNode": "n_concept_lease-retry-metadata",
+      "toNode": "n_concept_mission-queue",
+      "label": "tracked_by [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_mission-queue_section_architecture.md-data-flow",
+      "fromNode": "n_concept_mission-queue",
+      "toNode": "n_section_architecture.md-data-flow",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_mission-queue_section_architecture.md-runtime-rebuild-status",
+      "fromNode": "n_concept_mission-queue",
+      "toNode": "n_section_architecture.md-runtime-rebuild-status",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_mission-queue_section_backend.md-api-routes-apps-web-app-api",
+      "fromNode": "n_concept_mission-queue",
+      "toNode": "n_section_backend.md-api-routes-apps-web-app-api",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_mission-queue_section_backend.md-key-classes",
+      "fromNode": "n_concept_mission-queue",
+      "toNode": "n_section_backend.md-key-classes",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_mission-queue_section_frontend.md-page-tree",
+      "fromNode": "n_concept_mission-queue",
+      "toNode": "n_section_frontend.md-page-tree",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_mission-queue_concept_mission-worker",
+      "fromNode": "n_concept_mission-queue",
+      "toNode": "n_concept_mission-worker",
+      "label": "drained_by [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_mission-queue_concept_mission-status-ui",
+      "fromNode": "n_concept_mission-queue",
+      "toNode": "n_concept_mission-status-ui",
+      "label": "displayed_by [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_mission-status-ui_section_frontend.md-runtime-rebuild-ui-contracts",
+      "fromNode": "n_concept_mission-status-ui",
+      "toNode": "n_section_frontend.md-runtime-rebuild-ui-contracts",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_mission-status-ui_concept_typed-chat-blocks",
+      "fromNode": "n_concept_mission-status-ui",
+      "toNode": "n_concept_typed-chat-blocks",
+      "label": "shares_status_contract_with [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_mission-worker_section_architecture.md-system-diagram",
+      "fromNode": "n_concept_mission-worker",
+      "toNode": "n_section_architecture.md-system-diagram",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_mission-worker_section_architecture.md-monorepo-layout-pnpm-9-turborepo",
+      "fromNode": "n_concept_mission-worker",
+      "toNode": "n_section_architecture.md-monorepo-layout-pnpm-9-turborepo",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_mission-worker_section_backend.md-key-classes",
+      "fromNode": "n_concept_mission-worker",
+      "toNode": "n_section_backend.md-key-classes",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_mission-worker_section_backend.md-mission-worker-entrypoints",
+      "fromNode": "n_concept_mission-worker",
+      "toNode": "n_section_backend.md-mission-worker-entrypoints",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_mission-worker_section_dependencies.md-external-services",
+      "fromNode": "n_concept_mission-worker",
+      "toNode": "n_section_dependencies.md-external-services",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_mission-worker_section_dependencies.md-runtime-worker-dependencies",
+      "fromNode": "n_concept_mission-worker",
+      "toNode": "n_section_dependencies.md-runtime-worker-dependencies",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_pgvector_section_architecture.md-system-diagram",
+      "fromNode": "n_concept_pgvector",
+      "toNode": "n_section_architecture.md-system-diagram",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_public-listing-detail-api_section_backend.md-api-routes-apps-web-app-api",
+      "fromNode": "n_concept_public-listing-detail-api",
+      "toNode": "n_section_backend.md-api-routes-apps-web-app-api",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_search-listings-api_section_architecture.md-data-flow",
+      "fromNode": "n_concept_search-listings-api",
+      "toNode": "n_section_architecture.md-data-flow",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_search-listings-api_section_backend.md-api-routes-apps-web-app-api",
+      "fromNode": "n_concept_search-listings-api",
+      "toNode": "n_section_backend.md-api-routes-apps-web-app-api",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_search-listings-api_section_frontend.md-state-management",
+      "fromNode": "n_concept_search-listings-api",
+      "toNode": "n_section_frontend.md-state-management",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_statepatch_section_architecture.md-data-flow",
+      "fromNode": "n_concept_statepatch",
+      "toNode": "n_section_architecture.md-data-flow",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_statepatch_section_architecture.md-runtime-rebuild-status",
+      "fromNode": "n_concept_statepatch",
+      "toNode": "n_section_architecture.md-runtime-rebuild-status",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_statepatch_section_backend.md-key-classes",
+      "fromNode": "n_concept_statepatch",
+      "toNode": "n_section_backend.md-key-classes",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_typed-chat-blocks_section_frontend.md-component-hierarchy",
+      "fromNode": "n_concept_typed-chat-blocks",
+      "toNode": "n_section_frontend.md-component-hierarchy",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_concept_typed-chat-blocks_section_frontend.md-runtime-rebuild-ui-contracts",
+      "fromNode": "n_concept_typed-chat-blocks",
+      "toNode": "n_section_frontend.md-runtime-rebuild-ui-contracts",
+      "label": "mentions [EXTRACTED]"
+    },
+    {
+      "id": "e_file_architecture.md_section_architecture.md-system-diagram",
+      "fromNode": "n_file_architecture.md",
+      "toNode": "n_section_architecture.md-system-diagram",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_architecture.md_section_architecture.md-monorepo-layout-pnpm-9-turborepo",
+      "fromNode": "n_file_architecture.md",
+      "toNode": "n_section_architecture.md-monorepo-layout-pnpm-9-turborepo",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_architecture.md_section_architecture.md-data-flow",
+      "fromNode": "n_file_architecture.md",
+      "toNode": "n_section_architecture.md-data-flow",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_architecture.md_section_architecture.md-runtime-rebuild-status",
+      "fromNode": "n_file_architecture.md",
+      "toNode": "n_section_architecture.md-runtime-rebuild-status",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_architecture.md_section_architecture.md-build-pipeline-turbo-json",
+      "fromNode": "n_file_architecture.md",
+      "toNode": "n_section_architecture.md-build-pipeline-turbo-json",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_backend.md_section_backend.md-api-routes-apps-web-app-api",
+      "fromNode": "n_file_backend.md",
+      "toNode": "n_section_backend.md-api-routes-apps-web-app-api",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_backend.md_section_backend.md-edge-functions-supabase-functions",
+      "fromNode": "n_file_backend.md",
+      "toNode": "n_section_backend.md-edge-functions-supabase-functions",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_backend.md_section_backend.md-scraper-pipeline-services-scraper",
+      "fromNode": "n_file_backend.md",
+      "toNode": "n_section_backend.md-scraper-pipeline-services-scraper",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_backend.md_section_backend.md-key-classes",
+      "fromNode": "n_file_backend.md",
+      "toNode": "n_section_backend.md-key-classes",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_backend.md_section_backend.md-runtime-tables-and-migrations",
+      "fromNode": "n_file_backend.md",
+      "toNode": "n_section_backend.md-runtime-tables-and-migrations",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_backend.md_section_backend.md-mission-worker-entrypoints",
+      "fromNode": "n_file_backend.md",
+      "toNode": "n_section_backend.md-mission-worker-entrypoints",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_backend.md_section_backend.md-supabase-clients-packages-supabase",
+      "fromNode": "n_file_backend.md",
+      "toNode": "n_section_backend.md-supabase-clients-packages-supabase",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_data.md_section_data.md-schema-supabase-migrations-001-initial-schema-sql",
+      "fromNode": "n_file_data.md",
+      "toNode": "n_section_data.md-schema-supabase-migrations-001-initial-schema-sql",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_data.md_section_data.md-key-indexes",
+      "fromNode": "n_file_data.md",
+      "toNode": "n_section_data.md-key-indexes",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_data.md_section_data.md-queue-helpers",
+      "fromNode": "n_file_data.md",
+      "toNode": "n_section_data.md-queue-helpers",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_data.md_section_data.md-rls-enabled-on-all-tables",
+      "fromNode": "n_file_data.md",
+      "toNode": "n_section_data.md-rls-enabled-on-all-tables",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_data.md_section_data.md-seed-supabase-seed-001-campus-configs-sql-uw-madison-ut-austin",
+      "fromNode": "n_file_data.md",
+      "toNode": "n_section_data.md-seed-supabase-seed-001-campus-configs-sql-uw-madison-ut-austin",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_dependencies.md_section_dependencies.md-external-services",
+      "fromNode": "n_file_dependencies.md",
+      "toNode": "n_section_dependencies.md-external-services",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_dependencies.md_section_dependencies.md-shared-libraries-workspace-packages",
+      "fromNode": "n_file_dependencies.md",
+      "toNode": "n_section_dependencies.md-shared-libraries-workspace-packages",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_dependencies.md_section_dependencies.md-key-npm-dependencies",
+      "fromNode": "n_file_dependencies.md",
+      "toNode": "n_section_dependencies.md-key-npm-dependencies",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_dependencies.md_section_dependencies.md-runtime-worker-dependencies",
+      "fromNode": "n_file_dependencies.md",
+      "toNode": "n_section_dependencies.md-runtime-worker-dependencies",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_frontend.md_section_frontend.md-page-tree",
+      "fromNode": "n_file_frontend.md",
+      "toNode": "n_section_frontend.md-page-tree",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_frontend.md_section_frontend.md-component-hierarchy",
+      "fromNode": "n_file_frontend.md",
+      "toNode": "n_section_frontend.md-component-hierarchy",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_frontend.md_section_frontend.md-state-management",
+      "fromNode": "n_file_frontend.md",
+      "toNode": "n_section_frontend.md-state-management",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_frontend.md_section_frontend.md-runtime-rebuild-ui-contracts",
+      "fromNode": "n_file_frontend.md",
+      "toNode": "n_section_frontend.md-runtime-rebuild-ui-contracts",
+      "label": "contains_section [EXTRACTED]"
+    },
+    {
+      "id": "e_file_frontend.md_section_frontend.md-design-system-globals-css",
+      "fromNode": "n_file_frontend.md",
+      "toNode": "n_section_frontend.md-design-system-globals-css",
+      "label": "contains_section [EXTRACTED]"
+    }
+  ]
+}
