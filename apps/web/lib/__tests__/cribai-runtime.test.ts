@@ -408,6 +408,23 @@ describe('maybeHandleDeterministicTurn', () => {
       { listing_id: listingId },
       toolContext(),
     );
+
+    mockExecuteTool.mockClear();
+
+    // Verify selector ordinal with a street name containing an ordinal resolves to listing detail (Codex P2 check)
+    const streetSelectorResult = await maybeHandleDeterministicTurn({
+      query: 'show the first listing on 4th Ave',
+      listingId,
+      conversationState: state,
+      toolContext: toolContext(),
+    });
+
+    expect(streetSelectorResult?.flow).toBe('detail');
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'get_listing_detail',
+      { listing_id: listingId },
+      toolContext(),
+    );
   });
 
   it('falls through generic follow-ups after search results without an explicit listing reference', async () => {

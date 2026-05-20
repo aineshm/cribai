@@ -87,18 +87,15 @@ function hasHighConfidenceOrdinalReference(query: string): boolean {
 }
 
 function hasExplicitOrdinalSelector(query: string): boolean {
-  // 1. Must not be a compound adjective like "first floor" or "second semester"
-  const isCompoundAdjective = /\b(first|second|third|fourth|1st|2nd|3rd|4th)\s+(floor|semester|year|street|ave|avenue|day|month|quarter|grade|class|generation|round|half|period|stage|phase|step)s?\b/i.test(query);
-  if (isCompoundAdjective) {
-    return false;
-  }
+  // Strip compound adjectives like "first floor" or "second semester" or "4th Ave" to avoid false matches on them
+  const cleanedQuery = query.replace(/\b(first|second|third|fourth|1st|2nd|3rd|4th)\s+(floor|semester|year|street|ave|avenue|day|month|quarter|grade|class|generation|round|half|period|stage|phase|step)s?\b/gi, '');
 
-  // 2. Matches when followed by a selector noun: e.g. "first one", "second listing"
-  const hasSelectorNoun = /\b(first|second|third|fourth|1st|2nd|3rd|4th)\s+(one|listing|apartment|unit|result|place|home|choice|item)s?\b/i.test(query);
+  // 1. Matches when followed by a selector noun: e.g. "first one", "second listing"
+  const hasSelectorNoun = /\b(first|second|third|fourth|1st|2nd|3rd|4th)\s+(one|listing|apartment|unit|result|place|home|choice|item)s?\b/i.test(cleanedQuery);
 
-  // 3. Matches when preceded by a clean selection verb phrase: e.g. "show me the first", "details on the second"
-  const hasSelectionVerb = /\b(show|open|display)\s+(?:me\s+)?(?:the\s+)?(first|second|third|fourth|1st|2nd|3rd|4th)\b/i.test(query) ||
-                           /\b(tell me about|details? on|info on|thoughts on)\s+(?:the\s+)?(first|second|third|fourth|1st|2nd|3rd|4th)\b/i.test(query);
+  // 2. Matches when preceded by a clean selection verb phrase: e.g. "show me the first", "details on the second"
+  const hasSelectionVerb = /\b(show|open|display)\s+(?:me\s+)?(?:the\s+)?(first|second|third|fourth|1st|2nd|3rd|4th)\b/i.test(cleanedQuery) ||
+                           /\b(tell me about|details? on|info on|thoughts on)\s+(?:the\s+)?(first|second|third|fourth|1st|2nd|3rd|4th)\b/i.test(cleanedQuery);
 
   return hasSelectorNoun || hasSelectionVerb;
 }
