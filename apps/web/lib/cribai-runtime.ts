@@ -83,7 +83,12 @@ function looksLikeListingAttributeQuestion(query: string): boolean {
 }
 
 function looksLikeAreaOrNeighborhoodQuery(query: string): boolean {
-  return /\b(near|area|around|neighborhood|vicinity|commute|distance|walk\s+to|drive\s+to)\b/i.test(query);
+  // Match spatial keywords, but require 'around' to have a spatial context
+  // (e.g. 'around here', 'around campus', 'around the area') to avoid
+  // false positives like 'is the rent around 1500?'
+  const hasSpatialKeyword = /\b(near|area|neighborhood|vicinity|commute|distance|walk\s+to|drive\s+to)\b/i.test(query);
+  const hasAroundSpatial = /\baround\s+(here|there|campus|the\s+area|the\s+neighborhood|town|downtown|midtown|this\s+area)\b/i.test(query);
+  return hasSpatialKeyword || hasAroundSpatial;
 }
 
 function hasHighConfidenceOrdinalReference(query: string): boolean {
@@ -120,6 +125,11 @@ function isHighConfidenceListingDetail(
 
   // 2. Explicit current-listing reference
   if (hasExplicitListingReference(query)) {
+    // If it's an area/neighborhood-level query (e.g., "what's parking like near this apartment?"),
+    // fall through to neighborhood/search tooling instead of forcing listing detail.
+    if (looksLikeAreaOrNeighborhoodQuery(query)) {
+      return false;
+    }
     // If it looks like a broad search query (e.g., "find apartments like this listing under 1500"),
     // it's a search, unless it is a specific attribute question (e.g., "is this listing under 1500?").
     if (looksLikeBroadSearchTurn(query)) {
@@ -142,6 +152,12 @@ function isHighConfidenceListingDetail(
 }
 
 function isHighConfidenceSearch(query: string): boolean {
+  // Area queries about a specific listing (e.g. "what's parking like near this apartment?")
+  // should fall through to the LLM for neighborhood tooling, not trigger a broad search.
+  // But broad area searches (e.g. "find apartments near campus") are still searches.
+  if (looksLikeAreaOrNeighborhoodQuery(query) && hasExplicitListingReference(query)) {
+    return false;
+  }
   const hasSearchIntent = /\b(find|search|browse|looking for|need|show me)\b/i.test(query);
   const isBroad = looksLikeBroadSearchTurn(query);
   return hasSearchIntent || isBroad;

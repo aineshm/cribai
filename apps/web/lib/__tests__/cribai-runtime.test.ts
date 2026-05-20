@@ -480,4 +480,42 @@ describe('maybeHandleDeterministicTurn', () => {
     expect(resultArea).toBeNull();
     expect(mockExecuteTool).not.toHaveBeenCalled();
   });
+
+  it('routes "is the rent around 1500?" to listing detail (bare around is not spatial)', async () => {
+    const listingId = '11111111-1111-1111-1111-111111111111';
+    const state = mergeConversationState(createEmptyConversationState(), {
+      selectedListingId: listingId,
+      mode: 'listing_detail',
+    });
+
+    const result = await maybeHandleDeterministicTurn({
+      query: 'is the rent around 1500?',
+      listingId,
+      conversationState: state,
+      toolContext: toolContext(),
+    });
+
+    // Should route to listing detail, NOT fall through
+    expect(result).not.toBeNull();
+    expect(result?.flow).toBe('detail');
+  });
+
+  it('falls through "what\'s parking like near this apartment?" despite explicit listing reference', async () => {
+    const listingId = '11111111-1111-1111-1111-111111111111';
+    const state = mergeConversationState(createEmptyConversationState(), {
+      selectedListingId: listingId,
+      mode: 'listing_detail',
+    });
+
+    const result = await maybeHandleDeterministicTurn({
+      query: "what's parking like near this apartment?",
+      listingId,
+      conversationState: state,
+      toolContext: toolContext(),
+    });
+
+    // Should fall through to neighborhood/search tooling, NOT force listing detail
+    expect(result).toBeNull();
+    expect(mockExecuteTool).not.toHaveBeenCalled();
+  });
 });
