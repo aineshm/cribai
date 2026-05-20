@@ -634,6 +634,51 @@ describe('maybeHandleDeterministicTurn', () => {
       const toolNames = mockExecuteTool.mock.calls.map((c) => c[0]);
       expect(toolNames).not.toContain('schedule_tour');
     });
+
+    it('updates studentName (and re-previews) when the user edits only the name after a tour preview', async () => {
+      // Preview was shown with studentName: 'Sam'. User replies with a
+      // name-only correction. Without the fix this skips the deterministic
+      // branch, the payload keeps 'Sam', and a later "yes" would submit with
+      // the stale name. With the fix we route into tour_prep, re-preview, and
+      // persist studentName: 'Alex' in the pending payload.
+      mockExecuteTool.mockResolvedValueOnce(listingDetailResult());
+
+      const state = mergeConversationState(createEmptyConversationState(), {
+        selectedListingId: listingId,
+        mode: 'action',
+        pendingAction: {
+          kind: 'tour',
+          payload: {
+            listingId,
+            extractedDates: ['2026-06-01'],
+            extractedEmail: 'sam@wisc.edu',
+            studentName: 'Sam',
+            previewConfirmedReady: true,
+          },
+        },
+      });
+
+      const result = await maybeHandleDeterministicTurn({
+        query: 'actually use Alex instead of Sam',
+        listingId,
+        conversationState: state,
+        toolContext: toolContext(),
+      });
+
+      expect(result?.flow).toBe('tour_prep');
+
+      // schedule_tour must NOT fire — we're correcting, not confirming.
+      const toolNames = mockExecuteTool.mock.calls.map((c) => c[0]);
+      expect(toolNames).not.toContain('schedule_tour');
+
+      // The new name takes precedence; the rest of the pending payload is
+      // preserved so a later "yes" submits correctly.
+      const pendingPayload = result?.conversationState.pendingAction.payload;
+      expect(pendingPayload?.studentName).toBe('Alex');
+      expect(pendingPayload?.extractedEmail).toBe('sam@wisc.edu');
+      expect(pendingPayload?.extractedDates).toEqual(['2026-06-01']);
+      expect(pendingPayload?.previewConfirmedReady).toBe(true);
+    });
   });
 
   it('falls through "what\'s parking like near this apartment?" despite explicit listing reference', async () => {

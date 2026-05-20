@@ -64,6 +64,30 @@ function looksLikeTourFollowUp(query: string): boolean {
   return /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(query) || /\b\d{4}-\d{2}-\d{2}\b/.test(query);
 }
 
+// Detects "edit the X field" turns that arrive AFTER a tour preview was shown
+// (previewConfirmedReady === true). Without this, name-only edits like
+// "actually use Alex instead of Sam" skip the deterministic branch and the
+// pending payload keeps the stale name — so a later "yes" submits with the
+// wrong studentName. Email/date edits are already handled by
+// looksLikeTourFollowUp via the email/ISO-date regexes.
+//
+// Scoped tight: only used when the caller has already verified that
+// pendingAction.kind === 'tour' && payload.previewConfirmedReady === true.
+function looksLikeTourPreviewEdit(query: string): boolean {
+  return (
+    // "use Alex", "use Alex Smith"
+    /\b(?:please\s+)?use\s+[A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+)?\b/i.test(query) ||
+    // "change (the )?name to Alex"
+    /\b(?:change|update|set|make)\s+(?:the\s+)?name\s+(?:to|=)\s+[A-Z][A-Za-z'’-]+/i.test(query) ||
+    // "actually (it should be|the name is) Alex", "the name is Alex"
+    /\b(?:actually\s+)?(?:the\s+)?name\s+(?:is|should\s+be)\s+[A-Z][A-Za-z'’-]+/i.test(query) ||
+    // "actually I'm Alex" / "actually I am Alex"
+    /\bactually\s+(?:i'?m|i\s+am|this\s+is)\s+[A-Z][A-Za-z'’-]+/i.test(query) ||
+    // "Alex instead of Sam" / "use Alex instead"
+    /\b[A-Z][A-Za-z'’-]+\s+instead\s+of\b/i.test(query)
+  );
+}
+
 // Affirmative reply to the tour preview ("yes", "send it", "looks good", etc).
 // Anchored at the start of the trimmed query so we do not match things like
 // "actually, no, hold on" or "yes for that one but change the date".
@@ -332,6 +356,49 @@ function inferNameFromEmail(email?: string): string | undefined {
     .join(' ');
 }
 
+// Build a name-capture sub-pattern that refuses to swallow common stop-words
+// like "use" or "instead" mid-name. With the case-insensitive flag, a naive
+// `[A-Z][A-Za-z]+` accidentally matches those words too — so phrases like
+// "use Alex instead of Sam" would capture "use Alex" or "Alex instead".
+// The negative lookahead in front of each name token prevents that.
+const NAME_STOP_WORDS =
+  '(?:use|actually|please|the|change|update|set|make|name|is|am|should|instead|of|to)';
+const NAME_TOKEN = `(?!${NAME_STOP_WORDS}\\b)[A-Z][A-Za-z'’-]+`;
+const NAME_CAPTURE = `(${NAME_TOKEN}(?:\\s+${NAME_TOKEN})?)`;
+
+// Try each name-edit pattern in priority order so an explicit edit phrase wins
+// over a bare "use X" capture.
+function extractEditedStudentName(query: string): string | undefined {
+  const patterns: RegExp[] = [
+    // "change the name to Alex Smith"
+    new RegExp(
+      `\\b(?:change|update|set|make)\\s+(?:the\\s+)?name\\s+(?:to|=)\\s+${NAME_CAPTURE}`,
+      'i',
+    ),
+    // "(actually) the name is Alex Smith" / "the name should be Alex Smith"
+    new RegExp(
+      `\\b(?:actually\\s+)?(?:the\\s+)?name\\s+(?:is|should\\s+be)\\s+${NAME_CAPTURE}`,
+      'i',
+    ),
+    // "actually I'm Alex Smith"
+    new RegExp(
+      `\\bactually\\s+(?:i'?m|i\\s+am|this\\s+is)\\s+${NAME_CAPTURE}`,
+      'i',
+    ),
+    // "Alex Smith instead of Sam"
+    new RegExp(`\\b${NAME_CAPTURE}\\s+instead\\s+of\\b`, 'i'),
+    // "use Alex Smith" / "please use Alex"
+    new RegExp(`\\b(?:please\\s+)?use\\s+${NAME_CAPTURE}\\b`, 'i'),
+  ];
+  for (const pattern of patterns) {
+    const match = query.match(pattern);
+    if (match?.[1]) {
+      return match[1].trim();
+    }
+  }
+  return undefined;
+}
+
 function parseTourRequestInput(query: string): {
   readonly student_email?: string;
   readonly student_name?: string;
@@ -339,8 +406,10 @@ function parseTourRequestInput(query: string): {
 } {
   const emailMatch = query.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
   const dateMatches = [...query.matchAll(/\b\d{4}-\d{2}-\d{2}\b/g)].map((match) => match[0]);
-  const nameMatch = query.match(/\b(?:my name is|i am|i'm|this is)\s+([A-Za-z][A-Za-z '-]{1,60})/i);
-  const inferredName = nameMatch?.[1]?.trim() ?? inferNameFromEmail(emailMatch?.[0]);
+  const introMatch = query.match(/\b(?:my name is|i am|i'm|this is)\s+([A-Za-z][A-Za-z '-]{1,60})/i);
+  const editedName = extractEditedStudentName(query);
+  const inferredName =
+    introMatch?.[1]?.trim() ?? editedName ?? inferNameFromEmail(emailMatch?.[0]);
 
   return {
     student_email: emailMatch?.[0],
@@ -452,12 +521,15 @@ export async function maybeHandleDeterministicTurn(
   }
 
   const isTourInitiation = looksLikeTourTurn(query);
-  const isTourFollowUp =
-    nextState.pendingAction.kind === 'tour' && looksLikeTourFollowUp(query);
-  const isTourConfirmation =
+  const tourPreviewReady =
     nextState.pendingAction.kind === 'tour' &&
-    nextState.pendingAction.payload?.previewConfirmedReady === true &&
-    looksLikeTourConfirmation(query);
+    nextState.pendingAction.payload?.previewConfirmedReady === true;
+  const isTourFollowUp =
+    nextState.pendingAction.kind === 'tour' &&
+    (looksLikeTourFollowUp(query) ||
+      (tourPreviewReady && looksLikeTourPreviewEdit(query)));
+  const isTourConfirmation =
+    tourPreviewReady && looksLikeTourConfirmation(query);
 
   if (isTourInitiation || isTourFollowUp || isTourConfirmation) {
     const pendingTourPayload =
