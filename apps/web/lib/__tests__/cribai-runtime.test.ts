@@ -635,6 +635,83 @@ describe('maybeHandleDeterministicTurn', () => {
       expect(toolNames).not.toContain('schedule_tour');
     });
 
+    it('does NOT treat "actually I\'m interested in a later date" as a name edit', async () => {
+      // Regression guard for the codex P1: an "actually I'm <word>" preamble
+      // must not be interpreted as a name correction, or the next word would
+      // be persisted as studentName and submitted on the next "yes".
+      mockExecuteTool.mockResolvedValueOnce(listingDetailResult());
+
+      const state = mergeConversationState(createEmptyConversationState(), {
+        selectedListingId: listingId,
+        mode: 'action',
+        pendingAction: {
+          kind: 'tour',
+          payload: {
+            listingId,
+            extractedDates: ['2026-06-01'],
+            extractedEmail: 'sam@wisc.edu',
+            studentName: 'Sam',
+            previewConfirmedReady: true,
+          },
+        },
+      });
+
+      const result = await maybeHandleDeterministicTurn({
+        query: "actually I'm interested in a later date",
+        listingId,
+        conversationState: state,
+        toolContext: toolContext(),
+      });
+
+      // The query contains no email and no ISO date — looksLikeTourFollowUp
+      // returns false, looksLikeTourPreviewEdit returns false (no explicit
+      // name keyword), so we should fall through entirely. studentName must
+      // never become "interested".
+      if (result) {
+        const pendingPayload = result.conversationState.pendingAction.payload;
+        expect(pendingPayload?.studentName).not.toBe('interested');
+        expect(pendingPayload?.studentName).not.toBe('just');
+      }
+      const toolNames = mockExecuteTool.mock.calls.map((c) => c[0]);
+      expect(toolNames).not.toContain('schedule_tour');
+    });
+
+    it('extracts just the new name (not "Alex instead of Sam") from "actually I am Alex instead of Sam"', async () => {
+      // Regression guard for the codex P2: the generic introMatch regex
+      // ("i am <text>") includes spaces, so it would have greedily captured
+      // "Alex instead of Sam" as the full name. The explicit edit extractor
+      // now wins and isolates "Alex".
+      mockExecuteTool.mockResolvedValueOnce(listingDetailResult());
+
+      const state = mergeConversationState(createEmptyConversationState(), {
+        selectedListingId: listingId,
+        mode: 'action',
+        pendingAction: {
+          kind: 'tour',
+          payload: {
+            listingId,
+            extractedDates: ['2026-06-01'],
+            extractedEmail: 'sam@wisc.edu',
+            studentName: 'Sam',
+            previewConfirmedReady: true,
+          },
+        },
+      });
+
+      const result = await maybeHandleDeterministicTurn({
+        query: 'actually I am Alex instead of Sam',
+        listingId,
+        conversationState: state,
+        toolContext: toolContext(),
+      });
+
+      expect(result?.flow).toBe('tour_prep');
+      const toolNames = mockExecuteTool.mock.calls.map((c) => c[0]);
+      expect(toolNames).not.toContain('schedule_tour');
+      const pendingPayload = result?.conversationState.pendingAction.payload;
+      expect(pendingPayload?.studentName).toBe('Alex');
+    });
+
     it('updates studentName (and re-previews) when the user edits only the name after a tour preview', async () => {
       // Preview was shown with studentName: 'Sam'. User replies with a
       // name-only correction. Without the fix this skips the deterministic

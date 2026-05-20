@@ -66,13 +66,20 @@ function looksLikeTourFollowUp(query: string): boolean {
 
 // Detects "edit the X field" turns that arrive AFTER a tour preview was shown
 // (previewConfirmedReady === true). Without this, name-only edits like
-// "actually use Alex instead of Sam" skip the deterministic branch and the
-// pending payload keeps the stale name — so a later "yes" submits with the
-// wrong studentName. Email/date edits are already handled by
-// looksLikeTourFollowUp via the email/ISO-date regexes.
+// "use Alex instead of Sam" skip the deterministic branch and the pending
+// payload keeps the stale name — so a later "yes" submits with the wrong
+// studentName. Email/date edits are already handled by looksLikeTourFollowUp
+// via the email/ISO-date regexes.
 //
 // Scoped tight: only used when the caller has already verified that
 // pendingAction.kind === 'tour' && payload.previewConfirmedReady === true.
+//
+// We intentionally do NOT match the broad "actually I'm <word>" phrasing
+// here. It false-positives on replies like "actually I'm interested in a
+// later date" or "actually I'm just checking", which would persist
+// "interested"/"just" as the student name. Users editing the name must use
+// an explicit name-edit keyword: "use", "change name to", "the name is",
+// or "X instead of Y".
 function looksLikeTourPreviewEdit(query: string): boolean {
   return (
     // "use Alex", "use Alex Smith"
@@ -81,8 +88,6 @@ function looksLikeTourPreviewEdit(query: string): boolean {
     /\b(?:change|update|set|make)\s+(?:the\s+)?name\s+(?:to|=)\s+[A-Z][A-Za-z'’-]+/i.test(query) ||
     // "actually (it should be|the name is) Alex", "the name is Alex"
     /\b(?:actually\s+)?(?:the\s+)?name\s+(?:is|should\s+be)\s+[A-Z][A-Za-z'’-]+/i.test(query) ||
-    // "actually I'm Alex" / "actually I am Alex"
-    /\bactually\s+(?:i'?m|i\s+am|this\s+is)\s+[A-Z][A-Za-z'’-]+/i.test(query) ||
     // "Alex instead of Sam" / "use Alex instead"
     /\b[A-Z][A-Za-z'’-]+\s+instead\s+of\b/i.test(query)
   );
@@ -368,6 +373,13 @@ const NAME_CAPTURE = `(${NAME_TOKEN}(?:\\s+${NAME_TOKEN})?)`;
 
 // Try each name-edit pattern in priority order so an explicit edit phrase wins
 // over a bare "use X" capture.
+//
+// We deliberately exclude the broad "actually I'm <word>" pattern here. The
+// generic introMatch in parseTourRequestInput already handles
+// "my name is …" / "i am …" / "this is …" introductions when the user
+// actually leads with their name. Adding the "actually I'm …" variant here
+// would re-introduce the same false-positive that looksLikeTourPreviewEdit
+// dropped ("actually I'm interested in a later date" → studentName: "interested").
 function extractEditedStudentName(query: string): string | undefined {
   const patterns: RegExp[] = [
     // "change the name to Alex Smith"
@@ -378,11 +390,6 @@ function extractEditedStudentName(query: string): string | undefined {
     // "(actually) the name is Alex Smith" / "the name should be Alex Smith"
     new RegExp(
       `\\b(?:actually\\s+)?(?:the\\s+)?name\\s+(?:is|should\\s+be)\\s+${NAME_CAPTURE}`,
-      'i',
-    ),
-    // "actually I'm Alex Smith"
-    new RegExp(
-      `\\bactually\\s+(?:i'?m|i\\s+am|this\\s+is)\\s+${NAME_CAPTURE}`,
       'i',
     ),
     // "Alex Smith instead of Sam"
@@ -408,8 +415,13 @@ function parseTourRequestInput(query: string): {
   const dateMatches = [...query.matchAll(/\b\d{4}-\d{2}-\d{2}\b/g)].map((match) => match[0]);
   const introMatch = query.match(/\b(?:my name is|i am|i'm|this is)\s+([A-Za-z][A-Za-z '-]{1,60})/i);
   const editedName = extractEditedStudentName(query);
+  // Explicit edit phrases ("change name to X", "X instead of Y", "use X")
+  // win over the generic intro capture. The intro regex's char class includes
+  // spaces, so for a query like "actually I am Alex instead of Sam" it would
+  // greedily capture "Alex instead of Sam" as the full name. The explicit
+  // extractor isolates just "Alex" — prefer it whenever it matches.
   const inferredName =
-    introMatch?.[1]?.trim() ?? editedName ?? inferNameFromEmail(emailMatch?.[0]);
+    editedName ?? introMatch?.[1]?.trim() ?? inferNameFromEmail(emailMatch?.[0]);
 
   return {
     student_email: emailMatch?.[0],
