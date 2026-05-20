@@ -64,6 +64,16 @@ function looksLikeTourFollowUp(query: string): boolean {
   return /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(query) || /\b\d{4}-\d{2}-\d{2}\b/.test(query);
 }
 
+// Affirmative reply to the tour preview ("yes", "send it", "looks good", etc).
+// Anchored at the start of the trimmed query so we do not match things like
+// "actually, no, hold on" or "yes for that one but change the date".
+function looksLikeTourConfirmation(query: string): boolean {
+  const trimmed = query.trim();
+  return /^(yes|yep|yeah|yup|sure|confirm(?:ed)?|ok(?:ay)?|sounds good|looks good|go ahead|send it|book it|do it|please do|let'?s do it|that works|perfect)\b[.! ]*$/i.test(
+    trimmed,
+  );
+}
+
 function looksLikeCompareTurn(query: string): boolean {
   return /\bcompare\b|\bvs\b|\bversus\b|first two|top 2|top two/i.test(query);
 }
@@ -441,8 +451,31 @@ export async function maybeHandleDeterministicTurn(
     }
   }
 
-  if (looksLikeTourTurn(query) || (nextState.pendingAction.kind === 'tour' && looksLikeTourFollowUp(query))) {
-    const resolvedListingId = listingId ?? resolveReferencedListingIds(query, nextState, 1)[0] ?? null;
+  const isTourInitiation = looksLikeTourTurn(query);
+  const isTourFollowUp =
+    nextState.pendingAction.kind === 'tour' && looksLikeTourFollowUp(query);
+  const isTourConfirmation =
+    nextState.pendingAction.kind === 'tour' &&
+    nextState.pendingAction.payload?.previewConfirmedReady === true &&
+    looksLikeTourConfirmation(query);
+
+  if (isTourInitiation || isTourFollowUp || isTourConfirmation) {
+    const pendingTourPayload =
+      nextState.pendingAction.kind === 'tour' && nextState.pendingAction.payload
+        ? nextState.pendingAction.payload
+        : null;
+
+    // Honour the saved listing id from the pending action so a bare
+    // confirmation message ("yes") still resolves to the correct listing
+    // even when no listing context is supplied this turn.
+    const resolvedListingId =
+      listingId ??
+      (typeof pendingTourPayload?.listingId === 'string'
+        ? pendingTourPayload.listingId
+        : null) ??
+      resolveReferencedListingIds(query, nextState, 1)[0] ??
+      null;
+
     if (resolvedListingId) {
       const detail = await runToolWithEvents(
         'get_listing_detail',
@@ -451,10 +484,6 @@ export async function maybeHandleDeterministicTurn(
       );
       nextState = mergeToolState(nextState, detail.statePatch);
 
-      const pendingTourPayload =
-        nextState.pendingAction.kind === 'tour' && nextState.pendingAction.payload
-          ? nextState.pendingAction.payload
-          : null;
       const parsedTour = parseTourRequestInput(query);
       const studentEmail =
         parsedTour.student_email ??
@@ -474,7 +503,15 @@ export async function maybeHandleDeterministicTurn(
           : undefined) ??
         inferNameFromEmail(studentEmail);
 
-      if (studentEmail && studentName && preferredDates.length > 0) {
+      const hasAllFields =
+        Boolean(studentEmail) && Boolean(studentName) && preferredDates.length > 0;
+      const previewAlreadyShown =
+        pendingTourPayload?.previewConfirmedReady === true;
+
+      // Phase 2: user has confirmed a previously shown preview — actually
+      // call schedule_tour and clear the pending action. Mirrors
+      // create_sublease's two-phase pattern (preview then confirmed=true).
+      if (hasAllFields && previewAlreadyShown && isTourConfirmation) {
         const scheduled = await runToolWithEvents(
           'schedule_tour',
           {
@@ -503,6 +540,42 @@ export async function maybeHandleDeterministicTurn(
 
       const listingBlock = getListingBlock(detail.blocks);
       const listing = listingBlock?.listings[0];
+
+      // Phase 1: we now have everything needed to schedule the tour but the
+      // user has not yet confirmed — present a preview and pause for an
+      // affirmative reply. No external outreach happens this turn.
+      if (hasAllFields) {
+        const datesLabel = preferredDates.join(' or ');
+        const previewText: ChatBlock = {
+          type: 'text',
+          content: listing
+            ? `Ready to request a tour at ${listing.address} on ${datesLabel} using ${studentEmail}. Should I send it? (Reply "yes" to confirm, or correct any details first.)`
+            : `Ready to request a tour on ${datesLabel} using ${studentEmail}. Should I send it? (Reply "yes" to confirm, or correct any details first.)`,
+        };
+        nextState = mergeConversationState(nextState, {
+          mode: 'action',
+          selectedListingId: resolvedListingId,
+          pendingAction: {
+            kind: 'tour',
+            payload: {
+              listingId: resolvedListingId,
+              extractedDates: preferredDates,
+              extractedEmail: studentEmail ?? null,
+              studentName: studentName ?? null,
+              previewConfirmedReady: true,
+              rawQuery: query,
+            },
+          },
+        });
+        return {
+          flow: 'tour_prep',
+          toolCount: 1,
+          conversationState: nextState,
+          blocks: [...detail.blocks, previewText],
+          events: [...detail.events, { type: 'text', content: previewText.content }],
+        };
+      }
+
       const pendingText: ChatBlock = {
         type: 'text',
         content: listing
@@ -519,6 +592,7 @@ export async function maybeHandleDeterministicTurn(
             extractedDates: preferredDates,
             extractedEmail: studentEmail ?? null,
             studentName: studentName ?? null,
+            previewConfirmedReady: false,
             rawQuery: query,
           },
         },

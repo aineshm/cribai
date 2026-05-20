@@ -500,6 +500,142 @@ describe('maybeHandleDeterministicTurn', () => {
     expect(result?.flow).toBe('detail');
   });
 
+  // ── HITL preview phase for schedule_tour ─────────────────────
+
+  describe('schedule_tour HITL preview phase', () => {
+    const listingId = '11111111-1111-1111-1111-111111111111';
+
+    function listingDetailResult() {
+      return listingToolResult();
+    }
+
+    function scheduledTourResult() {
+      return {
+        modelContext: 'Tour scheduled',
+        clientBlock: {
+          type: 'tour_confirmation' as const,
+          tourRequestId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+          listingAddress: '109 E Wilson St, Madison, WI 53703',
+          status: 'pending' as const,
+        },
+        statePatch: {},
+      };
+    }
+
+    it('returns a preview and does NOT call schedule_tour on first all-fields turn', async () => {
+      // First turn: user provides everything in one message — must preview, not fire.
+      mockExecuteTool.mockResolvedValueOnce(listingDetailResult());
+
+      const state = mergeConversationState(createEmptyConversationState(), {
+        selectedListingId: listingId,
+        mode: 'listing_detail',
+      });
+
+      const result = await maybeHandleDeterministicTurn({
+        query:
+          'book a tour for me, my name is Sam, email sam@wisc.edu, on 2026-06-01',
+        listingId,
+        conversationState: state,
+        toolContext: toolContext(),
+      });
+
+      expect(result?.flow).toBe('tour_prep');
+      // get_listing_detail is allowed; schedule_tour must NOT be called.
+      const toolNames = mockExecuteTool.mock.calls.map((c) => c[0]);
+      expect(toolNames).toContain('get_listing_detail');
+      expect(toolNames).not.toContain('schedule_tour');
+
+      // Pending action marks the preview as ready for confirmation.
+      expect(result?.conversationState.pendingAction.kind).toBe('tour');
+      expect(
+        result?.conversationState.pendingAction.payload?.previewConfirmedReady,
+      ).toBe(true);
+      expect(
+        result?.conversationState.pendingAction.payload?.extractedEmail,
+      ).toBe('sam@wisc.edu');
+    });
+
+    it('executes schedule_tour when the user confirms a previously shown preview', async () => {
+      // Second turn: state already shows the preview was shown; user replies "yes".
+      mockExecuteTool
+        .mockResolvedValueOnce(listingDetailResult())
+        .mockResolvedValueOnce(scheduledTourResult());
+
+      const state = mergeConversationState(createEmptyConversationState(), {
+        selectedListingId: listingId,
+        mode: 'action',
+        pendingAction: {
+          kind: 'tour',
+          payload: {
+            listingId,
+            extractedDates: ['2026-06-01'],
+            extractedEmail: 'sam@wisc.edu',
+            studentName: 'Sam',
+            previewConfirmedReady: true,
+            rawQuery:
+              'book a tour for me, my name is Sam, email sam@wisc.edu, on 2026-06-01',
+          },
+        },
+      });
+
+      const result = await maybeHandleDeterministicTurn({
+        query: 'yes',
+        listingId,
+        conversationState: state,
+        toolContext: toolContext(),
+      });
+
+      expect(result?.flow).toBe('tour_submit');
+      expect(mockExecuteTool).toHaveBeenCalledWith(
+        'schedule_tour',
+        expect.objectContaining({
+          listing_id: listingId,
+          student_email: 'sam@wisc.edu',
+          student_name: 'Sam',
+          preferred_dates: ['2026-06-01'],
+        }),
+        toolContext(),
+      );
+
+      // Pending action cleared on successful submit.
+      expect(result?.conversationState.pendingAction.kind).toBeNull();
+    });
+
+    it('does NOT call schedule_tour when the user replies with a non-affirmative follow-up', async () => {
+      // Preview was already shown; user replies with a correction, not confirmation.
+      mockExecuteTool.mockResolvedValueOnce(listingDetailResult());
+
+      const state = mergeConversationState(createEmptyConversationState(), {
+        selectedListingId: listingId,
+        mode: 'action',
+        pendingAction: {
+          kind: 'tour',
+          payload: {
+            listingId,
+            extractedDates: ['2026-06-01'],
+            extractedEmail: 'sam@wisc.edu',
+            studentName: 'Sam',
+            previewConfirmedReady: true,
+          },
+        },
+      });
+
+      const result = await maybeHandleDeterministicTurn({
+        // Sends a new date — looks like a tour follow-up, not a confirmation.
+        query: 'actually use 2026-06-15',
+        listingId,
+        conversationState: state,
+        toolContext: toolContext(),
+      });
+
+      // We re-enter the tour branch via looksLikeTourFollowUp and re-preview
+      // with the merged date set; schedule_tour still must not fire.
+      expect(result?.flow).toBe('tour_prep');
+      const toolNames = mockExecuteTool.mock.calls.map((c) => c[0]);
+      expect(toolNames).not.toContain('schedule_tour');
+    });
+  });
+
   it('falls through "what\'s parking like near this apartment?" despite explicit listing reference', async () => {
     const listingId = '11111111-1111-1111-1111-111111111111';
     const state = mergeConversationState(createEmptyConversationState(), {
