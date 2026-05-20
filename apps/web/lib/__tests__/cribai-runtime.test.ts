@@ -450,4 +450,34 @@ describe('maybeHandleDeterministicTurn', () => {
     expect(result).toBeNull();
     expect(mockExecuteTool).not.toHaveBeenCalled();
   });
+
+  it('falls through area-level follow-ups even with an active listing', async () => {
+    const listingId = '11111111-1111-1111-1111-111111111111';
+    const state = mergeConversationState(createEmptyConversationState(), {
+      selectedListingId: listingId,
+      mode: 'listing_detail',
+    });
+
+    // Neighborhood-level query containing "parking" but also "near State Street" (area indicator)
+    const resultNear = await maybeHandleDeterministicTurn({
+      query: 'what about parking near State Street?',
+      listingId,
+      conversationState: state,
+      toolContext: toolContext(),
+    });
+
+    expect(resultNear).toBeNull();
+    expect(mockExecuteTool).not.toHaveBeenCalled();
+
+    // Neighborhood-level query containing "utilities" but also "in the area" (area indicator)
+    const resultArea = await maybeHandleDeterministicTurn({
+      query: 'what are utilities like in the area?',
+      listingId,
+      conversationState: state,
+      toolContext: toolContext(),
+    });
+
+    expect(resultArea).toBeNull();
+    expect(mockExecuteTool).not.toHaveBeenCalled();
+  });
 });

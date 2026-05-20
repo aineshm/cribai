@@ -82,6 +82,10 @@ function looksLikeListingAttributeQuestion(query: string): boolean {
   return hasAttribute && isQuestion;
 }
 
+function looksLikeAreaOrNeighborhoodQuery(query: string): boolean {
+  return /\b(near|area|around|neighborhood|vicinity|commute|distance|walk\s+to|drive\s+to)\b/i.test(query);
+}
+
 function hasHighConfidenceOrdinalReference(query: string): boolean {
   return /\b(first|second|third|fourth|1st|2nd|3rd|4th)\b/i.test(query);
 }
@@ -124,11 +128,11 @@ function isHighConfidenceListingDetail(
     return true;
   }
 
-  // 3. Active listing + clear attribute question (but NOT a broad search)
+  // 3. Active listing + clear attribute question (but NOT a broad search or area/neighborhood-level query)
   if (hasActiveListing && looksLikeListingAttributeQuestion(query)) {
-    // If it looks like a broad search (e.g. "2 bedroom apartments with parking under 1500"),
-    // it should go to search instead of detail.
-    if (looksLikeBroadSearchTurn(query)) {
+    // If it looks like a broad search or an area/neighborhood-level query,
+    // it should go to search or neighborhood tools instead of detail.
+    if (looksLikeBroadSearchTurn(query) || looksLikeAreaOrNeighborhoodQuery(query)) {
       return false;
     }
     return true;
