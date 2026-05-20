@@ -28,6 +28,18 @@ const ACTIVE_STATUSES: ReadonlySet<string> = new Set([
   'waiting_approval',
 ]);
 
+/**
+ * MissionSuggestions assigns ids of the form `mission-<timestamp>` to
+ * client-only suggestion cards (they are not yet persisted via /api/missions
+ * because their template types — tour_booking, lease_review,
+ * listing_comparison — are UI placeholders, not registered mission intents).
+ * fetchMissions uses this predicate to preserve such entries instead of
+ * overwriting them with the server-only response.
+ */
+function isLocalOnlyMissionId(id: string): boolean {
+  return /^mission-\d+$/.test(id);
+}
+
 // ─── DB mission shape returned by GET /api/missions ──────────────────────────
 // Mirrors the fields selected by the API route (snake_case).
 
@@ -139,7 +151,18 @@ export function ConciergeProvider({
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const body = (await res.json()) as { missions: DbMission[] };
       if (!signal?.aborted) {
-        setMissions(body.missions.map(dbMissionToLegacy));
+        const serverMissions = body.missions.map(dbMissionToLegacy);
+        // Preserve locally-added missions (those without a server-issued UUID,
+        // identified by the `mission-<timestamp>` prefix used by addMission)
+        // so polling does not wipe suggestion-card missions that exist only
+        // client-side. Server missions take precedence when ids collide.
+        const serverIds = new Set(serverMissions.map((m) => m.id));
+        setMissions((prev) => {
+          const localOnly = prev.filter(
+            (m) => isLocalOnlyMissionId(m.id) && !serverIds.has(m.id),
+          );
+          return [...localOnly, ...serverMissions];
+        });
       }
     } catch (err: unknown) {
       if ((err as { name?: string }).name !== 'AbortError') {
