@@ -12,6 +12,7 @@ import {
   type PageIndexNode,
 } from '@campusnest/types';
 import { maybeHandleDeterministicTurn } from '../../../../lib/cribai-runtime';
+import { preservePendingActionAfterLLMTurn } from '../../../../lib/conversation-state-helpers';
 import {
   isDevAuthEnabled,
   getDevUserById,
@@ -639,11 +640,9 @@ export async function POST(request: NextRequest) {
           }
 
           if (!toolProposedMission) {
-            nextConversationState = mergeConversationState(nextConversationState, {
-              pendingAction: nextConversationState.pendingAction.kind === 'mission'
-                ? nextConversationState.pendingAction
-                : { kind: null, payload: null },
-            });
+            nextConversationState = preservePendingActionAfterLLMTurn(
+              nextConversationState,
+            );
           }
 
           enqueueEvent(controller, encoder, { type: 'done' });
