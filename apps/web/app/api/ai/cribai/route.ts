@@ -642,6 +642,7 @@ export async function POST(request: NextRequest) {
           if (!toolProposedMission) {
             nextConversationState = preservePendingActionAfterLLMTurn(
               nextConversationState,
+              trimmedQuery,
             );
           }
 
