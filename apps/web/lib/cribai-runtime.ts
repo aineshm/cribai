@@ -86,12 +86,25 @@ function hasHighConfidenceOrdinalReference(query: string): boolean {
   return /\b(first|second|third|fourth|1st|2nd|3rd|4th)\b/i.test(query);
 }
 
+function hasExplicitOrdinalSelector(query: string): boolean {
+  // Matches when followed by a selector noun: e.g. "first one", "second listing"
+  const hasSelectorNoun = /\b(first|second|third|fourth|1st|2nd|3rd|4th)\s+(one|listing|apartment|unit|result|place|home|choice|item)s?\b/i.test(query);
+  // Matches when preceded by a selection verb phrase: e.g. "show the first", "details on the second"
+  const hasSelectionVerb = /\b(show|tell me about|details?|info|thoughts|open|display)\b.*\b(first|second|third|fourth|1st|2nd|3rd|4th)\b/i.test(query);
+  return hasSelectorNoun || hasSelectionVerb;
+}
+
 function isHighConfidenceListingDetail(
   query: string,
   hasActiveListing: boolean,
 ): boolean {
   // 1. Ordinal references (e.g. "first one", "second listing")
   if (hasHighConfidenceOrdinalReference(query)) {
+    // If it looks like a broad search query (e.g., "first floor apartments under 1500" or "second semester subleases"),
+    // verify it has an explicit selector phrase to be treated as a specific item selection.
+    if (looksLikeBroadSearchTurn(query)) {
+      return hasExplicitOrdinalSelector(query);
+    }
     return true;
   }
 

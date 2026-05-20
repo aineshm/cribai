@@ -317,6 +317,67 @@ describe('maybeHandleDeterministicTurn', () => {
     );
   });
 
+  it('keeps broad searches containing ordinal terms as search', async () => {
+    const listingId = '11111111-1111-1111-1111-111111111111';
+    const state = mergeConversationState(createEmptyConversationState(), {
+      selectedListingId: listingId,
+      mode: 'listing_detail',
+      lastSearch: {
+        args: {},
+        resultListingIds: [listingId],
+        generatedAt: '2026-05-16T00:00:00.000Z',
+        source: 'chat_search',
+      },
+    });
+
+    const floorResult = await maybeHandleDeterministicTurn({
+      query: 'first floor apartments under 1500',
+      listingId,
+      conversationState: state,
+      toolContext: toolContext(),
+    });
+
+    expect(floorResult?.flow).toBe('search');
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'search_listings',
+      expect.objectContaining({ max_rent: 1500 }),
+      toolContext(),
+    );
+
+    mockExecuteTool.mockClear();
+
+    const semesterResult = await maybeHandleDeterministicTurn({
+      query: 'second semester subleases',
+      listingId,
+      conversationState: state,
+      toolContext: toolContext(),
+    });
+
+    expect(semesterResult?.flow).toBe('search');
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'search_listings',
+      expect.objectContaining({}),
+      toolContext(),
+    );
+
+    mockExecuteTool.mockClear();
+
+    // Verify selector ordinal STILL resolves to listing detail
+    const selectorResult = await maybeHandleDeterministicTurn({
+      query: 'show the first listing under 1500',
+      listingId,
+      conversationState: state,
+      toolContext: toolContext(),
+    });
+
+    expect(selectorResult?.flow).toBe('detail');
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'get_listing_detail',
+      { listing_id: listingId },
+      toolContext(),
+    );
+  });
+
   it('falls through generic follow-ups after search results without an explicit listing reference', async () => {
     const state = mergeConversationState(createEmptyConversationState(), {
       mode: 'search',
