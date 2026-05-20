@@ -679,4 +679,87 @@ describe('executeMission', () => {
     );
     expect(tooLateLog).toBeDefined();
   });
+
+  // ── Lease heartbeat during long-running steps (intra-step heartbeating) ──
+
+  it('heartbeats the lease repeatedly while a step exceeds the lease window', async () => {
+    // Lease is 300s; heartbeat interval is 100s. A step that takes ~250s
+    // should fire at least 2 intra-step heartbeats. Combined with the
+    // initial heartbeat-at-step-start, total heartbeat calls should be >= 3
+    // for this single step.
+    vi.useFakeTimers();
+    try {
+      const longStep = makeStep('long', async () => {
+        // Advance virtual time inside the step so the interval fires.
+        // 250s = 250000ms — beyond the 100s heartbeat interval, twice.
+        await vi.advanceTimersByTimeAsync(250_000);
+        return { output: { ok: true } };
+      });
+
+      mockGetMission.mockResolvedValue(baseMission());
+      mockGetDefinition.mockReturnValue({
+        type: 'housing_search',
+        steps: [longStep],
+      });
+
+      await executeMission({ missionId: 'mission-1' });
+
+      // Initial pre-loop heartbeat + per-step-start heartbeat + 2 interval pulses = >= 3.
+      // Assert ">= 3" rather than exact count to stay robust to small timing changes.
+      expect(mockHeartbeatMissionLease.mock.calls.length).toBeGreaterThanOrEqual(3);
+      expect(mockCompleteMission).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stops the heartbeat interval after the step finishes (no leaks)', async () => {
+    vi.useFakeTimers();
+    try {
+      const quickStep = makeStep('quick', async () => ({ output: { ok: true } }));
+      mockGetMission.mockResolvedValue(baseMission());
+      mockGetDefinition.mockReturnValue({
+        type: 'housing_search',
+        steps: [quickStep],
+      });
+
+      await executeMission({ missionId: 'mission-1' });
+
+      const callsAfterCompletion = mockHeartbeatMissionLease.mock.calls.length;
+
+      // Advance virtual time well beyond the heartbeat interval. If the
+      // interval was not cleared in `finally`, additional heartbeats would
+      // fire and the call count would grow.
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
+
+      expect(mockHeartbeatMissionLease.mock.calls.length).toBe(callsAfterCompletion);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('clears the heartbeat interval even when the step throws', async () => {
+    vi.useFakeTimers();
+    try {
+      const throwingStep = makeStep('bad', async () => {
+        throw new Error('validation failed');
+      });
+      mockGetMission.mockResolvedValue(baseMission());
+      mockGetDefinition.mockReturnValue({
+        type: 'housing_search',
+        steps: [throwingStep],
+      });
+
+      await executeMission({ missionId: 'mission-1' });
+
+      const callsAfterFailure = mockHeartbeatMissionLease.mock.calls.length;
+
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
+
+      expect(mockHeartbeatMissionLease.mock.calls.length).toBe(callsAfterFailure);
+      expect(mockMarkMissionFailed).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

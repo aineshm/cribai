@@ -30,6 +30,10 @@ import {
 import { parseSteeringIntent } from './steering-parser';
 
 const DEFAULT_LEASE_SECONDS = 300;
+// Heartbeat at ~1/3 of the lease window so two heartbeats fit comfortably
+// before the lease would expire — prevents a sibling worker from re-claiming
+// the mission while a long-running step is still executing.
+const HEARTBEAT_INTERVAL_MS = Math.floor((DEFAULT_LEASE_SECONDS / 3) * 1000);
 const MAX_STEP_RETRIES = 2;
 
 function parseStepAttempts(value: unknown): Record<string, number> {
@@ -124,6 +128,25 @@ export async function executeMission(options: ExecuteOptions): Promise<void> {
       status: 'running',
       tool_name: step.tool ?? null,
     });
+
+    // Pulse the mission lease throughout the step so claim_next_mission_job
+    // cannot re-claim this row while we're still working on it. Without this,
+    // any step that exceeds DEFAULT_LEASE_SECONDS lets a second worker pick
+    // up the mission and re-run side-effectful tools (e.g. duplicate insert
+    // in sublease_post). The interval is cleared in `finally` so it runs
+    // even when the step throws or pauses for HITL approval.
+    const heartbeatTimer: NodeJS.Timeout = setInterval(() => {
+      void heartbeatMissionLease(
+        supabase,
+        options.missionId,
+        DEFAULT_LEASE_SECONDS,
+      ).catch((err) => {
+        const msg = err instanceof Error ? err.message : 'unknown';
+        console.warn(
+          `[executor] Heartbeat failed for mission ${options.missionId}: ${msg}`,
+        );
+      });
+    }, HEARTBEAT_INTERVAL_MS);
 
     try {
       const ctx: StepContext = {
@@ -288,6 +311,10 @@ export async function executeMission(options: ExecuteOptions): Promise<void> {
         );
       }
       return;
+    } finally {
+      // Always stop the heartbeat timer — covers completion, HITL pause,
+      // early break (done=true), and the catch-block `return` above.
+      clearInterval(heartbeatTimer);
     }
   }
 
