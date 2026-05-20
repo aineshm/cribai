@@ -48,6 +48,8 @@ describe('createSublease', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGeocode.mockResolvedValue({ latitude: 43.0731, longitude: -89.4012 });
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-15T12:00:00Z'));
   });
 
   afterEach(() => {
