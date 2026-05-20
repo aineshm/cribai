@@ -7,7 +7,12 @@ export function ConciergeNavButton() {
   const { openSidebar, missions } = useConcierge();
 
   const activeCount = missions.filter(
-    (m) => m.status === 'active' || m.status === 'waiting_approval' || m.status === 'scheduled'
+    (m) =>
+      m.status === 'queued' ||
+      m.status === 'pending' ||
+      m.status === 'running' ||
+      m.status === 'retrying' ||
+      m.status === 'waiting_approval'
   ).length;
 
   return (

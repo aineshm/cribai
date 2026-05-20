@@ -55,9 +55,9 @@ export function MapPanel({ listings, onBoundsChange, showSearchButton, onSearchA
     setSelectedId((prev) => (prev === id ? null : id));
   }, []);
 
-  const handleMoveEnd = useCallback((e: ViewStateChangeEvent) => {
+  const emitBounds = useCallback((map: ViewStateChangeEvent['target']) => {
     if (!onBoundsChange) return;
-    const bounds = e.target.getBounds();
+    const bounds = map.getBounds();
     if (!bounds) return;
     if (boundsTimerRef.current) clearTimeout(boundsTimerRef.current);
     boundsTimerRef.current = setTimeout(() => {
@@ -69,6 +69,10 @@ export function MapPanel({ listings, onBoundsChange, showSearchButton, onSearchA
       });
     }, 300);
   }, [onBoundsChange]);
+
+  const handleMoveEnd = useCallback((e: ViewStateChangeEvent) => {
+    emitBounds(e.target);
+  }, [emitBounds]);
 
   const geoListings = useMemo(
     () => listings.filter((l) => l.latitude != null && l.longitude != null),
@@ -137,6 +141,7 @@ export function MapPanel({ listings, onBoundsChange, showSearchButton, onSearchA
         }}
         style={{ width: '100%', height: '100%' }}
         mapStyle="mapbox://styles/mapbox/streets-v12"
+        onLoad={(e) => emitBounds(e.target)}
         onMoveEnd={handleMoveEnd}
       >
         {geoListings.map((listing) => {

@@ -12,14 +12,17 @@ import { z } from 'zod';
 // ─── Enum schemas ──────────────────────────────────────────
 
 export const missionStatusSchema = z.enum([
+  'queued',            // enqueued for worker pickup
   'pending',           // created, not yet picked up by executor
   'running',           // executor is actively processing steps
+  'retrying',          // step failed with a retryable error
   'active',            // legacy v1.0 status (manual missions)
   'paused',            // user paused execution
   'waiting_approval',  // executor paused for HITL draft approval
   'scheduled',         // queued to run at a future time
   'completed',         // all steps finished successfully
   'failed',            // step threw or draft was rejected
+  'cancelled',         // user cancelled or rejected the workflow
   'expired',           // passed expires_at without completing
 ]);
 
@@ -35,6 +38,8 @@ export const missionTypeSchema = z.enum([
   // v2.0 executor mission types
   'housing_search',  // Phase 27 — multi-step listing search + shortlist
   'tour_outreach',   // Phase 28 — email draft + send to landlord
+  'listing_deep_dive',
+  'sublease_post',
 ]);
 
 export type MissionType = z.infer<typeof missionTypeSchema>;
@@ -81,6 +86,11 @@ export const missionSchema = z.object({
   state: z.record(z.unknown()),           // accumulated step outputs (persisted per step)
   result: z.record(z.unknown()).nullable(), // final output after all steps complete
   current_step_index: z.number().int(),   // next step to run on resume
+  attempt_count: z.number().int(),
+  leased_until: z.string().nullable(),
+  last_heartbeat_at: z.string().nullable(),
+  last_error: z.string().nullable(),
+  step_attempts: z.record(z.string(), z.number().int()),
   campus_id: z.string().uuid().nullable(), // optional campus context for step queries
   expires_at: z.string().nullable(),
   created_at: z.string(),

@@ -106,7 +106,7 @@ describe('parseSteeringIntent', () => {
     const prompt = callArgs.contents[0]!.parts[0]!.text;
 
     expect(prompt).toContain('housing_search');
-    expect(prompt).toContain('"maxRent": 1500');
+    expect(prompt).toContain(JSON.stringify(baseInput));
   });
 
   it('uses responseMimeType application/json and no tools config', async () => {

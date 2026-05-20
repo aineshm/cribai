@@ -1,9 +1,8 @@
 /**
  * Missions collection routes — POST (create) and GET (list).
  *
- * POST creates a new mission row and fires the executor asynchronously
- * via Next.js `after()`. GET returns the authenticated user's missions
- * ordered by most recently updated.
+ * POST creates a new mission row in the durable queue. GET returns the
+ * authenticated user's missions ordered by most recently updated.
  *
  * The POST body accepts either `campusId` (UUID) or `campus_slug` (string).
  * When only `campus_slug` is provided the route resolves the UUID via a
@@ -11,9 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { after } from 'next/server';
 import { z } from 'zod';
-import { executeMission } from '@campusnest/ai';
 import { resolveMissionAuth, getQueryClient } from './_helpers';
 
 /** Accept either a UUID campusId or a campus_slug string. */
@@ -53,7 +50,7 @@ async function resolveCampusId(
   return (data as { id: string }).id;
 }
 
-/** POST /api/missions — create a mission and fire the executor. */
+/** POST /api/missions — create a mission and enqueue it for the worker. */
 export async function POST(request: NextRequest) {
   const { userId, supabase, authViaBearerToken } = await resolveMissionAuth(request);
 
@@ -116,7 +113,7 @@ export async function POST(request: NextRequest) {
       goal,
       campus_id: resolvedCampusId,
       input,
-      status: 'pending',
+      status: 'queued',
       listing_id: listingId ?? null,
       idempotency_key: idempotencyKey ?? null,
     })
@@ -127,16 +124,6 @@ export async function POST(request: NextRequest) {
     console.error('[missions] Create error:', error);
     return NextResponse.json({ error: 'Failed to create mission' }, { status: 500 });
   }
-
-  // Fire executor asynchronously via Next.js after() — runs post-response
-  // so the client gets an immediate 201 while the pipeline runs in background
-  after(async () => {
-    try {
-      await executeMission({ missionId: data.id as string });
-    } catch (err) {
-      console.error('[missions] executeMission failed for id', data.id, err);
-    }
-  });
 
   return NextResponse.json({ id: data.id, status: data.status }, { status: 201 });
 }

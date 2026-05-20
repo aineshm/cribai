@@ -1,4 +1,4 @@
-<!-- Generated: 2026-03-04 | Files scanned: ~5 | Token estimate: ~400 -->
+<!-- Updated: 2026-04-22 | Runtime rebuild data map -->
 # Data
 
 ## Schema (supabase/migrations/001_initial_schema.sql)
@@ -29,6 +29,15 @@ pageindex_trees
 ai_query_logs (rate limiting)
   id uuid PK, user_id FK, query_text, tokens_used, created_at
 
+conversations
+  id uuid PK, user_id FK, title, context jsonb legacy,
+  conversation_state jsonb default durable chat working memory
+
+missions
+  id uuid PK, user_id FK, type, status, input jsonb, state jsonb, result jsonb,
+  current_step_index int, attempt_count int, leased_until timestamptz,
+  last_heartbeat_at timestamptz, last_error text, step_attempts jsonb
+
 landlords
   id uuid PK, name, company, scorecard jsonb
 
@@ -47,6 +56,11 @@ sublets
 - idx_listings_location GIST (location)
 - idx_listings_campus_active (campus_id, is_active)
 - idx_ai_logs_user_date (user_id, created_at)
+- idx_missions_queue_claim (status, leased_until, updated_at) for queued worker pickup
+
+## Queue Helpers
+
+- `claim_next_mission_job(p_lease_seconds)` atomically claims one queued/retrying/stale-running mission with `FOR UPDATE SKIP LOCKED`
 
 ## RLS: Enabled on all tables
 

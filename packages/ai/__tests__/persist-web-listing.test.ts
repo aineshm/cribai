@@ -6,19 +6,34 @@ vi.mock('@tavily/core', () => ({
   tavily: vi.fn(() => ({ search: vi.fn() })),
 }));
 
+vi.mock('../src/embeddings/generate-embedding', () => ({
+  generateEmbedding: vi.fn().mockResolvedValue([0.1, 0.2, 0.3]),
+}));
+
+vi.mock('../src/embeddings/synthesize-text', () => ({
+  synthesizeListingText: vi.fn(() => '123 Main St | 2 bed | $1200'),
+}));
+
 // Must import after mock setup
 import { persistWebListing } from '../src/tools/handlers/web-search';
 
 function createMockSupabase() {
-  const singleFn = vi.fn();
-  const selectFn = vi.fn().mockReturnValue({ single: singleFn });
-  const upsertFn = vi.fn().mockReturnValue({ select: selectFn });
+  const upsertSingleFn = vi.fn();
+  const upsertSelectFn = vi.fn().mockReturnValue({ single: upsertSingleFn });
+  const existingSingleFn = vi.fn().mockResolvedValue({
+    data: { last_embedded_at: null },
+    error: null,
+  });
+  const existingEqFn = vi.fn().mockReturnValue({ single: existingSingleFn });
+  const existingSelectFn = vi.fn().mockReturnValue({ eq: existingEqFn });
+  const upsertFn = vi.fn().mockReturnValue({ select: upsertSelectFn });
   const eqFn = vi.fn().mockResolvedValue({ error: null });
   const updateFn = vi.fn().mockReturnValue({ eq: eqFn });
   const fromFn = vi.fn().mockImplementation((table: string) => {
     if (table === 'listings') {
       return {
         upsert: upsertFn,
+        select: existingSelectFn,
         update: updateFn,
       };
     }
@@ -28,8 +43,11 @@ function createMockSupabase() {
   return {
     from: fromFn,
     upsertFn,
-    selectFn,
-    singleFn,
+    upsertSelectFn,
+    upsertSingleFn,
+    existingSelectFn,
+    existingEqFn,
+    existingSingleFn,
     updateFn,
     eqFn,
   };
@@ -49,13 +67,13 @@ describe('persistWebListing', () => {
   let context: ToolContext;
 
   beforeEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
     mock = createMockSupabase();
     context = createMockContext(mock);
   });
 
   it('upserts a listing with source=web_search and returns the new listing UUID on success', async () => {
-    mock.singleFn.mockResolvedValue({
+    mock.upsertSingleFn.mockResolvedValue({
       data: { id: 'new-listing-uuid' },
       error: null,
     });
@@ -74,8 +92,8 @@ describe('persistWebListing', () => {
     expect(result).toBe('new-listing-uuid');
   });
 
-  it('sets last_embedded_at to null after successful upsert (triggers embedding pipeline)', async () => {
-    mock.singleFn.mockResolvedValue({
+  it('embeds a new web listing after successful upsert', async () => {
+    mock.upsertSingleFn.mockResolvedValue({
       data: { id: 'new-listing-uuid' },
       error: null,
     });
@@ -89,12 +107,16 @@ describe('persistWebListing', () => {
       context,
     );
 
-    expect(mock.updateFn).toHaveBeenCalledWith({ last_embedded_at: null });
+    expect(mock.updateFn).toHaveBeenCalledWith({
+      embedding: '[0.1,0.2,0.3]',
+      embedding_text: '123 Main St | 2 bed | $1200',
+      last_embedded_at: expect.any(String),
+    });
     expect(mock.eqFn).toHaveBeenCalledWith('id', 'new-listing-uuid');
   });
 
   it('returns null and does not throw when upsert fails', async () => {
-    mock.singleFn.mockResolvedValue({
+    mock.upsertSingleFn.mockResolvedValue({
       data: null,
       error: { message: 'Database constraint violation' },
     });
@@ -116,7 +138,7 @@ describe('persistWebListing', () => {
   });
 
   it('returns null when the select-after-upsert returns no data', async () => {
-    mock.singleFn.mockResolvedValue({
+    mock.upsertSingleFn.mockResolvedValue({
       data: null,
       error: null,
     });
@@ -134,7 +156,7 @@ describe('persistWebListing', () => {
   });
 
   it('passes correct fields to supabase upsert', async () => {
-    mock.singleFn.mockResolvedValue({
+    mock.upsertSingleFn.mockResolvedValue({
       data: { id: 'new-listing-uuid' },
       error: null,
     });

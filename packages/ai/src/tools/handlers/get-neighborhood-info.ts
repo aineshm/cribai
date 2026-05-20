@@ -179,6 +179,13 @@ export async function getNeighborhoodInfo(
   ].join('\n');
 
   const result: ToolResult = {
+    machineData: {
+      address,
+      walkScore: walkScores?.walkscore ?? null,
+      transitScore: walkScores?.transit?.score ?? null,
+      bikeScore: walkScores?.bike?.score ?? null,
+      nearbyAmenities: categories,
+    },
     modelContext,
     clientBlock: {
       type: 'text' as const,

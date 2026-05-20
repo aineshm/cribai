@@ -50,7 +50,22 @@ export async function compareListings(
     .join('\n')}`;
 
   return {
+    machineData: {
+      listingIds: listings.map((listing) => listing.id),
+      listings: listings.map((listing) => ({
+        id: listing.id,
+        address: listing.address,
+        rentMonthly: listing.rentMonthly,
+        fairnessScore: listing.fairnessScore,
+        trueCostTotal: listing.trueCostTotal,
+      })),
+    },
     modelContext,
     clientBlock: { type: 'comparison', listings: [...listings] },
+    statePatch: {
+      mode: 'compare',
+      selectedListingId: listings[0]?.id ?? null,
+      comparedListingIds: listings.map((listing) => listing.id),
+    },
   };
 }

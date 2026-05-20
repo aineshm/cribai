@@ -1,26 +1,58 @@
 'use client';
 
 import { useEffect, useId, useState } from 'react';
-import { ArrowRight, Bot, CheckCircle2, Clock, AlertCircle, FileText, Sparkles, X } from 'lucide-react';
+import Link from 'next/link';
+import {
+  AlertCircle,
+  ArrowRight,
+  Bot,
+  CheckCircle2,
+  Clock,
+  FileText,
+  Sparkles,
+  X,
+} from 'lucide-react';
 import { useConcierge } from '@/components/concierge/ConciergeProvider';
 import type { LegacyMission } from '@/lib/concierge-types';
 import { MissionLauncher } from './MissionLauncher';
 
-type TabValue = 'active' | 'past';
+type TabValue = 'queue' | 'past';
 
-const ACTIVE_STATUSES = new Set(['pending', 'running', 'waiting_approval']);
+const ARCHIVED_MISSIONS_KEY = 'missions-past-archive';
+const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled', 'expired']);
+const WORKING_STATUSES = new Set(['pending', 'running', 'retrying', 'waiting_approval']);
+
+function loadArchivedMissionIds(): readonly string[] {
+  if (typeof window === 'undefined') return [];
+
+  try {
+    const stored = window.localStorage.getItem(ARCHIVED_MISSIONS_KEY);
+    if (!stored) return [];
+
+    const parsed = JSON.parse(stored) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((value): value is string => typeof value === 'string')
+      : [];
+  } catch {
+    return [];
+  }
+}
 
 function statusIcon(status: string) {
   switch (status) {
     case 'completed':
-      return <CheckCircle2 className="size-4 text-red-600" />;
+      return <CheckCircle2 className="size-4 text-green-600" />;
+    case 'queued':
+      return <Clock className="size-4 text-red-600" />;
     case 'waiting_approval':
-      return <FileText className="size-4 text-slate-500" />;
+      return <FileText className="size-4 text-amber-600" />;
+    case 'pending':
     case 'running':
+    case 'retrying':
       return (
         <span className="relative flex size-4 items-center justify-center">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-50" />
-          <span className="relative inline-flex size-2 rounded-full bg-red-600" />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-50" />
+          <span className="relative inline-flex size-2 rounded-full bg-amber-500" />
         </span>
       );
     case 'failed':
@@ -32,22 +64,39 @@ function statusIcon(status: string) {
 
 function statusLabel(status: string): string {
   switch (status) {
-    case 'completed': return 'Completed';
-    case 'waiting_approval': return 'Action needed';
-    case 'running': return 'In progress';
-    case 'pending': return 'Pending';
-    case 'failed': return 'Failed';
-    default: return status;
+    case 'completed':
+      return 'Done';
+    case 'waiting_approval':
+      return 'Needs review';
+    case 'queued':
+      return 'Queued';
+    case 'retrying':
+      return 'Retrying';
+    case 'running':
+    case 'pending':
+      return 'In progress';
+    case 'failed':
+      return 'Failed';
+    default:
+      return status.replace(/_/g, ' ');
   }
 }
 
 function statusLabelColor(status: string): string {
   switch (status) {
-    case 'completed': return 'text-red-700';
-    case 'waiting_approval': return 'text-slate-600 font-semibold';
-    case 'running': return 'text-red-600';
-    case 'failed': return 'text-red-600';
-    default: return 'text-gray-500';
+    case 'completed':
+      return 'text-green-700';
+    case 'queued':
+      return 'text-red-700';
+    case 'waiting_approval':
+    case 'pending':
+    case 'running':
+    case 'retrying':
+      return 'text-amber-700';
+    case 'failed':
+      return 'text-red-600';
+    default:
+      return 'text-gray-500';
   }
 }
 
@@ -57,15 +106,27 @@ export function MessagesPageClient({
   readonly searchParams: Record<string, string | string[] | undefined>;
 }) {
   const { missions, selectedMission, selectMission } = useConcierge();
-  const [tab, setTab] = useState<TabValue>('active');
+  const [tab, setTab] = useState<TabValue>('queue');
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+  const [archivedMissionIds, setArchivedMissionIds] = useState<readonly string[]>([]);
   const detailTitleId = useId();
 
-  const activeMissions = missions.filter(m => ACTIVE_STATUSES.has(m.status));
-  const pastMissions = missions.filter(m => !ACTIVE_STATUSES.has(m.status));
-  const pendingApproval = missions.filter(m => m.status === 'waiting_approval');
-  const isWorking = missions.some(m => m.status === 'running');
-  const displayedMissions = tab === 'active' ? activeMissions : pastMissions;
+  useEffect(() => {
+    setArchivedMissionIds(loadArchivedMissionIds());
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(ARCHIVED_MISSIONS_KEY, JSON.stringify(archivedMissionIds));
+  }, [archivedMissionIds]);
+
+  const queueMissions = missions.filter((mission) => !archivedMissionIds.includes(mission.id));
+  const pastMissions = missions.filter((mission) => archivedMissionIds.includes(mission.id));
+  const pendingApproval = queueMissions.filter((mission) => mission.status === 'waiting_approval');
+  const isWorking = queueMissions.some(
+    (mission) => mission.status === 'queued' || WORKING_STATUSES.has(mission.status),
+  );
+  const displayedMissions = tab === 'queue' ? queueMissions : pastMissions;
 
   useEffect(() => {
     if (!mobileDetailOpen) return;
@@ -86,9 +147,9 @@ export function MessagesPageClient({
       return;
     }
 
-    const nextTab: TabValue = ACTIVE_STATUSES.has(selectedMission.status) ? 'active' : 'past';
+    const nextTab: TabValue = archivedMissionIds.includes(selectedMission.id) ? 'past' : 'queue';
     setTab((currentTab) => (currentTab === nextTab ? currentTab : nextTab));
-  }, [selectedMission]);
+  }, [archivedMissionIds, selectedMission]);
 
   function handleSelectMission(mission: LegacyMission) {
     selectMission(mission);
@@ -102,7 +163,10 @@ export function MessagesPageClient({
       return;
     }
 
-    const selectedMissionTab: TabValue = ACTIVE_STATUSES.has(selectedMission.status) ? 'active' : 'past';
+    const selectedMissionTab: TabValue = archivedMissionIds.includes(selectedMission.id)
+      ? 'past'
+      : 'queue';
+
     if (selectedMissionTab !== nextTab) {
       selectMission(null);
       setMobileDetailOpen(false);
@@ -115,9 +179,18 @@ export function MessagesPageClient({
     handleSelectMission(first);
   }
 
+  function moveMissionToPast(missionId: string) {
+    setArchivedMissionIds((prev) => (prev.includes(missionId) ? prev : [...prev, missionId]));
+    setTab('past');
+  }
+
+  function restoreMissionToQueue(missionId: string) {
+    setArchivedMissionIds((prev) => prev.filter((id) => id !== missionId));
+    setTab('queue');
+  }
+
   return (
     <div className="app-mobile-pane flex overflow-hidden bg-white">
-      {/* Mobile detail drawer */}
       {mobileDetailOpen && selectedMission && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div
@@ -148,16 +221,19 @@ export function MessagesPageClient({
               </button>
             </div>
             <div className="safe-area-pb flex-1 overflow-y-auto">
-              <MissionDetailPanel mission={selectedMission} />
+              <MissionDetailPanel
+                mission={selectedMission}
+                isArchived={archivedMissionIds.includes(selectedMission.id)}
+                onMoveToPast={moveMissionToPast}
+                onRestoreToQueue={restoreMissionToQueue}
+              />
             </div>
           </div>
         </div>
       )}
 
-      {/* Sidebar */}
       <div className="flex w-full flex-col border-r border-gray-100 bg-gray-50/50 md:w-[400px]">
-        {/* Header */}
-        <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100 p-4">
+        <div className="sticky top-0 z-10 border-b border-gray-100 bg-white/80 p-4 backdrop-blur-md">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-800 text-white">
               <Bot className="size-5" />
@@ -166,88 +242,85 @@ export function MessagesPageClient({
               <h1 className="font-[family-name:var(--font-display)] text-lg font-bold text-gray-900">
                 Your Agent
               </h1>
-              <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="mt-0.5 flex items-center gap-1.5">
                 <span
-                  className={`h-2 w-2 rounded-full ${isWorking ? 'bg-slate-400 animate-pulse' : 'bg-gray-300'}`}
+                  className={`h-2 w-2 rounded-full ${isWorking ? 'bg-amber-400 animate-pulse' : 'bg-gray-300'}`}
                 />
                 <span className="text-xs text-gray-500">
-                  {isWorking ? 'Working' : 'Idle'}
+                  {isWorking ? 'In progress' : 'Idle'}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Pending Review Banner */}
           {pendingApproval.length > 0 && (
-            <div className="mt-4 flex items-center justify-between rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
+            <div className="mt-4 flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
               <div className="flex items-center gap-2">
-                <AlertCircle className="size-4 text-slate-500 shrink-0" />
-                <span className="text-sm font-medium text-slate-800">
+                <AlertCircle className="size-4 shrink-0 text-amber-600" />
+                <span className="text-sm font-medium text-amber-900">
                   Review required ({pendingApproval.length})
                 </span>
               </div>
               <button
                 type="button"
                 onClick={handleReviewFirst}
-                className="flex items-center gap-1 text-xs font-semibold text-slate-700 hover:text-slate-900 transition-colors"
+                className="flex items-center gap-1 text-xs font-semibold text-amber-800 transition-colors hover:text-amber-950"
               >
                 Review <ArrowRight className="size-3" />
               </button>
             </div>
           )}
 
-          {/* Tabs */}
           <div className="mt-4 flex gap-1 rounded-xl bg-gray-100 p-1">
-            {(['active', 'past'] as const).map((t) => (
+            {(['queue', 'past'] as const).map((currentTab) => (
               <button
-                key={t}
+                key={currentTab}
                 type="button"
-                aria-pressed={tab === t}
-                onClick={() => handleTabChange(t)}
+                aria-pressed={tab === currentTab}
+                onClick={() => handleTabChange(currentTab)}
                 className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${
-                  tab === t
+                  tab === currentTab
                     ? 'bg-white text-gray-900 shadow-sm'
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
-                {t === 'active'
-                  ? `Active${activeMissions.length > 0 ? ` (${activeMissions.length})` : ''}`
-                  : 'Past'}
+                {currentTab === 'queue'
+                  ? `Queue${queueMissions.length > 0 ? ` (${queueMissions.length})` : ''}`
+                  : `Past${pastMissions.length > 0 ? ` (${pastMissions.length})` : ''}`}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Mission Launcher */}
         <div className="px-4 pt-3">
           <MissionLauncher searchParams={searchParams} />
         </div>
 
-        {/* Mission List */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        <div className="flex-1 overflow-y-auto space-y-2 p-3">
           {displayedMissions.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 mb-4">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50">
                 <Sparkles className="size-7 text-red-600" />
               </div>
               <p className="font-[family-name:var(--font-display)] text-lg font-bold text-gray-900">
-                {tab === 'active' ? 'Agent is idle' : 'No past missions'}
+                {tab === 'queue' ? 'Queue is empty' : 'No past missions'}
               </p>
-              <p className="mt-2 text-sm text-gray-500 max-w-xs">
-                {tab === 'active'
-                  ? 'Ask CribAI to search for housing or schedule tours to start a mission.'
-                  : 'Completed missions will appear here.'}
+              <p className="mt-2 max-w-xs text-sm text-gray-500">
+                {tab === 'queue'
+                  ? 'Launch a mission and it will stay here until you move it to Past.'
+                  : 'Archived missions will appear here.'}
               </p>
-              {tab === 'active' && (
-                <a
+              {tab === 'queue' && (
+                <Link
                   href="/explore"
-                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-red-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-900 transition-colors"
+                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-red-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-900"
                 >
                   Open Discover <ArrowRight className="size-4" />
-                </a>
+                </Link>
               )}
             </div>
           )}
+
           {displayedMissions.map((mission) => (
             <MissionTaskCard
               key={mission.id}
@@ -259,21 +332,25 @@ export function MessagesPageClient({
         </div>
       </div>
 
-      {/* Detail Panel */}
-      <div className="hidden md:flex flex-1 flex-col">
+      <div className="hidden flex-1 flex-col md:flex">
         {selectedMission ? (
-          <MissionDetailPanel mission={selectedMission} />
+          <MissionDetailPanel
+            mission={selectedMission}
+            isArchived={archivedMissionIds.includes(selectedMission.id)}
+            onMoveToPast={moveMissionToPast}
+            onRestoreToQueue={restoreMissionToQueue}
+          />
         ) : (
           <div className="flex flex-1 items-center justify-center text-center">
             <div>
-              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-red-50 mb-4">
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-3xl bg-red-50">
                 <Bot className="size-10 text-red-600" />
               </div>
               <p className="font-[family-name:var(--font-display)] text-xl font-bold text-gray-900">
                 Select a mission
               </p>
               <p className="mt-2 text-sm text-gray-500">
-                Choose a mission from the sidebar to view details
+                Choose a mission from the queue to view details
               </p>
             </div>
           </div>
@@ -297,10 +374,10 @@ function MissionTaskCard({
       type="button"
       onClick={onSelect}
       aria-pressed={isSelected}
-      className={`w-full text-left p-4 rounded-2xl border transition-all ${
+      className={`w-full rounded-2xl border p-4 text-left transition-all ${
         isSelected
-          ? 'bg-white border-red-200 shadow-sm ring-1 ring-red-800/10'
-          : 'bg-white/60 border-transparent hover:bg-white hover:border-gray-200'
+          ? 'border-red-200 bg-white shadow-sm ring-1 ring-red-800/10'
+          : 'border-transparent bg-white/60 hover:border-gray-200 hover:bg-white'
       }`}
     >
       <div className="flex items-start gap-3">
@@ -309,9 +386,9 @@ function MissionTaskCard({
           <span className={`text-xs font-medium ${statusLabelColor(mission.status)}`}>
             {statusLabel(mission.status)}
           </span>
-          <p className="mt-1 text-sm font-bold text-gray-900 truncate">{mission.title}</p>
+          <p className="mt-1 truncate text-sm font-bold text-gray-900">{mission.title}</p>
           {mission.summary && (
-            <p className="mt-1 text-sm text-gray-500 line-clamp-2">{mission.summary}</p>
+            <p className="mt-1 line-clamp-2 text-sm text-gray-500">{mission.summary}</p>
           )}
           <p className="mt-2 text-xs text-gray-400">
             {new Date(mission.updatedAt).toLocaleDateString('en-US', {
@@ -327,15 +404,25 @@ function MissionTaskCard({
   );
 }
 
-function MissionDetailPanel({ mission }: { readonly mission: LegacyMission }) {
+function MissionDetailPanel({
+  mission,
+  isArchived,
+  onMoveToPast,
+  onRestoreToQueue,
+}: {
+  readonly mission: LegacyMission;
+  readonly isArchived: boolean;
+  readonly onMoveToPast: (missionId: string) => void;
+  readonly onRestoreToQueue: (missionId: string) => void;
+}) {
   const [showLogs, setShowLogs] = useState(false);
+  const canArchive = TERMINAL_STATUSES.has(mission.status);
 
   return (
     <div className="flex-1 overflow-y-auto p-8">
-      <div className="max-w-2xl mx-auto space-y-6">
-        {/* Header */}
+      <div className="mx-auto max-w-2xl space-y-6">
         <div>
-          <div className="flex items-center gap-2 mb-2">
+          <div className="mb-2 flex items-center gap-2">
             {statusIcon(mission.status)}
             <span className={`text-xs font-medium ${statusLabelColor(mission.status)}`}>
               {statusLabel(mission.status)}
@@ -345,45 +432,69 @@ function MissionDetailPanel({ mission }: { readonly mission: LegacyMission }) {
             {mission.title}
           </h2>
           {mission.summary && (
-            <p className="mt-3 text-gray-600 leading-relaxed">{mission.summary}</p>
+            <p className="mt-3 leading-relaxed text-gray-600">{mission.summary}</p>
+          )}
+          {canArchive && (
+            <div className="mt-4">
+              {isArchived ? (
+                <button
+                  type="button"
+                  onClick={() => onRestoreToQueue(mission.id)}
+                  className="inline-flex items-center rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                >
+                  Move Back To Queue
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onMoveToPast(mission.id)}
+                  className="inline-flex items-center rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                >
+                  Move To Past
+                </button>
+              )}
+            </div>
           )}
         </div>
 
-        {/* Agent Summary */}
         <div className="rounded-2xl border border-gray-100 bg-gray-50 p-6">
-          <div className="flex items-center gap-2 mb-3">
+          <div className="mb-3 flex items-center gap-2">
             <Sparkles className="size-4 text-red-700" />
             <h3 className="font-[family-name:var(--font-display)] font-bold text-gray-900">
               Agent Summary
             </h3>
           </div>
-          <p className="text-sm text-gray-600 leading-relaxed">
+          <p className="text-sm leading-relaxed text-gray-600">
             {mission.summary || 'The agent is working on this mission. Details will appear here as progress is made.'}
           </p>
         </div>
 
-        {/* Execution logs — collapsible */}
         {mission.logs && mission.logs.length > 0 && (
           <div>
             <button
               type="button"
-              onClick={() => setShowLogs(v => !v)}
-              className="text-xs text-gray-400 underline underline-offset-2 hover:text-gray-600 transition-colors"
+              onClick={() => setShowLogs((value) => !value)}
+              className="text-xs text-gray-400 underline underline-offset-2 transition-colors hover:text-gray-600"
             >
               {showLogs ? 'Hide execution logs' : 'View execution logs'}
             </button>
             {showLogs && (
-              <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden">
+              <div className="mt-3 overflow-hidden rounded-2xl border border-gray-200">
                 <div className="bg-gray-900 p-4">
                   <div className="space-y-1.5 font-mono text-xs">
-                    {mission.logs.map((log, i) => {
-                      const tagColor = log.status === 'success' ? 'text-green-400'
-                        : log.status === 'error' ? 'text-red-400'
-                        : 'text-slate-400';
+                    {mission.logs.map((log, index) => {
+                      const tagColor = log.status === 'success'
+                        ? 'text-green-400'
+                        : log.status === 'error'
+                          ? 'text-red-400'
+                          : 'text-slate-400';
+
                       return (
-                        <p key={i} className="text-gray-300">
+                        <p key={index} className="text-gray-300">
                           <span className={tagColor}>[{log.status.toUpperCase()}]</span>{' '}
-                          <span className="text-gray-500">{new Date(log.timestamp).toLocaleTimeString()}</span>{' '}
+                          <span className="text-gray-500">
+                            {new Date(log.timestamp).toLocaleTimeString()}
+                          </span>{' '}
                           {log.action}: {log.detail}
                         </p>
                       );
@@ -395,8 +506,7 @@ function MissionDetailPanel({ mission }: { readonly mission: LegacyMission }) {
           </div>
         )}
 
-        {/* Timestamps */}
-        <div className="text-xs text-gray-400 space-y-1">
+        <div className="space-y-1 text-xs text-gray-400">
           <p>Created: {new Date(mission.createdAt).toLocaleString()}</p>
           <p>Last updated: {new Date(mission.updatedAt).toLocaleString()}</p>
         </div>

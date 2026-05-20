@@ -2,11 +2,11 @@
  * Shared Gemini client factory.
  *
  * Auto-detects backend based on environment variables:
+ * - GEMINI_API_KEY set → Google AI Studio (API key auth)
  * - GOOGLE_CLOUD_PROJECT set → Vertex AI (uses Application Default Credentials)
  *   Supports inline JSON via GOOGLE_APPLICATION_CREDENTIALS_JSON (for serverless)
- * - GEMINI_API_KEY set → Google AI Studio (API key auth)
  *
- * Vertex AI is preferred when both are set.
+ * AI Studio is preferred when both are set unless GOOGLE_GENAI_USE_VERTEXAI=true.
  */
 
 import fs from 'node:fs';
@@ -40,9 +40,16 @@ function ensureVertexCredentials(): void {
 
 export function createGeminiClient(apiKeyOverride?: string): GoogleGenAI {
   const project = process.env.GOOGLE_CLOUD_PROJECT;
-  const location = process.env.GOOGLE_CLOUD_LOCATION ?? 'us-central1';
+  const location = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
+  const apiKey = apiKeyOverride ?? process.env.GEMINI_API_KEY;
+  const useVertex = process.env.GOOGLE_GENAI_USE_VERTEXAI === 'true';
 
-  // Prefer Vertex AI when project is configured
+  // Prefer the API key when present. A stray GOOGLE_CLOUD_PROJECT without
+  // credentials should not force local/dev deployments onto Vertex AI.
+  if (apiKey && !useVertex) {
+    return new GoogleGenAI({ apiKey });
+  }
+
   if (project) {
     ensureVertexCredentials();
     return new GoogleGenAI({
@@ -52,8 +59,6 @@ export function createGeminiClient(apiKeyOverride?: string): GoogleGenAI {
     });
   }
 
-  // Fall back to AI Studio API key
-  const apiKey = apiKeyOverride ?? process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error(
       'Gemini not configured. Set GOOGLE_CLOUD_PROJECT for Vertex AI, or GEMINI_API_KEY for AI Studio.',

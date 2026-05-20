@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Loader2, PlusCircle, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -293,12 +294,12 @@ export function MissionLauncher({ searchParams }: MissionLauncherProps) {
       {/* Sign-in prompt */}
       {error === 'sign_in_required' && (
         <p className="text-sm text-gray-600">
-          <a
+          <Link
             href="/login?returnTo=/messages"
             className="font-medium text-red-700 underline underline-offset-2 hover:text-red-900"
           >
             Sign in
-          </a>{' '}
+          </Link>{' '}
           to start a mission.
         </p>
       )}

@@ -1,0 +1,60 @@
+name: Missions Worker
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      max_jobs:
+        description: 'Max missions to claim in this run'
+        required: false
+        default: '5'
+      lease_seconds:
+        description: 'Lease duration per claimed mission'
+        required: false
+        default: '300'
+
+concurrency:
+  group: missions-worker
+  cancel-in-progress: false
+
+jobs:
+  run-worker:
+    name: Drain mission queue once
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      NODE_ENV: production
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GOOGLE_GENAI_USE_VERTEXAI: 'true'
+      GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
+      GOOGLE_CLOUD_LOCATION: ${{ secrets.GOOGLE_CLOUD_LOCATION }}
+      GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
+      GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      MISSION_WORKER_RUN_ONCE: 'true'
+      MISSION_WORKER_IDLE_LOG_INTERVAL_MS: '1000'
+      MISSION_WORKER_MAX_JOBS_PER_TICK: ${{ github.event.inputs.max_jobs || '5' }}
+      MISSION_WORKER_LEASE_SECONDS: ${{ github.event.inputs.lease_seconds || '300' }}
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace packages
+        run: pnpm --filter @campusnest/types --filter @campusnest/supabase build
+
+      - name: Run mission worker once
+        run: pnpm worker:missions -- --once

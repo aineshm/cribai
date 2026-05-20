@@ -34,20 +34,38 @@ function getServiceClient(): SupabaseClient {
 // --- Date correction helper ---
 // Gemini sometimes extracts dates with the wrong year (e.g., 2024 instead of 2026).
 // If a date is in the past, bump the year to the current year (or next year if month has passed).
+function dateKey(year: number, month: number, day: number): number {
+  return year * 10000 + month * 100 + day;
+}
+
+function normalizedDateString(year: number, month: number, day: number): string {
+  return new Date(Date.UTC(year, month - 1, day)).toISOString().slice(0, 10);
+}
+
 function fixPastYear(dateStr: string | undefined): string | undefined {
   if (!dateStr) return dateStr;
-  const parsed = new Date(dateStr + 'T00:00:00');
   const now = new Date();
-  if (parsed < now) {
+  const parts = dateStr.split('-').map(Number);
+  const year = parts[0]!;
+  const month = parts[1]!;
+  const day = parts[2]!;
+  const todayKey = dateKey(now.getFullYear(), now.getMonth() + 1, now.getDate());
+  const inputDateKey = dateKey(year, month, day);
+
+  if (inputDateKey < todayKey) {
     const currentYear = now.getFullYear();
-    const corrected = new Date(parsed);
-    corrected.setFullYear(currentYear);
-    // If still in the past (month/day already passed this year), use next year
-    if (corrected < now) {
-      corrected.setFullYear(currentYear + 1);
-    }
-    return corrected.toISOString().slice(0, 10);
+    const currentYearDate = normalizedDateString(currentYear, month, day);
+    const [currentYearPart, currentMonthPart, currentDayPart] = currentYearDate
+      .split('-')
+      .map(Number);
+    const correctedYear =
+      dateKey(currentYearPart!, currentMonthPart!, currentDayPart!) < todayKey
+        ? currentYear + 1
+        : currentYear;
+
+    return normalizedDateString(correctedYear, month, day);
   }
+
   return dateStr;
 }
 

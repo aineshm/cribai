@@ -79,8 +79,8 @@ export class HomePage {
     // Hero — authenticated state
     this.goToExploreCtaHero = page.getByRole('link', { name: 'Go to Explore' });
 
-    // Campus section — use exact text match on the teal-800 span (not the "Starting at..." label)
-    this.uwMadisonBadge = page.locator('span.text-teal-800', { hasText: /^UW-Madison$/ });
+    // Campus section — use exact text match on the span
+    this.uwMadisonBadge = page.locator('span', { hasText: /^UW-Madison$/ });
 
     // Features
     this.featuresHeading = page.getByRole('heading', { name: 'Apartment hunting, rebuilt for students.' });

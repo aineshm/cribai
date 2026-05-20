@@ -33,6 +33,60 @@ interface SemanticRpcRow {
   readonly source: string | null;
 }
 
+function buildNormalizedArgs(
+  parsed: z.infer<typeof inputSchema>,
+  limit: number,
+): Record<string, unknown> {
+  return {
+    semantic_query: parsed.semantic_query ?? null,
+    address: parsed.address ?? null,
+    bedrooms: parsed.bedrooms ?? null,
+    min_rent: parsed.min_rent ?? null,
+    max_rent: parsed.max_rent ?? null,
+    min_fairness: parsed.min_fairness ?? null,
+    amenities: parsed.amenities ?? [],
+    sort: parsed.sort ?? (parsed.semantic_query ? 'relevance' : 'price_asc'),
+    limit,
+  };
+}
+
+function buildSourceBreakdown(
+  listings: readonly ListingSummary[],
+): Record<string, number> {
+  return listings.reduce<Record<string, number>>((acc, listing) => {
+    const source = listing.source ?? 'unknown';
+    acc[source] = (acc[source] ?? 0) + 1;
+    return acc;
+  }, {});
+}
+
+function buildSearchStatePatch(
+  parsed: z.infer<typeof inputSchema>,
+  listings: readonly ListingSummary[],
+  generatedAt: string,
+): ToolResult['statePatch'] {
+  return {
+    mode: 'search',
+    selectedListingId: null,
+    comparedListingIds: [],
+    lastSearch: {
+      args: buildNormalizedArgs(parsed, parsed.limit ?? 5),
+      resultListingIds: listings.map((listing) => listing.id),
+      generatedAt,
+      source: 'chat_search',
+    },
+    activeFilters: {
+      bedrooms: parsed.bedrooms ?? null,
+      minRent: parsed.min_rent ?? null,
+      maxRent: parsed.max_rent ?? null,
+      amenities: parsed.amenities ?? [],
+      address: parsed.address ?? null,
+      semanticQuery: parsed.semantic_query ?? null,
+      source: null,
+    },
+  };
+}
+
 export async function searchListings(
   args: Record<string, unknown>,
   context: ToolContext,
@@ -123,6 +177,14 @@ async function semanticSearch(
       hasGeoParams: 'p_latitude' in rpcParams,
     });
     return {
+      machineData: {
+        normalizedArgs: buildNormalizedArgs(parsed, limit),
+        resultListingIds: [],
+        resultCount: 0,
+        uniquePropertyCount: 0,
+        center: null,
+        sourceBreakdown: {},
+      },
       modelContext: 'Search is temporarily unavailable. Try rephrasing your request or I can search by specific filters instead.',
       clientBlock: { type: 'listing_card' as const, listings: [] },
     };
@@ -206,8 +268,26 @@ async function semanticSearch(
   );
 
   const result: ToolResult = {
+    machineData: {
+      normalizedArgs: buildNormalizedArgs(parsed, limit),
+      resultListingIds: filtered.map((listing) => listing.id),
+      resultCount: filtered.length,
+      uniquePropertyCount: uniqueCount,
+      center: rowsWithLatLng.length >= 1
+        ? {
+            lat: landmark
+              ? landmark.latitude
+              : rowsWithLatLng.reduce((s, r) => s + (r.latitude ?? 0), 0) / rowsWithLatLng.length,
+            lng: landmark
+              ? landmark.longitude
+              : rowsWithLatLng.reduce((s, r) => s + (r.longitude ?? 0), 0) / rowsWithLatLng.length,
+          }
+        : null,
+      sourceBreakdown: buildSourceBreakdown(filtered),
+    },
     modelContext,
     clientBlock: { type: 'listing_card', listings: [...filtered] },
+    statePatch: buildSearchStatePatch(parsed, filtered, new Date().toISOString()),
   };
 
   if (rowsWithLatLng.length >= 1) {
@@ -314,6 +394,14 @@ async function sqlSearch(
 
   if (error) {
     return {
+      machineData: {
+        normalizedArgs: buildNormalizedArgs(parsed, limit),
+        resultListingIds: [],
+        resultCount: 0,
+        uniquePropertyCount: 0,
+        center: null,
+        sourceBreakdown: {},
+      },
       modelContext: 'Search is temporarily unavailable. Try rephrasing your request or I can search by specific filters instead.',
       clientBlock: { type: 'listing_card' as const, listings: [] },
     };
@@ -362,15 +450,28 @@ async function sqlSearch(
         )
         .join('\n')}\n\n[Prefer Zillow-sourced and student sublease listings when recommending — they have richer data. Craigslist listings may have sparse details.]` + sqlUniqueHint + sqlDeepSearchCta;
 
-  const sqlResult = {
-    modelContext,
-    clientBlock: { type: 'listing_card' as const, listings: [...filtered] },
-  };
-
-  // Build map block when any results have coordinates
   const rowsWithCoords = (data ?? []).filter(
     row => row.latitude != null && row.longitude != null && (row.latitude !== 0 || row.longitude !== 0),
   );
+
+  const sqlResult = {
+    machineData: {
+      normalizedArgs: buildNormalizedArgs(parsed, limit),
+      resultListingIds: filtered.map((listing) => listing.id),
+      resultCount: filtered.length,
+      uniquePropertyCount: sqlUniqueCount,
+      center: rowsWithCoords.length >= 1
+        ? {
+            lat: rowsWithCoords.reduce((s, r) => s + (r.latitude as number), 0) / rowsWithCoords.length,
+            lng: rowsWithCoords.reduce((s, r) => s + (r.longitude as number), 0) / rowsWithCoords.length,
+          }
+        : null,
+      sourceBreakdown: buildSourceBreakdown(filtered),
+    },
+    modelContext,
+    clientBlock: { type: 'listing_card' as const, listings: [...filtered] },
+    statePatch: buildSearchStatePatch(parsed, filtered, new Date().toISOString()),
+  };
 
   if (rowsWithCoords.length >= 1) {
     const sumLat = rowsWithCoords.reduce((s, r) => s + (r.latitude as number), 0);

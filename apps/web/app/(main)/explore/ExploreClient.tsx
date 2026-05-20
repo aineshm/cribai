@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Sparkles, MapPin, Bed, DollarSign, Map as MapIcon, MessageSquare, X } from 'lucide-react';
 import { CribAIChat } from '@/components/cribai-chat';
 import { useChatContext } from '@/components/chat/ChatProvider';
@@ -17,7 +17,7 @@ export interface SearchContext {
 }
 
 interface ExploreClientProps {
-  readonly listings: readonly ExploreListing[];
+  readonly featuredListings: readonly ExploreListing[];
 }
 
 /** Live filter chips showing what the AI is filtering on */
@@ -70,7 +70,7 @@ function ContextBar({ context, onReset }: { readonly context: SearchContext; rea
   );
 }
 
-export function ExploreClient({ listings }: ExploreClientProps) {
+export function ExploreClient({ featuredListings }: ExploreClientProps) {
   const { campusSlug, campusId, isAuthenticated, pendingProposal, setPendingProposal } = useChatContext();
 
   // Mobile view toggle (chat vs map)
@@ -86,6 +86,8 @@ export function ExploreClient({ listings }: ExploreClientProps) {
 
   // AI search results for map overlay (null = show all listings)
   const [aiMapListings, setAiMapListings] = useState<readonly ExploreListing[] | null>(null);
+  const [viewportListings, setViewportListings] = useState<readonly ExploreListing[]>([]);
+  const [isViewportLoading, setIsViewportLoading] = useState(false);
 
   // Fly-to center for map when AI results arrive
   const [mapFlyTo, setMapFlyTo] = useState<{ lat: number; lng: number } | null>(null);
@@ -171,8 +173,54 @@ export function ExploreClient({ listings }: ExploreClientProps) {
     }));
   }, []);
 
+  useEffect(() => {
+    if (!mapBounds || aiMapListings) {
+      return;
+    }
+
+    let cancelled = false;
+    const params = new URLSearchParams({
+      campusSlug,
+      minLat: String(mapBounds.minLat),
+      maxLat: String(mapBounds.maxLat),
+      minLng: String(mapBounds.minLng),
+      maxLng: String(mapBounds.maxLng),
+      limit: '250',
+    });
+
+    setIsViewportLoading(true);
+    void fetch(`/api/explore/viewport?${params.toString()}`)
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        return response.json() as Promise<{ listings: ExploreListing[] }>;
+      })
+      .then((payload) => {
+        if (!cancelled) {
+          setViewportListings(payload.listings ?? []);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error('[ExploreClient] Failed to fetch viewport listings:', error);
+          setViewportListings([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsViewportLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [campusSlug, mapBounds, aiMapListings]);
+
   // Use locked bounds (from when search started) if available, otherwise current viewport
   const activeBounds = lockedBounds ?? mapBounds;
+  const activeMapListings = aiMapListings ?? viewportListings;
 
   return (
     <div className="app-mobile-pane flex flex-col overflow-hidden bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-red-50/30 via-white to-white">
@@ -229,7 +277,7 @@ export function ExploreClient({ listings }: ExploreClientProps) {
             onChatReset={resetAiResults}
             suppressInlineMap
             className="flex flex-1 flex-col min-h-0"
-            featuredListings={listings.slice(0, 6).map(l => ({
+            featuredListings={featuredListings.slice(0, 6).map(l => ({
               id: l.id,
               title: l.title,
               address: l.address,
@@ -260,8 +308,29 @@ export function ExploreClient({ listings }: ExploreClientProps) {
               </button>
             </div>
           )}
+          {!aiMapListings && (
+            <div className="flex items-center justify-between border-b border-gray-100 bg-white/80 px-4 py-2 text-xs text-gray-500">
+              <span>
+                {isViewportLoading
+                  ? 'Loading listings in this area...'
+                  : `Showing ${viewportListings.length} listing${viewportListings.length !== 1 ? 's' : ''} in view`}
+              </span>
+              {lockedBounds && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLockedBounds(null);
+                    setShowSearchButton(false);
+                  }}
+                  className="font-medium text-red-700 hover:text-red-900 transition-colors"
+                >
+                  Live viewport
+                </button>
+              )}
+            </div>
+          )}
           <MapPanel
-            listings={aiMapListings ?? listings}
+            listings={activeMapListings}
             onBoundsChange={handleBoundsChange}
             showSearchButton={showSearchButton}
             onSearchArea={handleSearchArea}

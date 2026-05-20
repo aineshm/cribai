@@ -100,6 +100,7 @@ interface SSEEvent {
   readonly content?: string;
   readonly name?: string;
   readonly args?: Record<string, unknown>;
+  readonly machineData?: Record<string, unknown>;
   readonly block?: ChatBlock;
   readonly message?: string;
   readonly text?: string;
@@ -121,7 +122,7 @@ function parseSSEEvent(data: string): SSEEvent | null {
 /** Save a message to the conversation in the database */
 async function persistMessage(
   conversationId: string,
-  role: 'user' | 'assistant',
+  role: 'user',
   blocks: readonly ChatBlock[],
 ): Promise<boolean> {
   try {
@@ -443,18 +444,24 @@ export function CribAIChat({
               updateAssistantMessage(assistantBlocks);
 
               // Extract search context from search_listings tool args
-              if (event.name === 'search_listings' && event.args && onSearchContext) {
-                const args = event.args;
-                const budget = args.max_rent
-                  ? `Under $${Number(args.max_rent).toLocaleString()}`
-                  : args.min_rent
-                    ? `From $${Number(args.min_rent).toLocaleString()}`
+              if (event.name === 'search_listings' && onSearchContext) {
+                const normalizedArgs =
+                  (event.machineData?.normalizedArgs as Record<string, unknown> | undefined) ??
+                  event.args;
+                if (!normalizedArgs) {
+                  break;
+                }
+
+                const budget = normalizedArgs.max_rent
+                  ? `Under $${Number(normalizedArgs.max_rent).toLocaleString()}`
+                  : normalizedArgs.min_rent
+                    ? `From $${Number(normalizedArgs.min_rent).toLocaleString()}`
                     : undefined;
-                const bedrooms = args.bedrooms !== undefined
-                  ? (args.bedrooms === 0 ? 'Studio' : `${args.bedrooms} bed`)
+                const bedrooms = normalizedArgs.bedrooms !== undefined
+                  ? (normalizedArgs.bedrooms === 0 ? 'Studio' : `${normalizedArgs.bedrooms} bed`)
                   : undefined;
-                const amenities = Array.isArray(args.amenities) && args.amenities.length > 0
-                  ? (args.amenities as string[])
+                const amenities = Array.isArray(normalizedArgs.amenities) && normalizedArgs.amenities.length > 0
+                  ? (normalizedArgs.amenities as string[])
                   : undefined;
                 onSearchContext({ budget, bedrooms, amenities });
               }
@@ -520,8 +527,8 @@ export function CribAIChat({
         }
       }
 
-      // Assistant messages are now persisted server-side via after() in /api/ai/cribai.
-      // Client only persists user messages (line 304-306 above).
+      // Assistant messages are persisted server-side by /api/ai/cribai.
+      // Client only persists user messages.
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
       console.error('[CribAI] Stream error:', err);
@@ -547,18 +554,18 @@ export function CribAIChat({
   }, [sendMessage]);
 
   return (
-    <div className={className ?? "flex h-[calc(100dvh-var(--app-chrome-height))] md:h-[600px] flex-col rounded-2xl border border-[var(--surface-200)]/60 bg-white/90 backdrop-blur-sm shadow-[var(--shadow-card-hover)]"}>
+    <div className={className ?? "flex h-[calc(100dvh-var(--app-chrome-height))] md:h-[600px] flex-col rounded-2xl border border-gray-100/50 bg-white/70 backdrop-blur-[12px] shadow-lg shadow-gray-200/50"}>
       {/* Messages */}
       <div className="flex-1 min-h-0 space-y-4 overflow-y-auto p-5 scroll-smooth">
         {messages.length === 0 && (
           <div className="flex h-full items-center justify-center text-[var(--surface-500)]">
             <div className="text-center animate-fade-in">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-red-100 to-slate-50">
-                <Sparkles className="h-7 w-7 text-[var(--primary-600)]" strokeWidth={1.5} />
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[hsl(356,80%,98%)] to-[hsl(356,80%,90%)] shadow-inner">
+                <Sparkles className="h-7 w-7 text-[hsl(356,80%,25%)]" strokeWidth={1.5} />
               </div>
-              <p className="font-[family-name:var(--font-display)] text-xl text-[var(--surface-700)]">Ask AI anything</p>
-              <p className="mt-2 text-sm text-[var(--surface-500)]">I can search listings, compare apartments, explain lease terms, and schedule tours.</p>
-              <div className="mt-5 flex flex-wrap justify-center gap-2">
+              <p className="font-[family-name:var(--font-display)] text-xl font-bold bg-gradient-to-r from-[hsl(356,80%,25%)] to-[hsl(356,80%,18%)] bg-clip-text text-transparent">Ask AI anything</p>
+              <p className="mt-2 text-xs font-medium text-gray-400 max-w-sm mx-auto">I can search student subleases, compare apartments, explain lease terms, and schedule tours.</p>
+              <div className="mt-5 flex flex-wrap justify-center gap-2 max-w-md mx-auto">
                 {[
                   'Find me a 2-bedroom under $1200',
                   'Compare my saved listings',
@@ -569,7 +576,7 @@ export function CribAIChat({
                     key={suggestion}
                     type="button"
                     onClick={() => sendMessage(suggestion)}
-                    className="stagger-bounce rounded-full border border-[var(--surface-200)] bg-white px-4 py-2 text-sm text-[var(--surface-600)] shadow-sm hover:border-[var(--primary-400)] hover:text-[var(--primary-700)] hover:bg-[var(--primary-50)] hover:shadow-md transition-all duration-300"
+                    className="stagger-bounce rounded-full border border-gray-100 bg-white/95 px-3 py-1.5 text-xs font-semibold text-gray-500 shadow-sm hover:border-[hsl(356,80%,25%)] hover:text-[hsl(356,80%,25%)] hover:bg-[hsl(356,80%,98%)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer active:scale-95"
                     style={{ '--stagger-index': i } as CSSProperties}
                   >
                     {suggestion}
@@ -578,28 +585,28 @@ export function CribAIChat({
               </div>
               {featuredListings && featuredListings.length > 0 && (
                 <div className="mt-6 w-full max-w-lg mx-auto">
-                  <p className="text-xs font-medium text-[var(--surface-500)] uppercase tracking-wider mb-3">Popular near campus</p>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Popular subleases near campus</p>
                   <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-2 -mx-2 px-2">
                     {featuredListings.map((listing) => (
                       <a
                         key={listing.id}
                         href={`/listing/${listing.id}`}
-                        className="group flex-shrink-0 w-44 rounded-xl border border-[var(--surface-200)] bg-white overflow-hidden shadow-sm hover:shadow-md hover:border-[var(--primary-300)] transition-all duration-200 cursor-pointer"
+                        className="group flex-shrink-0 w-44 rounded-xl border border-gray-100 bg-white/80 overflow-hidden shadow-sm hover:shadow-md hover:border-[hsl(356,80%,25%)] transition-all duration-200 cursor-pointer"
                       >
                         {listing.photoUrl ? (
                           <div className="h-24 bg-gray-100 overflow-hidden">
                             <img src={listing.photoUrl} alt={listing.address} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300" />
                           </div>
                         ) : (
-                          <div className="h-24 bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="text-red-400"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                          <div className="h-24 bg-gradient-to-br from-[hsl(356,80%,98%)] to-[hsl(356,80%,94%)] flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="text-[hsl(356,80%,45%)]"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
                           </div>
                         )}
                         <div className="px-3 py-2">
-                          <p className="text-xs font-medium text-[var(--surface-800)] truncate">{listing.address}</p>
+                          <p className="text-xs font-bold text-gray-700 truncate">{listing.address}</p>
                           <div className="flex items-center justify-between mt-1">
-                            <span className="text-sm font-bold text-red-800">${listing.price.toLocaleString()}</span>
-                            {listing.beds && <span className="text-[10px] text-[var(--surface-500)]">{listing.beds} bed</span>}
+                            <span className="text-xs font-extrabold text-[hsl(356,80%,25%)]">${listing.price.toLocaleString()}</span>
+                            {listing.beds && <span className="text-[9px] font-bold text-gray-400">{listing.beds} bed</span>}
                           </div>
                         </div>
                       </a>
@@ -618,8 +625,8 @@ export function CribAIChat({
             <div
               className={`space-y-2 px-4 py-3 ${
                 msg.role === 'user'
-                  ? 'max-w-[80%] rounded-2xl rounded-br-sm bg-red-800 text-white shadow-md'
-                  : 'max-w-[85%] lg:max-w-[70%] rounded-2xl rounded-bl-sm bg-gray-100/80 text-gray-800 border border-gray-200/50'
+                  ? 'max-w-[80%] rounded-2xl rounded-br-none bg-gradient-to-br from-[hsl(356,80%,32%)] via-[hsl(356,80%,25%)] to-[hsl(356,80%,18%)] text-white shadow-md shadow-red-900/10 font-medium text-sm tracking-wide'
+                  : 'max-w-[85%] lg:max-w-[70%] rounded-2xl rounded-bl-none bg-white/90 text-gray-800 border border-gray-100/50 shadow-sm shadow-gray-100/50 text-sm'
               }`}
             >
               {msg.blocks.map((block, j) => (
@@ -632,9 +639,9 @@ export function CribAIChat({
               ))}
               {msg.blocks.length === 0 && (
                 <span className="inline-flex items-center gap-1.5 py-1">
-                  <span className="pulse-dot" />
-                  <span className="pulse-dot" />
-                  <span className="pulse-dot" />
+                  <span className="pulse-dot bg-gray-400" />
+                  <span className="pulse-dot bg-gray-400" />
+                  <span className="pulse-dot bg-gray-400" />
                 </span>
               )}
             </div>
@@ -644,8 +651,8 @@ export function CribAIChat({
       </div>
 
       {/* Input */}
-      <div className="safe-area-pb border-t border-[var(--surface-200)]/60 p-4 glass rounded-b-2xl">
-        <div className="flex">
+      <div className="safe-area-pb border-t border-gray-100/50 p-4 bg-white/40 backdrop-blur-[8px] rounded-b-2xl">
+        <div className="flex relative items-center">
           <input
             type="text"
             value={input}
@@ -658,11 +665,22 @@ export function CribAIChat({
               }
             }}
             onKeyDown={handleKeyDown}
-            placeholder={initialAddress ? `Ask about ${initialAddress}...` : "Ask about housing, compare apartments, schedule tours..."}
-            className="w-full rounded-xl border border-[var(--surface-200)] bg-white px-4 py-2.5 text-sm placeholder:text-[var(--surface-400)] focus:border-[var(--primary-500)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]/20 transition-all duration-200"
+            placeholder={initialAddress ? `Ask about ${initialAddress}...` : "Ask about housing, compare apartments..."}
+            className="w-full rounded-2xl border border-gray-200/80 bg-white/95 pl-4 pr-12 py-3 text-sm placeholder:text-gray-400 focus:border-[hsl(356,80%,25%)] focus:outline-none focus:ring-4 focus:ring-[hsl(356,80%,25%)]/5 transition-all duration-300 shadow-sm"
             disabled={isStreaming}
             aria-label="Chat message input — press Enter to send"
           />
+          <button
+            type="button"
+            onClick={() => sendMessage()}
+            disabled={!input.trim() || isStreaming}
+            className="absolute right-2 size-8 rounded-xl bg-gradient-to-br from-[hsl(356,80%,32%)] to-[hsl(356,80%,18%)] text-white flex items-center justify-center shadow-md disabled:opacity-0 disabled:scale-90 disabled:translate-x-2 transition-all duration-300 hover:brightness-110 active:scale-95"
+            aria-label="Send message"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="size-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+            </svg>
+          </button>
         </div>
       </div>
     </div>

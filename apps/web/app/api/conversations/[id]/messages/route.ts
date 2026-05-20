@@ -4,9 +4,14 @@ import { isDevAuthEnabled, getDevUserById, DEFAULT_DEV_USER, DEV_USER_COOKIE } f
 import { cookies } from 'next/headers';
 import { z } from 'zod';
 
+const MAX_BLOCKS_BYTES = 16_000;
+
 const messageBodySchema = z.object({
-  role: z.enum(['user', 'assistant']),
-  blocks: z.array(z.record(z.unknown())),
+  role: z.literal('user'),
+  blocks: z.array(z.record(z.unknown())).min(1).max(20),
+}).refine((value) => JSON.stringify(value.blocks).length <= MAX_BLOCKS_BYTES, {
+  message: `blocks must be ${MAX_BLOCKS_BYTES} bytes or less`,
+  path: ['blocks'],
 });
 
 /** Extract first text content from blocks for preview, truncated to 100 chars */

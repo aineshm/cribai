@@ -56,10 +56,15 @@ export async function POST(
     return NextResponse.json({ error: 'Draft not found' }, { status: 404 });
   }
 
-  // Rejection terminates the mission — user must create a new one to retry
+  // Rejection terminates the mission without retrying any queued work
   const { error: statusError } = await writeClient
     .from('missions')
-    .update({ status: 'failed' })
+    .update({
+      status: 'cancelled',
+      leased_until: null,
+      last_heartbeat_at: null,
+      last_error: 'Draft rejected by user',
+    })
     .eq('id', missionId);
 
   if (statusError) {

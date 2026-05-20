@@ -771,10 +771,53 @@ describe('MissionSuggestions (AGENT-05)', () => {
     const firstCard = screen.getAllByTestId('card')[0]!;
     fireEvent.click(firstCard);
 
-    // Badge count should have increased by 1 (new mission is 'active')
+    // Badge count should have increased by 1 (new mission is 'queued', counted as active)
     const badgeAfter = document.querySelector('[class*="rounded-full"][class*="bg-[var(--primary-600)]"]');
     const countAfter = Number(badgeAfter?.textContent ?? '0');
     expect(countAfter).toBe(countBefore + 1);
+  });
+
+  it('locally-added suggestion missions survive a subsequent fetchMissions refresh', async () => {
+    // Regression guard for the codex P2: changing the suggestion mission
+    // status to a value in ACTIVE_STATUSES triggers fetchMissions on
+    // visibilitychange/poll. Before the merge fix, that replaced `missions`
+    // with the (empty) server response, dropping the local card and
+    // collapsing the badge back to zero. The merge logic must preserve
+    // local-only entries (ids of the form `mission-<timestamp>`).
+    render(
+      <ConciergeProvider>
+        <ConciergeNavButton />
+        <MissionSuggestions />
+      </ConciergeProvider>
+    );
+
+    // Click a suggestion to add a local mission.
+    const firstCard = screen.getAllByTestId('card')[0]!;
+    fireEvent.click(firstCard);
+
+    const badgeAfterAdd = document.querySelector(
+      '[class*="rounded-full"][class*="bg-[var(--primary-600)]"]',
+    );
+    const countAfterAdd = Number(badgeAfterAdd?.textContent ?? '0');
+    expect(countAfterAdd).toBeGreaterThanOrEqual(1);
+
+    // Trigger a visibilitychange refetch. The global fetch mock returns an
+    // empty missions array, simulating the API not knowing about local cards.
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => 'visible',
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    // Wait two macrotasks for the fetch + state update to settle.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const badgeAfterRefetch = document.querySelector(
+      '[class*="rounded-full"][class*="bg-[var(--primary-600)]"]',
+    );
+    const countAfterRefetch = Number(badgeAfterRefetch?.textContent ?? '0');
+    expect(countAfterRefetch).toBe(countAfterAdd);
   });
 });
 

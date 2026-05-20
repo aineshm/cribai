@@ -5,9 +5,9 @@ Welcome to CampusNest! This guide covers development setup, testing, and code st
 ## Stack Overview
 
 - **Monorepo**: pnpm 9 + Turborepo
-- **Frontend**: Next.js 15 (App Router) + Tailwind v4 + TypeScript
+- **Frontend**: Next.js 16 (App Router) + Tailwind v4 + TypeScript
 - **Database**: Supabase (PostgreSQL + PostGIS + Auth + Edge Functions)
-- **AI**: Anthropic Claude API
+- **AI**: Google Gemini via `@google/genai`
 - **Scraper**: Crawlee + Playwright
 - **UI Components**: Tamagui (Phase 2)
 - **Testing**: Vitest + Playwright
@@ -18,12 +18,12 @@ Welcome to CampusNest! This guide covers development setup, testing, and code st
 ```
 campusnest/
 ├── apps/
-│   └── web/                    # Next.js 15 app (App Router)
+│   └── web/                    # Next.js 16 app (App Router)
 ├── packages/
 │   ├── types/                  # Zod schemas + TypeScript types
 │   ├── utils/                  # Utilities (cost-calculator, fairness-scorer)
 │   ├── supabase/               # Supabase client/server SDK wrappers
-│   ├── ai/                     # Claude AI integration (PageIndex, CribAI)
+│   ├── ai/                     # CribAI tools, Gemini integration, mission runtime
 │   └── ui/                     # Tamagui components (Phase 2)
 ├── services/
 │   └── scraper/                # Apartments.com scraper (Crawlee + Playwright)
@@ -38,12 +38,12 @@ campusnest/
 ### Prerequisites
 
 ```bash
-# Install Node.js 22.x
+# Install Node.js 24.x
 # Install pnpm 9.15.4
 npm install -g pnpm@9.15.4
 
 # Verify installations
-node --version    # v22.x.x
+node --version    # v24.x.x
 pnpm --version    # 9.15.4
 ```
 
@@ -139,7 +139,7 @@ pnpm --version    # 9.15.4
 - `typecheck` - Check types only
 - `clean` - Remove dist/
 
-**@campusnest/ai** (Claude Integration)
+**@campusnest/ai** (Gemini tools and mission runtime)
 - `build` - Compile TypeScript
 - `test` - Run Vitest suite
 - `typecheck` - Check types only
@@ -351,6 +351,19 @@ docs: update setup instructions
    - Link to related issues
    - Test plan (what was tested)
    - Any deployment notes
+
+### Codex Second-Opinion Review
+
+The `.husky/pre-push` hook runs `codex review --base "$base"` automatically on every push and blocks the push if Codex returns a non-zero exit. Codex CLI reads `~/.codex/config.toml` for defaults. Project standard:
+
+```toml
+model = "gpt-5.5"
+model_reasoning_effort = "high"
+```
+
+The TOML key is `model_reasoning_effort` (not `reasoning_effort`). If `gpt-5.5` is not a valid alias on your CLI version, substitute the highest-reasoning `gpt-5.x` available and note the substitution in the PR.
+
+Manual on-demand review: `codex review --base main`. The hook does not pass `--model` or `--reasoning-effort` flags, so the user-level config is the single source of truth — verify with `cat ~/.codex/config.toml`.
 
 ## Common Tasks
 

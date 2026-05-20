@@ -35,6 +35,7 @@ interface ListingRow {
   readonly contact_email: string | null;
   readonly true_cost_total: number | null;
   readonly fairness_data: Record<string, unknown> | null;
+  readonly campus_id?: string | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -394,6 +395,68 @@ export async function fetchExploreListings(): Promise<readonly ExploreListing[]>
 
   if (error) {
     console.error('[listings-data] fetchExploreListings error:', error);
+    return [];
+  }
+
+  return (data as unknown as readonly ListingRow[]).map(toExploreListing);
+}
+
+export interface ExploreViewportBounds {
+  readonly minLat: number;
+  readonly maxLat: number;
+  readonly minLng: number;
+  readonly maxLng: number;
+}
+
+export async function fetchFeaturedExploreListings(limit = 12): Promise<readonly ExploreListing[]> {
+  const supabase = createSecretClient();
+
+  const { data, error } = await supabase
+    .from('listings')
+    .select(EXPLORE_SELECT)
+    .eq('is_active', true)
+    .gte('rent_monthly', 200)
+    .order('fairness_score', { ascending: false, nullsFirst: false })
+    .order('last_seen_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('[listings-data] fetchFeaturedExploreListings error:', error);
+    return [];
+  }
+
+  return (data as unknown as readonly ListingRow[]).map(toExploreListing);
+}
+
+export async function fetchViewportExploreListings(args: {
+  readonly bounds: ExploreViewportBounds;
+  readonly campusId?: string | null;
+  readonly limit?: number;
+}): Promise<readonly ExploreListing[]> {
+  const supabase = createSecretClient();
+  const limit = Math.max(1, Math.min(args.limit ?? 250, 250));
+
+  let query = supabase
+    .from('listings')
+    .select(EXPLORE_SELECT)
+    .eq('is_active', true)
+    .gte('rent_monthly', 200)
+    .gte('latitude', args.bounds.minLat)
+    .lte('latitude', args.bounds.maxLat)
+    .gte('longitude', args.bounds.minLng)
+    .lte('longitude', args.bounds.maxLng)
+    .order('fairness_score', { ascending: false, nullsFirst: false })
+    .order('last_seen_at', { ascending: false })
+    .limit(limit);
+
+  if (args.campusId) {
+    query = query.eq('campus_id', args.campusId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('[listings-data] fetchViewportExploreListings error:', error);
     return [];
   }
 

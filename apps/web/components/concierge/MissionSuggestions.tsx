@@ -49,7 +49,10 @@ export function MissionSuggestions() {
       id: `mission-${Date.now()}`,
       type: template.type,
       title: template.title,
-      status: 'active',
+      // Aligned with runtime-rebuild mission vocabulary so ConciergeNavButton.activeCount
+      // (which counts queued/pending/running/retrying/waiting_approval) sees this mission.
+      // Matches the initial status used by api/missions and mission-repository.
+      status: 'queued',
       listingTitle: template.listingTitle,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

@@ -14,6 +14,7 @@ import './listing-deep-dive/index';
 import './sublease-post/index';
 
 export { executeMission } from './executor';
+export { runMissionQueueOnce } from './worker';
 export { registerMission, getMissionDefinition, getRegisteredTypes, clearRegistry } from './registry';
 export type {
   MissionStep,
@@ -25,9 +26,18 @@ export type {
 } from './types';
 export {
   getMission,
+  claimNextMission,
+  heartbeatMissionLease,
+  clearMissionLease,
   updateMissionStatus,
   updateMissionState,
+  updateMissionStepAttempts,
   setMissionResult,
+  markMissionRetrying,
+  markMissionQueued,
+  markMissionFailed,
+  markMissionWaitingApproval,
+  completeMission,
   insertMissionLog,
   insertMissionDraft,
   getMissionDraft,

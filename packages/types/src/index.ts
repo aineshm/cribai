@@ -6,9 +6,13 @@ export { pageindexTreeSchema, type PageIndexTree, type PageIndexNode } from './p
 export { aiQueryLogSchema, type AiQueryLog } from './ai';
 export {
   chatBlockSchema,
+  conversationModeSchema,
+  conversationStateSchema,
   listingSummarySchema,
   scoredListingSchema,
   type ChatBlock,
+  type ConversationMode,
+  type ConversationState,
   type TextBlock,
   type ListingCardBlock,
   type ComparisonBlock,
@@ -23,6 +27,9 @@ export {
   mapListingSchema,
   webResultBlockSchema,
   webResultItemSchema,
+  createEmptyConversationState,
+  normalizeConversationState,
+  mergeConversationState,
   type ListingSummary,
   type ScoredListing,
   conversationSchema,

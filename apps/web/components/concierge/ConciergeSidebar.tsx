@@ -17,7 +17,7 @@ import { MissionSuggestions } from '@/components/concierge/MissionSuggestions';
 import { useConcierge } from '@/components/concierge/ConciergeProvider';
 import { staggerContainer } from '@/lib/animations';
 
-const ACTIVE_STATUSES = new Set(['active', 'waiting_approval', 'scheduled']);
+const ACTIVE_STATUSES = new Set(['queued', 'pending', 'running', 'retrying', 'waiting_approval']);
 
 export function ConciergeSidebar() {
   const {

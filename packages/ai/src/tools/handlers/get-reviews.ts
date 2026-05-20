@@ -73,6 +73,13 @@ export async function getReviews(
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) {
     return {
+      machineData: {
+        address,
+        rating: null,
+        ratingCount: 0,
+        reviewSnippets: [],
+        summary: null,
+      },
       modelContext: 'Google Places API key not configured. Reviews are currently unavailable.',
       clientBlock: {
         type: 'text' as const,
@@ -92,6 +99,13 @@ export async function getReviews(
   const placeId = await textSearchPlace(`${address}, Madison, WI`, apiKey);
   if (!placeId) {
     return {
+      machineData: {
+        address,
+        rating: null,
+        ratingCount: 0,
+        reviewSnippets: [],
+        summary: null,
+      },
       modelContext: `No Google Places listing found for "${address}". No reviews available.`,
       clientBlock: {
         type: 'text' as const,
@@ -118,6 +132,13 @@ export async function getReviews(
       : 'No reviews or ratings found on Google Places.';
 
     const result: ToolResult = {
+      machineData: {
+        address,
+        rating: rating ?? null,
+        ratingCount: ratingCount ?? 0,
+        reviewSnippets: [],
+        summary: ratingInfo,
+      },
       modelContext: `${details.displayName.text}: ${ratingInfo}`,
       clientBlock: {
         type: 'text' as const,
@@ -160,6 +181,13 @@ export async function getReviews(
   ].join('\n');
 
   const result: ToolResult = {
+    machineData: {
+      address,
+      rating: rating ?? null,
+      ratingCount: ratingCount ?? 0,
+      reviewSnippets: reviews.map((review) => review.text.text).slice(0, 5),
+      summary,
+    },
     modelContext,
     clientBlock: {
       type: 'text' as const,

@@ -1,5 +1,5 @@
 import type { GoogleGenAI, Content, FunctionCall, Part } from '@google/genai';
-import type { ChatBlock, PageIndexNode } from '@campusnest/types';
+import type { ChatBlock, ConversationState, PageIndexNode } from '@campusnest/types';
 import { createGeminiClient } from './gemini-client';
 import { logTokenUsage } from './cost-logger';
 import { PageIndexTraverser } from './pageindex-traverser';
@@ -24,7 +24,13 @@ export interface ChatInput {
 export type ChatEvent =
   | { readonly type: 'text'; readonly content: string }
   | { readonly type: 'tool_call'; readonly name: string; readonly args: Record<string, unknown> }
-  | { readonly type: 'tool_result'; readonly name: string; readonly block: ChatBlock }
+  | {
+      readonly type: 'tool_result';
+      readonly name: string;
+      readonly block: ChatBlock;
+      readonly machineData?: Record<string, unknown>;
+      readonly statePatch?: Partial<ConversationState>;
+    }
   | { readonly type: 'mission_proposal'; readonly intent: string; readonly confidence: number; readonly extractedFields: Record<string, unknown> }
   | { readonly type: 'mission_request'; readonly missionType: string; readonly input: Readonly<Record<string, unknown>> }
   | { readonly type: 'mission_created'; readonly missionId: string }
@@ -248,11 +254,23 @@ export class CribAI {
 
         try {
           const result = await executeTool(toolName, toolArgs, this.toolContext);
-          yield { type: 'tool_result', name: toolName, block: result.clientBlock };
+          yield {
+            type: 'tool_result',
+            name: toolName,
+            block: result.clientBlock,
+            machineData: result.machineData,
+            statePatch: result.statePatch,
+          };
 
           // Emit optional map block as a separate event (e.g., for semantic search results)
           if (result.mapBlock) {
-            yield { type: 'tool_result', name: `${toolName}_map`, block: result.mapBlock };
+            yield {
+              type: 'tool_result',
+              name: `${toolName}_map`,
+              block: result.mapBlock,
+              machineData: result.machineData,
+              statePatch: result.statePatch,
+            };
           }
 
           // Emit mission_request if the tool wants to create a background mission
@@ -263,7 +281,10 @@ export class CribAI {
           functionResponseParts.push({
             functionResponse: {
               name: toolName,
-              response: { result: result.modelContext },
+              response: {
+                machineData: result.machineData ?? {},
+                modelContext: result.modelContext,
+              },
             },
           });
         } catch (err) {

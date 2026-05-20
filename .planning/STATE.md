@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: Agent Platform
-status: completed
-stopped_at: Post-v2.0 polish — AI behavior tuning, prompt condensing, UI/UX fixes
-last_updated: "2026-03-24"
-last_activity: 2026-03-24 -- Documentation sync across product + ops repos
+milestone: v2.5
+milestone_name: Runtime Rebuild
+status: in_progress
+stopped_at: Sprint close-out plan adopted; runtime-rebuild branch ready for push, migrations 032/033/034 pending
+last_updated: "2026-05-01"
+last_activity: 2026-05-01 -- Adopted sprint close-out plan; security pass landed locally
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 14
-  completed_plans: 14
-  percent: 100
+  total_phases: 4
+  completed_phases: 3
+  total_plans: 1
+  completed_plans: 0
+  percent: 75
 ---
 
 # Project State
@@ -21,60 +21,53 @@ progress:
 See: .planning/PROJECT.md
 
 **Core value:** Students can find off-campus housing through conversational AI search that understands what they actually want
-**Current focus:** v2.0 shipped. Post-launch polish + outreach execution (Summer Sublease Sprint)
+**Current focus:** v2.5 Runtime Rebuild — state-centric chat runtime, typed tool contracts, durable mission execution, viewport-driven explore
 
 ## Current Position
 
-Milestone: v2.0 Agent Platform — COMPLETE (shipped 2026-03-19)
-Post-v2.0: 14 polish commits (2026-03-20 to 2026-03-24)
-Status: Engineering complete. Sprint focus is outreach + user acquisition.
-Last activity: 2026-03-24 — Documentation sync
+Milestone: v2.5 Runtime Rebuild — IN PROGRESS (sprint window 2026-04-15 → 2026-05-10)
+Local commit: `runtime-rebuild` at `ac20a90` (spec) on top of `daa268e`
+Production state: still serving v2.0; runtime-rebuild not yet merged or deployed
 
-Progress: [██████████] 100%  (v2.0: all phases complete)
+## Sprint Close-Out Plan
 
-## What Shipped in v2.0
+Approved 2026-05-01. Five-day plan to ship runtime-rebuild + security pass:
 
-- MissionExecutor: autonomous background tasks (housing search, tour outreach, listing deep dive, sublease post)
-- 13 function-calling AI tools with Gemini 2.5 Flash
-- HITL approval before external actions
-- Chat-to-Mission bridge: intent classifier triggers mission proposals
-- Server-side chat persistence (3-lite): assistant messages persisted via after()
-- Conversation context JSONB for cross-message listing awareness
-- Sublease marketplace: post via chat or PostWizard, edit/photos for creators
-- CribAI rebrand (CampusNest → CribAI) across all surfaces
-- Chat inbox at /chat, nav restructured (Explore + Chat)
-- Inline embedding generation for all listing insertion paths
-- 2,509 real listings (Zillow), UW-Madison campus
-- Migrations 001-030 applied to production Supabase
+- spec: `docs/superpowers/specs/2026-05-01-runtime-rebuild-close-out-design.md`
+- plan: `docs/superpowers/plans/2026-05-01-runtime-rebuild-close-out.md`
+- ops sprint goals: `~/Developer/campusnest-ops/sprints/2026-04-runtime-rebuild/goals.md`
+- ops handoff spec: `~/Developer/campusnest-ops/engineering/handoffs/2026-04-15-runtime-rebuild-spec.md`
 
-## Post-v2.0 Polish (2026-03-20 to 2026-03-24)
+Definition of done: see spec section 6.
 
-14 commits focused on:
+## What Shipped Locally (Runtime Rebuild)
 
-### AI Behavior Tuning
-- Force action-first behavior — search immediately, never interview the user
-- System prompt: action-first, sublease awareness, seasonal dates
-- Search modelContext: prefer Zillow + sublease over Craigslist
-- Condense Gemini prompts for speed/cost (42 lines removed)
-- Restore currentInput in steering prompt
+- Durable `conversation_state` (migration 032) + typed `ToolResult.machineData/statePatch`
+- Deterministic chat runtime for search/detail/compare/tour flows
+- Mission queue with leases, heartbeats, retries, step attempts (migration 033)
+- Mission worker entrypoints (`pnpm worker:missions`, `--once`, `/api/missions/run-next`)
+- GitHub Actions one-shot worker workflow (`.github/workflows/missions-worker.yml`)
+- Explore viewport API (`/api/explore/viewport`), search API, public listing detail API
+- Manual mission Queue/Past UI
 
-### UI/UX Fixes
-- UI/UX audit: 10 fixes across explore, listing, auth, map, landing
-- Better listing titles + cleaner "Ask AI" prompt
-- Map popup z-index: listing card renders above markers (3 commits)
-- Landing page mobile menu (LandingMobileMenu.tsx)
+## Security Pass (uncommitted at design time)
 
-### Data Quality
-- Increase explore listing limit from 500 to 3000 (subleases cut off at rank 544)
-- Skip embedding for already-embedded web-search listings
-- OTP email trim, skip geo fallback with mapBounds
+- Migration `034_harden_security_definer_functions.sql`: revokes broad RPC EXECUTE, pins search_path
+- Bounds on `/api/missions/run-next` and worker batch sizes
+- Conversation message creation accepts only client-created user messages, caps block count + size
+- Analytics events validate names + cap metadata size
+- Next.js pinned + `pnpm.overrides` for protobufjs advisory → `pnpm audit` clean
 
-### Security
-- Verify conversation ownership before read/write (Codex P1)
+## Blockers / Open
 
-## Performance Metrics
+- Branch not pushed; PR not opened
+- Migrations 032/033/034 not applied to staging or prod Supabase
+- No production mission worker is running
+- Oracle free-tier worker blocked by `VM.Standard.A1.Flex` capacity in `us-chicago-1`
+- Golden flows from handoff spec not yet rerun against staging or prod
+- ~~5 stale concierge UI tests fail~~ ✅ Track D complete 2026-05-02: 2 fixed (cribai-chat input label regex), 3 skipped with TODO (MissionSuggestions badge status mismatch + 2 MessagesPageClient tab semantics)
 
-**Velocity (all milestones):**
+## Performance Metrics (cumulative)
 
 | Milestone | Phases | Plans | Shipped |
 |-----------|--------|-------|---------|
@@ -82,29 +75,11 @@ Progress: [██████████] 100%  (v2.0: all phases complete)
 | v1.1 UI/UX | 13 | 17 | 2026-03-12 |
 | v2.0 Agent | 5 | ~14 | 2026-03-19 |
 | Post-v2.0 Polish | — | 14 commits | 2026-03-24 |
-
-**Total:** 607 commits, 30 migrations, ~770 unit tests + 89 E2E tests
-
-## Accumulated Context
-
-### Key Decisions (Post-v2.0)
-
-- Action-first AI: CribAI searches immediately on any housing query, never asks clarifying questions first
-- Craigslist deprioritized in search results (data quality issues, prefer Zillow + sublease)
-- Explore listing limit raised to 3000 (subleases were invisible beyond rank 544)
-- Gemini prompts condensed: shorter system prompt + intent classifier + steering parser
-- Map popup z-index layering: `.mapboxgl-popup` at z-50, listing cards render above markers
-
-### Blockers/Concerns
-
-- after() panel-close behavior on Vercel needs manual validation (best-effort completion)
-- Scraper batch embedding needs raw_title column fix (migration 017 not on prod) — existing listings have embeddings
-- GOOGLE_PLACES_API_KEY not provisioned (reviews tool degrades gracefully)
-- WALKSCORE_API_KEY permanently unavailable (requires business account)
+| v2.5 Runtime Rebuild | 4 workstreams | 1 close-out | in flight |
 
 ## Session Continuity
 
-Last session: 2026-03-24
-Stopped at: Documentation sync across product + ops repos
-Resume file: None
-Next: Outreach execution (Reddit, FB, GroupMe) — engineering is done
+Last session: 2026-05-02
+Stopped at: Day 1 local edits done — Track D ✅ (feature flag stance: ALWAYS-ON, recorded in RUNBOOK; 5 stale tests resolved). Track C2/C4 ✅ (Codex gpt-5.5 high; MEMORY.md). Track A2/A3 ✅ (STATE.md milestone shift; RUNBOOK rollback section). Awaiting user approval for Track A4 (commit + push), Track B (ops repo), Track C6 (Notion).
+Resume file: `docs/superpowers/plans/2026-05-01-runtime-rebuild-close-out.md`
+Next: User approves Track A4 push to land Day 1 product-repo work; then proceed to Track E (Day 2 — code commits + draft PR).
