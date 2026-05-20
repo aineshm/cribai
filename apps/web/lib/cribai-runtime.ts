@@ -68,20 +68,60 @@ function looksLikeCompareTurn(query: string): boolean {
   return /\bcompare\b|\bvs\b|\bversus\b|first two|top 2|top two/i.test(query);
 }
 
-function looksLikeSearchTurn(query: string): boolean {
-  return /\b(find|show|search|browse|looking for|need)\b|\b(apartments?|listings?|subleases?|housing|studio|bedroom|rent|budget)\b/i.test(query);
-}
-
 function looksLikeBroadSearchTurn(query: string): boolean {
   return /\b(apartments?|listings|subleases?|housing)\b|\b[0-9]+\s*(?:bed|br|bedroom)s?\b|\b(studio)\b(?!\s+city\b)|\b(?:under|below|max(?:imum)?|less than|over|above|min(?:imum)?|at least)\s*\$?\s*[0-9]{3,5}\b/i.test(query);
 }
 
 function hasExplicitListingReference(query: string): boolean {
-  return /\b(this|current)\s+(listing|place|apartment|unit|home)\b|\b(tell me|details?|info|information|what do you think|thoughts|show)\b.*\b(listing|place|apartment|unit|home)\b|\blisting\s+at\b/i.test(query);
+  return /\b(this|current)\s+(listing|place|apartment|unit|home)\b|\blisting\s+at\b/i.test(query);
 }
 
-function looksLikeListingDetailTurn(query: string): boolean {
-  return hasExplicitListingReference(query) || /\b(what(?:'s| is)|how many|does it|is it|are there|when is|what are)\b.*\b(rent|price|bedrooms?|bathrooms?|sqft|square feet|amenities|available|fairness|utilities|parking|address)\b/i.test(query);
+function looksLikeListingAttributeQuestion(query: string): boolean {
+  const hasAttribute = /\b(rent|price|bedrooms?|bathrooms?|sqft|square feet|amenities|available|fairness|utilities|parking|address|under|below|over|above|cost|fees?|deposit)\b/i.test(query);
+  const isQuestion = /\b(what|how|does|is|are|when|tell me|details?|info|information|thoughts|show|open|display)\b/i.test(query);
+  return hasAttribute && isQuestion;
+}
+
+function hasHighConfidenceOrdinalReference(query: string): boolean {
+  return /\b(first|second|third|fourth|1st|2nd|3rd|4th)\b/i.test(query);
+}
+
+function isHighConfidenceListingDetail(
+  query: string,
+  hasActiveListing: boolean,
+): boolean {
+  // 1. Ordinal references (e.g. "first one", "second listing")
+  if (hasHighConfidenceOrdinalReference(query)) {
+    return true;
+  }
+
+  // 2. Explicit current-listing reference
+  if (hasExplicitListingReference(query)) {
+    // If it looks like a broad search query (e.g., "find apartments like this listing under 1500"),
+    // it's a search, unless it is a specific attribute question (e.g., "is this listing under 1500?").
+    if (looksLikeBroadSearchTurn(query)) {
+      return looksLikeListingAttributeQuestion(query);
+    }
+    return true;
+  }
+
+  // 3. Active listing + clear attribute question (but NOT a broad search)
+  if (hasActiveListing && looksLikeListingAttributeQuestion(query)) {
+    // If it looks like a broad search (e.g. "2 bedroom apartments with parking under 1500"),
+    // it should go to search instead of detail.
+    if (looksLikeBroadSearchTurn(query)) {
+      return false;
+    }
+    return true;
+  }
+
+  return false;
+}
+
+function isHighConfidenceSearch(query: string): boolean {
+  const hasSearchIntent = /\b(find|search|browse|looking for|need|show me)\b/i.test(query);
+  const isBroad = looksLikeBroadSearchTurn(query);
+  return hasSearchIntent || isBroad;
 }
 
 function resolveOrdinalIndexes(query: string): number[] {
@@ -455,15 +495,11 @@ export async function maybeHandleDeterministicTurn(
   }
 
   const resolvedDetailListingId = resolveDetailListingId(query, nextState, listingId);
-  if (
-    resolvedDetailListingId &&
-    looksLikeListingDetailTurn(query) &&
-    (hasExplicitListingReference(query) || !looksLikeBroadSearchTurn(query))
-  ) {
+  if (resolvedDetailListingId && isHighConfidenceListingDetail(query, !!resolvedDetailListingId)) {
     return buildDetailTurn(resolvedDetailListingId, nextState, toolContext);
   }
 
-  if (looksLikeSearchTurn(query)) {
+  if (isHighConfidenceSearch(query)) {
     const search = await runToolWithEvents(
       'search_listings',
       parseSearchArgs(query),
@@ -482,10 +518,6 @@ export async function maybeHandleDeterministicTurn(
       blocks: [...search.blocks, textBlock],
       events: [...search.events, { type: 'text', content: textBlock.content }],
     };
-  }
-
-  if (resolvedDetailListingId) {
-    return buildDetailTurn(resolvedDetailListingId, nextState, toolContext);
   }
 
   return null;

@@ -279,6 +279,44 @@ describe('maybeHandleDeterministicTurn', () => {
     );
   });
 
+  it('keeps broad searches that mention the current listing as search', async () => {
+    const listingId = '11111111-1111-1111-1111-111111111111';
+    const state = mergeConversationState(createEmptyConversationState(), {
+      selectedListingId: listingId,
+      mode: 'listing_detail',
+    });
+
+    const likeCurrentResult = await maybeHandleDeterministicTurn({
+      query: 'find apartments like this listing under 1500',
+      listingId,
+      conversationState: state,
+      toolContext: toolContext(),
+    });
+
+    expect(likeCurrentResult?.flow).toBe('search');
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'search_listings',
+      expect.objectContaining({ max_rent: 1500 }),
+      toolContext(),
+    );
+
+    mockExecuteTool.mockClear();
+
+    const broadPlaceResult = await maybeHandleDeterministicTurn({
+      query: 'show me a place under 1500',
+      listingId,
+      conversationState: state,
+      toolContext: toolContext(),
+    });
+
+    expect(broadPlaceResult?.flow).toBe('search');
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'search_listings',
+      expect.objectContaining({ max_rent: 1500 }),
+      toolContext(),
+    );
+  });
+
   it('falls through generic follow-ups after search results without an explicit listing reference', async () => {
     const state = mergeConversationState(createEmptyConversationState(), {
       mode: 'search',
