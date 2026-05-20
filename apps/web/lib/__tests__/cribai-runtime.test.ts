@@ -362,6 +362,38 @@ describe('maybeHandleDeterministicTurn', () => {
 
     mockExecuteTool.mockClear();
 
+    const showFloorResult = await maybeHandleDeterministicTurn({
+      query: 'show me first floor apartments under 1500',
+      listingId,
+      conversationState: state,
+      toolContext: toolContext(),
+    });
+
+    expect(showFloorResult?.flow).toBe('search');
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'search_listings',
+      expect.objectContaining({ max_rent: 1500 }),
+      toolContext(),
+    );
+
+    mockExecuteTool.mockClear();
+
+    const infoSemesterResult = await maybeHandleDeterministicTurn({
+      query: 'info on second semester subleases',
+      listingId,
+      conversationState: state,
+      toolContext: toolContext(),
+    });
+
+    expect(infoSemesterResult?.flow).toBe('search');
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'search_listings',
+      expect.objectContaining({}),
+      toolContext(),
+    );
+
+    mockExecuteTool.mockClear();
+
     // Verify selector ordinal STILL resolves to listing detail
     const selectorResult = await maybeHandleDeterministicTurn({
       query: 'show the first listing under 1500',
