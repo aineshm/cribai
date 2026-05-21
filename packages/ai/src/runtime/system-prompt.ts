@@ -36,13 +36,15 @@ import { TOOL_SPECS, type ToolSpec } from './tool-registry';
 
 /** Compact user-profile data threaded into the dynamic suffix. */
 export interface UserProfileSnippet {
+  /** Mapped from `user_metadata.full_name` (fallback: `display_name`). */
   readonly displayName: string | null;
-  readonly campus: string | null;
+  /** Mapped from `user_metadata.campus_slug` (fallback: `campus`). */
+  readonly campusSlug: string | null;
 }
 
 export const EMPTY_PROFILE_SNIPPET: UserProfileSnippet = Object.freeze({
   displayName: null,
-  campus: null,
+  campusSlug: null,
 });
 
 export interface BuildSystemPromptOptions {
@@ -198,13 +200,14 @@ function renderStateBlock(state: ConversationState): string {
 function renderProfileBlock(profile: UserProfileSnippet): string {
   const lines: string[] = ['User profile:'];
   lines.push(`- displayName: ${profile.displayName ?? 'unknown'}`);
-  lines.push(`- campus: ${profile.campus ?? 'unknown'}`);
+  lines.push(`- campusSlug: ${profile.campusSlug ?? 'unknown'}`);
   return lines.join('\n');
 }
 
 const GUEST_GUARDRAIL_BLOCK: string = `Guest session (no signed-in user):
-- Do NOT offer or imply account-only actions (schedule_tour, get_saved_listings, contact_pm, propose_mission).
-- If the user wants such an action, tell them to sign in first.`;
+- For this session you may use ONLY: search_listings, get_listing_detail, compare_listings, explain_lease_term.
+- Do not call any other tool; the server will reject it.
+- If the user wants any other action (schedule a tour, save a listing, contact a PM, post a sublease, run a mission, etc.), tell them to sign in first.`;
 
 /**
  * Per codex amendment A1+A4: when a tour or sublease publish is pending,
@@ -311,8 +314,10 @@ export function estimateTokens(text: string): number {
  * Returns the empty snippet for guest sessions or any failure — the prompt
  * builder treats missing fields gracefully.
  *
- * Reads from `auth.users.user_metadata.display_name` and
- * `auth.users.user_metadata.campus` (the keys the existing app writes).
+ * Reads `user_metadata.full_name` (the key the signup form + AccountSettings
+ * write) with `display_name` as a forward-compat fallback. Campus identity
+ * comes from `user_metadata.campus_slug` (the key `apps/web/app/(main)/layout.tsx`
+ * reads) with `campus` as a fallback.
  */
 export async function getUserProfileSnippet(
   supabase: SupabaseClient,
@@ -333,11 +338,16 @@ export async function getUserProfileSnippet(
       return EMPTY_PROFILE_SNIPPET;
     }
     const meta = (data.user.user_metadata ?? {}) as Record<string, unknown>;
-    const displayName = typeof meta.display_name === 'string'
-      ? meta.display_name
-      : null;
-    const campus = typeof meta.campus === 'string' ? meta.campus : null;
-    return { displayName, campus };
+    const fullName = typeof meta.full_name === 'string' ? meta.full_name : null;
+    const fallbackDisplayName =
+      typeof meta.display_name === 'string' ? meta.display_name : null;
+    const displayName = fullName ?? fallbackDisplayName;
+    const campusSlugRaw =
+      typeof meta.campus_slug === 'string' ? meta.campus_slug : null;
+    const fallbackCampus =
+      typeof meta.campus === 'string' ? meta.campus : null;
+    const campusSlug = campusSlugRaw ?? fallbackCampus;
+    return { displayName, campusSlug };
   } catch {
     return EMPTY_PROFILE_SNIPPET;
   }

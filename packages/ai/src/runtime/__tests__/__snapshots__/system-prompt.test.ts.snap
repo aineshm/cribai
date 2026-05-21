@@ -10,11 +10,12 @@ exports[`buildSystemPrompt — dynamic suffix > includes guest guardrail block w
 
 User profile:
 - displayName: unknown
-- campus: unknown
+- campusSlug: unknown
 
 Guest session (no signed-in user):
-- Do NOT offer or imply account-only actions (schedule_tour, get_saved_listings, contact_pm, propose_mission).
-- If the user wants such an action, tell them to sign in first."
+- For this session you may use ONLY: search_listings, get_listing_detail, compare_listings, explain_lease_term.
+- Do not call any other tool; the server will reject it.
+- If the user wants any other action (schedule a tour, save a listing, contact a PM, post a sublease, run a mission, etc.), tell them to sign in first."
 `;
 
 exports[`buildSystemPrompt — dynamic suffix > renders comparison state with two listings 1`] = `
@@ -27,7 +28,7 @@ exports[`buildSystemPrompt — dynamic suffix > renders comparison state with tw
 
 User profile:
 - displayName: Bob Park
-- campus: UW-Madison"
+- campusSlug: uw-madison"
 `;
 
 exports[`buildSystemPrompt — dynamic suffix > renders no-selection state cleanly 1`] = `
@@ -40,7 +41,7 @@ exports[`buildSystemPrompt — dynamic suffix > renders no-selection state clean
 
 User profile:
 - displayName: Alice Chen
-- campus: UW-Madison"
+- campusSlug: uw-madison"
 `;
 
 exports[`buildSystemPrompt — dynamic suffix > renders pending sublease with HITL reminder 1`] = `
@@ -54,7 +55,7 @@ exports[`buildSystemPrompt — dynamic suffix > renders pending sublease with HI
 
 User profile:
 - displayName: Alice Chen
-- campus: UW-Madison
+- campusSlug: uw-madison
 
 HITL REMINDER — pending sublease publish:
 - The user has a sublease preview waiting on the create_sublease tool.
@@ -74,7 +75,7 @@ exports[`buildSystemPrompt — dynamic suffix > renders pending tour with HITL r
 
 User profile:
 - displayName: Alice Chen
-- campus: UW-Madison
+- campusSlug: uw-madison
 
 HITL REMINDER — pending tour request:
 - The user has a tour preview waiting on the schedule_tour tool.
@@ -93,5 +94,5 @@ exports[`buildSystemPrompt — dynamic suffix > renders selected-listing state 1
 
 User profile:
 - displayName: Alice Chen
-- campus: UW-Madison"
+- campusSlug: uw-madison"
 `;

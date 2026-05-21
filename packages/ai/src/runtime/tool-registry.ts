@@ -152,8 +152,7 @@ const DESCRIPTIONS: Readonly<Record<ToolName, string>> = {
     'Compare 2-4 listings side by side. Use when the user wants to compare specific apartments.',
 
   schedule_tour:
-    'Schedule a tour for a specific listing. Use this when the user wants to visit or tour a listing that has already been identified in the conversation. First collect the student name, email, and preferred dates, then call this tool. Do NOT run search_listings first if the user already specified which listing they want to tour.\n\n' +
-    'HITL: this tool submits a real tour request as soon as it is called. Before invoking it, you MUST have shown the student the listing, the dates, and the email you will use, and have received their explicit "yes / book it" confirmation in the same turn or the immediately preceding turn. If any of those are missing, ask for them in prose instead of calling the tool. The `confirmed` field is reserved for a future two-phase preview/publish split; for now, set `confirmed=true` only when the user has explicitly confirmed, and never use the tool as a dry-run preview. Do not promise the tour is booked in your prose until the handler returns a confirmation block.',
+    'Schedule a tour for a specific listing. Two-phase HITL flow: call WITHOUT `confirmed` (or `confirmed=false`) to render a preview card (listing + dates + email) for the student to review. After the student confirms in their next turn, call AGAIN with `confirmed=true` AND ALL the same fields to actually submit the request. Required fields: `listing_id`, `student_name`, `student_email`, `preferred_dates`. Do not claim the tour is booked in your prose until the handler returns a tour_confirmation block.',
 
   explain_lease_term:
     'Explain a lease or rental term. Use when the user asks about lease clauses, tenant rights, or rental terminology.',

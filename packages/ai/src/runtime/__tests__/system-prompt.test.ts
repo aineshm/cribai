@@ -40,11 +40,11 @@ const LISTING_B = '66666666-7777-4888-8999-aaaaaaaaaaaa';
 
 const ALICE: UserProfileSnippet = {
   displayName: 'Alice Chen',
-  campus: 'UW-Madison',
+  campusSlug: 'uw-madison',
 };
 const BOB: UserProfileSnippet = {
   displayName: 'Bob Park',
-  campus: 'UW-Madison',
+  campusSlug: 'uw-madison',
 };
 
 function baseState(): ConversationState {
@@ -228,7 +228,12 @@ describe('buildSystemPrompt — dynamic suffix', () => {
       { isGuest: true },
     );
     expect(dynamicSuffix).toContain('Guest session');
-    expect(dynamicSuffix).toContain('schedule_tour');
+    // Guardrail must enumerate the exact server-side allowlist
+    // (apps/web/app/api/ai/cribai/route.ts GUEST_ALLOWED_TOOLS).
+    expect(dynamicSuffix).toContain('search_listings');
+    expect(dynamicSuffix).toContain('get_listing_detail');
+    expect(dynamicSuffix).toContain('compare_listings');
+    expect(dynamicSuffix).toContain('explain_lease_term');
     expect(dynamicSuffix).toMatchSnapshot();
   });
 });
