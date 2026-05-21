@@ -1,8 +1,13 @@
 import { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { createSecretClient } from '@campusnest/supabase/server';
-import { CribAI } from '@campusnest/ai';
-import type { ChatEvent } from '@campusnest/ai';
+import {
+  CribAI,
+  createRequestMetricsRecorder,
+  resolveRequestId,
+  type ChatEvent,
+  type RequestMetricsRecorder,
+} from '@campusnest/ai';
 import {
   createEmptyConversationState,
   mergeConversationState,
@@ -358,6 +363,14 @@ function isGenericOrSearchQuery(query: string): boolean {
 }
 
 export async function POST(request: NextRequest) {
+  // AIN-19 — stamp request_received_at at handler entry, before any IO.
+  // The recorder is created once we have a Supabase client. Until then,
+  // hold the entry timestamp + request_id so the recorder reflects the
+  // true handler-entry moment, not "post-validation".
+  const requestReceivedAt = new Date();
+  const requestId = resolveRequestId(request.headers.get('x-request-id'));
+  let metricsRecorder: RequestMetricsRecorder | null = null;
+
   try {
     const body = (await request.json()) as Record<string, unknown>;
     const { query, campusSlug, history, bounds, listingId, conversationId } = body;
@@ -478,6 +491,21 @@ export async function POST(request: NextRequest) {
       mapBounds,
     };
 
+    // AIN-19 — create the metrics recorder now that we have an authenticated
+    // (or guest) identity and the conversation id. `runtime: 'deterministic'`
+    // labels the entire current code path; AIN-8 will reuse the same recorder
+    // with `runtime: 'llm_first'` when the LLM-first turn handler ships.
+    metricsRecorder = createRequestMetricsRecorder(
+      {
+        requestId,
+        userId,
+        conversationId: verifiedConversation?.id ?? null,
+        runtime: 'deterministic',
+        requestReceivedAt,
+      },
+      supabase,
+    );
+
     const deterministicResult = await maybeHandleDeterministicTurn({
       query: trimmedQuery,
       toolContext,
@@ -497,6 +525,19 @@ export async function POST(request: NextRequest) {
         async start(controller) {
           try {
             for (const event of deterministicResult.events) {
+              // AIN-19 — record tool calls + first-tool-result timing as we
+              // replay the deterministic event sequence. firstModelTokenAt is
+              // intentionally left null on the deterministic path — those
+              // turns short-circuit Gemini entirely, so a TTFT measurement
+              // would be misleading. The 'deterministic' runtime label in
+              // the row makes this distinction queryable downstream.
+              if (event.type === 'tool_call' && 'name' in event) {
+                metricsRecorder?.recordToolCall(event.name);
+              } else if (event.type === 'tool_result') {
+                metricsRecorder?.markFirstToolResult();
+              } else if (event.type === 'text') {
+                metricsRecorder?.markFinalAssistantMessage();
+              }
               enqueueEvent(controller, encoder, event);
             }
 
@@ -518,8 +559,11 @@ export async function POST(request: NextRequest) {
                 query: trimmedQuery,
               });
             }
+
+            metricsRecorder?.finish();
           } catch (err) {
             const message = err instanceof Error ? err.message : 'Stream error';
+            metricsRecorder?.finish({ errorKind: 'deterministic_stream_error' });
             enqueueEvent(controller, encoder, { type: 'error', message });
             controller.close();
           }
@@ -549,9 +593,15 @@ export async function POST(request: NextRequest) {
             tree,
             conversationHistory,
           })) {
+            // AIN-19 — first model emission (text or tool_call) marks TTFT.
+            // markFirstModelToken is idempotent so we call it unconditionally
+            // here without an `if` check; only the first call stamps a value.
+            metricsRecorder?.markFirstModelToken();
+
             if (typeof chunk === 'string') {
               enqueueEvent(controller, encoder, { type: 'text', content: chunk });
               currentServerText += chunk;
+              metricsRecorder?.markFinalAssistantMessage();
               continue;
             }
 
@@ -561,6 +611,15 @@ export async function POST(request: NextRequest) {
 
             if (chunk.type === 'done') {
               continue;
+            }
+
+            // AIN-19 — track tool invocations + first-tool-result timing.
+            if (chunk.type === 'tool_call' && 'name' in chunk) {
+              metricsRecorder?.recordToolCall(chunk.name);
+            } else if (chunk.type === 'tool_result') {
+              metricsRecorder?.markFirstToolResult();
+            } else if (chunk.type === 'text') {
+              metricsRecorder?.markFinalAssistantMessage();
             }
 
             if (chunk.type === 'tool_result' && 'statePatch' in chunk && chunk.statePatch) {
@@ -664,10 +723,15 @@ export async function POST(request: NextRequest) {
               query: trimmedQuery,
             });
           }
+
+          metricsRecorder?.finish();
         } catch (err) {
           const raw = err instanceof Error ? err.message : 'Stream error';
           const isQuotaError =
             raw.includes('RESOURCE_EXHAUSTED') || raw.includes('429') || raw.includes('quota');
+          metricsRecorder?.finish({
+            errorKind: isQuotaError ? 'gemini_quota' : 'llm_stream_error',
+          });
           enqueueEvent(controller, encoder, {
             type: 'error',
             message: isQuotaError
@@ -681,6 +745,9 @@ export async function POST(request: NextRequest) {
 
     return new Response(stream, { headers: SSE_HEADERS });
   } catch {
+    // AIN-19 — outer catch (e.g. JSON parse failure, env missing). Recorder
+    // may or may not exist depending on which validation step threw.
+    metricsRecorder?.finish({ errorKind: 'handler_exception' });
     return jsonError('Internal server error', 500);
   }
 }
