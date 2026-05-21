@@ -89,9 +89,10 @@ vi.mock('../ProfileSetup', () => ({
   ),
 }));
 
-// Mock fetch for /api/auth/validate-email (server-side email validation)
+// Mock fetch for /api/auth/validate-email (server-side email validation).
+// Post PDR-003 Track B Day 2 the response shape is `{ valid, isEdu, badge? }`.
 const mockFetch = vi.fn().mockResolvedValue({
-  json: async () => ({ allowed: true }),
+  json: async () => ({ valid: true, isEdu: true, badge: 'verified_student' }),
 });
 vi.stubGlobal('fetch', mockFetch);
 
@@ -185,6 +186,15 @@ describe('AuthForm — profile persistence', () => {
     });
   });
 
+  it('writes is_verified_student=true into user_metadata for .edu emails after OTP verify', async () => {
+    await advanceToProfileStep();
+    // The badge updateUser fires before the profile step is reached, so by the
+    // time we land on the profile button it must already have been called.
+    expect(mockUpdateUser).toHaveBeenCalledWith({
+      data: { is_verified_student: true },
+    });
+  });
+
   it('navigates to /explore after successful updateUser', async () => {
     await advanceToProfileStep();
     fireEvent.click(screen.getByTestId('complete-profile-btn'));
@@ -193,7 +203,10 @@ describe('AuthForm — profile persistence', () => {
     });
   });
 
-  it('shows error and does not navigate when updateUser fails', async () => {
+  it('shows error and does not navigate when profile updateUser fails', async () => {
+    // First call is the .edu badge write (success); second call is the profile
+    // update from handleProfileComplete (the one whose failure we care about).
+    mockUpdateUser.mockResolvedValueOnce({ error: null });
     mockUpdateUser.mockResolvedValueOnce({ error: { message: 'Update failed' } });
     await advanceToProfileStep();
     fireEvent.click(screen.getByTestId('complete-profile-btn'));
@@ -204,10 +217,16 @@ describe('AuthForm — profile persistence', () => {
     expect(mockPush).not.toHaveBeenCalled();
   });
 
-  it('calls updateUser before router.push (no race condition)', async () => {
+  it('calls profile updateUser before router.push (no race condition)', async () => {
     const callOrder: string[] = [];
+    // Two updateUser calls happen: badge (during OTP verify) + profile (on
+    // complete-profile click). Only the profile one should precede push.
     mockUpdateUser.mockImplementationOnce(async () => {
-      callOrder.push('updateUser');
+      callOrder.push('badgeUpdate');
+      return { error: null };
+    });
+    mockUpdateUser.mockImplementationOnce(async () => {
+      callOrder.push('profileUpdate');
       return { error: null };
     });
     mockPush.mockImplementationOnce(() => { callOrder.push('push'); });
@@ -216,7 +235,7 @@ describe('AuthForm — profile persistence', () => {
     fireEvent.click(screen.getByTestId('complete-profile-btn'));
 
     await waitFor(() => {
-      expect(callOrder).toEqual(['updateUser', 'push']);
+      expect(callOrder).toEqual(['badgeUpdate', 'profileUpdate', 'push']);
     });
   });
 });

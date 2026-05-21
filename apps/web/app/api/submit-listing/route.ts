@@ -4,6 +4,7 @@ import { createServerComponentClient, createSecretClient } from '@campusnest/sup
 import { listingSubmissionSchema } from '@campusnest/types';
 import { cookies } from 'next/headers';
 import { synthesizeListingText, generateEmbedding } from '@campusnest/ai';
+import { isEduEmail } from '@/lib/edu-validation';
 
 export async function POST(request: NextRequest) {
   // Authenticate user
@@ -15,6 +16,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: 'Authentication required' },
       { status: 401 },
+    );
+  }
+
+  // PDR-003 Track B Day 2: sublease posting is the supply side and still
+  // requires a `.edu` address to prevent non-students from polluting the
+  // sublease marketplace. The sign-in `.edu` gate was relaxed (any email
+  // can sign in / browse / save), but posting subleases stays gated.
+  if (!user.email || !isEduEmail(user.email)) {
+    return NextResponse.json(
+      {
+        error:
+          'Posting a sublease requires a verified .edu email address. Sign in with your school email to continue.',
+      },
+      { status: 403 },
     );
   }
 

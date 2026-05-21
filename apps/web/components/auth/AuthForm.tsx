@@ -11,6 +11,7 @@ import { Mail, ArrowLeft } from 'lucide-react';
 import { OTPInput } from './OTPInput';
 import { ProfileSetup } from './ProfileSetup';
 import { trackEvent } from '@/lib/track-event';
+import { isEduEmail } from '@/lib/edu-validation';
 
 type AuthStep = 'email' | 'otp' | 'profile';
 
@@ -85,10 +86,15 @@ export function AuthForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: trimmed }),
       });
-      const validation: { allowed: boolean; error?: string } = await res.json();
+      const validation: {
+        valid: boolean;
+        isEdu?: boolean;
+        badge?: 'verified_student';
+        error?: string;
+      } = await res.json();
 
-      if (!validation.allowed) {
-        setError(validation.error ?? 'CribAI requires a .edu email address');
+      if (!validation.valid) {
+        setError(validation.error ?? 'Please enter a valid email address.');
         setLoading(false);
         return;
       }
@@ -135,6 +141,25 @@ export function AuthForm() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
+
+    // PDR-003 Track B Day 2: persist .edu badge into user_metadata so
+    // downstream surfaces (profile chip, sublease post gate fallback)
+    // can read it without re-validating the email string.
+    if (user) {
+      const trimmedEmail = email.trim();
+      const isEdu = isEduEmail(trimmedEmail);
+      const existingFlag = (user.user_metadata as { is_verified_student?: boolean } | null)
+        ?.is_verified_student;
+      if (existingFlag !== isEdu) {
+        try {
+          await supabase.auth.updateUser({
+            data: { is_verified_student: isEdu },
+          });
+        } catch {
+          // Non-fatal — badge will be re-tried on next sign-in.
+        }
+      }
+    }
 
     if (user) {
       let profile:
@@ -263,7 +288,9 @@ export function AuthForm() {
                 Sign in to CribAI
               </h2>
               <p className="mt-2 text-sm text-[var(--surface-500)]">
-                Enter your .edu email and we&apos;ll send you a verification code.
+                Enter your email and we&apos;ll send you a verification code.
+                Students with a <span className="font-medium">.edu</span> address
+                get a Verified UW Student badge.
               </p>
             </div>
 
