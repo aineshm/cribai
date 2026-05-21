@@ -14,3 +14,9 @@ export { executeMission, runMissionQueueOnce, registerMission, getMissionDefinit
 export type { MissionStep, StepContext, StepResult, MissionDefinition, ExecuteOptions } from './missions';
 export { classifyIntent, shouldClassify } from './intent-classifier';
 export type { IntentResult } from './intent-classifier';
+export { extractListing, ExtractionError } from './extraction';
+export type {
+  ExtractedListing,
+  ExtractListingOptions,
+  ExtractionErrorCode,
+} from './extraction';

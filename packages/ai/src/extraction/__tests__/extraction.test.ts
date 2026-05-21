@@ -1,0 +1,636 @@
+/**
+ * Unit tests for the listing extraction service (AIN-13 Days 3-4).
+ *
+ * Uses fixture HTML files (`__fixtures__/`) to exercise the JSON-LD primary
+ * path, the OpenGraph fallback path, the merge logic, and the error paths.
+ *
+ * Live network fetches are gated behind `E2E_LIVE_EXTRACTION=1` and skipped
+ * in the standard CI run.
+ */
+
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import { describe, it, expect } from 'vitest';
+
+import {
+  extractListing,
+  ExtractionError,
+  parseAllJsonLdBlocks,
+  parseMetaTags,
+  decodeHtmlEntities,
+  extractFromJsonLd,
+  extractFromOg,
+} from '../index';
+import { projectJsonLdEntity } from '../json-ld';
+
+const FIXTURES_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '__fixtures__');
+
+/**
+ * Build a fake `fetch` that returns the given fixture HTML for the given URL.
+ * Throws if the test asks for an unexpected URL — keeps mistakes loud.
+ */
+function makeFixtureFetcher(map: Record<string, { body: string; status?: number }>): typeof fetch {
+  return (async (input: string | URL | Request) => {
+    const url =
+      typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url;
+    const hit = map[url];
+    if (!hit) throw new Error(`Test fetcher: unexpected URL ${url}`);
+    return new Response(hit.body, { status: hit.status ?? 200 });
+  }) as typeof fetch;
+}
+
+async function loadFixture(name: string): Promise<string> {
+  return await readFile(join(FIXTURES_DIR, name), 'utf8');
+}
+
+// ===========================================================================
+// JSON-LD primary path
+// ===========================================================================
+
+describe('JSON-LD primary path', () => {
+  it('extracts full Zillow listing with high confidence', async () => {
+    const html = await loadFixture('zillow.html');
+    const url = 'https://www.zillow.com/homedetails/123-W-Gorham-St-APT-3-Madison-WI-53703/12345_zpid/';
+    const result = await extractListing(url, {
+      fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+    });
+
+    expect(result.source_url).toBe(url);
+    expect(result.source_domain).toBe('zillow.com');
+    expect(result.title).toBe('123 W Gorham St APT 3');
+    expect(result.description).toContain('Cozy 2BR');
+    // JSON-LD strings are NOT HTML-decoded — they're JSON text, not HTML attrs.
+    // The fixture has a literal `&amp;` inside the JSON-LD description; we
+    // intentionally preserve it verbatim. OG paths (below) do decode entities.
+    expect(result.description).toContain('Heat &amp; water');
+    expect(result.price).toBe(1950);
+    expect(result.bedrooms).toBe(2);
+    expect(result.bathrooms).toBe(1);
+    expect(result.square_feet).toBe(850);
+    expect(result.address).toBe('123 W Gorham St APT 3');
+    expect(result.city).toBe('Madison');
+    expect(result.state).toBe('WI');
+    expect(result.zip).toBe('53703');
+    expect(result.latitude).toBeCloseTo(43.0747, 4);
+    expect(result.longitude).toBeCloseTo(-89.3839, 4);
+    expect(result.photos).toEqual([
+      'https://photos.zillowstatic.com/fp/abc-uncropped_scaled.jpg',
+      'https://photos.zillowstatic.com/fp/abc-2.jpg',
+    ]);
+    expect(result.amenities).toEqual(['In-unit laundry', 'Dishwasher']); // pool=false dropped
+    expect(result.available_from).toBe('2026-08-15');
+    expect(result.extraction_method).toBe('json_ld');
+    expect(result.extraction_confidence).toBe('high');
+    expect(result.raw_json_ld).toBeDefined();
+  });
+
+  it('handles @graph wrapper from Apartments.com', async () => {
+    const html = await loadFixture('apartments-com.html');
+    const url = 'https://www.apartments.com/the-hub-at-madison-madison-wi/abc123/';
+    const result = await extractListing(url, {
+      fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+    });
+
+    expect(result.source_domain).toBe('apartments.com');
+    expect(result.title).toBe('The Hub at Madison');
+    expect(result.price).toBe(2150); // priceSpecification nested
+    expect(result.bedrooms).toBe(3);
+    expect(result.bathrooms).toBe(2);
+    expect(result.square_feet).toBe(1100); // unitText "sqft"
+    expect(result.address).toBe('437 N Frances St');
+    expect(result.latitude).toBeCloseTo(43.0738, 4); // numeric string coerced
+    expect(result.longitude).toBeCloseTo(-89.3992, 4);
+    // Image was a single relative string — should resolve against URL.
+    expect(result.photos).toEqual(['https://www.apartments.com/images/hub/exterior.jpg']);
+    // Amenity with no `value` key still counts (presence implies true)
+    expect(result.amenities).toEqual(['Fitness Center', 'Rooftop Pool']);
+    expect(result.extraction_method).toBe('json_ld');
+    expect(result.extraction_confidence).toBe('high');
+  });
+
+  it('handles Realtor.com with multiple JSON-LD blocks and ImageObject array', async () => {
+    const html = await loadFixture('realtor.html');
+    const url = 'https://www.realtor.com/realestateandhomes-detail/522-State-St_Madison_WI_53703_M12345';
+    const result = await extractListing(url, {
+      fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+    });
+
+    expect(result.source_domain).toBe('realtor.com');
+    expect(result.title).toBe('522 State St');
+    expect(result.description).toContain('cafes'); // JSON-LD strings preserved
+    expect(result.price).toBe(3200);
+    expect(result.bedrooms).toBe(4); // numberOfRooms fallback
+    expect(result.bathrooms).toBe(2.5);
+    expect(result.square_feet).toBe(1850);
+    expect(result.photos).toEqual([
+      'https://ap.rdcpix.com/aaa/exterior.jpg',
+      'https://ap.rdcpix.com/aaa/living.jpg',
+    ]);
+    expect(result.amenities).toEqual(['Garage', 'Hardwood Floors', 'Central Air']);
+    expect(result.extraction_confidence).toBe('high');
+  });
+});
+
+// ===========================================================================
+// OpenGraph fallback path
+// ===========================================================================
+
+describe('OpenGraph fallback path', () => {
+  it('falls back to OG when no JSON-LD is present (low confidence per spec)', async () => {
+    // Fixture #4 in the task spec: "A site with ONLY OpenGraph — verify
+    // fallback works, returns 'low' confidence". This fixture intentionally
+    // omits price so the OG-only path produces a sparse result.
+    const html = await loadFixture('og-only.html');
+    const url = 'https://www.facebook.com/marketplace/item/abc123/';
+    const result = await extractListing(url, {
+      fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+    });
+
+    expect(result.source_domain).toBe('facebook.com');
+    expect(result.title).toBe('2BR Sublease near UW Campus');
+    expect(result.description).toContain('Heat & water'); // entity decoded in OG path
+    expect(result.photos).toEqual([
+      'https://www.facebook.com/images/sublease/photo1.jpg',
+      'https://www.facebook.com/images/sublease/photo2.jpg',
+    ]);
+    expect(result.extraction_method).toBe('og');
+    expect(result.extraction_confidence).toBe('low');
+    expect(result.raw_og).toBeDefined();
+    expect(result.raw_og!['og:title']).toBe('2BR Sublease near UW Campus');
+    // Fields JSON-LD-only should be undefined
+    expect(result.price).toBeUndefined();
+    expect(result.bedrooms).toBeUndefined();
+    expect(result.address).toBeUndefined();
+  });
+
+  it('rich OG (with price) still earns medium confidence', async () => {
+    // Separate from fixture #4 — confirms that the confidence-scoring nuance
+    // for OG-only with price + title + photos is preserved.
+    const html = `<!doctype html><html><head>
+      <meta property="og:title" content="Rich OG Listing" />
+      <meta property="og:image" content="https://example.com/rich.jpg" />
+      <meta property="og:price:amount" content="1500" />
+    </head><body></body></html>`;
+    const url = 'https://example.com/rich-og';
+    const result = await extractListing(url, {
+      fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+    });
+    expect(result.extraction_method).toBe('og');
+    expect(result.extraction_confidence).toBe('medium');
+  });
+
+  it('gracefully degrades to OG when JSON-LD is malformed', async () => {
+    const html = await loadFixture('malformed-jsonld.html');
+    const url = 'https://example.com/cozy-studio';
+    const result = await extractListing(url, {
+      fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+    });
+
+    expect(result.title).toBe('Cozy Studio Apartment in Madison');
+    expect(result.price).toBe(1250);
+    expect(result.extraction_method).toBe('og');
+    // No address / bedrooms via OG → low confidence
+    expect(result.extraction_confidence).toBe('medium'); // price + title + photo → medium
+  });
+
+  it('produces og-only low confidence when OG fields are sparse', async () => {
+    const html = `<!doctype html><html><head>
+      <meta property="og:title" content="A Place" />
+    </head><body></body></html>`;
+    const url = 'https://example.com/sparse';
+    const result = await extractListing(url, {
+      fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+    });
+    expect(result.title).toBe('A Place');
+    expect(result.extraction_method).toBe('og');
+    expect(result.extraction_confidence).toBe('low');
+  });
+});
+
+// ===========================================================================
+// Merge behavior — JSON-LD + OG
+// ===========================================================================
+
+describe('JSON-LD + OG merge', () => {
+  it('marks extraction_method as json_ld_plus_og when OG fills a gap', async () => {
+    // JSON-LD without description, OG provides it.
+    const html = `<!doctype html><html><head>
+      <meta property="og:description" content="OG-only description text." />
+      <script type="application/ld+json">
+      {"@context":"https://schema.org","@type":"Apartment","name":"Test Apt",
+       "address":{"@type":"PostalAddress","streetAddress":"1 Main St","addressLocality":"Madison","addressRegion":"WI","postalCode":"53703"},
+       "numberOfBedrooms":1,"offers":{"@type":"Offer","price":900,"priceCurrency":"USD"}}
+      </script>
+    </head><body></body></html>`;
+    const url = 'https://example.com/merge-test';
+    const result = await extractListing(url, {
+      fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+    });
+    expect(result.extraction_method).toBe('json_ld_plus_og');
+    expect(result.description).toBe('OG-only description text.');
+    expect(result.title).toBe('Test Apt'); // JSON-LD wins
+    expect(result.extraction_confidence).toBe('high'); // price + address + bedrooms all present
+  });
+
+  it('JSON-LD takes precedence over OG on shared fields', async () => {
+    const html = `<!doctype html><html><head>
+      <meta property="og:title" content="OG title" />
+      <script type="application/ld+json">
+      {"@context":"https://schema.org","@type":"Apartment","name":"JSON-LD title",
+       "offers":{"@type":"Offer","price":1000}}
+      </script>
+    </head><body></body></html>`;
+    const url = 'https://example.com/precedence';
+    const result = await extractListing(url, {
+      fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+    });
+    expect(result.title).toBe('JSON-LD title');
+    // OG didn't fill any gap, so method stays json_ld (raw_og still attached as debug)
+    expect(result.extraction_method).toBe('json_ld');
+    expect(result.raw_og).toBeDefined();
+  });
+});
+
+// ===========================================================================
+// Error paths
+// ===========================================================================
+
+describe('error paths', () => {
+  it('throws no_listing_data when neither path produces anything', async () => {
+    const html = await loadFixture('no-structured-data.html');
+    const url = 'https://example.com/empty';
+    await expect(
+      extractListing(url, {
+        fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+      }),
+    ).rejects.toMatchObject({
+      name: 'ExtractionError',
+      code: 'no_listing_data',
+    });
+  });
+
+  it('throws parse_failed on invalid URL', async () => {
+    await expect(extractListing('not a url')).rejects.toMatchObject({
+      name: 'ExtractionError',
+      code: 'parse_failed',
+    });
+  });
+
+  it('throws parse_failed on unsupported scheme', async () => {
+    await expect(extractListing('ftp://example.com/foo')).rejects.toMatchObject({
+      code: 'parse_failed',
+    });
+  });
+
+  it('throws fetch_failed on network error', async () => {
+    const url = 'https://example.com/will-fail';
+    const fetcher = (async () => {
+      throw new Error('socket hang up');
+    }) as typeof fetch;
+    await expect(extractListing(url, { fetcher })).rejects.toMatchObject({
+      code: 'fetch_failed',
+    });
+  });
+
+  it('throws fetch_blocked on 403', async () => {
+    const url = 'https://example.com/blocked';
+    const fetcher = makeFixtureFetcher({ [url]: { body: 'nope', status: 403 } });
+    await expect(extractListing(url, { fetcher })).rejects.toMatchObject({
+      code: 'fetch_blocked',
+    });
+  });
+
+  it('throws fetch_blocked on 429', async () => {
+    const url = 'https://example.com/throttled';
+    const fetcher = makeFixtureFetcher({ [url]: { body: 'nope', status: 429 } });
+    await expect(extractListing(url, { fetcher })).rejects.toMatchObject({
+      code: 'fetch_blocked',
+    });
+  });
+
+  it('throws fetch_failed on 404', async () => {
+    const url = 'https://example.com/missing';
+    const fetcher = makeFixtureFetcher({ [url]: { body: 'nope', status: 404 } });
+    await expect(extractListing(url, { fetcher })).rejects.toMatchObject({
+      code: 'fetch_failed',
+    });
+  });
+
+  it('throws fetch_blocked when body has a captcha signal', async () => {
+    const url = 'https://example.com/captcha';
+    const fetcher = makeFixtureFetcher({
+      [url]: { body: '<html><body>Please verify you are human</body></html>' },
+    });
+    await expect(extractListing(url, { fetcher })).rejects.toMatchObject({
+      code: 'fetch_blocked',
+    });
+  });
+
+  it('honours fetch timeout via AbortController', async () => {
+    const url = 'https://example.com/slow';
+    const fetcher = ((_, init?: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        const signal = init?.signal;
+        if (signal) {
+          signal.addEventListener('abort', () => {
+            const err = new Error('aborted');
+            err.name = 'AbortError';
+            reject(err);
+          });
+        }
+      });
+    }) as typeof fetch;
+    await expect(
+      extractListing(url, { fetcher, timeoutMs: 10 }),
+    ).rejects.toMatchObject({ code: 'fetch_failed' });
+  });
+
+  it('ExtractionError carries the original cause', () => {
+    const cause = new Error('inner');
+    const err = new ExtractionError('fetch_failed', 'wrapped', 'https://example.com', cause);
+    expect(err.code).toBe('fetch_failed');
+    expect(err.url).toBe('https://example.com');
+    expect(err.cause).toBe(cause);
+    expect(err.name).toBe('ExtractionError');
+  });
+});
+
+// ===========================================================================
+// Unit helpers
+// ===========================================================================
+
+describe('parseAllJsonLdBlocks', () => {
+  it('parses multiple blocks and skips malformed ones', () => {
+    const html = `
+      <script type="application/ld+json">{"a":1}</script>
+      <script type="application/ld+json">not json</script>
+      <script type="application/ld+json">{"b":2}</script>
+    `;
+    expect(parseAllJsonLdBlocks(html)).toEqual([{ a: 1 }, { b: 2 }]);
+  });
+
+  it('ignores empty bodies', () => {
+    const html = `<script type="application/ld+json">  </script>`;
+    expect(parseAllJsonLdBlocks(html)).toEqual([]);
+  });
+
+  it('tolerates single quotes and attribute order in the script tag', () => {
+    const html = `<script data-foo="bar" type='application/ld+json'>{"x":1}</script>`;
+    expect(parseAllJsonLdBlocks(html)).toEqual([{ x: 1 }]);
+  });
+});
+
+describe('parseMetaTags', () => {
+  it('captures property and name attributes', () => {
+    const html = `
+      <meta property="og:title" content="A" />
+      <meta name="twitter:title" content="B" />
+    `;
+    const { single } = parseMetaTags(html);
+    expect(single['og:title']).toBe('A');
+    expect(single['twitter:title']).toBe('B');
+  });
+
+  it('collects multi-valued og:image into multi', () => {
+    const html = `
+      <meta property="og:image" content="https://a.example/1.jpg" />
+      <meta property="og:image" content="https://a.example/2.jpg" />
+    `;
+    const { multi } = parseMetaTags(html);
+    expect(multi['og:image']).toEqual(['https://a.example/1.jpg', 'https://a.example/2.jpg']);
+  });
+
+  it('decodes entities in content', () => {
+    const html = `<meta property="og:title" content="A &amp; B &#39;C&#39;" />`;
+    const { single } = parseMetaTags(html);
+    expect(single['og:title']).toBe("A & B 'C'");
+  });
+
+  it('ignores meta tags with no content', () => {
+    const html = `<meta property="og:title" />`;
+    const { single } = parseMetaTags(html);
+    expect(single['og:title']).toBeUndefined();
+  });
+});
+
+describe('decodeHtmlEntities', () => {
+  it('decodes named entities', () => {
+    expect(decodeHtmlEntities('&amp;|&lt;|&gt;|&quot;|&apos;|&nbsp;')).toBe('&|<|>|"|\'| ');
+  });
+  it('decodes numeric entities', () => {
+    expect(decodeHtmlEntities('&#65; &#x41;')).toBe('A A');
+  });
+  it('handles &amp; without double-decoding', () => {
+    expect(decodeHtmlEntities('&amp;lt;')).toBe('&lt;');
+  });
+  it('decodes &amp;amp; to &amp; (single round of substitution)', () => {
+    expect(decodeHtmlEntities('&amp;amp;')).toBe('&amp;');
+  });
+});
+
+describe('projectJsonLdEntity edge cases', () => {
+  it('converts square meters to square feet via unitCode MTK', () => {
+    const projected = projectJsonLdEntity(
+      {
+        '@type': 'Apartment',
+        floorSize: { value: 50, unitCode: 'MTK' },
+      },
+      'https://example.com/x',
+    );
+    // 50 m² ~= 538 sqft
+    expect(projected.square_feet).toBe(538);
+  });
+
+  it('handles numeric-string price directly on entity', () => {
+    const projected = projectJsonLdEntity(
+      {
+        '@type': 'Product',
+        price: '$1,950.50',
+      },
+      'https://example.com/x',
+    );
+    expect(projected.price).toBe(1950.5);
+  });
+
+  it('resolves relative image URLs', () => {
+    const projected = projectJsonLdEntity(
+      {
+        '@type': 'Apartment',
+        image: ['/photos/a.jpg', '/photos/b.jpg'],
+      },
+      'https://www.example.com/listing/1',
+    );
+    expect(projected.photos).toEqual([
+      'https://www.example.com/photos/a.jpg',
+      'https://www.example.com/photos/b.jpg',
+    ]);
+  });
+
+  it('extracts amenities from additionalProperty array', () => {
+    const projected = projectJsonLdEntity(
+      {
+        '@type': 'Apartment',
+        additionalProperty: [
+          { '@type': 'PropertyValue', name: 'Pets allowed', value: true },
+          { '@type': 'PropertyValue', name: 'Smoking', value: false },
+        ],
+      },
+      'https://example.com/x',
+    );
+    expect(projected.amenities).toEqual(['Pets allowed']);
+  });
+
+  it('handles flat string address', () => {
+    const projected = projectJsonLdEntity(
+      {
+        '@type': 'Apartment',
+        address: '1 Main St, Madison, WI',
+      },
+      'https://example.com/x',
+    );
+    expect(projected.address).toBe('1 Main St, Madison, WI');
+    expect(projected.city).toBeUndefined();
+  });
+
+  it('handles @type as array including a listing type', () => {
+    // findListingEntities should still pick this up.
+    const html = `<script type="application/ld+json">
+      {"@context":"https://schema.org","@type":["Apartment","Residence"],"name":"X"}
+    </script>`;
+    const result = extractFromJsonLd(html, 'https://example.com/x');
+    expect(result).not.toBeNull();
+    expect(result?.title).toBe('X');
+  });
+
+  it('handles ImageObject with contentUrl', () => {
+    const projected = projectJsonLdEntity(
+      {
+        '@type': 'Apartment',
+        image: [{ '@type': 'ImageObject', contentUrl: 'https://example.com/c.jpg' }],
+      },
+      'https://example.com/x',
+    );
+    expect(projected.photos).toEqual(['https://example.com/c.jpg']);
+  });
+
+  it('handles geo as an array of GeoCoordinates', () => {
+    const projected = projectJsonLdEntity(
+      {
+        '@type': 'Apartment',
+        geo: [{ '@type': 'GeoCoordinates', latitude: 43.07, longitude: -89.38 }],
+      },
+      'https://example.com/x',
+    );
+    expect(projected.latitude).toBeCloseTo(43.07);
+    expect(projected.longitude).toBeCloseTo(-89.38);
+  });
+
+  it('handles bedrooms encoded as {value} object', () => {
+    const projected = projectJsonLdEntity(
+      {
+        '@type': 'Apartment',
+        numberOfBedrooms: { value: 2 },
+      },
+      'https://example.com/x',
+    );
+    expect(projected.bedrooms).toBe(2);
+  });
+
+  it('handles bathrooms encoded as {value} object', () => {
+    const projected = projectJsonLdEntity(
+      {
+        '@type': 'Apartment',
+        numberOfBathrooms: { value: 1.5 },
+      },
+      'https://example.com/x',
+    );
+    expect(projected.bathrooms).toBe(1.5);
+  });
+
+  it('falls back to numberOfFullBathrooms when total/numberOfBathrooms absent', () => {
+    const projected = projectJsonLdEntity(
+      {
+        '@type': 'Apartment',
+        numberOfFullBathrooms: 2,
+      },
+      'https://example.com/x',
+    );
+    expect(projected.bathrooms).toBe(2);
+  });
+
+  it('returns undefined floor size when value is non-numeric', () => {
+    const projected = projectJsonLdEntity(
+      {
+        '@type': 'Apartment',
+        floorSize: { value: 'not a number' },
+      },
+      'https://example.com/x',
+    );
+    expect(projected.square_feet).toBeUndefined();
+  });
+
+  it('returns undefined geo when only one axis present', () => {
+    const projected = projectJsonLdEntity(
+      {
+        '@type': 'Apartment',
+        geo: { latitude: 43.07 },
+      },
+      'https://example.com/x',
+    );
+    expect(projected.latitude).toBeUndefined();
+    expect(projected.longitude).toBeUndefined();
+  });
+
+  it('handles address as an array of PostalAddress (first element wins)', () => {
+    const projected = projectJsonLdEntity(
+      {
+        '@type': 'Apartment',
+        address: [
+          { '@type': 'PostalAddress', streetAddress: 'A', addressLocality: 'X' },
+          { '@type': 'PostalAddress', streetAddress: 'B', addressLocality: 'Y' },
+        ],
+      },
+      'https://example.com/x',
+    );
+    expect(projected.address).toBe('A');
+    expect(projected.city).toBe('X');
+  });
+});
+
+describe('extractFromOg', () => {
+  it('treats sites with twitter cards as OG-equivalent for title/desc', () => {
+    const html = `
+      <meta name="twitter:title" content="Twitter Title" />
+      <meta name="twitter:description" content="Twitter Desc" />
+      <meta name="twitter:image" content="https://example.com/x.jpg" />
+    `;
+    const { fields, hasAnyOgData } = extractFromOg(html, 'https://example.com/page');
+    expect(hasAnyOgData).toBe(true);
+    expect(fields.title).toBe('Twitter Title');
+    expect(fields.description).toBe('Twitter Desc');
+    expect(fields.photos).toEqual(['https://example.com/x.jpg']);
+  });
+});
+
+// ===========================================================================
+// Live integration — gated
+// ===========================================================================
+
+describe.skipIf(process.env.E2E_LIVE_EXTRACTION !== '1')('live integration (E2E_LIVE_EXTRACTION=1)', () => {
+  // This test is intentionally minimal — its job is to confirm that our UA
+  // and timeout policy actually work against a real origin. Pinning to a
+  // specific listing URL is brittle by design; flip the env var only when
+  // you mean to hit the network.
+  it('fetches a real listing without throwing', async () => {
+    const url = process.env.E2E_LIVE_EXTRACTION_URL ?? 'https://www.apartments.com/';
+    const result = await extractListing(url);
+    expect(result.source_url).toBe(url);
+    // Don't assert on fields — site HTML drifts.
+    expect(['json_ld', 'og', 'json_ld_plus_og']).toContain(result.extraction_method);
+  });
+});
