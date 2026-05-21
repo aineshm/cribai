@@ -12,7 +12,9 @@ let cached: Promise<string> | null = null;
 const FALLBACK_ID = '47bec7cf-7356-4c32-9980-502ff6462f57';
 
 async function fetchActiveListingId(request: APIRequestContext): Promise<string> {
-  const res = await request.post('http://localhost:3000/api/search/listings', {
+  // Relative URL — resolves against playwright.config.ts baseURL so the helper
+  // works against any host (local dev, CI, preview deploy), not just localhost:3000.
+  const res = await request.post('/api/search/listings', {
     data: { campusSlug: 'uw-madison', limit: 5 },
     failOnStatusCode: false,
   });

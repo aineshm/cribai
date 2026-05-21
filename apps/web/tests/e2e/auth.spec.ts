@@ -200,20 +200,11 @@ test.describe('Auth page — email validation (PR #75 — .edu gate relaxed)', (
     await login.goto();
     await login.submitEmail('user@gmail.com');
 
-    // Either the OTP step appears, or no error appears — but in no case
-    // should we see a ".edu"-specific rejection.
-    const otpHeadingVisible = await login.otpHeading
-      .waitFor({ state: 'visible', timeout: 8_000 })
-      .then(() => true)
-      .catch(() => false);
-    const errorTextOrNull = (await login.errorMessage.isVisible().catch(() => false))
-      ? await login.errorMessage.innerText()
-      : null;
-
-    expect(
-      otpHeadingVisible || errorTextOrNull === null || !/\.edu/i.test(errorTextOrNull),
-      `Non-.edu email should not be rejected with .edu error. Got: "${errorTextOrNull}"`,
-    ).toBe(true);
+    // OTP endpoint is stubbed to succeed, so the OTP step MUST appear if the
+    // .edu gate truly accepted the non-.edu email. Any other outcome — a
+    // generic error, rate limit, or no transition — is a real regression.
+    await expect(login.otpHeading).toBeVisible({ timeout: 8_000 });
+    await expect(login.errorMessage).toBeHidden();
   });
 
   test('email step has Mail icon', async ({ page }) => {

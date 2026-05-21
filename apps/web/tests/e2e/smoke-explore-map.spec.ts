@@ -49,6 +49,16 @@ test('smoke: explore page map overlay count changes after chat query', async ({ 
 
   console.log(`\nSMOKE RESULT — Before: "${beforeText}" | After: "${afterText}"`);
 
-  // Verify we got a valid before reading
+  // Sanity: the overlay rendered before the search
   expect(beforeText).toMatch(/\d[\d,]*\s+listings?\s+on\s+map/i);
+
+  // Real regression guard: after the AI search the overlay must still show a
+  // listings-on-map count, AND the "Showing N AI results" badge must appear
+  // (proves the AI search results actually drove the map state, not just that
+  // the overlay continues to render its initial value).
+  const afterMatch = afterText.match(/(\d[\d,]*)\s+listings?\s+on\s+map/i);
+  expect(afterMatch, `Map overlay missing after search. Got: "${afterText}"`).not.toBeNull();
+  expect(Number((afterMatch![1] ?? '0').replace(/,/g, ''))).toBeGreaterThan(0);
+
+  await expect(page.getByText(/Showing\s+\d+\s+AI\s+results?/i)).toBeVisible({ timeout: 5000 });
 });
