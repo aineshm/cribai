@@ -43,6 +43,9 @@ test.describe('Chat Navigation', () => {
 });
 
 test.describe('Landing Page Auth State (unauthenticated)', () => {
+  // Desktop-only: mobile nav uses a hamburger menu, not the "Get Started" link
+  test.use({ viewport: { width: 1280, height: 800 } });
+
   test('hero CTA points to /login when unauthenticated', async ({ page }) => {
     const home = new HomePage(page);
     await home.goto();

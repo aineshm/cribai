@@ -1,11 +1,17 @@
 /**
- * Verification test: map pin count changes after AI search.
+ * Verification test: map populates with AI-matched listings after a search.
  *
- * Goal: Confirm the map overlay badge count decreases when the user
- * sends "find me 1 bedroom apartments under $1500" to the AI.
+ * Goal: Confirm that after the user sends "find me 1 bedroom apartments under
+ * $1500", ExploreClient.handleMapListings replaces the map with AI results and
+ * the "Showing N AI results" badge appears.
  *
- * Pass: map count AFTER < map count BEFORE
- * Fail: map count stays the same (no filtering applied)
+ * Behavior note (post viewport-bounded fetch):
+ *   The map no longer loads the full corpus on first paint. Initial count may
+ *   be 0 until Mapbox emits bounds. We now assert AI-population (badge + non-zero
+ *   count after), not narrowing-from-full.
+ *
+ * Pass: "Showing N AI results" badge appears AND post-search map count > 0
+ * Fail: badge missing or map count stays at 0 (no AI-driven update)
  */
 
 import { test, expect, type Page } from '@playwright/test';
@@ -15,15 +21,15 @@ import * as path from 'path';
 const QUERY = 'find me 1 bedroom apartments under $1500';
 const RESULTS_DIR = '/Users/aineshmohan/Developer/ai-real-estate-agent/apps/web/test-results/verify-map';
 
-/** Parse the geocoded-match count from the map panel overlay. Returns null if not found. */
+/** Parse the listings-on-map count from the map panel overlay. Returns null if not found. */
 async function readGeocodedCount(page: Page): Promise<number | null> {
-  // MapPanel renders: "{count} geocoded matches syncing with your filters"
-  const locator = page.locator('text=/geocoded matches/i').first();
+  // MapPanel renders: "{count} listing(s) on map" (rebrand from "geocoded matches")
+  const locator = page.locator('text=/\\d[\\d,]*\\s+listings?\\s+on\\s+map/i').first();
   const count = await locator.count();
   if (!count) return null;
   const text = await locator.innerText().catch(() => null);
   if (!text) return null;
-  const match = text.match(/(\d[\d,]*)\s+geocoded/i);
+  const match = text.match(/(\d[\d,]*)\s+listings?\s+on\s+map/i);
   if (!match) return null;
   return parseInt(match[1].replace(/,/g, ''), 10);
 }
@@ -47,8 +53,8 @@ test.describe('Map pin count narrows after AI search', () => {
     await page.goto('http://localhost:3000/explore');
     await page.waitForLoadState('networkidle');
 
-    // Wait up to 15s for the map overlay badge
-    const overlayLocator = page.locator('text=/geocoded matches/i').first();
+    // Wait up to 15s for the map overlay badge (post-rebrand text)
+    const overlayLocator = page.locator('text=/\\d[\\d,]*\\s+listings?\\s+on\\s+map/i').first();
     await expect(overlayLocator).toBeVisible({ timeout: 15_000 });
 
     // ----------------------------------------------------------------
@@ -80,7 +86,7 @@ test.describe('Map pin count narrows after AI search', () => {
     // ----------------------------------------------------------------
     // Strategy: wait for an assistant bubble with non-empty text.
     // The assistant bubble uses a distinct background class in the chat UI.
-    const assistantBubble = page.locator('.bg-gray-100\\/80').last();
+    const assistantBubble = page.locator('[data-role="assistant"]').last();
 
     let aiResponseText = '';
     try {
@@ -118,32 +124,35 @@ test.describe('Map pin count narrows after AI search', () => {
     console.log(`Screenshot:       ${afterScreenshot}`);
 
     // ----------------------------------------------------------------
-    // 6. Evaluate pass/fail
+    // 6. Evaluate pass/fail (post viewport-bounded behavior)
     // ----------------------------------------------------------------
-    const geocodedDecreased =
-      beforeGeoCount !== null &&
-      afterGeoCount !== null &&
-      afterGeoCount < beforeGeoCount;
+    const aiResultsBadge = page.getByText(/Showing\s+\d+\s+AI\s+results?/i).first();
+    const aiBadgeVisible = await aiResultsBadge
+      .isVisible({ timeout: 5_000 })
+      .catch(() => false);
+    const mapPopulated = (afterGeoCount ?? 0) > 0 || afterPinCount > 0;
 
-    const pinsDecreased = beforePinCount > 0 && afterPinCount < beforePinCount;
-    const countDecreased = geocodedDecreased || pinsDecreased;
-
-    const verdict = countDecreased ? 'PASS' : 'FAIL';
+    const verdict = aiBadgeVisible && mapPopulated ? 'PASS' : 'FAIL';
 
     console.log(`\n==========================================`);
+    console.log(`AI results badge visible: ${aiBadgeVisible}`);
     console.log(`MAP COUNT BEFORE: ${beforeGeoCount ?? beforePinCount + ' pins'}`);
     console.log(`MAP COUNT AFTER:  ${afterGeoCount ?? afterPinCount + ' pins'}`);
-    console.log(`VERDICT: ${verdict} — count ${countDecreased ? 'DID decrease' : 'did NOT decrease'}`);
+    console.log(`VERDICT: ${verdict}`);
     console.log(`==========================================\n`);
 
     // Annotate in HTML report
     testInfo.annotations.push({
+      type: 'AI results badge',
+      description: aiBadgeVisible ? 'visible' : 'missing',
+    });
+    testInfo.annotations.push({
       type: 'Map count BEFORE',
-      description: `Geocoded overlay: ${beforeGeoCount ?? 'N/A'} | DOM pins: ${beforePinCount}`,
+      description: `On-map overlay: ${beforeGeoCount ?? 'N/A'} | DOM pins: ${beforePinCount}`,
     });
     testInfo.annotations.push({
       type: 'Map count AFTER',
-      description: `Geocoded overlay: ${afterGeoCount ?? 'N/A'} | DOM pins: ${afterPinCount}`,
+      description: `On-map overlay: ${afterGeoCount ?? 'N/A'} | DOM pins: ${afterPinCount}`,
     });
     testInfo.annotations.push({
       type: 'VERDICT',
@@ -156,13 +165,14 @@ test.describe('Map pin count narrows after AI search', () => {
       return;
     }
 
-    // Assert map narrowed
+    // Assert AI-driven map population happened
     expect(
-      countDecreased,
-      `FAIL — map count did not decrease after AI search.\n` +
-      `Before: geocoded=${beforeGeoCount ?? 'N/A'} pins=${beforePinCount}\n` +
-      `After:  geocoded=${afterGeoCount ?? 'N/A'} pins=${afterPinCount}\n` +
-      `Check that ExploreClient wires onMapListings from CribAIChat to MapPanel.`,
+      aiBadgeVisible && mapPopulated,
+      `Expected "Showing N AI results" badge AND populated map after AI search.\n` +
+      `Badge visible: ${aiBadgeVisible}\n` +
+      `Before: overlay=${beforeGeoCount ?? 'N/A'} pins=${beforePinCount}\n` +
+      `After:  overlay=${afterGeoCount ?? 'N/A'} pins=${afterPinCount}\n` +
+      `Check ExploreClient.handleMapListings wiring + AI tool calls firing.`,
     ).toBe(true);
   });
 });

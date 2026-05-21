@@ -19,6 +19,9 @@ async function checkAuthBypassed(page: any): Promise<boolean> {
 }
 
 test.describe('Landing Page', () => {
+  // Desktop-only: mobile nav uses a hamburger menu instead of inline "Get Started" / "Browse" links
+  test.use({ viewport: { width: 1280, height: 800 } });
+
   test('renders hero with heading and subtitle', async ({ page }) => {
     const home = new HomePage(page);
     await home.goto();

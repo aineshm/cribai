@@ -53,12 +53,13 @@ test.describe('Explore page (replaced listings UI)', () => {
     await expect(chatInput).not.toBeDisabled();
   });
 
-  test('renders LIVE MAP panel with geocoded count', async ({ page }) => {
+  test('renders Live map panel with listings count', async ({ page }) => {
     await page.goto('/explore');
     await page.waitForLoadState('networkidle');
 
-    await expect(page.getByText('LIVE MAP', { exact: false })).toBeVisible();
-    await expect(page.getByText(/geocoded matches/i)).toBeVisible();
+    // MapPanel overlay copy (post-rebrand): "Live map" + "N listing(s) on map"
+    await expect(page.getByText('Live map', { exact: false })).toBeVisible();
+    await expect(page.getByText(/\d[\d,]*\s+listings?\s+on\s+map/i)).toBeVisible();
   });
 
   test('renders Send button', async ({ page }) => {
@@ -72,8 +73,9 @@ test.describe('Explore page (replaced listings UI)', () => {
     await page.goto('/explore');
     await page.waitForLoadState('networkidle');
 
-    // ContextBar always renders with either "Active Context" or "Filters" label in teal-50 pill
-    const contextPill = page.locator('.bg-teal-50').first();
+    // ContextBar always renders with either "Active Context" or "Filters" label
+    // in a red-50 pill (rebranded from teal-50 to match Badger red palette).
+    const contextPill = page.locator('.bg-red-50').first();
     await expect(contextPill).toBeAttached();
   });
 

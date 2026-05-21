@@ -4,39 +4,41 @@ import { test, expect, type Page } from '@playwright/test';
  * E2E test — Explore page map-pin update after AI chat search
  *
  * Goal: Verify that after the user sends a chat query ("find me 2 bedroom
- * apartments under $2000"), the map panel updates to show only AI-matched
- * listings (fewer pins / narrowed count) rather than the full dataset.
+ * apartments under $2000"), the map panel updates to show AI-matched listings.
+ *
+ * Behavior note (post viewport-bounded fetch):
+ *   The map no longer loads the full corpus on first paint. ExploreClient
+ *   fetches listings via /api/explore/viewport bounded by the current Mapbox
+ *   viewport. The initial overlay count may legitimately be 0 until bounds emit.
+ *   After an AI chat query, ExploreClient.handleMapListings replaces the map
+ *   with AI-matched listings and a "Showing N AI results" badge appears.
  *
  * Key selectors:
- *  - Map panel info overlay: text matching /\d+ geocoded matches/
- *    (rendered in MapPanel.tsx: "{geoListings.length} geocoded matches syncing with your filters")
+ *  - Map panel info overlay: text matching /\d+ listings? on map/
+ *    (rendered in MapPanel.tsx: "{geoListings.length} listing(s) on map")
+ *  - AI-results badge: text matching /Showing \d+ AI results?/
  *  - Map price-pin buttons: aria-label containing "per month"
  *  - Chat input: role="textbox", name=/chat message input/i
- *  - AI response bubble: .bg-gray-100\/80 (assistant message)
+ *  - AI response bubble: [data-role="assistant"] (stable test affordance)
  *
  * Pass criterion for map update:
- *   The geocoded-match count OR the visible price-pin count decreases after
- *   the AI responds — i.e. the map is narrowed to matched listings.
- *
- * NOTE: At time of writing, ExploreClient does NOT wire the onMapListings
- * callback from CribAIChat to MapPanel. This test will therefore report
- * FAIL on the map-update criterion and serve as a regression guard once the
- * wiring is added.
+ *   After the AI responds, the "Showing N AI results" badge appears AND
+ *   the on-map count is > 0 — i.e. the AI populated the map with results.
  */
 
 const EXPLORE_URL = '/explore';
 const QUERY = 'find me 2 bedroom apartments under $2000';
 
 /**
- * Parse "N geocoded matches" count from the map panel overlay text.
+ * Parse "N listing(s) on map" count from the map panel overlay text.
  * Returns null if the text is not found.
  */
 async function getGeocodedCount(page: Page): Promise<number | null> {
-  const overlayLocator = page.locator('text=/geocoded matches/i').first();
+  const overlayLocator = page.locator('text=/\\d[\\d,]*\\s+listings?\\s+on\\s+map/i').first();
   const exists = await overlayLocator.count();
   if (!exists) return null;
   const text = await overlayLocator.innerText();
-  const match = text.match(/(\d[\d,]*)\s+geocoded/i);
+  const match = text.match(/(\d[\d,]*)\s+listings?\s+on\s+map/i);
   if (!match) return null;
   return parseInt(match[1].replace(/,/g, ''), 10);
 }
@@ -53,7 +55,7 @@ async function getPinCount(page: Page): Promise<number> {
  * Wait for an AI assistant bubble to appear with content (up to timeoutMs).
  */
 async function waitForAIBubble(page: Page, timeoutMs = 45_000): Promise<string> {
-  const assistantBubble = page.locator('.bg-gray-100\\/80').last();
+  const assistantBubble = page.locator('[data-role="assistant"]').last();
   await expect(assistantBubble).toBeAttached({ timeout: timeoutMs });
   await expect(assistantBubble).not.toBeEmpty({ timeout: timeoutMs });
   return assistantBubble.innerText();
@@ -71,7 +73,7 @@ test.describe('Explore page — map pin update after AI search', () => {
     await page.waitForLoadState('networkidle');
 
     // Wait for the map panel overlay to appear (it renders once MapPanel mounts)
-    await expect(page.locator('text=/geocoded matches/i').first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('text=/\\d[\\d,]*\\s+listings?\\s+on\\s+map/i').first()).toBeVisible({ timeout: 15_000 });
 
     // ------------------------------------------------------------------
     // STEP 2: Capture initial state — geocoded count + screenshot
@@ -86,12 +88,11 @@ test.describe('Explore page — map pin update after AI search', () => {
 
     testInfo.annotations.push({
       type: 'Initial map state',
-      description: `Geocoded count from overlay: ${initialGeoCount ?? 'not found'} | DOM pin buttons: ${initialPinCount}`,
+      description: `Listings-on-map count: ${initialGeoCount ?? 'not found'} | DOM pin buttons: ${initialPinCount}`,
     });
 
-    // The map must be rendering some listings initially
-    const hasInitialData = (initialGeoCount !== null && initialGeoCount > 0) || initialPinCount > 0;
-    expect(hasInitialData, 'Map should have listings visible before any search').toBe(true);
+    // NOTE: with viewport-bounded fetching, the initial count may legitimately
+    // be 0 before Mapbox emits bounds. We no longer require pre-search data.
 
     // ------------------------------------------------------------------
     // STEP 3: Send the chat query
@@ -167,30 +168,21 @@ test.describe('Explore page — map pin update after AI search', () => {
     });
 
     // ------------------------------------------------------------------
-    // STEP 7: MAP UPDATE CRITERION
+    // STEP 7: MAP UPDATE CRITERION (post viewport-bounded fetch)
     //
-    // Pass: post-search geocoded count is less than initial count, OR
-    //       post-search pin count is less than initial pin count.
-    //
-    // This tests whether ExploreClient wires onMapListings → MapPanel.
-    // Currently it does NOT (onMapListings is not passed to CribAIChat),
-    // so we expect this to FAIL as a regression sentinel.
+    // Pass: the "Showing N AI results" badge appears AND the on-map count
+    //       is > 0 — i.e. the AI populated the map with matched listings.
     // ------------------------------------------------------------------
-    const geocodedCountDecreased =
-      initialGeoCount !== null &&
-      postGeoCount !== null &&
-      postGeoCount < initialGeoCount;
-
-    const pinCountDecreased =
-      initialPinCount > 0 &&
-      postPinCount < initialPinCount;
-
-    const mapUpdated = geocodedCountDecreased || pinCountDecreased;
+    const aiResultsBadge = page.getByText(/Showing\s+\d+\s+AI\s+results?/i).first();
+    const aiBadgeVisible = await aiResultsBadge
+      .isVisible({ timeout: 5_000 })
+      .catch(() => false);
+    const mapPopulated = (postGeoCount ?? 0) > 0 || postPinCount > 0;
 
     const mapUpdateSummary = [
-      `Initial geocoded: ${initialGeoCount ?? 'N/A'} → Post: ${postGeoCount ?? 'N/A'} (decreased: ${geocodedCountDecreased})`,
-      `Initial pins: ${initialPinCount} → Post: ${postPinCount} (decreased: ${pinCountDecreased})`,
-      `MAP UPDATE: ${mapUpdated ? 'PASS' : 'FAIL'}`,
+      `AI results badge visible: ${aiBadgeVisible}`,
+      `Post overlay count: ${postGeoCount ?? 'N/A'} | Post pins: ${postPinCount}`,
+      `MAP POPULATED: ${mapPopulated ? 'PASS' : 'FAIL'}`,
     ].join(' | ');
 
     testInfo.annotations.push({
@@ -208,10 +200,8 @@ test.describe('Explore page — map pin update after AI search', () => {
     }
 
     expect(
-      mapUpdated,
-      `Map pin count did not narrow after AI search. ${mapUpdateSummary}. ` +
-      `This means ExploreClient is not wiring onMapListings from CribAIChat to MapPanel. ` +
-      `Fix: add onMapListings handler to ExploreClient that calls setListings(matched).`,
+      aiBadgeVisible && mapPopulated,
+      `Expected "Showing N AI results" badge AND non-zero map count after AI search. ${mapUpdateSummary}`,
     ).toBe(true);
 
     // ------------------------------------------------------------------

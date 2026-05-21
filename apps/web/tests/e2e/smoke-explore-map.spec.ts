@@ -1,11 +1,15 @@
 import { test, expect } from '@playwright/test';
 
+// Desktop-only: mobile explore page hides the map by default (uses a chat/map toggle).
+// This smoke verifies the desktop map overlay updates after an AI search.
+test.use({ viewport: { width: 1280, height: 900 } });
+
 test('smoke: explore page map overlay count changes after chat query', async ({ page }) => {
   // Navigate to explore page
   await page.goto('http://localhost:3000/explore');
 
-  // Wait for the LIVE MAP overlay card (contains "geocoded matches" text)
-  const mapOverlay = page.getByText(/geocoded matches/i).first();
+  // Wait for the Live map overlay card (contains "N listing(s) on map" text)
+  const mapOverlay = page.getByText(/\d[\d,]*\s+listings?\s+on\s+map/i).first();
   await mapOverlay.waitFor({ state: 'visible', timeout: 15000 });
 
   const beforeText = (await mapOverlay.textContent({ timeout: 5000 }))?.trim() ?? '(not found)';
@@ -16,8 +20,8 @@ test('smoke: explore page map overlay count changes after chat query', async ({ 
     path: '/Users/aineshmohan/Developer/ai-real-estate-agent/apps/web/test-results/smoke-before.png',
   });
 
-  // The chat input is input[type="text"] with aria-label="Chat message input"
-  const chatInput = page.locator('input[aria-label="Chat message input"]');
+  // The chat input has aria-label "Chat message input — press Enter to send"
+  const chatInput = page.getByRole('textbox', { name: /chat message input/i });
   await chatInput.waitFor({ state: 'visible', timeout: 10000 });
   await chatInput.fill('find me 1 bedroom apartments');
 
@@ -46,5 +50,5 @@ test('smoke: explore page map overlay count changes after chat query', async ({ 
   console.log(`\nSMOKE RESULT — Before: "${beforeText}" | After: "${afterText}"`);
 
   // Verify we got a valid before reading
-  expect(beforeText).toMatch(/geocoded matches/i);
+  expect(beforeText).toMatch(/\d[\d,]*\s+listings?\s+on\s+map/i);
 });

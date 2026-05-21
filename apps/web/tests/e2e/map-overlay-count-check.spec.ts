@@ -19,15 +19,15 @@ const INITIAL_QUERY = 'search listings with bedrooms 1 and max_rent 1500';
 const FOLLOWUP = 'yes go ahead and search now';
 
 /**
- * Extract the integer from overlay text like "500 geocoded matches".
+ * Extract the integer from overlay text like "500 listings on map".
  * Returns null when the overlay is absent.
  */
 async function readGeoCount(page: Page): Promise<number | null> {
-  const el = page.locator('text=/geocoded matches/i').first();
+  const el = page.locator('text=/\\d[\\d,]*\\s+listings?\\s+on\\s+map/i').first();
   const count = await el.count();
   if (!count) return null;
   const text = await el.innerText().catch(() => '');
-  const m = text.match(/(\d[\d,]*)\s+geocoded/i);
+  const m = text.match(/(\d[\d,]*)\s+listings?\s+on\s+map/i);
   if (!m) return null;
   return parseInt(m[1].replace(/,/g, ''), 10);
 }
@@ -66,7 +66,7 @@ test.describe('Map overlay count — AI chat search narrows listings', () => {
     await page.waitForLoadState('networkidle');
 
     // Wait for the map overlay to appear — it mounts after MapPanel renders
-    const overlayLocator = page.locator('text=/geocoded matches/i').first();
+    const overlayLocator = page.locator('text=/\\d[\\d,]*\\s+listings?\\s+on\\s+map/i').first();
     await expect(overlayLocator).toBeVisible({ timeout: 20_000 });
 
     // ------------------------------------------------------------------ 2  Read initial count
@@ -88,7 +88,7 @@ test.describe('Map overlay count — AI chat search narrows listings', () => {
     expect(before, 'Map overlay must show a count before any search').not.toBeNull();
 
     // ------------------------------------------------------------------ 3  Send initial query
-    const chatInput = page.locator('input[aria-label="Chat message input"]');
+    const chatInput = page.getByRole('textbox', { name: /chat message input/i });
     await expect(chatInput).toBeVisible({ timeout: 10_000 });
     await chatInput.fill(INITIAL_QUERY);
 
@@ -102,7 +102,7 @@ test.describe('Map overlay count — AI chat search narrows listings', () => {
 
     // ------------------------------------------------------------------ 4  Wait for AI response (up to 60s)
     // We watch for a new assistant bubble to appear and stabilise
-    const assistantBubble = page.locator('.bg-gray-100\\/80, [data-role="assistant"]').last();
+    const assistantBubble = page.locator('[data-role="assistant"]').last();
 
     // Wait for an assistant message to attach
     await expect(assistantBubble).toBeAttached({ timeout: 75_000 });
@@ -143,7 +143,7 @@ test.describe('Map overlay count — AI chat search narrows listings', () => {
       await chatInput.press('Enter');
 
       // Wait for a new assistant bubble after the follow-up
-      const allBubbles = page.locator('.bg-gray-100\\/80, [data-role="assistant"]');
+      const allBubbles = page.locator('[data-role="assistant"]');
       const initialCount = await allBubbles.count();
 
       // Wait for count to increase (new bubble)

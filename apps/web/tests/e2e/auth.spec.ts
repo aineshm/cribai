@@ -3,17 +3,20 @@ import { LoginPage } from './pages/LoginPage';
 import { HomePage } from './pages/HomePage';
 
 /**
- * E2E tests — Auth Page (/login) — current implementation
+ * E2E tests — Auth Page (/login) — current implementation (post PR #75)
  *
  * UAT criteria:
  *   1. Auth page renders branded split layout on desktop
  *   2. Email form visible with correct placeholder, heading, submit button
- *   3. Non-.edu email shows client-side validation error
- *   4. /post route is middleware-protected and redirects to /login
+ *   3. Malformed email shows client-side validation error
+ *   4. Well-formed non-.edu emails are accepted (PR #75 .edu gate relaxed) —
+ *      .edu only earns the "Verified UW Student" badge; sign-in itself is open
+ *   5. /post route is middleware-protected and redirects to /login
  *
  * Notes:
- *   - We do NOT test actual Supabase signInWithOtp network calls.
- *   - Left panel uses `hidden lg:flex lg:w-1/2 bg-teal-900` — desktop only.
+ *   - We intercept Supabase OTP send so well-formed-email tests don't
+ *     actually deliver mail or hit rate limits.
+ *   - Left panel uses `hidden lg:flex lg:w-1/2 bg-red-900` — desktop only.
  *   - /[campusSlug]/cribai does NOT redirect unauthenticated users to /login;
  *     it renders the AI chat page for all users (auth is optional).
  */
@@ -163,18 +166,54 @@ test.describe('Auth page — Split layout hidden on mobile', () => {
   });
 });
 
-test.describe('Auth page — OTP step (client-side only)', () => {
-  // We can't trigger a real OTP send, but we can test client-side validation.
-
-  test('submitting non-.edu email shows error', async ({ page }) => {
+test.describe('Auth page — email validation (PR #75 — .edu gate relaxed)', () => {
+  test('submitting malformed email shows "valid email address" error', async ({ page }) => {
     const isBypassed = await checkAuthBypassed(page);
     if (isBypassed) return;
     const login = new LoginPage(page);
     await login.goto();
 
-    await login.submitEmail('user@gmail.com');
+    // Disable HTML5 native validation so the form submits and the React
+    // error path runs. Otherwise Chromium blocks the click with a tooltip.
+    await page.evaluate(() => {
+      document.querySelectorAll('form').forEach((f) => {
+        (f as HTMLFormElement).noValidate = true;
+      });
+    });
+
+    await login.submitEmail('notanemail');
     await expect(login.errorMessage).toBeVisible();
-    await expect(login.errorMessage).toContainText('.edu');
+    await expect(login.errorMessage).toContainText(/valid email/i);
+    // Must NOT mention .edu — the .edu-only gate was removed in PR #75
+    await expect(login.errorMessage).not.toContainText('.edu');
+  });
+
+  test('well-formed non-.edu email is accepted (no .edu rejection)', async ({ page }) => {
+    const isBypassed = await checkAuthBypassed(page);
+    if (isBypassed) return;
+    // Stub the Supabase OTP send so we don't actually deliver mail.
+    await page.route(/\/auth\/v1\/otp/, (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }),
+    );
+
+    const login = new LoginPage(page);
+    await login.goto();
+    await login.submitEmail('user@gmail.com');
+
+    // Either the OTP step appears, or no error appears — but in no case
+    // should we see a ".edu"-specific rejection.
+    const otpHeadingVisible = await login.otpHeading
+      .waitFor({ state: 'visible', timeout: 8_000 })
+      .then(() => true)
+      .catch(() => false);
+    const errorTextOrNull = (await login.errorMessage.isVisible().catch(() => false))
+      ? await login.errorMessage.innerText()
+      : null;
+
+    expect(
+      otpHeadingVisible || errorTextOrNull === null || !/\.edu/i.test(errorTextOrNull),
+      `Non-.edu email should not be rejected with .edu error. Got: "${errorTextOrNull}"`,
+    ).toBe(true);
   });
 
   test('email step has Mail icon', async ({ page }) => {
@@ -218,6 +257,9 @@ test.describe('/post auth guard (middleware)', () => {
 });
 
 test.describe('Navigation from homepage to login', () => {
+  // Desktop-only: mobile nav uses a hamburger menu, not the inline "Get Started" link
+  test.use({ viewport: { width: 1280, height: 800 } });
+
   test('"Get Started" nav button leads to the login form', async ({ page }) => {
     const home = new HomePage(page);
     await home.goto();

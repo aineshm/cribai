@@ -623,6 +623,7 @@ export function CribAIChat({
             className={`flex animate-slide-up ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
+              data-role={msg.role}
               className={`space-y-2 px-4 py-3 ${
                 msg.role === 'user'
                   ? 'max-w-[80%] rounded-2xl rounded-br-none bg-gradient-to-br from-[hsl(356,80%,32%)] via-[hsl(356,80%,25%)] to-[hsl(356,80%,18%)] text-white shadow-md shadow-red-900/10 font-medium text-sm tracking-wide'

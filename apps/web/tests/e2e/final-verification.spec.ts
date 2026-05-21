@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
+import { findActiveListingId } from './utils/find-listing';
 
 /**
  * Final pre-push E2E verification — CribAI v2.0
@@ -18,7 +19,6 @@ import * as path from 'path';
  */
 
 const SCREENSHOTS_DIR = '/Users/aineshmohan/Developer/ai-real-estate-agent/apps/web/tests/e2e/screenshots';
-const KNOWN_LISTING_ID = '9b387c6c-659f-4cc9-8417-76bd1c5c3bc0';
 const BASE_URL = 'http://localhost:3000';
 
 /** Take a screenshot and save to the screenshots directory */
@@ -39,7 +39,7 @@ async function screenshotFull(page: Page, name: string): Promise<string> {
 
 /** Wait for assistant bubble to appear and finish streaming */
 async function waitForAIBubble(page: Page, timeoutMs = 60_000): Promise<string> {
-  const bubble = page.locator('.bg-gray-100\\/80').last();
+  const bubble = page.locator('[data-role="assistant"]').last();
   await expect(bubble).toBeAttached({ timeout: timeoutMs });
   await expect(bubble).not.toBeEmpty({ timeout: timeoutMs });
 
@@ -111,11 +111,11 @@ test.describe('SUITE 1 — Core Page Smoke Tests', () => {
     await expect(chatInput).toBeVisible();
     await expect(chatInput).not.toBeDisabled();
 
-    // LIVE MAP heading
-    await expect(page.getByText('LIVE MAP', { exact: false })).toBeVisible();
+    // Live map heading (post-rebrand from "LIVE MAP")
+    await expect(page.getByText('Live map', { exact: false })).toBeVisible();
 
-    // Geocoded count in map overlay
-    await expect(page.getByText(/geocoded matches/i).first()).toBeVisible();
+    // "N listing(s) on map" overlay count (post-rebrand from "N geocoded matches")
+    await expect(page.getByText(/\d[\d,]*\s+listings?\s+on\s+map/i).first()).toBeVisible();
 
     // Nav brand
     await expect(page.getByRole('navigation').first().getByText('CribAI')).toBeVisible();
@@ -123,8 +123,8 @@ test.describe('SUITE 1 — Core Page Smoke Tests', () => {
     // Prompt chips
     await expect(page.getByText('Find me a 2-bedroom under $1200')).toBeVisible();
 
-    const geocodedText = await page.getByText(/geocoded matches/i).first().innerText().catch(() => '');
-    info.annotations.push({ type: 'geocoded count', description: geocodedText });
+    const overlayText = await page.getByText(/\d[\d,]*\s+listings?\s+on\s+map/i).first().innerText().catch(() => '');
+    info.annotations.push({ type: 'listings on map count', description: overlayText });
   });
 
   test('SMOKE-03: Login page (/login) renders split-panel form', async ({ page }, info) => {
@@ -139,11 +139,11 @@ test.describe('SUITE 1 — Core Page Smoke Tests', () => {
     await expect(page.getByLabel('Email address')).toBeVisible();
     await expect(page.getByRole('button', { name: /Continue/i })).toBeVisible();
 
-    // Left panel branding (desktop)
-    await expect(page.locator('.bg-teal-900').first()).toBeVisible();
+    // Left panel branding (desktop) — rebranded teal → red
+    await expect(page.locator('.bg-red-900').first()).toBeVisible();
     await expect(page.getByRole('heading', { name: /Find your perfect college apartment/i })).toBeVisible();
 
-    info.annotations.push({ type: 'visual assessment', description: 'Split-panel: teal left panel + form right panel. PASS' });
+    info.annotations.push({ type: 'visual assessment', description: 'Split-panel: red-900 left panel + form right panel. PASS' });
   });
 
   test('SMOKE-04: Sublease landing (/sublease) renders', async ({ page }, info) => {
@@ -168,9 +168,9 @@ test.describe('SUITE 1 — Core Page Smoke Tests', () => {
     info.annotations.push({ type: 'nav present', description: String(hasNav) });
   });
 
-  test('SMOKE-05: Chat page (/chat) renders full-page chat', async ({ page }, info) => {
+  test('SMOKE-05: Chat page (/chat) renders inbox or focused chat', async ({ page }, info) => {
     await page.goto(`${BASE_URL}/chat`);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const screenshotPath = await screenshot(page, '05-chat-page');
     info.annotations.push({ type: 'screenshot', description: screenshotPath });
@@ -181,12 +181,32 @@ test.describe('SUITE 1 — Core Page Smoke Tests', () => {
     const pageTitle = await page.title();
     info.annotations.push({ type: 'page title', description: pageTitle });
 
-    // Either shows the chat UI or redirects to login — both are valid
     const currentUrl = page.url();
     info.annotations.push({ type: 'final URL', description: currentUrl });
+
+    // /chat is auth-optional. Three valid landing states:
+    //   1. Login redirect (if middleware forces auth)
+    //   2. Inbox view: CribAI h1 + conversation list (default unauthenticated state)
+    //   3. Focused chat with a textbox (if ?conversation=... is in URL)
     const isLoginRedirect = currentUrl.includes('/login');
-    const hasChatInput = await page.getByRole('textbox').isVisible().catch(() => false);
-    expect(isLoginRedirect || hasChatInput, 'Chat page shows chat input or redirects to login').toBe(true);
+    const hasInboxHeading = await page
+      .getByRole('heading', { name: 'CribAI', level: 1 })
+      .isVisible({ timeout: 8_000 })
+      .catch(() => false);
+    const hasChatInput = await page
+      .getByRole('textbox')
+      .first()
+      .isVisible({ timeout: 2_000 })
+      .catch(() => false);
+
+    info.annotations.push({
+      type: 'state',
+      description: `login redirect=${isLoginRedirect} | inbox heading=${hasInboxHeading} | chat input=${hasChatInput}`,
+    });
+    expect(
+      isLoginRedirect || hasInboxHeading || hasChatInput,
+      'Chat page should render inbox, focused chat, or redirect to login',
+    ).toBe(true);
   });
 });
 
@@ -224,9 +244,9 @@ test.describe('SUITE 3 — AI Search Flow', () => {
     await page.goto(`${BASE_URL}/explore`);
     await page.waitForLoadState('networkidle');
 
-    // Capture initial state
-    const initialGeoText = await page.getByText(/geocoded matches/i).first().innerText().catch(() => 'not found');
-    info.annotations.push({ type: 'initial geocoded count', description: initialGeoText });
+    // Capture initial state (post-rebrand overlay copy: "N listing(s) on map")
+    const initialGeoText = await page.getByText(/\d[\d,]*\s+listings?\s+on\s+map/i).first().innerText().catch(() => 'not found');
+    info.annotations.push({ type: 'initial listings-on-map count', description: initialGeoText });
 
     const beforeScreenshot = await screenshot(page, '20-ai-search-before');
     info.annotations.push({ type: 'before screenshot', description: beforeScreenshot });
@@ -266,8 +286,8 @@ test.describe('SUITE 3 — AI Search Flow', () => {
     info.annotations.push({ type: 'has addresses', description: String(hasAddresses) });
     info.annotations.push({ type: 'has raw UUIDs (BAD)', description: String(hasRawUUIDs) });
 
-    // Map panel still visible
-    await expect(page.getByText('LIVE MAP', { exact: false })).toBeVisible();
+    // Map panel still visible (post-rebrand: "Live map")
+    await expect(page.getByText('Live map', { exact: false })).toBeVisible();
 
     // No raw UUID exposure
     expect(hasRawUUIDs, 'AI response must not expose raw UUIDs').toBe(false);
@@ -291,52 +311,43 @@ test.describe('SUITE 3 — AI Search Flow', () => {
 test.describe('SUITE 4 — Listing Detail', () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
-  test('LISTING-01: Listing detail page renders with price and CTAs (desktop)', async ({ page }, info) => {
-    await page.goto(`${BASE_URL}/listing/${KNOWN_LISTING_ID}`);
-    await page.waitForLoadState('networkidle', { timeout: 30000 });
+  test('LISTING-01: Listing detail page renders with price and CTAs (desktop)', async ({ page, request }, info) => {
+    const listingId = await findActiveListingId(request);
+    info.annotations.push({ type: 'resolved listing ID', description: listingId });
+
+    await page.goto(`${BASE_URL}/listing/${listingId}`);
+    await page.waitForLoadState('domcontentloaded', { timeout: 30000 });
 
     const screenshotPath = await screenshot(page, '30-listing-detail-desktop');
     info.annotations.push({ type: 'screenshot', description: screenshotPath });
 
-    // Check if listing loaded or got a 404
-    const isNotFound = await page.getByText(/not found|Page not found/i).isVisible().catch(() => false);
-    info.annotations.push({ type: 'listing found', description: String(!isNotFound) });
+    // Price visible (large header rent)
+    const priceEl = page.locator('.text-3xl', { hasText: /\$/ }).first();
+    await expect(priceEl).toBeVisible({ timeout: 15000 });
+    const priceText = await priceEl.innerText();
+    info.annotations.push({ type: 'price', description: priceText });
 
-    if (!isNotFound) {
-      // Price visible
-      const priceEl = page.locator('.text-3xl', { hasText: /\$/ }).first();
-      await expect(priceEl).toBeVisible({ timeout: 10000 });
-      const priceText = await priceEl.innerText();
-      info.annotations.push({ type: 'price', description: priceText });
+    // Desktop CTAs
+    await expect(page.getByRole('button', { name: 'Book a Tour' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Ask AI About This Listing' })).toBeVisible();
 
-      // Desktop CTAs
-      await expect(page.getByRole('button', { name: 'Book a Tour' })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Ask AI About This Listing' })).toBeVisible();
+    // Nav brand
+    await expect(page.getByRole('navigation').first().getByText('CribAI')).toBeVisible();
 
-      // Nav brand
-      await expect(page.getByRole('navigation').first().getByText('CribAI')).toBeVisible();
-
-      info.annotations.push({ type: 'visual assessment', description: 'Listing detail PASS — price visible, CTAs present, nav intact' });
-    } else {
-      info.annotations.push({ type: 'WARN', description: `Listing ID ${KNOWN_LISTING_ID} returned not-found — may need a fresh ID from DB` });
-      // Soft fail — the ID may have changed
-      test.fixme(true, `Known listing ID ${KNOWN_LISTING_ID} not found — update KNOWN_LISTING_ID with a fresh ID`);
-    }
+    info.annotations.push({ type: 'visual assessment', description: 'Listing detail PASS — price visible, CTAs present, nav intact' });
   });
 
-  test('LISTING-02: Listing detail renders mobile bottom bar', async ({ page }, info) => {
+  test('LISTING-02: Listing detail renders mobile bottom bar', async ({ page, request }, info) => {
+    const listingId = await findActiveListingId(request);
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(`${BASE_URL}/listing/${KNOWN_LISTING_ID}`);
-    await page.waitForLoadState('networkidle', { timeout: 30000 });
+    await page.goto(`${BASE_URL}/listing/${listingId}`);
+    await page.waitForLoadState('domcontentloaded', { timeout: 30000 });
 
     const screenshotPath = await screenshot(page, '31-listing-detail-mobile');
     info.annotations.push({ type: 'screenshot', description: screenshotPath });
 
-    const isNotFound = await page.getByText(/not found|Page not found/i).isVisible().catch(() => false);
-    if (!isNotFound) {
-      await expect(page.getByRole('button', { name: 'Book Tour' })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Chat' })).toBeVisible();
-    }
+    await expect(page.getByRole('button', { name: 'Book Tour' })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('button', { name: 'Chat' })).toBeVisible();
   });
 
   test('LISTING-03: Invalid listing ID shows not-found', async ({ page }, info) => {
@@ -368,8 +379,8 @@ test.describe('SUITE 5 — Login / Auth Layout', () => {
     const screenshotPath = await screenshot(page, '40-login-desktop');
     info.annotations.push({ type: 'screenshot', description: screenshotPath });
 
-    // Left panel teal brand panel
-    const brandPanel = page.locator('.bg-teal-900').first();
+    // Left panel brand panel — rebranded teal → red-900
+    const brandPanel = page.locator('.bg-red-900').first();
     await expect(brandPanel).toBeVisible();
 
     // Brand heading on left
@@ -384,14 +395,23 @@ test.describe('SUITE 5 — Login / Auth Layout', () => {
     await expect(page.getByRole('heading', { name: 'Sign in to CribAI' })).toBeVisible();
     await expect(page.getByLabel('Email address')).toHaveAttribute('placeholder', 'you@university.edu');
 
-    info.annotations.push({ type: 'visual assessment', description: 'Split panel PASS — teal left with features, white right with form. Looks correct.' });
+    info.annotations.push({ type: 'visual assessment', description: 'Split panel PASS — red-900 left with features, white right with form. Looks correct.' });
   });
 
-  test('AUTH-02: Non-.edu email shows validation error', async ({ page }, info) => {
+  test('AUTH-02: Malformed email shows validation error (PR #75 — .edu gate relaxed)', async ({ page }, info) => {
     await page.goto(`${BASE_URL}/login`);
     await page.waitForLoadState('networkidle');
 
-    await page.getByLabel('Email address').fill('user@gmail.com');
+    // Disable HTML5 native validation so the form submits and the React
+    // error path renders our testid'd error message.
+    await page.evaluate(() => {
+      document.querySelectorAll('form').forEach((f) => {
+        (f as HTMLFormElement).noValidate = true;
+      });
+    });
+
+    // Use a malformed email — well-formed non-.edu addresses are now accepted (PR #75).
+    await page.getByLabel('Email address').fill('notanemail');
     await page.getByRole('button', { name: /Continue/i }).click();
 
     await page.waitForTimeout(500);
@@ -400,9 +420,11 @@ test.describe('SUITE 5 — Login / Auth Layout', () => {
 
     const errorEl = page.getByTestId('auth-error');
     await expect(errorEl).toBeVisible();
-    await expect(errorEl).toContainText('.edu');
+    await expect(errorEl).toContainText(/valid email/i);
+    // Must NOT mention .edu — PR #75 removed the .edu sign-in gate
+    await expect(errorEl).not.toContainText('.edu');
 
-    info.annotations.push({ type: 'validation assessment', description: 'Non-.edu email correctly rejected with .edu error message. PASS' });
+    info.annotations.push({ type: 'validation assessment', description: 'Malformed email rejected with generic "valid email" error. PR #75 .edu gate confirmed relaxed. PASS' });
   });
 });
 
@@ -537,20 +559,21 @@ test.describe('SUITE 8 — Routing and Navigation', () => {
     info.annotations.push({ type: 'redirect', description: 'PASS — /uw-madison/listings → /explore' });
   });
 
-  test('NAV-02: Campus-scoped listing URL redirects to flat listing route', async ({ page }, info) => {
-    await page.goto(`${BASE_URL}/uw-madison/listings/${KNOWN_LISTING_ID}`);
+  test('NAV-02: Campus-scoped listing URL redirects to flat listing route', async ({ page, request }, info) => {
+    const listingId = await findActiveListingId(request);
+    await page.goto(`${BASE_URL}/uw-madison/listings/${listingId}`);
 
     let finalUrl = page.url();
     try {
-      await page.waitForURL(`**/listing/${KNOWN_LISTING_ID}?campus=uw-madison`, { timeout: 15000 });
+      await page.waitForURL(`**/listing/${listingId}?campus=uw-madison`, { timeout: 15000 });
       finalUrl = page.url();
     } catch {
       finalUrl = page.url();
     }
 
     info.annotations.push({ type: 'final URL', description: finalUrl });
-    const redirectedCorrectly = finalUrl.includes(`/listing/${KNOWN_LISTING_ID}`);
-    expect(redirectedCorrectly, `Should redirect to /listing/${KNOWN_LISTING_ID}`).toBe(true);
+    const redirectedCorrectly = finalUrl.includes(`/listing/${listingId}`);
+    expect(redirectedCorrectly, `Should redirect to /listing/${listingId}`).toBe(true);
   });
 
   test('NAV-03: Landing page hero CTA navigates to /login', async ({ page }, info) => {

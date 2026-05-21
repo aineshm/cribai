@@ -1,9 +1,9 @@
 import { type Page, type Locator, expect } from '@playwright/test';
 
 /**
- * Page Object Model for the login page (/login) — current implementation.
+ * Page Object Model for the login page (/login) — current implementation (post PR #75).
  *
- * Layout: AuthSplitLayout — branded left panel (hidden lg:flex, bg-teal-900) + form right panel.
+ * Layout: AuthSplitLayout — branded left panel (hidden lg:flex, bg-red-900) + form right panel.
  *
  * Left panel content (desktop only, hidden on mobile):
  *   - "CribAI" brand text
@@ -11,9 +11,10 @@ import { type Page, type Locator, expect } from '@playwright/test';
  *   - Features: "Verified .edu student network", "AI-matched listings & fair pricing",
  *     "Direct tour booking & lease analysis"
  *
- * Email step:
+ * Email step (PR #75 — .edu gate relaxed; any well-formed email accepted, .edu earns badge):
  *   - <h2> "Sign in to CribAI"
- *   - <p> "Enter your .edu email and we'll send you a verification code."
+ *   - <p> "Enter your email and we'll send you a verification code. Students with a
+ *         .edu address get a Verified UW Student badge."
  *   - <input type="email" aria-label="Email address" placeholder="you@university.edu">
  *   - <button type="submit"> "Continue" (or "Sending code..." while loading)
  *

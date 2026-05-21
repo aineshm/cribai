@@ -23,12 +23,12 @@ const QUERY = 'find me 2 bedroom apartments under $2000';
 
 /**
  * Wait for an AI response bubble to appear in the chat.
- * The assistant message appears as a left-aligned bubble with bg-gray-100/80.
+ * The assistant message appears as a left-aligned bubble with [data-role="assistant"].
  * We wait for any text to appear inside it (up to 45s to allow for slow AI).
  */
 async function waitForAIBubble(page: Page, timeoutMs = 45_000): Promise<string> {
-  // The assistant message bubble renders with bg-gray-100/80 and is left-aligned
-  const assistantBubble = page.locator('.bg-gray-100\\/80').last();
+  // The assistant message bubble carries data-role="assistant" (added for stable test selection)
+  const assistantBubble = page.locator('[data-role="assistant"]').last();
   await expect(assistantBubble).toBeAttached({ timeout: timeoutMs });
   // Wait for the bubble to have non-empty visible text (streaming fills it in)
   await expect(assistantBubble).not.toBeEmpty({ timeout: timeoutMs });
@@ -59,17 +59,17 @@ test.describe('Explore page — Chat UX verification', () => {
     // Send button must be present (disabled because input is empty)
     await expect(page.getByRole('button', { name: /send message/i })).toBeVisible();
 
-    // ContextBar is always rendered; it has a teal pill with the Sparkles icon
-    // Use .bg-teal-50 which is always in the DOM whether chips are shown or not
-    const contextBarPill = page.locator('.bg-teal-50').first();
+    // ContextBar is always rendered; it has a red-50 pill with the Sparkles icon
+    // (rebranded from teal-50). Always in the DOM whether chips are shown or not.
+    const contextBarPill = page.locator('.bg-red-50').first();
     await expect(contextBarPill).toBeAttached();
 
-    // Map panel shows "LIVE MAP" heading
-    await expect(page.getByText('LIVE MAP', { exact: false })).toBeVisible();
+    // Map panel shows "Live map" heading (rebranded from "LIVE MAP" all-caps)
+    await expect(page.getByText('Live map', { exact: false })).toBeVisible();
 
     testInfo.annotations.push({
       type: 'Initial state result',
-      description: 'PASS — chat input, ContextBar, and LIVE MAP heading all present',
+      description: 'PASS — chat input, ContextBar, and Live map heading all present',
     });
   });
 
@@ -184,19 +184,19 @@ test.describe('Explore page — Chat UX verification', () => {
     }
 
     // -----------------------------------------------------------------------
-    // CRITERION 2: Map panel renders with LIVE MAP heading
+    // CRITERION 2: Map panel renders with Live map heading + listings-on-map count
     // -----------------------------------------------------------------------
-    const livemapHeading = page.getByText('LIVE MAP', { exact: false });
+    const livemapHeading = page.getByText('Live map', { exact: false });
     await expect(livemapHeading).toBeVisible();
 
     await page.screenshot({ path: testInfo.outputPath('06-map-panel.png') });
 
     // Record the full map panel description for the report
-    const mapSubtext = await page.locator('text=/geocoded matches/i').first().innerText().catch(() => '');
+    const mapSubtext = await page.locator('text=/listings?\\s+on\\s+map/i').first().innerText().catch(() => '');
 
     testInfo.annotations.push({
       type: 'CRITERION 2 — Map panel',
-      description: `PASS — LIVE MAP heading visible. Panel shows: "${mapSubtext}"`,
+      description: `PASS — Live map heading visible. Panel shows: "${mapSubtext}"`,
     });
   });
 });
