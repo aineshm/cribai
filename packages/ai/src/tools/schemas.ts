@@ -88,7 +88,8 @@ const compareListings: FunctionDeclaration = {
 const scheduleTour: FunctionDeclaration = {
   name: 'schedule_tour',
   description:
-    'Schedule a tour for a specific listing. Use this when the user wants to visit or tour a listing that has already been identified in the conversation. First collect the student name, email, and preferred dates, then call this tool. Do NOT run search_listings first if the user already specified which listing they want to tour.',
+    'Schedule a tour for a specific listing. Use this when the user wants to visit or tour a listing that has already been identified in the conversation. First collect the student name, email, and preferred dates, then call this tool. Do NOT run search_listings first if the user already specified which listing they want to tour.\n\n' +
+    'HITL: this tool submits a real tour request as soon as it is called. Before invoking it, you MUST have shown the student the listing, the dates, and the email you will use, and have received their explicit "yes / book it" confirmation in the same turn or the immediately preceding turn. If any of those are missing, ask for them in prose instead of calling the tool. The `confirmed` field is reserved for a future two-phase preview/publish split; for now, set `confirmed=true` only when the user has explicitly confirmed, and never use the tool as a dry-run preview. Do not promise the tour is booked in your prose until the handler returns a confirmation block.',
   parameters: {
     type: Type.OBJECT,
     properties: {
@@ -112,6 +113,11 @@ const scheduleTour: FunctionDeclaration = {
       notes: {
         type: Type.STRING,
         description: 'Optional notes or special requests',
+      },
+      confirmed: {
+        type: Type.BOOLEAN,
+        description:
+          'false = preview mode (validate, look up conflicts, show summary), true = actually submit the tour request. Always include ALL other fields when confirming.',
       },
     },
     required: ['listing_id', 'student_name', 'student_email', 'preferred_dates'],
