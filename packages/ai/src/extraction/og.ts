@@ -75,13 +75,17 @@ export function parseMetaTags(html: string): {
 }
 
 /**
- * Coerce a string price like "$1,950" or "1950.00 USD" to a number.
+ * Coerce a string price like "$1,950" or "1950.00 USD" to a number. Ranged
+ * strings like "$1,800 - $2,200" collapse to the lower bound — multi-unit
+ * apartment pages commonly publish rent as a range and the lower number is
+ * the value students filter against.
  */
 function parsePrice(raw: string | undefined): number | undefined {
   if (!raw) return undefined;
-  const cleaned = raw.replace(/[^0-9.\-]/g, '');
-  if (cleaned === '' || cleaned === '-' || cleaned === '.') return undefined;
-  const parsed = Number(cleaned);
+  const tokens = raw.match(/-?\d[\d,]*(?:\.\d+)?/g);
+  if (!tokens || tokens.length === 0) return undefined;
+  const first = tokens[0]!.replace(/,/g, '');
+  const parsed = Number(first);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 

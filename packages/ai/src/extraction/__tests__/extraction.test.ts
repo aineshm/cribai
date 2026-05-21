@@ -602,6 +602,96 @@ describe('projectJsonLdEntity edge cases', () => {
   });
 });
 
+// ===========================================================================
+// Codex P1/P2 follow-up coverage
+// ===========================================================================
+
+describe('codex follow-ups', () => {
+  it('recurses into non-@graph containers like WebPage.mainEntity', async () => {
+    // Common schema.org layout: a WebPage wraps the actual listing in
+    // `mainEntity`. The walker must descend into it.
+    const html = `<!doctype html><html><head>
+      <script type="application/ld+json">
+      {"@context":"https://schema.org","@type":"WebPage",
+       "mainEntity":{
+         "@type":"Apartment",
+         "name":"Nested Listing",
+         "numberOfBedrooms":1,
+         "address":{"@type":"PostalAddress","streetAddress":"1 Main","addressLocality":"Madison","addressRegion":"WI","postalCode":"53703"},
+         "offers":{"@type":"Offer","price":1200}
+       }}
+      </script>
+    </head><body></body></html>`;
+    const url = 'https://example.com/nested';
+    const result = await extractListing(url, {
+      fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+    });
+    expect(result.title).toBe('Nested Listing');
+    expect(result.bedrooms).toBe(1);
+    expect(result.price).toBe(1200);
+    expect(result.extraction_method).toBe('json_ld');
+    expect(result.extraction_confidence).toBe('high');
+  });
+
+  it('handles ranged rent strings in JSON-LD by taking the lower bound', () => {
+    const projected = projectJsonLdEntity(
+      {
+        '@type': 'ApartmentComplex',
+        name: 'Range Rent Building',
+        offers: { '@type': 'Offer', price: '$1,800 - $2,200' },
+      },
+      'https://example.com/x',
+    );
+    expect(projected.price).toBe(1800);
+  });
+
+  it('handles ranged rent strings in OG og:price:amount', async () => {
+    const html = `<!doctype html><html><head>
+      <meta property="og:title" content="Range OG" />
+      <meta property="og:price:amount" content="$1,800 – $2,200" />
+    </head><body></body></html>`;
+    const url = 'https://example.com/og-range';
+    const result = await extractListing(url, {
+      fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+    });
+    expect(result.price).toBe(1800);
+  });
+
+  it('handles en-dash range in JSON-LD price', () => {
+    const projected = projectJsonLdEntity(
+      {
+        '@type': 'ApartmentComplex',
+        offers: { '@type': 'Offer', price: '1500–1900' },
+      },
+      'https://example.com/x',
+    );
+    expect(projected.price).toBe(1500);
+  });
+
+  it('does not map datePosted to available_from', () => {
+    const projected = projectJsonLdEntity(
+      {
+        '@type': 'Apartment',
+        datePosted: '2024-01-15',
+      },
+      'https://example.com/x',
+    );
+    expect(projected.available_from).toBeUndefined();
+  });
+
+  it('still maps availabilityStarts to available_from', () => {
+    const projected = projectJsonLdEntity(
+      {
+        '@type': 'Apartment',
+        availabilityStarts: '2026-08-15',
+        datePosted: '2024-01-15',
+      },
+      'https://example.com/x',
+    );
+    expect(projected.available_from).toBe('2026-08-15');
+  });
+});
+
 describe('extractFromOg', () => {
   it('treats sites with twitter cards as OG-equivalent for title/desc', () => {
     const html = `

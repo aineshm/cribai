@@ -85,23 +85,38 @@ function* findListingEntities(node: unknown): IterableIterator<Record<string, un
     yield obj;
   }
 
-  const graph = obj['@graph'];
-  if (Array.isArray(graph)) {
-    for (const item of graph) yield* findListingEntities(item);
+  // Recurse into every property of the object so we also pick up listings
+  // nested under containers like `WebPage.mainEntity`, `ItemList.itemListElement`,
+  // or vendor-specific wrappers. `@graph` is included by this generic walk.
+  // Schema.org / JSON-LD context keys (those starting with '@') are skipped
+  // to avoid pathological traversals of `@context` definitions.
+  for (const [key, value] of Object.entries(obj)) {
+    if (key.startsWith('@') && key !== '@graph') continue;
+    if (value && (typeof value === 'object' || Array.isArray(value))) {
+      yield* findListingEntities(value);
+    }
   }
 }
 
 /**
  * Coerce a value to a number when possible. Handles strings like "$1,950",
- * "1950 USD", and numeric values. Returns undefined on failure.
+ * "1950 USD", and numeric values. Ranged strings like "$1,800 - $2,200" are
+ * collapsed to the lower bound (the most useful value for filtering) and
+ * a debug breadcrumb is preserved in `raw_json_ld` for the caller. Returns
+ * undefined on failure.
  */
 function toNumber(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string') {
-    const cleaned = value.replace(/[^0-9.\-]/g, '');
-    if (cleaned === '' || cleaned === '-' || cleaned === '.') return undefined;
-    const parsed = Number(cleaned);
-    return Number.isFinite(parsed) ? parsed : undefined;
+  if (typeof value !== 'string') return undefined;
+
+  // Detect a range like "1,800 - 2,200" or "$1800–$2200" (en-dash). The first
+  // numeric token wins — multi-unit pages publish low–high; the low bound is
+  // what students filter by.
+  const tokens = value.match(/-?\d[\d,]*(?:\.\d+)?/g);
+  if (tokens && tokens.length > 0) {
+    const first = tokens[0]!.replace(/,/g, '');
+    const parsed = Number(first);
+    if (Number.isFinite(parsed)) return parsed;
   }
   return undefined;
 }
@@ -368,7 +383,10 @@ export function projectJsonLdEntity(
   const { latitude, longitude } = extractGeo(entity);
   const photos = extractPhotos(entity, sourceUrl);
   const amenities = extractAmenities(entity);
-  const available_from = firstString(entity.availabilityStarts) ?? firstString(entity.datePosted);
+  // Only `availabilityStarts` maps to `available_from`. `datePosted` is the
+  // ad publication date — different semantic; using it would tell users an
+  // old listing is "available from" a date in the past.
+  const available_from = firstString(entity.availabilityStarts);
 
   const result: ReturnType<typeof projectJsonLdEntity> = {
     raw_json_ld: entity,
