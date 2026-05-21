@@ -27,7 +27,8 @@ CREATE TABLE crm_listings (
   source_site            text,
   title                  text,
   address                text,
-  coordinates            geography(POINT, 4326),
+  coordinates            geography(POINT, 4326)
+    CHECK (coordinates IS NULL OR ST_SRID(coordinates::geometry) = 4326),
   rent                   numeric,
   bedrooms               numeric,
   bathrooms              numeric,
@@ -37,7 +38,8 @@ CREATE TABLE crm_listings (
   amenities              jsonb,
   photo_urls             text[],
   raw_extraction         jsonb,
-  extraction_confidence  numeric,
+  extraction_confidence  numeric
+    CHECK (extraction_confidence IS NULL OR extraction_confidence BETWEEN 0 AND 1),
   status                 text NOT NULL DEFAULT 'active'
     CHECK (status IN ('active', 'archived', 'declined', 'applied', 'toured')),
   user_notes             text,
@@ -60,6 +62,13 @@ CREATE INDEX idx_crm_listings_coordinates
   ON crm_listings
   USING GIST(coordinates);
 
+-- Dedup / "already saved?" lookup when the user pastes a source URL.
+-- Non-unique (a user may re-save after archiving). Partial so rows without a
+-- source URL (e.g. manual entries) are skipped.
+CREATE INDEX idx_crm_listings_user_source_url
+  ON crm_listings(user_id, source_url)
+  WHERE source_url IS NOT NULL;
+
 -- RLS
 ALTER TABLE crm_listings ENABLE ROW LEVEL SECURITY;
 
@@ -69,8 +78,11 @@ CREATE POLICY "crm_listings_select_own" ON crm_listings
 CREATE POLICY "crm_listings_insert_own" ON crm_listings
   FOR INSERT WITH CHECK (user_id = auth.uid());
 
+-- WITH CHECK mirrors USING so a user cannot rewrite user_id to another UUID
+-- (which would silently transfer the row out of their CRM).
 CREATE POLICY "crm_listings_update_own" ON crm_listings
-  FOR UPDATE USING (user_id = auth.uid());
+  FOR UPDATE USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
 
 CREATE POLICY "crm_listings_delete_own" ON crm_listings
   FOR DELETE USING (user_id = auth.uid());
@@ -78,12 +90,15 @@ CREATE POLICY "crm_listings_delete_own" ON crm_listings
 -- Auto-bump updated_at on UPDATE (mirrors conversations_updated_at /
 -- missions_updated_at conventions from migrations 010 and 013).
 CREATE OR REPLACE FUNCTION update_crm_listings_updated_at()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
 BEGIN
   NEW.updated_at = now();
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 CREATE TRIGGER crm_listings_updated_at
   BEFORE UPDATE ON crm_listings
@@ -108,14 +123,44 @@ CREATE TABLE crm_inferred_profiles (
   last_updated_at         timestamptz NOT NULL DEFAULT now()
 );
 
--- RLS
+-- RLS — derived state ownership model (mirrors mission_logs / mission_drafts
+-- from migration 013):
+--   * Clients READ their own row (SELECT policy below).
+--   * Clients MAY DELETE their own row so "reset my preferences" UI works
+--     without an extra SECURITY DEFINER RPC.
+--   * Clients MAY NOT INSERT/UPDATE — inference is derived state owned by the
+--     server-side inference worker, which writes via the service role and
+--     bypasses RLS. Allowing client writes here would let users hand-edit
+--     "inferred" preferences and short-circuit the learning loop.
 ALTER TABLE crm_inferred_profiles ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "crm_inferred_profiles_select_own" ON crm_inferred_profiles
   FOR SELECT USING (user_id = auth.uid());
 
-CREATE POLICY "crm_inferred_profiles_insert_own" ON crm_inferred_profiles
-  FOR INSERT WITH CHECK (user_id = auth.uid());
+-- Reset-my-preferences is a reasonable user-initiated action even though the
+-- profile is derived. The inference worker will re-populate on the next
+-- save/decline/tour signal.
+CREATE POLICY "crm_inferred_profiles_delete_own" ON crm_inferred_profiles
+  FOR DELETE USING (user_id = auth.uid());
 
-CREATE POLICY "crm_inferred_profiles_update_own" ON crm_inferred_profiles
-  FOR UPDATE USING (user_id = auth.uid());
+-- NOTE: no INSERT or UPDATE policy by design. The inference worker writes via
+-- the service role (bypasses RLS).
+
+-- Auto-bump last_updated_at on UPDATE (mirrors crm_listings_updated_at).
+-- Service-role writers can omit the column; the trigger is cheap insurance
+-- against stale timestamps on upsert paths that forget to set it explicitly.
+CREATE OR REPLACE FUNCTION update_crm_inferred_profiles_last_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  NEW.last_updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER crm_inferred_profiles_last_updated_at
+  BEFORE UPDATE ON crm_inferred_profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION update_crm_inferred_profiles_last_updated_at();
