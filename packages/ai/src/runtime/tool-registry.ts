@@ -58,6 +58,12 @@ const scheduleTourInput = z.object({
     .min(1)
     .max(10),
   notes: z.string().max(500).optional(),
+  // HITL gate — mirrors `createSubleaseInput.confirmed` so the safety boundary
+  // is visible on the tool schema rather than hidden in handler behavior.
+  // Phase 1 (confirmed=false or omitted): handler returns a tour preview for
+  // the user to review. Phase 2 (confirmed=true): handler dispatches the
+  // external tour request. See PDR-004 codex cross-review amendment A1.
+  confirmed: z.boolean().optional(),
 });
 
 const explainLeaseTermInput = z.object({
@@ -146,8 +152,11 @@ const DESCRIPTIONS: Readonly<Record<ToolName, string>> = {
     'Compare 2-4 listings side by side. Use when the user wants to compare specific apartments.',
 
   schedule_tour:
-    'Schedule a tour for a specific listing. Use this when the user wants to visit or tour a listing that has already been identified in the conversation. First collect the student name, email, and preferred dates, then call this tool. Do NOT run search_listings first if the user already specified which listing they want to tour. ' +
-    'HITL: this tool runs a preview/confirm pattern at the handler layer — the handler will refuse to dispatch an external tour request until the user has reviewed the preview and confirmed. Do not promise the tour is booked in your prose until the handler returns a confirmation block.',
+    'Schedule a tour for a specific listing. Use this when the user wants to visit or tour a listing that has already been identified in the conversation. First collect the student name, email, and preferred dates, then call this tool. Do NOT run search_listings first if the user already specified which listing they want to tour.\n\n' +
+    'HITL — this tool runs a preview/confirm pattern at the handler layer:\n' +
+    'Phase 1 (confirmed=false or omitted): handler returns a tour preview for the user to review.\n' +
+    'Phase 2 (confirmed=true): handler dispatches the external tour request. You MUST re-send ALL fields plus confirmed=true.\n' +
+    'Do not promise the tour is booked in your prose until the handler returns a confirmation block.',
 
   explain_lease_term:
     'Explain a lease or rental term. Use when the user asks about lease clauses, tenant rights, or rental terminology.',
