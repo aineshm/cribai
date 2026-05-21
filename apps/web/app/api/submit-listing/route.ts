@@ -18,6 +18,43 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // PDR-003 Track B Day 2: sublease posting is the supply side and still
+  // requires .edu verification to prevent non-students from polluting the
+  // sublease marketplace. The sign-in `.edu` gate was relaxed (any email
+  // can sign in / browse / save), but posting subleases stays gated.
+  //
+  // The source of truth is `profiles.is_edu_verified` (set by the
+  // verify-edu edge function), NOT `auth.users.email`. A user can sign in
+  // with a personal gmail address and later verify their .edu via
+  // /verify-edu — that flow writes to the profile row, not auth.users.
+  // The RLS policy `own_profile_select` lets a user read only their own
+  // profile row, so this fetch is safe on the RLS-bound server client.
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('is_edu_verified, campus_id')
+    .eq('id', user.id)
+    .single();
+
+  if (profileError || !profile) {
+    return NextResponse.json(
+      {
+        error:
+          'We could not find your profile. Please complete /verify-edu to publish a sublease.',
+      },
+      { status: 403 },
+    );
+  }
+
+  if (!profile.is_edu_verified) {
+    return NextResponse.json(
+      {
+        error:
+          'Posting a sublease requires a verified .edu email address. Complete /verify-edu with your school email to continue.',
+      },
+      { status: 403 },
+    );
+  }
+
   // Parse and validate body
   let rawBody: unknown;
   try {
@@ -38,14 +75,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Look up campus_id from user's profile
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('campus_id')
-    .eq('id', user.id)
-    .single();
-
-  const campusId = profile?.campus_id;
+  const campusId = profile.campus_id;
 
   if (!campusId) {
     return NextResponse.json(

@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { POST } from '../route';
 
 function makeRequest(body: unknown): Request {
@@ -10,75 +10,71 @@ function makeRequest(body: unknown): Request {
 }
 
 describe('POST /api/auth/validate-email', () => {
-  const originalEnv = process.env.ADMIN_EMAILS;
-
-  afterEach(() => {
-    if (originalEnv === undefined) {
-      delete process.env.ADMIN_EMAILS;
-    } else {
-      process.env.ADMIN_EMAILS = originalEnv;
-    }
-  });
-
-  it('allows .edu emails', async () => {
-    delete process.env.ADMIN_EMAILS;
+  it('accepts .edu emails with isEdu=true and badge=verified_student', async () => {
     const res = await POST(makeRequest({ email: 'student@wisc.edu' }));
+    expect(res.status).toBe(200);
     const data = await res.json();
-    expect(data).toEqual({ allowed: true });
+    expect(data).toEqual({
+      valid: true,
+      isEdu: true,
+      badge: 'verified_student',
+    });
   });
 
-  it('rejects non-.edu email when no whitelist is set', async () => {
-    delete process.env.ADMIN_EMAILS;
+  it('accepts non-.edu emails with isEdu=false and no badge', async () => {
     const res = await POST(makeRequest({ email: 'user@gmail.com' }));
+    expect(res.status).toBe(200);
     const data = await res.json();
-    expect(data.allowed).toBe(false);
-    expect(data.error).toBe('CribAI requires a .edu email address');
+    expect(data).toEqual({ valid: true, isEdu: false });
   });
 
-  it('allows a whitelisted non-.edu email', async () => {
-    process.env.ADMIN_EMAILS = 'admin@outlook.com,recruiter@gmail.com';
-    const res = await POST(makeRequest({ email: 'admin@outlook.com' }));
+  it('accepts subdomain .edu emails', async () => {
+    const res = await POST(makeRequest({ email: 'student@cs.wisc.edu' }));
+    expect(res.status).toBe(200);
     const data = await res.json();
-    expect(data).toEqual({ allowed: true });
+    expect(data.valid).toBe(true);
+    expect(data.isEdu).toBe(true);
+    expect(data.badge).toBe('verified_student');
   });
 
-  it('allows whitelisted email case-insensitively', async () => {
-    process.env.ADMIN_EMAILS = 'Admin@Outlook.com';
-    const res1 = await POST(makeRequest({ email: 'admin@outlook.com' }));
-    const data1 = await res1.json();
-    expect(data1).toEqual({ allowed: true });
-
-    const res2 = await POST(makeRequest({ email: 'ADMIN@OUTLOOK.COM' }));
-    const data2 = await res2.json();
-    expect(data2).toEqual({ allowed: true });
+  it('is case-insensitive for .edu detection', async () => {
+    const res = await POST(makeRequest({ email: 'STUDENT@WISC.EDU' }));
+    const data = await res.json();
+    expect(data.isEdu).toBe(true);
   });
 
-  it('rejects non-whitelisted non-.edu email', async () => {
-    process.env.ADMIN_EMAILS = 'admin@outlook.com';
-    const res = await POST(makeRequest({ email: 'hacker@evil.com' }));
+  it('treats edu.com as non-.edu (TLD check, not substring)', async () => {
+    const res = await POST(makeRequest({ email: 'user@edu.com' }));
     const data = await res.json();
-    expect(data.allowed).toBe(false);
-  });
-
-  it('handles whitespace in the whitelist gracefully', async () => {
-    process.env.ADMIN_EMAILS = ' admin@outlook.com , recruiter@gmail.com ';
-    const res = await POST(makeRequest({ email: 'admin@outlook.com' }));
-    const data = await res.json();
-    expect(data).toEqual({ allowed: true });
+    expect(data).toEqual({ valid: true, isEdu: false });
   });
 
   it('returns 400 for missing email field', async () => {
     const res = await POST(makeRequest({}));
     expect(res.status).toBe(400);
     const data = await res.json();
-    expect(data.allowed).toBe(false);
+    expect(data.valid).toBe(false);
   });
 
   it('returns 400 for empty email', async () => {
     const res = await POST(makeRequest({ email: '  ' }));
     expect(res.status).toBe(400);
     const data = await res.json();
-    expect(data.allowed).toBe(false);
+    expect(data.valid).toBe(false);
+  });
+
+  it('returns 400 for malformed email (no @)', async () => {
+    const res = await POST(makeRequest({ email: 'not-an-email' }));
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.valid).toBe(false);
+  });
+
+  it('returns 400 for malformed email (no TLD)', async () => {
+    const res = await POST(makeRequest({ email: 'user@host' }));
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.valid).toBe(false);
   });
 
   it('returns 400 for invalid JSON body', async () => {
@@ -90,6 +86,6 @@ describe('POST /api/auth/validate-email', () => {
     const res = await POST(req);
     expect(res.status).toBe(400);
     const data = await res.json();
-    expect(data.allowed).toBe(false);
+    expect(data.valid).toBe(false);
   });
 });
