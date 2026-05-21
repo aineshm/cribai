@@ -168,7 +168,7 @@ describe('tool-registry — static spec', () => {
           ],
         },
         {
-          "headline": "Schedule a tour for a specific listing. Use this when the user wants to visit or tour a listing that has already been identified in the conversation. First coll…",
+          "headline": "Schedule a tour for a specific listing. Two-phase HITL flow: call WITHOUT \`confirmed\` (or \`confirmed=false\`) to render a preview card (listing + dates + email) …",
           "name": "schedule_tour",
           "requiredKeys": [
             "listing_id",

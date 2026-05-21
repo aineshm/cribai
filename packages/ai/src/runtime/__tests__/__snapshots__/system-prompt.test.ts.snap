@@ -1,0 +1,98 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildSystemPrompt — dynamic suffix > includes guest guardrail block when isGuest=true 1`] = `
+"Current conversation state:
+- mode: browse
+- selectedListingId: none
+- comparedListingIds: none
+- lastSearch: none
+- pendingAction: none
+
+User profile:
+- displayName: unknown
+- campusSlug: unknown
+
+Guest session (no signed-in user):
+- For this session you may use ONLY: search_listings, get_listing_detail, compare_listings, explain_lease_term.
+- Do not call any other tool; the server will reject it.
+- If the user wants any other action (schedule a tour, save a listing, contact a PM, post a sublease, run a mission, etc.), tell them to sign in first."
+`;
+
+exports[`buildSystemPrompt — dynamic suffix > renders comparison state with two listings 1`] = `
+"Current conversation state:
+- mode: compare
+- selectedListingId: none
+- comparedListingIds: 11111111-2222-4333-8444-555555555555, 66666666-7777-4888-8999-aaaaaaaaaaaa
+- lastSearch: none
+- pendingAction: none
+
+User profile:
+- displayName: Bob Park
+- campusSlug: uw-madison"
+`;
+
+exports[`buildSystemPrompt — dynamic suffix > renders no-selection state cleanly 1`] = `
+"Current conversation state:
+- mode: browse
+- selectedListingId: none
+- comparedListingIds: none
+- lastSearch: none
+- pendingAction: none
+
+User profile:
+- displayName: Alice Chen
+- campusSlug: uw-madison"
+`;
+
+exports[`buildSystemPrompt — dynamic suffix > renders pending sublease with HITL reminder 1`] = `
+"Current conversation state:
+- mode: action
+- selectedListingId: none
+- comparedListingIds: none
+- lastSearch: none
+- pendingAction.kind: sublease_publish
+- pendingAction.payload: {"address":"456 W Gorham St, Madison WI","bedrooms_total":2,"bedrooms_available":1,"rent_monthly":1100}
+
+User profile:
+- displayName: Alice Chen
+- campusSlug: uw-madison
+
+HITL REMINDER — pending sublease publish:
+- The user has a sublease preview waiting on the create_sublease tool.
+- You may call create_sublease with confirmed=true ONLY if the user has explicitly confirmed publication in the LATEST turn.
+- When confirming, you MUST re-send ALL sublease fields (address, bedrooms, etc.), not just confirmed=true.
+- The handler will refuse to publish without confirmed=true; do not claim the listing is live until the tool returns a publish-confirmation block."
+`;
+
+exports[`buildSystemPrompt — dynamic suffix > renders pending tour with HITL reminder 1`] = `
+"Current conversation state:
+- mode: action
+- selectedListingId: 11111111-2222-4333-8444-555555555555
+- comparedListingIds: none
+- lastSearch: none
+- pendingAction.kind: tour
+- pendingAction.payload: {"listing_id":"11111111-2222-4333-8444-555555555555","student_name":"Alice Chen","student_email":"alice@wisc.edu","preferred_dates":["2026-06-15"]}
+
+User profile:
+- displayName: Alice Chen
+- campusSlug: uw-madison
+
+HITL REMINDER — pending tour request:
+- The user has a tour preview waiting on the schedule_tour tool.
+- You may call schedule_tour with confirmed=true ONLY if the user has explicitly confirmed in the LATEST turn (e.g. "yes", "book it", "go ahead").
+- Otherwise, ask for the missing confirmation or correction in prose. Do not pass confirmed=true preemptively.
+- The handler will refuse to dispatch the tour without confirmed=true; do not claim it is booked until the tool returns a confirmation block."
+`;
+
+exports[`buildSystemPrompt — dynamic suffix > renders selected-listing state 1`] = `
+"Current conversation state:
+- mode: listing_detail
+- selectedListingId: 11111111-2222-4333-8444-555555555555
+- comparedListingIds: none
+- lastSearch: none
+- pendingAction: none
+
+User profile:
+- displayName: Alice Chen
+- campusSlug: uw-madison"
+`;
