@@ -302,6 +302,64 @@ describe('createRequestMetricsRecorder', () => {
     expect(completed).toBeGreaterThanOrEqual(finalMsg);
   });
 
+  it('markCompleted() stamps request_completed_at without persisting', async () => {
+    const client = buildMockClient();
+    const recorder = createRequestMetricsRecorder(
+      { requestId: 'r', runtime: 'deterministic' },
+      client,
+    );
+
+    recorder.markCompleted();
+    expect(client.inserts).toHaveLength(0);
+    expect(recorder.snapshot().requestCompletedAt).not.toBeNull();
+    expect(recorder.snapshot().finished).toBe(false);
+  });
+
+  it('finish() after markCompleted() preserves the earlier completion timestamp', async () => {
+    const client = buildMockClient();
+    const recorder = createRequestMetricsRecorder(
+      { requestId: 'r', runtime: 'deterministic' },
+      client,
+    );
+
+    recorder.markCompleted();
+    const stamped = recorder.snapshot().requestCompletedAt;
+    await new Promise((r) => setTimeout(r, 3));
+    recorder.finish();
+    await flushAsync();
+
+    expect(client.inserts).toHaveLength(1);
+    expect(client.inserts[0]!.row.request_completed_at).toBe(stamped?.toISOString());
+  });
+
+  it('finish() with errorKind on the markCompleted-then-fail path still records error_kind', async () => {
+    const client = buildMockClient();
+    const recorder = createRequestMetricsRecorder(
+      { requestId: 'r', runtime: 'deterministic' },
+      client,
+    );
+
+    recorder.markCompleted();
+    recorder.finish({ errorKind: 'deterministic_stream_error' });
+    await flushAsync();
+
+    expect(client.inserts).toHaveLength(1);
+    expect(client.inserts[0]!.row.error_kind).toBe('deterministic_stream_error');
+  });
+
+  it('markCompleted() is idempotent — subsequent calls do not overwrite the timestamp', async () => {
+    const recorder = createRequestMetricsRecorder(
+      { requestId: 'r', runtime: 'deterministic' },
+      null,
+    );
+
+    recorder.markCompleted();
+    const first = recorder.snapshot().requestCompletedAt;
+    await new Promise((r) => setTimeout(r, 2));
+    recorder.markCompleted();
+    expect(recorder.snapshot().requestCompletedAt).toBe(first);
+  });
+
   it('supports llm_first runtime value (forward-compat with AIN-8)', async () => {
     const client = buildMockClient();
     const recorder = createRequestMetricsRecorder(

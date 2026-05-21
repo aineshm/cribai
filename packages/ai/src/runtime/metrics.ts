@@ -59,6 +59,15 @@ export interface RequestMetricsRecorder {
   readonly markFirstToolResult: () => void;
   readonly recordToolCall: (toolName: string) => void;
   readonly markFinalAssistantMessage: () => void;
+  /**
+   * Stamp `request_completed_at` without persisting. Useful when the
+   * client-visible response has shipped (e.g. SSE stream closed) but
+   * server-side bookkeeping is still pending. Idempotent. Call once
+   * before any post-response work so the baseline excludes that work
+   * from end-to-end latency; then `finish()` later persists the row
+   * (or records an error if the bookkeeping itself failed).
+   */
+  readonly markCompleted: () => void;
   readonly finish: (options?: FinishOptions) => void;
   /** Test-only: snapshot of the current accumulated state. */
   readonly snapshot: () => RequestMetricsSnapshot;
@@ -142,10 +151,22 @@ export function createRequestMetricsRecorder(
     state.finalAssistantMessageAt = new Date();
   };
 
+  const markCompleted = (): void => {
+    if (state.requestCompletedAt === null) {
+      state.requestCompletedAt = new Date();
+    }
+  };
+
   const finish = (options?: FinishOptions): void => {
     if (state.finished) return;
     state.finished = true;
-    state.requestCompletedAt = new Date();
+    // Only stamp request_completed_at here if it wasn't already set via
+    // markCompleted() — that lets callers exclude post-response bookkeeping
+    // from the baseline while still letting finish() set the timestamp on
+    // error paths where markCompleted() never ran.
+    if (state.requestCompletedAt === null) {
+      state.requestCompletedAt = new Date();
+    }
     if (options?.errorKind) {
       state.errorKind = options.errorKind;
     }
@@ -204,6 +225,7 @@ export function createRequestMetricsRecorder(
     markFirstToolResult,
     recordToolCall,
     markFinalAssistantMessage,
+    markCompleted,
     finish,
     snapshot,
   };
