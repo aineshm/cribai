@@ -595,6 +595,9 @@ export async function maybeHandleDeterministicTurn(
       // Phase 2: user has confirmed a previously shown preview — actually
       // call schedule_tour and clear the pending action. Mirrors
       // create_sublease's two-phase pattern (preview then confirmed=true).
+      // The handler now enforces the HITL gate (codex amendment A1 follow-up),
+      // so we must pass `confirmed: true` here or the call no-ops back into
+      // another preview and the tour never submits.
       if (hasAllFields && previewAlreadyShown && isTourConfirmation) {
         const scheduled = await runToolWithEvents(
           'schedule_tour',
@@ -603,6 +606,7 @@ export async function maybeHandleDeterministicTurn(
             student_email: studentEmail,
             student_name: studentName,
             preferred_dates: preferredDates,
+            confirmed: true,
           },
           toolContext,
         );
