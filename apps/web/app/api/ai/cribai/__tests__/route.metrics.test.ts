@@ -25,9 +25,10 @@ vi.mock('next/headers', () => ({
   })),
 }));
 
-// Mock the deterministic runtime helper to return a canned event sequence
-// containing a tool_call (so tools_called[] populates) and a text block (so
-// finalAssistantMessageAt stamps).
+// Mock the deterministic runtime helper. Default mock returns a search-like
+// sequence (tool_call + tool_result + text). Tests can override with
+// `vi.mocked(maybeHandleDeterministicTurn).mockResolvedValueOnce(...)` to
+// exercise card-only turns (e.g. tour_submit) that end on tool_result.
 vi.mock('../../../../../lib/cribai-runtime', () => ({
   maybeHandleDeterministicTurn: vi.fn(async () => ({
     blocks: [
@@ -49,6 +50,8 @@ vi.mock('../../../../../lib/cribai-runtime', () => ({
     },
   })),
 }));
+
+import { maybeHandleDeterministicTurn } from '../../../../../lib/cribai-runtime';
 
 // Mock conversation-state helpers (avoid pulling in their dependencies).
 vi.mock('../../../../../lib/conversation-state-helpers', () => ({
@@ -198,6 +201,48 @@ describe('POST /api/ai/cribai — AIN-19 latency instrumentation', () => {
     expect(typeof row.first_tool_result_at).toBe('string');
     // final_assistant_message_at should be stamped (we emitted a text event).
     expect(typeof row.final_assistant_message_at).toBe('string');
+  });
+
+  it('stamps final_assistant_message_at for card-only deterministic turns (no trailing text event)', async () => {
+    // Card-only flow — e.g. the tour_submit deterministic path returns only
+    // tool_result events, no trailing text. AIN-19 needs the
+    // final-message timestamp regardless, so the codex P2 finding gets
+    // exercised by this regression test.
+    vi.mocked(maybeHandleDeterministicTurn).mockResolvedValueOnce({
+      blocks: [
+        { type: 'tour_confirmation', tourRequestId: 'tour-1' },
+      ],
+      events: [
+        { type: 'tool_call', name: 'schedule_tour', args: {} },
+        {
+          type: 'tool_result',
+          name: 'schedule_tour',
+          block: { type: 'tour_confirmation', tourRequestId: 'tour-1' },
+        },
+      ],
+      conversationState: {
+        mode: 'action',
+        selectedListingId: null,
+        pendingAction: null,
+      },
+    } as never);
+
+    const req = buildRequest({
+      query: 'yes',
+      campusSlug: 'uw-madison',
+      history: [],
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    await drainStream(res);
+    await new Promise((r) => setTimeout(r, 5));
+
+    const metricsInserts = recordedInserts.filter((i) => i.table === 'ai_request_metrics');
+    expect(metricsInserts).toHaveLength(1);
+    const row = metricsInserts[0]!.row;
+    expect(typeof row.final_assistant_message_at).toBe('string');
+    expect(row.tools_called).toEqual(['schedule_tour']);
   });
 
   it('generates a UUID request_id when no x-request-id header is supplied', async () => {

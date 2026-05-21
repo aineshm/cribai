@@ -535,14 +535,23 @@ export async function POST(request: NextRequest) {
                 metricsRecorder?.recordToolCall(event.name);
               } else if (event.type === 'tool_result') {
                 metricsRecorder?.markFirstToolResult();
-              } else if (event.type === 'text') {
-                metricsRecorder?.markFinalAssistantMessage();
               }
               enqueueEvent(controller, encoder, event);
             }
 
+            // AIN-19 — stamp final_assistant_message_at right before the
+            // 'done' marker hits the wire. Card-only deterministic flows
+            // (e.g. tour_submit returning only tool_result events) would
+            // otherwise leave this null even though a real response shipped.
+            metricsRecorder?.markFinalAssistantMessage();
             enqueueEvent(controller, encoder, { type: 'done' });
             controller.close();
+
+            // AIN-19 — finish() captures request_completed_at IMMEDIATELY
+            // after controller.close() so the baseline excludes
+            // post-response persistence work (which is fire-and-forget
+            // bookkeeping the client doesn't wait on).
+            metricsRecorder?.finish();
 
             await persistAssistantResponse({
               supabase,
@@ -559,8 +568,6 @@ export async function POST(request: NextRequest) {
                 query: trimmedQuery,
               });
             }
-
-            metricsRecorder?.finish();
           } catch (err) {
             const message = err instanceof Error ? err.message : 'Stream error';
             metricsRecorder?.finish({ errorKind: 'deterministic_stream_error' });
@@ -601,7 +608,6 @@ export async function POST(request: NextRequest) {
             if (typeof chunk === 'string') {
               enqueueEvent(controller, encoder, { type: 'text', content: chunk });
               currentServerText += chunk;
-              metricsRecorder?.markFinalAssistantMessage();
               continue;
             }
 
@@ -614,12 +620,14 @@ export async function POST(request: NextRequest) {
             }
 
             // AIN-19 — track tool invocations + first-tool-result timing.
+            // (final_assistant_message_at is stamped once after the loop,
+            // right before controller.close(), so card-only LLM turns
+            // — those that end on a tool_result without a trailing text
+            // chunk — still get a final-message timestamp.)
             if (chunk.type === 'tool_call' && 'name' in chunk) {
               metricsRecorder?.recordToolCall(chunk.name);
             } else if (chunk.type === 'tool_result') {
               metricsRecorder?.markFirstToolResult();
-            } else if (chunk.type === 'text') {
-              metricsRecorder?.markFinalAssistantMessage();
             }
 
             if (chunk.type === 'tool_result' && 'statePatch' in chunk && chunk.statePatch) {
@@ -705,8 +713,19 @@ export async function POST(request: NextRequest) {
             );
           }
 
+          // AIN-19 — stamp final_assistant_message_at right before 'done'
+          // hits the wire so card-only LLM turns also get a final-message
+          // timestamp (Gemini may end on a tool_result without a trailing
+          // text chunk for action-only flows).
+          metricsRecorder?.markFinalAssistantMessage();
           enqueueEvent(controller, encoder, { type: 'done' });
           controller.close();
+
+          // AIN-19 — finish() captures request_completed_at IMMEDIATELY
+          // after controller.close() so the baseline excludes post-response
+          // persistence work below (which is fire-and-forget bookkeeping
+          // the client doesn't wait on).
+          metricsRecorder?.finish();
 
           await persistAssistantResponse({
             supabase,
@@ -723,8 +742,6 @@ export async function POST(request: NextRequest) {
               query: trimmedQuery,
             });
           }
-
-          metricsRecorder?.finish();
         } catch (err) {
           const raw = err instanceof Error ? err.message : 'Stream error';
           const isQuotaError =
