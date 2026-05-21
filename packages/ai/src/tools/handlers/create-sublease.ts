@@ -367,6 +367,43 @@ async function handlePublish(
   };
 }
 
+// --- .edu verification gate ---
+//
+// PDR-003 Track B Day 2 (codex P1, code-review HIGH): a signed-in
+// non-.edu user must not be able to ask CribAI to post a sublease on
+// their behalf and reach a preview / publish. The source of truth is
+// `profiles.is_edu_verified` (DB-controlled, written only by the
+// verify-edu edge function), NOT `auth.users.email`.
+//
+// We read from `context.supabase`, which is the RLS-bound client
+// (policy `own_profile_select` lets a user read only their own row).
+// Defense in depth: never use the service-role client for this check.
+async function buildVerificationErrorBlock(
+  reason: 'no_profile' | 'unverified',
+): Promise<ToolResult> {
+  const userFacing =
+    reason === 'no_profile'
+      ? 'I can not publish a sublease without a verified .edu email on your profile. Please complete /verify-edu first and try again.'
+      : 'Posting a sublease requires a verified .edu email. Please open /verify-edu, confirm your school email, then ask me to publish the sublease again.';
+
+  const modelContext = [
+    'SUBLEASE PUBLISH BLOCKED: user has not completed .edu verification.',
+    '',
+    'INSTRUCTIONS: Do NOT call create_sublease again. Tell the user (in your own',
+    'words) that posting a sublease requires .edu verification and that they can',
+    'complete it at /verify-edu. Do not retry until they confirm they have',
+    'verified.',
+  ].join('\n');
+
+  return {
+    modelContext,
+    clientBlock: {
+      type: 'text' as const,
+      content: userFacing,
+    },
+  };
+}
+
 // --- Main handler ---
 
 export async function createSublease(
@@ -375,6 +412,23 @@ export async function createSublease(
 ): Promise<ToolResult> {
   if (!context.userId) {
     throw new Error('This action requires signing in.');
+  }
+
+  // .edu verification gate — must run BEFORE any preview rendering so an
+  // unverified user never sees a publish preview (mirrors the submit-listing
+  // API route gate, which is the supply-side source of truth).
+  const { data: profile, error: profileError } = await context.supabase
+    .from('profiles')
+    .select('is_edu_verified')
+    .eq('id', context.userId)
+    .single();
+
+  if (profileError || !profile) {
+    return buildVerificationErrorBlock('no_profile');
+  }
+
+  if (!profile.is_edu_verified) {
+    return buildVerificationErrorBlock('unverified');
   }
 
   const parsed = inputSchema.parse(args);

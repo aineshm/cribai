@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createMockContext } from './helpers';
 
 // Mock geocoding
@@ -30,6 +31,37 @@ import { createSublease } from '../handlers/create-sublease';
 import { geocodeAddress } from '../lib/geocode-address';
 
 const mockGeocode = vi.mocked(geocodeAddress);
+
+// --- .edu verification gate helpers (PDR-003 Track B Day 2) ---
+//
+// The handler now reads `profiles.is_edu_verified` from `context.supabase`
+// before any preview/publish work. Tests build a context whose `supabase`
+// stub returns the desired profile row from `from('profiles').select(...)
+// .eq('id', ...).single()`.
+
+interface ProfileFetchResult {
+  data: { is_edu_verified: boolean } | null;
+  error: { code?: string; message?: string } | null;
+}
+
+function buildContextWithProfile(profile: ProfileFetchResult) {
+  const profileBuilder = {
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    single: vi.fn().mockResolvedValue(profile),
+  };
+  const supabase = {
+    from: vi.fn(() => profileBuilder),
+  } as unknown as SupabaseClient;
+  return createMockContext({ supabase });
+}
+
+function verifiedContext() {
+  return buildContextWithProfile({
+    data: { is_edu_verified: true },
+    error: null,
+  });
+}
 
 describe('createSublease', () => {
   const validArgs = {
@@ -66,10 +98,62 @@ describe('createSublease', () => {
     );
   });
 
+  // --- .edu verification gate (PDR-003 Track B Day 2) ---
+
+  it('returns error block when user has no profile row (no_profile)', async () => {
+    const context = buildContextWithProfile({
+      data: null,
+      error: { code: 'PGRST116', message: 'no rows found' },
+    });
+
+    const result = await createSublease(validArgs, context);
+
+    expect(result.clientBlock.type).toBe('text');
+    expect((result.clientBlock as { content: string }).content).toMatch(
+      /verify-edu/,
+    );
+    expect(result.modelContext).toMatch(/SUBLEASE PUBLISH BLOCKED/);
+    // Crucially, no preview/publish work happened — no insert was attempted.
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('returns error block when profile has is_edu_verified=false', async () => {
+    const context = buildContextWithProfile({
+      data: { is_edu_verified: false },
+      error: null,
+    });
+
+    const result = await createSublease(validArgs, context);
+
+    expect(result.clientBlock.type).toBe('text');
+    expect((result.clientBlock as { content: string }).content).toMatch(
+      /\.edu/,
+    );
+    expect((result.clientBlock as { content: string }).content).toMatch(
+      /\/verify-edu/,
+    );
+    expect(result.modelContext).toMatch(/SUBLEASE PUBLISH BLOCKED/);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('does NOT render a preview for a non-verified user', async () => {
+    // The codex P1 case: signed-in user with no .edu verification asks
+    // CribAI to post a sublease — the tool must refuse BEFORE preview.
+    const context = buildContextWithProfile({
+      data: { is_edu_verified: false },
+      error: null,
+    });
+
+    const result = await createSublease(validArgs, context);
+
+    expect(result.modelContext).not.toContain('PREVIEW');
+    expect(result.modelContext).not.toContain('Randall Station');
+  });
+
   // --- Phase 1: Preview ---
 
   it('returns preview summary on Phase 1 (confirmed=false)', async () => {
-    const context = createMockContext();
+    const context = verifiedContext();
 
     const result = await createSublease(validArgs, context);
 
@@ -81,7 +165,7 @@ describe('createSublease', () => {
   });
 
   it('shows "Negotiable" for missing rent in Phase 1', async () => {
-    const context = createMockContext();
+    const context = verifiedContext();
     const argsNoRent = { ...validArgs, rent_monthly: undefined };
 
     const result = await createSublease(argsNoRent, context);
@@ -91,7 +175,7 @@ describe('createSublease', () => {
 
   it('includes geocode warning when geocoding fails in Phase 1', async () => {
     mockGeocode.mockResolvedValue(null);
-    const context = createMockContext();
+    const context = verifiedContext();
 
     const result = await createSublease(validArgs, context);
 
@@ -101,7 +185,7 @@ describe('createSublease', () => {
   it('preserves same-day availability dates in Phase 1', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-05-15T12:00:00Z'));
-    const context = createMockContext();
+    const context = verifiedContext();
 
     const result = await createSublease(
       {
@@ -118,7 +202,7 @@ describe('createSublease', () => {
   it('normalizes leap-day dates when correcting past years', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-05-15T12:00:00Z'));
-    const context = createMockContext();
+    const context = verifiedContext();
 
     const result = await createSublease(
       {
@@ -150,7 +234,7 @@ describe('createSublease', () => {
     const mockInsert = vi.fn().mockReturnValue({ select: mockSelect });
     mockFrom.mockReturnValue({ insert: mockInsert });
 
-    const context = createMockContext();
+    const context = verifiedContext();
     const publishArgs = { ...validArgs, confirmed: true };
 
     const result = await createSublease(publishArgs, context);
@@ -198,7 +282,7 @@ describe('createSublease', () => {
     const mockInsert = vi.fn().mockReturnValue({ select: mockSelect });
     mockFrom.mockReturnValue({ insert: mockInsert });
 
-    const context = createMockContext();
+    const context = verifiedContext();
     const argsWithEmail = {
       ...validArgs,
       confirmed: true,
@@ -227,7 +311,7 @@ describe('createSublease', () => {
     const mockInsert = vi.fn().mockReturnValue({ select: mockSelect });
     mockFrom.mockReturnValue({ insert: mockInsert });
 
-    const context = createMockContext();
+    const context = verifiedContext();
     const publishArgs = { ...validArgs, confirmed: true };
 
     await expect(createSublease(publishArgs, context)).rejects.toThrow(
@@ -238,14 +322,14 @@ describe('createSublease', () => {
   // --- Validation ---
 
   it('throws on missing required fields', async () => {
-    const context = createMockContext();
+    const context = verifiedContext();
     const badArgs = { address: 'Some Place' };
 
     await expect(createSublease(badArgs, context)).rejects.toThrow();
   });
 
   it('throws on address too short', async () => {
-    const context = createMockContext();
+    const context = verifiedContext();
     const badArgs = { ...validArgs, address: 'Hi' };
 
     await expect(createSublease(badArgs, context)).rejects.toThrow();

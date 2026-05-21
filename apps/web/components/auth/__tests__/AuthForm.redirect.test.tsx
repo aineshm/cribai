@@ -92,9 +92,11 @@ vi.mock('../ProfileSetup', () => ({
   ),
 }));
 
-// Mock fetch for /api/auth/validate-email (server-side email validation)
+// Mock fetch for /api/auth/validate-email (server-side email validation).
+// Post PDR-003 Track B Day 2 the response shape is `{ valid, isEdu, badge? }`
+// — `.edu` users still go through normally; non-.edu users are also valid.
 const mockFetch = vi.fn().mockResolvedValue({
-  json: async () => ({ allowed: true }),
+  json: async () => ({ valid: true, isEdu: true, badge: 'verified_student' }),
 });
 vi.stubGlobal('fetch', mockFetch);
 
