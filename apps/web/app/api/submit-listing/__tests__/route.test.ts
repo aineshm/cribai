@@ -25,9 +25,10 @@ vi.mock('@campusnest/ai', () => ({
   generateEmbedding: vi.fn(async () => null),
 }));
 
-// Mock Supabase server clients. The auth call is the only one we care about
-// for the .edu gate; the rest of the chain (.from(...).insert(...).select(...))
-// is stubbed so the happy path still resolves.
+// Mock Supabase server clients. The auth call returns the authenticated user,
+// the .from('profiles')...single() returns the profile row that controls the
+// .edu gate (source of truth: profiles.is_edu_verified), and the service-role
+// client handles the insert in the happy path.
 const mockGetUser = vi.fn();
 const mockProfileSingle = vi.fn();
 const mockInsertSingle = vi.fn();
@@ -80,7 +81,12 @@ describe('POST /api/submit-listing — .edu gate (PDR-003 Track B Day 2)', () =>
     mockGetUser.mockReset();
     mockProfileSingle.mockReset();
     mockInsertSingle.mockReset();
-    mockProfileSingle.mockResolvedValue({ data: { campus_id: 'campus-1' } });
+    // Default: profile exists, is verified, has a campus_id — happy path.
+    // Individual tests override mockProfileSingle to test the gate.
+    mockProfileSingle.mockResolvedValue({
+      data: { is_edu_verified: true, campus_id: 'campus-1' },
+      error: null,
+    });
     mockInsertSingle.mockResolvedValue({
       data: { id: 'listing-1', address: validBody.address },
       error: null,
@@ -93,9 +99,28 @@ describe('POST /api/submit-listing — .edu gate (PDR-003 Track B Day 2)', () =>
     expect(res.status).toBe(401);
   });
 
-  it('returns 403 when authenticated user has a non-.edu email', async () => {
+  it('returns 403 when the profile row cannot be fetched (no profile)', async () => {
     mockGetUser.mockResolvedValue({
-      data: { user: { id: 'u-1', email: 'user@gmail.com' } },
+      data: { user: { id: 'u-1', email: 'student@wisc.edu' } },
+      error: null,
+    });
+    mockProfileSingle.mockResolvedValue({
+      data: null,
+      error: { code: 'PGRST116', message: 'no rows found' },
+    });
+    const res = await POST(buildRequest(validBody));
+    expect(res.status).toBe(403);
+    const data = await res.json();
+    expect(data.error).toMatch(/verify-edu/);
+  });
+
+  it('returns 403 when the profile exists but is_edu_verified is false', async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: 'u-1', email: 'student@wisc.edu' } },
+      error: null,
+    });
+    mockProfileSingle.mockResolvedValue({
+      data: { is_edu_verified: false, campus_id: 'campus-1' },
       error: null,
     });
     const res = await POST(buildRequest(validBody));
@@ -104,42 +129,45 @@ describe('POST /api/submit-listing — .edu gate (PDR-003 Track B Day 2)', () =>
     expect(data.error).toMatch(/\.edu/);
   });
 
-  it('returns 403 when authenticated user has no email at all', async () => {
+  it('regression: non-.edu sign-in email + is_edu_verified=true → 201 (codex P1)', async () => {
+    // A user who signs in with a personal gmail and then completes
+    // /verify-edu with their school email must NOT be blocked. The
+    // source of truth is the profile flag, not auth.users.email.
     mockGetUser.mockResolvedValue({
-      data: { user: { id: 'u-1', email: null } },
+      data: { user: { id: 'u-1', email: 'user@gmail.com' } },
+      error: null,
+    });
+    mockProfileSingle.mockResolvedValue({
+      data: { is_edu_verified: true, campus_id: 'campus-1' },
       error: null,
     });
     const res = await POST(buildRequest(validBody));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(201);
   });
 
-  it('allows a .edu user past the gate (proceeds to body validation / insert)', async () => {
+  it('allows a verified user past the gate (proceeds to body validation / insert)', async () => {
     mockGetUser.mockResolvedValue({
       data: { user: { id: 'u-1', email: 'student@wisc.edu' } },
       error: null,
     });
+    // Default beforeEach already sets is_edu_verified=true
     const res = await POST(buildRequest(validBody));
-    // Body is valid + insert is mocked → 201. The point of this assertion is
-    // that we do NOT 403 a .edu user.
     expect(res.status).not.toBe(403);
     expect(res.status).toBe(201);
   });
 
-  it('treats .edu detection case-insensitively', async () => {
+  it('returns 400 when verified profile has no campus_id', async () => {
     mockGetUser.mockResolvedValue({
-      data: { user: { id: 'u-1', email: 'STUDENT@WISC.EDU' } },
+      data: { user: { id: 'u-1', email: 'student@wisc.edu' } },
+      error: null,
+    });
+    mockProfileSingle.mockResolvedValue({
+      data: { is_edu_verified: true, campus_id: null },
       error: null,
     });
     const res = await POST(buildRequest(validBody));
-    expect(res.status).not.toBe(403);
-  });
-
-  it('rejects edu.com domains (substring is not enough)', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: 'u-1', email: 'user@edu.com' } },
-      error: null,
-    });
-    const res = await POST(buildRequest(validBody));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toMatch(/campus/i);
   });
 });
