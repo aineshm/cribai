@@ -556,20 +556,29 @@ export async function POST(request: NextRequest) {
             enqueueEvent(controller, encoder, { type: 'done' });
             controller.close();
 
-            // AIN-19 — stamp request_completed_at right after controller.close()
-            // so the baseline excludes post-response persistence work from
-            // end-to-end latency. finish() below reuses this stamped value;
-            // if persist throws, the outer catch records the failure with
-            // error_kind='deterministic_stream_error'.
+            // AIN-19 — stamp request_completed_at then persist the metrics
+            // row BEFORE awaiting post-response bookkeeping. This guarantees
+            // the row lands even if persistAssistantResponse() stalls, and
+            // keeps end-to-end latency from being inflated by that work.
+            // Trade-off: persist failures are logged to console but not
+            // recorded in error_kind (the row already shipped as success).
+            // Persist failures are rare and observable via Vercel logs; the
+            // AIN-19 baseline prioritizes completeness over per-row error
+            // attribution on this code path.
             metricsRecorder?.markCompleted();
+            metricsRecorder?.finish();
 
-            await persistAssistantResponse({
-              supabase,
-              conversationId: verifiedConversation?.id ?? null,
-              userId,
-              blocks: assistantBlocks as readonly Record<string, unknown>[],
-              conversationState: nextConversationState,
-            });
+            try {
+              await persistAssistantResponse({
+                supabase,
+                conversationId: verifiedConversation?.id ?? null,
+                userId,
+                blocks: assistantBlocks as readonly Record<string, unknown>[],
+                conversationState: nextConversationState,
+              });
+            } catch (persistErr) {
+              console.error('[cribai] post-stream persistence failed:', persistErr);
+            }
 
             if (userId) {
               void supabase.from('ai_query_logs').insert({
@@ -578,18 +587,10 @@ export async function POST(request: NextRequest) {
                 query: trimmedQuery,
               });
             }
-
-            // AIN-19 — persist row only after all post-response work has
-            // succeeded. request_completed_at was already stamped via
-            // markCompleted() above so the latency baseline isn't inflated
-            // by these awaits; finish() just persists.
-            metricsRecorder?.finish();
           } catch (err) {
             const message = err instanceof Error ? err.message : 'Stream error';
-            // Reaches here on a persistAssistantResponse failure (the
-            // ai_query_logs insert is fire-and-forget). finish() preserves
-            // the markCompleted timestamp if it was stamped before the
-            // throw, otherwise it stamps now.
+            // Reaches here if the SSE replay itself throws (before close).
+            // finish() preserves any earlier markCompleted timestamp.
             metricsRecorder?.finish({ errorKind: 'deterministic_stream_error' });
             enqueueEvent(controller, encoder, { type: 'error', message });
             controller.close();
@@ -751,18 +752,23 @@ export async function POST(request: NextRequest) {
           enqueueEvent(controller, encoder, { type: 'done' });
           controller.close();
 
-          // AIN-19 — stamp request_completed_at right after controller.close()
-          // so the baseline excludes post-response persistence work from
-          // end-to-end latency. finish() below reuses this stamped value.
+          // AIN-19 — stamp request_completed_at then persist the metrics
+          // row BEFORE awaiting post-response bookkeeping (see
+          // deterministic path above for the same trade-off rationale).
           metricsRecorder?.markCompleted();
+          metricsRecorder?.finish();
 
-          await persistAssistantResponse({
-            supabase,
-            conversationId: verifiedConversation?.id ?? null,
-            userId,
-            blocks: serverBlocks,
-            conversationState: nextConversationState,
-          });
+          try {
+            await persistAssistantResponse({
+              supabase,
+              conversationId: verifiedConversation?.id ?? null,
+              userId,
+              blocks: serverBlocks,
+              conversationState: nextConversationState,
+            });
+          } catch (persistErr) {
+            console.error('[cribai] post-stream persistence failed:', persistErr);
+          }
 
           if (userId) {
             void supabase.from('ai_query_logs').insert({
@@ -771,8 +777,6 @@ export async function POST(request: NextRequest) {
               query: trimmedQuery,
             });
           }
-
-          metricsRecorder?.finish();
         } catch (err) {
           const raw = err instanceof Error ? err.message : 'Stream error';
           const isQuotaError =
