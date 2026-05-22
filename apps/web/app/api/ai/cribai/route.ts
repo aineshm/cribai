@@ -556,7 +556,7 @@ export async function POST(request: NextRequest) {
               // turns short-circuit Gemini entirely, so a TTFT measurement
               // would be misleading. The 'deterministic' runtime label in
               // the row makes this distinction queryable downstream.
-              if (event.type === 'tool_call' && 'name' in event) {
+              if (event.type === 'tool_call') {
                 metricsRecorder?.recordToolCall(event.name);
               } else if (event.type === 'tool_result') {
                 metricsRecorder?.markFirstToolResult();
@@ -684,7 +684,7 @@ export async function POST(request: NextRequest) {
             // right before controller.close(), gated on
             // emittedAssistantContent so empty/blocked Gemini replies keep
             // it null while card-only LLM turns still get it.)
-            if (chunk.type === 'tool_call' && 'name' in chunk) {
+            if (chunk.type === 'tool_call') {
               // tool_call is a real model emission — stamp TTFT.
               metricsRecorder?.markFirstModelToken();
               metricsRecorder?.recordToolCall(chunk.name);
