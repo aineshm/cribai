@@ -431,6 +431,25 @@ describe('decodeHtmlEntities', () => {
   it('decodes &amp;amp; to &amp; (single round of substitution)', () => {
     expect(decodeHtmlEntities('&amp;amp;')).toBe('&amp;');
   });
+
+  // Codex round 5: out-of-range numeric character references must not throw.
+  // `String.fromCodePoint(999999999)` raises `RangeError` natively; one bad
+  // entity in third-party HTML should not abort the entire extraction.
+  it('passes through invalid decimal numeric entities without throwing', () => {
+    expect(() => decodeHtmlEntities('x &#999999999; y')).not.toThrow();
+    // Preserve the original token verbatim so callers/debug logs can still see it.
+    expect(decodeHtmlEntities('x &#999999999; y')).toBe('x &#999999999; y');
+  });
+
+  it('passes through invalid hex numeric entities without throwing', () => {
+    expect(() => decodeHtmlEntities('x &#x110000; y')).not.toThrow();
+    expect(decodeHtmlEntities('x &#x110000; y')).toBe('x &#x110000; y');
+  });
+
+  it('still decodes valid numeric entities alongside invalid ones', () => {
+    // The valid &#65; (A) should decode; the invalid one should pass through.
+    expect(decodeHtmlEntities('&#65; &#999999999; &#x42;')).toBe('A &#999999999; B');
+  });
 });
 
 describe('projectJsonLdEntity edge cases', () => {
@@ -810,6 +829,46 @@ describe('codex follow-ups', () => {
     // Space between digits collapses; range collapses to lower.
     expect(projected.price).toBe(1800);
   });
+
+  // -------------------------------------------------------------------------
+  // Codex round 5 follow-ups
+  // -------------------------------------------------------------------------
+
+  it('parses JSON-LD when the script type carries a MIME parameter (charset=utf-8)', () => {
+    // Real-world publishers (Next.js, Gatsby, several CMSes) emit the script
+    // tag with the full MIME `application/ld+json; charset=utf-8`. The block
+    // must still be picked up — otherwise we lose JSON-LD entirely on those
+    // pages and silently degrade to OG-only.
+    const html = `<!doctype html><html><head>
+      <script type="application/ld+json; charset=utf-8">
+      {"@context":"https://schema.org","@type":"Apartment","name":"MIME Param Listing",
+       "numberOfBedrooms":2,"offers":{"@type":"Offer","price":1750},
+       "address":{"@type":"PostalAddress","streetAddress":"7 Spaarne","addressLocality":"Madison","addressRegion":"WI","postalCode":"53703"}}
+      </script>
+    </head><body></body></html>`;
+    const blocks = parseAllJsonLdBlocks(html);
+    expect(blocks).toHaveLength(1);
+    const extracted = extractFromJsonLd(html, 'https://example.com/mime');
+    expect(extracted?.title).toBe('MIME Param Listing');
+    expect(extracted?.price).toBe(1750);
+  });
+
+  it('extractListing succeeds end-to-end on JSON-LD with MIME parameter', async () => {
+    const html = `<!doctype html><html><head>
+      <script type='application/ld+json; charset="UTF-8"'>
+      {"@context":"https://schema.org","@type":"Apartment","name":"MIME Param E2E",
+       "numberOfBedrooms":1,"offers":{"@type":"Offer","price":1100},
+       "address":{"@type":"PostalAddress","streetAddress":"8 Spaarne","addressLocality":"Madison","addressRegion":"WI","postalCode":"53703"}}
+      </script>
+    </head><body></body></html>`;
+    const url = 'https://example.com/mime-e2e';
+    const result = await extractListing(url, {
+      fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+    });
+    expect(result.title).toBe('MIME Param E2E');
+    expect(result.extraction_method).toBe('json_ld');
+    expect(result.extraction_confidence).toBe('high');
+  });
 });
 
 describe('extractFromOg', () => {
@@ -824,6 +883,27 @@ describe('extractFromOg', () => {
     expect(fields.title).toBe('Twitter Title');
     expect(fields.description).toBe('Twitter Desc');
     expect(fields.photos).toEqual(['https://example.com/x.jpg']);
+  });
+
+  // Codex round 5: meta content containing an invalid numeric character
+  // reference must not abort the parser. Other meta tags on the page should
+  // still extract cleanly.
+  it('does not throw when an OG meta value contains an invalid numeric entity', async () => {
+    const html = `<!doctype html><html><head>
+      <meta property="og:title" content="Bad Entity &#999999999; Listing" />
+      <meta property="og:description" content="Otherwise valid description" />
+      <meta property="og:image" content="https://example.com/x.jpg" />
+    </head><body></body></html>`;
+    const url = 'https://example.com/bad-entity';
+    // Must not throw a bare RangeError from String.fromCodePoint.
+    const result = await extractListing(url, {
+      fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+    });
+    // Title may include the unconverted entity token, but the call must succeed
+    // and the other fields must come through.
+    expect(result.description).toBe('Otherwise valid description');
+    expect(result.photos).toEqual(['https://example.com/x.jpg']);
+    expect(result.extraction_method).toBe('og');
   });
 });
 

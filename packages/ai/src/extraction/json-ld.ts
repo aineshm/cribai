@@ -47,8 +47,13 @@ const LISTING_TYPES: ReadonlySet<string> = new Set([
   'Product',
 ]);
 
+// Match the MIME `application/ld+json`, allowing the publisher to append
+// MIME parameters like `; charset=utf-8` or whitespace before the closing
+// quote. Real-world Next.js / Gatsby / many CMS templates emit the full
+// `application/ld+json; charset=utf-8`; a strict-equality match would skip
+// those blocks and silently degrade to OG-only (codex round 5 P1).
 const SCRIPT_TAG_REGEX =
-  /<script[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  /<script[^>]*type\s*=\s*["']application\/ld\+json\s*(?:;[^"']*)?["'][^>]*>([\s\S]*?)<\/script>/gi;
 
 /**
  * Parse all JSON-LD blocks from raw HTML. Malformed blocks are skipped

@@ -21,15 +21,39 @@ const ATTR_NAME_REGEX = /\bname\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
 const ATTR_CONTENT_REGEX = /\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
 
 /**
+ * Safe wrapper around `String.fromCodePoint` for numeric character references.
+ * The spec only allows code points in 0..0x10FFFF; `String.fromCodePoint`
+ * throws `RangeError` outside that band. Real-world third-party HTML can
+ * contain garbage like `&#999999999;`; one bad entity must not abort the
+ * entire extraction. Returns `null` when the code point is invalid, so the
+ * caller preserves the original token verbatim (codex round 5 P2).
+ */
+function safeFromCodePoint(code: number): string | null {
+  if (!Number.isFinite(code) || code < 0 || code > 0x10ffff) return null;
+  try {
+    return String.fromCodePoint(code);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Minimal HTML entity decoder — covers the entities that actually appear in
  * `meta content="…"` attributes (ampersands, quotes, apostrophes, less-than /
  * greater-than, and numeric character references). Anything else is left
- * untouched, which is fine for our normalized output.
+ * untouched, which is fine for our normalized output. Out-of-range numeric
+ * character references are preserved verbatim (never throw).
  */
 export function decodeHtmlEntities(input: string): string {
   return input
-    .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, code: string) => String.fromCodePoint(parseInt(code, 16)))
+    .replace(/&#(\d+);/g, (match, code: string) => {
+      const decoded = safeFromCodePoint(Number(code));
+      return decoded ?? match;
+    })
+    .replace(/&#x([0-9a-fA-F]+);/g, (match, code: string) => {
+      const decoded = safeFromCodePoint(parseInt(code, 16));
+      return decoded ?? match;
+    })
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&lt;/g, '<')
