@@ -93,6 +93,10 @@ vi.mock('@campusnest/ai', async () => {
   };
 });
 
+// Import CribAI after the mock so Fix 4 test 2 can override its behavior
+// per-test via vi.mocked(CribAI).mockImplementationOnce(...).
+import { CribAI } from '@campusnest/ai';
+
 // Capture inserts to ai_request_metrics across the test. Each .from(table)
 // call returns a chainable object whose .insert() resolves to {error:null}
 // after pushing into the recorded inserts list.
@@ -498,5 +502,137 @@ describe('POST /api/ai/cribai — AIN-19 latency instrumentation', () => {
     const row = metricsInserts[0]!.row;
     expect(typeof row.first_model_token_at).toBe('string');
     expect(typeof row.final_assistant_message_at).toBe('string');
+  });
+
+  // AIN-19 follow-up (code-review P2): codex iterated 4 times on the
+  // `finish()` ordering inside the SSE stream-catch blocks. These three
+  // tests pin the regression guards on each surface — without them, a
+  // future refactor that reverts the await-first ordering would only fail
+  // when the SSE connection drops in production. Forcing a throw mid-stream
+  // is the only way to exercise these branches; unit tests can't.
+
+  it('records error_kind=deterministic_stream_error when the deterministic event replay throws', async () => {
+    // Force the for-of replay loop in the deterministic stream to throw
+    // mid-iteration via a custom iterable. This exercises the catch block
+    // around line 610-627 in route.ts, where finish() MUST be awaited
+    // before the controller.close() (codex P2 from push #4).
+    vi.mocked(maybeHandleDeterministicTurn).mockResolvedValueOnce({
+      blocks: [],
+      events: {
+        *[Symbol.iterator]() {
+          yield { type: 'tool_call', name: 'search_listings', args: {} };
+          throw new Error('mid-stream deterministic failure');
+        },
+      } as never,
+      conversationState: {
+        mode: 'browse',
+        selectedListingId: null,
+        pendingAction: null,
+      },
+    } as never);
+
+    const req = buildRequest(
+      {
+        query: 'show me subleases near campus',
+        campusSlug: 'uw-madison',
+        history: [],
+      },
+      { 'x-request-id': 'trace-det-stream-err' },
+    );
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    await drainStream(res);
+    // Deliberately NO microtask drain — finish() is awaited inside the
+    // catch before controller.close(), so drainStream() returning implies
+    // the persist has resolved. A regression that drops the await would
+    // make this assertion fail intermittently / not at all.
+
+    const metricsInserts = recordedInserts.filter((i) => i.table === 'ai_request_metrics');
+    expect(metricsInserts).toHaveLength(1);
+    const row = metricsInserts[0]!.row;
+    expect(row.request_id).toBe('trace-det-stream-err');
+    expect(row.error_kind).toBe('deterministic_stream_error');
+    expect(row.runtime).toBe('deterministic');
+    // The tool_call event fired before the throw, so it should be recorded.
+    expect(row.tools_called).toEqual(['search_listings']);
+  });
+
+  it('records error_kind=llm_stream_error when the Gemini stream throws mid-stream', async () => {
+    // Force the deterministic short-circuit to miss so the LLM fallback
+    // path runs, then override CribAI.chat to yield then throw. This
+    // exercises the catch block around line 818-840, where finish() MUST
+    // be awaited before controller.close().
+    vi.mocked(maybeHandleDeterministicTurn).mockResolvedValueOnce(null as never);
+    vi.mocked(CribAI).mockImplementationOnce(
+      () => ({
+        chat: vi.fn(async function* () {
+          yield { type: 'text', content: 'partial...' };
+          throw new Error('mid-stream Gemini failure');
+        }),
+      }) as never,
+    );
+
+    const req = buildRequest(
+      {
+        query: 'why is housing so expensive',
+        campusSlug: 'uw-madison',
+        history: [],
+      },
+      { 'x-request-id': 'trace-llm-stream-err' },
+    );
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    await drainStream(res);
+    // No microtask drain — same reasoning as the deterministic_stream_error
+    // test above.
+
+    const metricsInserts = recordedInserts.filter((i) => i.table === 'ai_request_metrics');
+    expect(metricsInserts).toHaveLength(1);
+    const row = metricsInserts[0]!.row;
+    expect(row.request_id).toBe('trace-llm-stream-err');
+    // Not a quota-style message — should classify as the generic LLM stream
+    // error rather than gemini_quota.
+    expect(row.error_kind).toBe('llm_stream_error');
+    expect(row.runtime).toBe('deterministic');
+    // A real text token shipped before the throw — TTFT should be stamped.
+    expect(typeof row.first_model_token_at).toBe('string');
+  });
+
+  it('records error_kind=handler_exception when the deterministic helper rejects', async () => {
+    // NOTE: literally throwing inside `request.json()` would jump to the
+    // outer catch BEFORE the recorder is created (line 435 in route.ts),
+    // so no row would land — that's intentional per the comment at lines
+    // 431-434 ("pre-supabase failures … intentionally not instrumented").
+    // The handler_exception branch only fires for throws that happen
+    // AFTER recorder construction. `maybeHandleDeterministicTurn` is the
+    // first awaited call inside the outer try after the recorder exists,
+    // so rejecting it is the cleanest way to exercise the outer catch
+    // with a live recorder.
+    vi.mocked(maybeHandleDeterministicTurn).mockRejectedValueOnce(
+      new Error('synthesized handler failure'),
+    );
+
+    const req = buildRequest(
+      {
+        query: 'show me subleases',
+        campusSlug: 'uw-madison',
+        history: [],
+      },
+      { 'x-request-id': 'trace-handler-exc' },
+    );
+
+    const res = await POST(req);
+    expect(res.status).toBe(500);
+    // No microtask drain — the outer catch awaits finish() before
+    // returning the 500 response.
+
+    const metricsInserts = recordedInserts.filter((i) => i.table === 'ai_request_metrics');
+    expect(metricsInserts).toHaveLength(1);
+    const row = metricsInserts[0]!.row;
+    expect(row.request_id).toBe('trace-handler-exc');
+    expect(row.error_kind).toBe('handler_exception');
+    expect(row.runtime).toBe('deterministic');
   });
 });
