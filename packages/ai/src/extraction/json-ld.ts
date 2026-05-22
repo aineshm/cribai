@@ -28,12 +28,11 @@
 import type { ExtractedListing } from './types';
 
 /**
- * Specific listing types — when one of these is present anywhere in the
- * JSON-LD tree, it always wins over the generic `Place`/`Product` types
- * (which a publisher's organizational schema can also expose, e.g.
- * `publisher.location` as a `Place`).
+ * Schema.org `@type` values we treat as candidate listings. Selection across
+ * candidates is governed by tree depth (BFS), not by type specificity —
+ * shallower entities are always more authoritative than deeper ones.
  */
-const SPECIFIC_LISTING_TYPES: ReadonlySet<string> = new Set([
+const LISTING_TYPES: ReadonlySet<string> = new Set([
   'RealEstateListing',
   'Apartment',
   'House',
@@ -41,19 +40,11 @@ const SPECIFIC_LISTING_TYPES: ReadonlySet<string> = new Set([
   'SingleFamilyResidence',
   'ApartmentComplex',
   'ResidentialApartmentComplex',
-]);
-
-/**
- * Generic types that real-estate publishers sometimes use for listings, but
- * which are also used for unrelated entities (organization addresses, store
- * locations, generic products). Only chosen when no specific listing type
- * is present anywhere in the parsed JSON-LD.
- */
-const GENERIC_LISTING_TYPES: ReadonlySet<string> = new Set(['Place', 'Product']);
-
-const LISTING_TYPES: ReadonlySet<string> = new Set([
-  ...SPECIFIC_LISTING_TYPES,
-  ...GENERIC_LISTING_TYPES,
+  // Generic schema.org types that publishers sometimes use for the primary
+  // listing. Depth-priority keeps them from beating a more specific child,
+  // and keeps the publisher.location case from beating mainEntity.
+  'Place',
+  'Product',
 ]);
 
 const SCRIPT_TAG_REGEX =
@@ -80,36 +71,60 @@ export function parseAllJsonLdBlocks(html: string): unknown[] {
 }
 
 /**
- * Walk a JSON-LD value and emit every object that has an `@type` we recognize
- * as a listing. Handles `@graph` arrays and arbitrarily nested structures.
+ * Read the `@type` of an entity as an array of strings (handles both string
+ * and array `@type` values).
  */
-function* findListingEntities(node: unknown): IterableIterator<Record<string, unknown>> {
-  if (Array.isArray(node)) {
-    for (const item of node) yield* findListingEntities(item);
-    return;
-  }
-  if (!node || typeof node !== 'object') return;
-  const obj = node as Record<string, unknown>;
+function getTypes(obj: Record<string, unknown>): string[] {
+  const t = obj['@type'];
+  if (Array.isArray(t)) return t.filter((x): x is string => typeof x === 'string');
+  if (typeof t === 'string') return [t];
+  return [];
+}
 
-  const type = obj['@type'];
-  const types: string[] = Array.isArray(type)
-    ? type.filter((t): t is string => typeof t === 'string')
-    : typeof type === 'string'
-      ? [type]
-      : [];
-  if (types.some((t) => LISTING_TYPES.has(t))) {
-    yield obj;
-  }
+/**
+ * Breadth-first walk of a JSON-LD tree, yielding every object that has an
+ * `@type` we recognize as a listing in tree-depth order. The first emitted
+ * entity is the shallowest match — i.e. the one most likely to be the
+ * page's primary listing.
+ *
+ * Depth-priority handles three real-world cases together:
+ *
+ *  1. `WebPage.mainEntity = Apartment` — WebPage isn't a listing, Apartment
+ *     is found at depth 1. ✓
+ *  2. `WebPage { publisher.location = Place (depth 2), mainEntity = Apartment
+ *     (depth 1) }` — Apartment is shallower regardless of object key order. ✓
+ *  3. `Place { containsPlace = Apartment }` — the wrapping Place IS the
+ *     listing; the nested Apartment is a sub-unit / floorplan. The wrapping
+ *     Place is shallower → wins. ✓
+ *
+ * `@graph` is walked as a regular property. Other `@`-prefixed keys
+ * (`@context`, `@id`, etc.) are skipped to avoid pathological traversals.
+ */
+function* findListingEntitiesBfs(root: unknown): IterableIterator<Record<string, unknown>> {
+  const queue: unknown[] = [root];
+  while (queue.length > 0) {
+    const node = queue.shift();
+    if (Array.isArray(node)) {
+      for (const item of node) queue.push(item);
+      continue;
+    }
+    if (!node || typeof node !== 'object') continue;
+    const obj = node as Record<string, unknown>;
 
-  // Recurse into every property of the object so we also pick up listings
-  // nested under containers like `WebPage.mainEntity`, `ItemList.itemListElement`,
-  // or vendor-specific wrappers. `@graph` is included by this generic walk.
-  // Schema.org / JSON-LD context keys (those starting with '@') are skipped
-  // to avoid pathological traversals of `@context` definitions.
-  for (const [key, value] of Object.entries(obj)) {
-    if (key.startsWith('@') && key !== '@graph') continue;
-    if (value && (typeof value === 'object' || Array.isArray(value))) {
-      yield* findListingEntities(value);
+    if (getTypes(obj).some((x) => LISTING_TYPES.has(x))) {
+      yield obj;
+      // Do not descend into a yielded entity — its sub-objects are
+      // sub-units, related listings, or nested addresses. The caller takes
+      // the first yielded entity, so this early-out is a micro-optimization,
+      // not load-bearing; we still descend below to find disjoint matches
+      // in other branches.
+    }
+
+    for (const [key, value] of Object.entries(obj)) {
+      if (key.startsWith('@') && key !== '@graph') continue;
+      if (value && (typeof value === 'object' || Array.isArray(value))) {
+        queue.push(value);
+      }
     }
   }
 }
@@ -438,43 +453,23 @@ export function projectJsonLdEntity(
 }
 
 /**
- * Return true when the entity has at least one of our specific listing types
- * (Apartment, House, RealEstateListing, etc.) — used to break the tie when a
- * page exposes both a real listing and an unrelated `Place` (e.g. the
- * publisher's office location under `publisher.location`).
- */
-function isSpecificListingEntity(entity: Record<string, unknown>): boolean {
-  const t = entity['@type'];
-  const types: string[] = Array.isArray(t)
-    ? t.filter((x): x is string => typeof x === 'string')
-    : typeof t === 'string'
-      ? [t]
-      : [];
-  return types.some((x) => SPECIFIC_LISTING_TYPES.has(x));
-}
-
-/**
- * Top-level helper: parse the HTML, find the best matching listing entity,
- * and project it. Prefers specific listing types (Apartment, House, etc.)
- * over the broad `Place`/`Product` fallback to avoid mis-identifying a
- * publisher's address as the listing. Returns `null` when no listing-shaped
- * JSON-LD is found, letting the caller fall through to the OpenGraph
- * extractor.
+ * Top-level helper: parse the HTML, BFS-walk every parsed JSON-LD block,
+ * and project the first (shallowest) listing entity. Returns `null` when
+ * no listing-shaped JSON-LD is found, letting the caller fall through to
+ * the OpenGraph extractor.
+ *
+ * Across blocks, blocks are processed in document order; within a block,
+ * entities are visited breadth-first so the shallowest listing wins.
  */
 export function extractFromJsonLd(
   html: string,
   sourceUrl: string,
 ): ReturnType<typeof projectJsonLdEntity> | null {
   const blocks = parseAllJsonLdBlocks(html);
-  let firstGeneric: Record<string, unknown> | null = null;
   for (const block of blocks) {
-    for (const entity of findListingEntities(block)) {
-      if (isSpecificListingEntity(entity)) {
-        return projectJsonLdEntity(entity, sourceUrl);
-      }
-      if (firstGeneric === null) firstGeneric = entity;
+    for (const entity of findListingEntitiesBfs(block)) {
+      return projectJsonLdEntity(entity, sourceUrl);
     }
   }
-  if (firstGeneric) return projectJsonLdEntity(firstGeneric, sourceUrl);
   return null;
 }

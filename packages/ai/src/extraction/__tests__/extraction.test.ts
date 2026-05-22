@@ -691,10 +691,10 @@ describe('codex follow-ups', () => {
     expect(projected.available_from).toBe('2026-08-15');
   });
 
-  it('prefers a specific listing type over a nested generic Place', async () => {
-    // Publisher's location is a Place; the real listing is an Apartment
-    // nested under mainEntity. The Place comes FIRST in traversal — must
-    // not win.
+  it('selects the shallower listing when both a publisher Place and a mainEntity Apartment exist', async () => {
+    // Publisher's location is a Place at depth 2; the real listing is an
+    // Apartment under mainEntity at depth 1. BFS selects Apartment as the
+    // shallower entity, regardless of object key order.
     const html = `<!doctype html><html><head>
       <script type="application/ld+json">
       {"@context":"https://schema.org","@type":"WebPage",
@@ -721,9 +721,34 @@ describe('codex follow-ups', () => {
     expect(result.price).toBe(1500);
   });
 
-  it('falls back to a generic Place only when no specific listing type exists', async () => {
-    // Page exposes ONLY a Place — extractor still picks it up (generic
-    // fallback). Codex's earlier review noted this fixture in the wild.
+  it('extracts a top-level Place listing even when nested Apartment children exist (floorplans)', async () => {
+    // Real-world layout: a page-level Place (the property) embeds floorplan
+    // Apartments as `containsPlace` children. BFS gives the shallower Place
+    // priority — the wrapping property is the listing, not the floorplan.
+    const html = `<!doctype html><html><head>
+      <script type="application/ld+json">
+      {"@context":"https://schema.org","@type":"Place","name":"Main Property",
+       "address":{"@type":"PostalAddress","streetAddress":"1 Main St","addressLocality":"Madison","addressRegion":"WI","postalCode":"53703"},
+       "containsPlace":[
+         {"@type":"Apartment","name":"Unit A","numberOfBedrooms":1,"offers":{"@type":"Offer","price":900}},
+         {"@type":"Apartment","name":"Unit B","numberOfBedrooms":2,"offers":{"@type":"Offer","price":1200}}
+       ]}
+      </script>
+    </head><body></body></html>`;
+    const url = 'https://example.com/floorplans';
+    const result = await extractListing(url, {
+      fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+    });
+    expect(result.title).toBe('Main Property');
+    expect(result.city).toBe('Madison');
+    // Top-level Place has no bedrooms/price of its own — those are on the
+    // sub-units. That's the correct mapping: the page is the property, not
+    // a specific unit.
+    expect(result.bedrooms).toBeUndefined();
+    expect(result.price).toBeUndefined();
+  });
+
+  it('still extracts a Place when it is the only listing-shaped entity', async () => {
     const html = `<!doctype html><html><head>
       <script type="application/ld+json">
       {"@context":"https://schema.org","@type":"Place","name":"Some Place",
