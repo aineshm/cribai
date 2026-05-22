@@ -4,7 +4,6 @@ import {
   countPendingTourRequests,
   deleteConversation,
   deletePendingTourRequests,
-  getConversationState,
   waitForConversationState,
   waitForPendingActionKind,
 } from './utils/db-assertions';
@@ -27,49 +26,177 @@ import { getTestUserSession, plantSession, type TestUser } from './utils/test-us
  * We use the same Bearer-token code path production users hit, NOT the
  * BYPASS_AUTH=true dev-cookie shortcut — that path is what Day 10 deletes.
  *
+ * Listing-context priming: the deterministic runtime's
+ * `resolveReferencedListingIds` (cribai-runtime.ts:213) does NOT extract
+ * bare UUIDs from message text — it relies on `lastSearch.resultListingIds`
+ * or `selectedListingId`. To satisfy this contract without baking the
+ * implementation into the test, we use the same flow a real user does:
+ *  1. Navigate to /listing/{id}
+ *  2. Click "Ask AI About This Listing" — this opens the AIChatPanel Sheet
+ *     with `listingIdSeed` set, so the FIRST chat message carries the
+ *     structured listingId field
+ *  3. Send the pre-filled prompt to get a detail turn that persists
+ *     `selectedListingId` into conversation_state JSONB
+ *  4. Subsequent tour messages resolve to the same listing via the
+ *     persisted state — no need to repeat the listingId in each message
+ *
  * Cleanup: each test deletes its tour_requests rows and (when applicable)
  * its conversation row so reruns don't FK-collide on the
  * idx_tour_requests_dedup unique index.
  *
- * Desktop-only viewport: the explore-sidecar chat differs visually on
- * mobile-chrome (no sidecar — chat lives at /chat). The HITL contract is
+ * Parallel safety: the four tests share user + listingId. We run them
+ * serially within the describe block to avoid the race where
+ * `getActiveConversationId` (picks most-recent conversation for the user)
+ * cross-talks between tests.
+ *
+ * Desktop-only viewport: the chat panel UI differs on mobile-chrome
+ * (MobileBottomBar instead of CTASidebar). The HITL contract itself is
  * identical across viewports, so we verify it once on desktop and rely on
  * the existing mobile-chrome chat tests (explore-chat.spec.ts) to keep the
  * mobile path green.
  */
 
-const EXPLORE_URL = '/explore';
 const TOUR_DATES = ['2026-06-15', '2026-06-16'];
 
-/** Wait for an assistant bubble to render with non-empty text. */
-async function waitForAssistantBubble(page: Page, timeoutMs = 45_000): Promise<string> {
-  const bubble = page.locator('[data-role="assistant"]').last();
-  await expect(bubble).toBeAttached({ timeout: timeoutMs });
-  await expect(bubble).not.toBeEmpty({ timeout: timeoutMs });
-  return bubble.innerText();
+// Matches the two transient error replies the runtime emits when Gemini
+// rate-limits or any downstream stream errors out. Both surface as a single
+// assistant bubble so the count-poll still satisfies; we filter on the text.
+const TRANSIENT_ERROR_REGEX =
+  /temporarily unavailable|something went wrong|please try again/i;
+
+/**
+ * Send a message into the chat panel and wait for the *next* assistant
+ * bubble to settle. Tracks the count of assistant bubbles before submit so
+ * we don't read the previous turn's reply by accident.
+ *
+ * Includes a small retry loop for transient Gemini rate-limit / stream-error
+ * replies. The cancellation test (test 3) and any LLM-routed turn fall
+ * through to Gemini, which returns 429 under load — surfaced to the chat as
+ * "CribAI is temporarily unavailable..." (route.ts:814) or the catch-all
+ * "Sorry, something went wrong" (cribai-chat.tsx:540). We back off and retry
+ * a few times before letting the spec fail — that resilience matters both
+ * for our iteration loop AND for the post-AIN-13 world where all four tests
+ * go through the LLM path.
+ */
+async function sendChatMessage(
+  page: Page,
+  message: string,
+  attempts = 2,
+): Promise<string> {
+  for (let i = 0; i < attempts; i++) {
+    const previousCount = await page.locator('[data-role="assistant"]').count();
+    const input = page.getByRole('textbox', { name: /chat message input/i });
+    await input.fill(message);
+    await input.press('Enter');
+
+    await expect
+      .poll(
+        async () => page.locator('[data-role="assistant"]').count(),
+        { timeout: 45_000, intervals: [250, 500, 1000] },
+      )
+      .toBeGreaterThan(previousCount);
+
+    const bubble = page.locator('[data-role="assistant"]').last();
+    await expect(bubble).not.toBeEmpty({ timeout: 45_000 });
+    const text = await bubble.innerText();
+    if (!TRANSIENT_ERROR_REGEX.test(text)) {
+      return text;
+    }
+    if (i === attempts - 1) {
+      throw new Error(
+        `sendChatMessage: rate-limit / transient-error retry exhausted after ${attempts} attempts. ` +
+          `Last reply: ${text.slice(0, 200)}`,
+      );
+    }
+    // Short backoff before single retry — Gemini Flash quotas typically
+    // refill at the per-minute boundary, but we keep this brief so a single
+    // retry stays inside the test's 180s budget. Production stream-error
+    // retries should rely on the user pressing Enter again, not on us.
+    await page.waitForTimeout(15_000);
+  }
+  // Unreachable — the loop either returns or throws.
+  throw new Error('sendChatMessage: unreachable');
 }
 
 /**
- * Send a message into the chat sidecar and wait for the *next* assistant
- * bubble to settle. Tracks the count of assistant bubbles before submit so
- * we don't read the previous turn's reply by accident.
+ * Open the chat with listing context pre-bound.
+ *
+ * The flow mirrors what a real user does: navigate to /listing/{id}, click
+ * the "Ask AI About This Listing" CTA (which calls setDraftListingId +
+ * openChat). The CTA pre-fills the input with "Tell me about this listing
+ * at {address}." — we press Enter immediately so the FIRST send carries the
+ * structured listingId field (cribai-chat.tsx:331 reads pendingListingIdRef
+ * which is wired from listingIdSeed → draftListingId).
+ *
+ * After this priming turn, the deterministic runtime persists
+ * `selectedListingId` into conversation_state.JSONB, and subsequent tour
+ * messages resolve via `resolveReferencedListingIds(query, state, 1)` →
+ * `state.selectedListingId` (cribai-runtime.ts:235) without needing to
+ * repeat the UUID.
+ *
+ * Note: we MUST NOT touch the input field between the CTA click and the
+ * Enter press. The input's onChange (cribai-chat.tsx:664) clears
+ * pendingListingIdRef whenever the trimmed value transitions to empty —
+ * Playwright's `fill()` clears first, which would null the listingId
+ * before send.
  */
-async function sendChatMessage(page: Page, message: string): Promise<string> {
-  const previousCount = await page.locator('[data-role="assistant"]').count();
+async function primeChatWithListingContext(page: Page, listingId: string): Promise<void> {
+  await page.goto(`/listing/${listingId}`, { waitUntil: 'domcontentloaded' });
+
+  // Wait for hydration before clicking. The CTA button is rendered
+  // immediately in the SSR HTML, but its onClick handler is bound only
+  // after React hydrates. Clicking too early no-ops silently — the button
+  // looks "active" in a snapshot but the Sheet never opens.
+  //
+  // networkidle waits for both the SSR streaming chunks and any client-side
+  // data fetches (saved-status check, etc.) to settle. Faster but less
+  // reliable: `page.waitForLoadState('load')`. We pick correctness over
+  // speed here; the test budget allows it.
+  await page.waitForLoadState('networkidle');
+
+  const cta = page.getByRole('button', { name: /ask ai about this listing/i });
+  await expect(cta).toBeVisible({ timeout: 15_000 });
+  await expect(cta).toBeEnabled({ timeout: 5_000 });
+  await cta.click();
+
+  // The Sheet animates open with a transform; the input is visible only
+  // after the animation settles. We wait on the input itself (the Sheet's
+  // open state is internal React state we can't inspect directly). Retry
+  // the click once if the first click missed (hydration races sometimes
+  // beat the visibility wait above).
   const input = page.getByRole('textbox', { name: /chat message input/i });
-  await input.fill(message);
+  try {
+    await expect(input).toBeVisible({ timeout: 8_000 });
+  } catch {
+    // First click likely landed before hydration completed. Try once more.
+    await cta.click();
+    await expect(input).toBeVisible({ timeout: 10_000 });
+  }
+  // Sanity: input should already have the seeded prompt. If this is empty
+  // the CTA's setDraftPrompt didn't fire — surface that as the actual
+  // failure rather than letting the next press(Enter) silently no-op.
+  await expect(input).not.toHaveValue('', { timeout: 5_000 });
+
+  // We can't use sendChatMessage here because that helper calls input.fill()
+  // — which would clear the seeded listingId. The first turn must be sent
+  // via input.press('Enter') on the pre-filled prompt.
+  //
+  // The priming turn is routed deterministically (cribai-runtime.ts:699-700:
+  // hasExplicitListingReference("this listing") + isHighConfidenceListingDetail
+  // → buildDetailTurn → get_listing_detail tool, no Gemini call), so we don't
+  // need the rate-limit retry shield that sendChatMessage uses for LLM-routed
+  // turns. A bare expect-poll for the next assistant bubble is enough.
+  const previousCount = await page.locator('[data-role="assistant"]').count();
   await input.press('Enter');
 
   await expect
     .poll(
       async () => page.locator('[data-role="assistant"]').count(),
-      { timeout: 45_000, intervals: [250, 500, 1000] },
+      { timeout: 60_000, intervals: [500, 1000, 1500] },
     )
     .toBeGreaterThan(previousCount);
-
-  const bubble = page.locator('[data-role="assistant"]').last();
-  await expect(bubble).not.toBeEmpty({ timeout: 45_000 });
-  return bubble.innerText();
+  await expect(page.locator('[data-role="assistant"]').last())
+    .not.toBeEmpty({ timeout: 45_000 });
 }
 
 /**
@@ -104,10 +231,14 @@ async function getActiveConversationId(user: TestUser): Promise<string> {
 }
 
 test.describe('Tour HITL — schedule_tour preview/publish gate (PR #71, AIN-32)', () => {
-  // Desktop viewport — explore sidecar is the simplest path to the chat UI.
-  // The mobile-chrome chat lives at /chat and is exercised by other specs.
+  // Desktop viewport — listing-detail CTASidebar holds the "Ask AI About
+  // This Listing" button we use to prime listing context.
   test.use({ viewport: { width: 1280, height: 900 } });
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
+  // Serial mode: all four tests share user.id + listingId, and
+  // getActiveConversationId picks the most-recently-updated conversation
+  // for the user. Running them in parallel would cross-talk.
+  test.describe.configure({ mode: 'serial' });
 
   let user: TestUser;
   let listingId: string;
@@ -139,16 +270,18 @@ test.describe('Tour HITL — schedule_tour preview/publish gate (PR #71, AIN-32)
   // TEST 1 — Preview phase: assistant emits structured preview, NO DB write
   // ---------------------------------------------------------------------
   test('preview phase emits tour fields without writing tour_requests row', async ({ page }) => {
-    await page.goto(EXPLORE_URL, { waitUntil: 'domcontentloaded' });
+    // Prime listing context via the listing-detail CTA. After this returns
+    // the deterministic runtime has persisted selectedListingId so
+    // subsequent tour messages don't need to embed the UUID.
+    await primeChatWithListingContext(page, listingId);
 
-    // First turn: ask for a tour, supplying all required fields.
-    // The deterministic runtime's looksLikeTourTurn matches "schedule a tour";
+    // Tour-request turn: looksLikeTourTurn matches "schedule a tour";
     // adding email + ISO date triggers the all-fields-present preview branch
     // (cribai-runtime.ts:635). On the LLM cutover the same message should
     // produce a preview via the LLM's structured-output path — the assertion
     // (preview text + no DB row) holds regardless.
     const previewMessage =
-      `please schedule a tour for this listing ${listingId} on ${TOUR_DATES[0]} ` +
+      `please schedule a tour for this listing on ${TOUR_DATES[0]} ` +
       `using e2e-tour-hitl@cribai.test`;
 
     const reply = await sendChatMessage(page, previewMessage);
@@ -179,12 +312,12 @@ test.describe('Tour HITL — schedule_tour preview/publish gate (PR #71, AIN-32)
   // TEST 2 — Confirm/publish: DB write + confirmation block in chat
   // ---------------------------------------------------------------------
   test('confirmation turn writes tour_requests row and renders confirmed state', async ({ page }) => {
-    await page.goto(EXPLORE_URL, { waitUntil: 'domcontentloaded' });
+    await primeChatWithListingContext(page, listingId);
 
     // Set up preview state (same all-fields message as Test 1).
     await sendChatMessage(
       page,
-      `schedule a tour for this listing ${listingId} on ${TOUR_DATES[0]} ` +
+      `schedule a tour for this listing on ${TOUR_DATES[0]} ` +
         `using e2e-tour-hitl@cribai.test`,
     );
 
@@ -231,12 +364,12 @@ test.describe('Tour HITL — schedule_tour preview/publish gate (PR #71, AIN-32)
   // TEST 3 — Cancel mid-flow clears pendingAction (regression on 3dc4596)
   // ---------------------------------------------------------------------
   test('cancellation clears pendingAction without writing tour_requests', async ({ page }) => {
-    await page.goto(EXPLORE_URL, { waitUntil: 'domcontentloaded' });
+    await primeChatWithListingContext(page, listingId);
 
     // Set up the same preview state.
     await sendChatMessage(
       page,
-      `schedule a tour for this listing ${listingId} on ${TOUR_DATES[0]} ` +
+      `schedule a tour for this listing on ${TOUR_DATES[0]} ` +
         `using e2e-tour-hitl@cribai.test`,
     );
     activeConversationId = await getActiveConversationId(user);
@@ -272,14 +405,14 @@ test.describe('Tour HITL — schedule_tour preview/publish gate (PR #71, AIN-32)
   // TEST 4 — Name-only edit (regression on 87a828d + 232ff13)
   // ---------------------------------------------------------------------
   test('name-only edit updates studentName without confirming the tour', async ({ page }) => {
-    await page.goto(EXPLORE_URL, { waitUntil: 'domcontentloaded' });
+    await primeChatWithListingContext(page, listingId);
 
     // Set up preview with a default-derived name (inferred from email).
     // The runtime's inferNameFromEmail will pull "E2E Tour Hitl" from the
     // local-part of e2e-tour-hitl@cribai.test.
     await sendChatMessage(
       page,
-      `schedule a tour for this listing ${listingId} on ${TOUR_DATES[0]} ` +
+      `schedule a tour for this listing on ${TOUR_DATES[0]} ` +
         `using e2e-tour-hitl@cribai.test`,
     );
     activeConversationId = await getActiveConversationId(user);
