@@ -25,6 +25,20 @@ vi.mock('next/headers', () => ({
   })),
 }));
 
+// AIN-19 follow-up (code-review P2): the guest test below asserts
+// `row.user_id === null`. Without this mock that assertion silently depends
+// on `isDevAuthEnabled()` returning false. If a default ever flips, the
+// guest path would resolve `DEFAULT_DEV_USER.id` and the row would not be
+// null — but the test could still appear to pass against a non-null id if
+// the assertion were ever relaxed. Pin the dev-auth surface to off here so
+// the guest contract is unambiguous.
+vi.mock('../../../../../lib/dev-auth', () => ({
+  isDevAuthEnabled: () => false,
+  getDevUserById: () => undefined,
+  DEFAULT_DEV_USER: { id: 'never' },
+  DEV_USER_COOKIE: 'cookie',
+}));
+
 // Mock the deterministic runtime helper. Default mock returns a search-like
 // sequence (tool_call + tool_result + text). Tests can override with
 // `vi.mocked(maybeHandleDeterministicTurn).mockResolvedValueOnce(...)` to
