@@ -22,7 +22,7 @@ import {
   extractFromJsonLd,
   extractFromOg,
 } from '../index';
-import { projectJsonLdEntity } from '../json-ld';
+import { projectJsonLdEntity, findListingEntitiesBfs } from '../json-ld';
 
 const FIXTURES_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '__fixtures__');
 
@@ -778,6 +778,23 @@ describe('codex follow-ups', () => {
     expect(result.title).toBe('Some Place');
     expect(result.city).toBe('Madison');
   });
+
+  // Vitest test timeout (default 5s) would surface as a fail rather than a hang
+  // if the WeakSet visited-guard regressed. JSON.parse can't produce cycles,
+  // but a future mutating caller could; the guard ensures we never loop.
+  // The cycle goes through two non-listing wrappers so the BFS actually has
+  // to revisit a node (the yielded-entity branch `continue`s before queueing
+  // sub-keys, so a self-referential listing alone wouldn't exercise the guard).
+  it('terminates on a cyclic graph and yields the listing entity once', () => {
+    const wrapperA: Record<string, unknown> = {};
+    const wrapperB: Record<string, unknown> = { back: wrapperA };
+    wrapperA.forward = wrapperB;
+    const apt: Record<string, unknown> = { '@type': 'Apartment', name: 'Cyclic Listing' };
+    wrapperA.entity = apt;
+    const yielded = Array.from(findListingEntitiesBfs(wrapperA));
+    expect(yielded).toHaveLength(1);
+    expect(yielded[0]).toBe(apt);
+  }, 2000);
 
   it.each([
     ['space-separated', ' '],

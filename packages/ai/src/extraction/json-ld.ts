@@ -105,7 +105,17 @@ function getTypes(obj: Record<string, unknown>): string[] {
  * `@graph` is walked as a regular property. Other `@`-prefixed keys
  * (`@context`, `@id`, etc.) are skipped to avoid pathological traversals.
  */
-function* findListingEntitiesBfs(root: unknown): IterableIterator<Record<string, unknown>> {
+// Exported so tests can construct in-memory cyclic graphs directly. Production
+// callers should use `extractFromJsonLd` — this helper is an implementation
+// detail of the listing-selection strategy.
+export function* findListingEntitiesBfs(root: unknown): IterableIterator<Record<string, unknown>> {
+  // Defensive cycle guard. `JSON.parse` can't produce cycles today, so the
+  // production input is acyclic in practice — but a future caller that mutates
+  // `raw_json_ld` and re-feeds it (or any other in-memory construction path)
+  // would silently regress us into an infinite loop without this guard.
+  // WeakSet only tracks objects (the only kind of node that could cycle), so
+  // primitive leaves cost nothing.
+  const visited = new WeakSet<object>();
   const queue: unknown[] = [root];
   while (queue.length > 0) {
     const node = queue.shift();
@@ -115,6 +125,8 @@ function* findListingEntitiesBfs(root: unknown): IterableIterator<Record<string,
     }
     if (!node || typeof node !== 'object') continue;
     const obj = node as Record<string, unknown>;
+    if (visited.has(obj)) continue;
+    visited.add(obj);
 
     if (getTypes(obj).some((x) => LISTING_TYPES.has(x))) {
       yield obj;
