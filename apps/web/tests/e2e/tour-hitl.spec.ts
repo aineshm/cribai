@@ -50,11 +50,12 @@ import { getTestUserSession, plantSession, type TestUser } from './utils/test-us
  * `getMostRecentConversationId` (picks most-recent conversation for the
  * user) cross-talks between tests.
  *
- * Desktop-only viewport: the chat panel UI differs on mobile-chrome
- * (MobileBottomBar instead of CTASidebar). The HITL contract itself is
- * identical across viewports, so we verify it once on desktop and rely on
- * the existing mobile-chrome chat tests (explore-chat.spec.ts) to keep the
- * mobile path green.
+ * Viewport: we pin a desktop viewport via `test.use` below so the
+ * listing-detail CTASidebar holds the "Ask AI About This Listing" button
+ * we use to prime listing context. The HITL contract under test is the
+ * server-side conversation_state / tour_requests behavior, which is
+ * viewport-agnostic — the mobile-chrome project also runs this spec to
+ * keep us honest if the prime-context flow ever forks per viewport.
  */
 
 const TOUR_DATES = ['2026-06-15', '2026-06-16'];
@@ -361,13 +362,13 @@ test.describe('Tour HITL — schedule_tour preview/publish gate (PR #71, AIN-32)
     expect(await countPendingTourRequests(user.id, listingId)).toBe(0);
 
     // ASSERTION C: a follow-up unrelated query is interpreted as a SEARCH,
-    // not as a stray tour confirmation. The simplest observable proof is
-    // that lastSearch.resultListingIds populates after the search turn —
-    // schedule_tour would have NOT touched it, but search_listings does.
+    // not as a stray tour confirmation — pendingAction must stay null
+    // across the next turn (the cancel did not resurrect via downstream
+    // re-priming). The search itself may legitimately return zero rows on
+    // some datasets, so we don't assert on result counts here — only that
+    // the cleared pendingAction survives one more round-trip.
     await sendChatMessage(page, 'show me 2 bedroom apartments under 1500');
     const afterSearchState = await waitForConversationState(activeConversationId);
-    // The search may legitimately return zero rows for some campuses, but
-    // pendingAction must remain null (i.e. the cancel did not resurrect).
     expect(afterSearchState.pendingAction.kind).toBeNull();
   });
 
@@ -404,6 +405,7 @@ test.describe('Tour HITL — schedule_tour preview/publish gate (PR #71, AIN-32)
     expect(updatedState.pendingAction.payload?.previewConfirmedReady).toBe(true);
     // The OTHER preview fields are preserved (dates, email).
     expect(updatedState.pendingAction.payload?.extractedEmail).toBe('e2e-tour-hitl@cribai.test');
+    expect(updatedState.pendingAction.payload?.extractedDates).toEqual([TOUR_DATES[0]]);
 
     // ASSERTION C: NO DB write — the name edit did NOT auto-confirm.
     expect(await countPendingTourRequests(user.id, listingId)).toBe(0);
