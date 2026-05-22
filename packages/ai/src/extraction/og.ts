@@ -3,7 +3,9 @@
  *
  * Parses `<meta property="og:*">` (and `<meta name="og:*">`, which a small
  * number of sites use) plus `product:*` / `og:price:*` tags that several
- * listing sites use to surface price.
+ * listing sites use to surface price. Also reads `twitter:title`,
+ * `twitter:description`, and `twitter:image` as last-resort fallbacks for
+ * sites that publish Twitter Card metadata but not full OpenGraph.
  *
  * No HTML parser dependency — same rationale as `json-ld.ts`: regex on
  * well-defined `<meta>` tags is sufficient and keeps `@campusnest/ai` clean.
@@ -137,6 +139,10 @@ function safeResolveUrl(maybeRelative: string, base: string): string {
  * Project parsed OG/Twitter meta tags into the subset of `ExtractedListing`
  * fields that OG can populate. Everything is optional — caller decides
  * confidence based on which fields came through.
+ *
+ * Field precedence: `og:*` always wins; `twitter:title`, `twitter:description`,
+ * and `twitter:image` only fill in when the corresponding `og:*` value is
+ * absent.
  */
 export function extractFromOg(
   html: string,

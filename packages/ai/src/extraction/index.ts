@@ -207,11 +207,13 @@ function mergeFields(
 
 /**
  * Compute confidence from the merged field set and which path(s) ran.
- *   high   = JSON-LD provided price + address + bedrooms
- *   medium = JSON-LD partial, OR strong OG (title + description + at least
- *            one of price/photos and JSON-LD also fired)
- *   low    = OG-only with sparse fields, OR JSON-LD that produced almost
- *            nothing
+ *   high   = JSON-LD fired AND merged set has price + address + bedrooms
+ *   medium = (a) JSON-LD fired AND at least one of price/address/bedrooms,
+ *              OR
+ *            (b) OG-only path (no JSON-LD) that produced a price plus a
+ *                title or photo array — enough structure to be useful.
+ *   low    = anything else (OG-only with sparse fields, or JSON-LD that
+ *            produced almost nothing).
  */
 function computeConfidence(
   merged: ExtractedFields,
