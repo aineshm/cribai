@@ -1,8 +1,13 @@
 import { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { createSecretClient } from '@campusnest/supabase/server';
-import { CribAI } from '@campusnest/ai';
-import type { ChatEvent } from '@campusnest/ai';
+import {
+  CribAI,
+  createRequestMetricsRecorder,
+  resolveRequestId,
+  type ChatEvent,
+  type RequestMetricsRecorder,
+} from '@campusnest/ai';
 import {
   createEmptyConversationState,
   mergeConversationState,
@@ -358,6 +363,14 @@ function isGenericOrSearchQuery(query: string): boolean {
 }
 
 export async function POST(request: NextRequest) {
+  // AIN-19 — stamp request_received_at at handler entry, before any IO.
+  // The recorder is created once we have a Supabase client. Until then,
+  // hold the entry timestamp + request_id so the recorder reflects the
+  // true handler-entry moment, not "post-validation".
+  const requestReceivedAt = new Date();
+  const requestId = resolveRequestId(request.headers.get('x-request-id'));
+  let metricsRecorder: RequestMetricsRecorder | null = null;
+
   try {
     const body = (await request.json()) as Record<string, unknown>;
     const { query, campusSlug, history, bounds, listingId, conversationId } = body;
@@ -410,15 +423,41 @@ export async function POST(request: NextRequest) {
       userId = devUser?.id ?? DEFAULT_DEV_USER.id;
     }
 
+    // AIN-19 codex P2 follow-up — create the metrics recorder NOW so all
+    // post-auth early-returns (query_too_long, rate_limit, campus_not_found)
+    // still produce a baseline row tagged with the appropriate `error_kind`.
+    // Conversation id is not resolved until later; pass null for now and
+    // accept the gap — that field is informational, not required by the
+    // schema. Earlier, pre-supabase failures (JSON parse, missing query,
+    // env not configured) are intentionally not instrumented because they
+    // happen before we even have a Supabase client to persist to; those
+    // remain visible via Vercel access logs.
+    metricsRecorder = createRequestMetricsRecorder(
+      {
+        requestId,
+        userId,
+        conversationId: null,
+        runtime: 'deterministic',
+        requestReceivedAt,
+      },
+      supabase,
+    );
+
     const isGuest = !userId;
     const maxQueryLength = isGuest ? GUEST_MAX_QUERY_LENGTH : AUTH_MAX_QUERY_LENGTH;
     if (trimmedQuery.length > maxQueryLength) {
+      // AWAIT the insert on early-return paths — serverless runtimes (Vercel
+      // notably) cancel unawaited background work the moment the function
+      // returns, which would silently drop the very rows this branch exists
+      // to capture.
+      await metricsRecorder.finish({ errorKind: 'query_too_long' });
       return jsonError(`Query too long (max ${maxQueryLength} chars)`, 400);
     }
 
     if (userId) {
       const rateCheck = await checkRateLimit(supabase, userId, subscriptionTier);
       if (!rateCheck.allowed) {
+        await metricsRecorder.finish({ errorKind: 'rate_limit' });
         return jsonError('Rate limit exceeded. Please try again later.', 429);
       }
     }
@@ -430,6 +469,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (!campus) {
+      await metricsRecorder.finish({ errorKind: 'campus_not_found' });
       return jsonError('Campus not found', 404);
     }
 
@@ -478,6 +518,14 @@ export async function POST(request: NextRequest) {
       mapBounds,
     };
 
+    // AIN-19 — the recorder was created earlier so it can cover early-return
+    // error paths (query_too_long, rate_limit, campus_not_found). Now that the
+    // conversation row has been resolved, late-bind the id so success-path
+    // rows carry it. `runtime: 'deterministic'` labels the entire current code
+    // path; AIN-8 will swap this label for 'llm_first' when its turn handler
+    // ships.
+    metricsRecorder?.setConversationId(verifiedConversation?.id ?? null);
+
     const deterministicResult = await maybeHandleDeterministicTurn({
       query: trimmedQuery,
       toolContext,
@@ -495,21 +543,62 @@ export async function POST(request: NextRequest) {
 
       const stream = new ReadableStream({
         async start(controller) {
+          // AIN-19 — track whether assistant content shipped (text or
+          // tool_result). Card-only deterministic flows (e.g. tour_submit)
+          // ship only tool_result, so they still qualify; a degenerate
+          // empty event list does not.
+          let emittedAssistantContent = false;
           try {
             for (const event of deterministicResult.events) {
+              // AIN-19 — record tool calls + first-tool-result timing as we
+              // replay the deterministic event sequence. firstModelTokenAt is
+              // intentionally left null on the deterministic path — those
+              // turns short-circuit Gemini entirely, so a TTFT measurement
+              // would be misleading. The 'deterministic' runtime label in
+              // the row makes this distinction queryable downstream.
+              if (event.type === 'tool_call') {
+                metricsRecorder?.recordToolCall(event.name);
+              } else if (event.type === 'tool_result') {
+                metricsRecorder?.markFirstToolResult();
+                emittedAssistantContent = true;
+              } else if (event.type === 'text') {
+                emittedAssistantContent = true;
+              }
               enqueueEvent(controller, encoder, event);
             }
 
+            // AIN-19 — stamp final_assistant_message_at right before the
+            // 'done' marker hits the wire. Card-only deterministic flows
+            // qualify via the emittedAssistantContent flag.
+            if (emittedAssistantContent) {
+              metricsRecorder?.markFinalAssistantMessage();
+            }
             enqueueEvent(controller, encoder, { type: 'done' });
             controller.close();
 
-            await persistAssistantResponse({
+            // AIN-19 — stamp request_completed_at NOW so the row's latency
+            // reflects only client-visible work, then run the metrics insert
+            // and the conversation persist in PARALLEL via Promise.all. Both
+            // must be awaited to keep the function alive (guest / first-turn
+            // turns leave persistAssistantResponse as a no-op, so it cannot
+            // be the sole keepalive — codex P1 from push #3). Running them
+            // concurrently rather than serially avoids widening the
+            // stale-conversation race window where a fast follow-up turn
+            // reads stale conversation_state (codex P2 from push #4).
+            // Per-promise .catch keeps a persist failure from rejecting the
+            // Promise.all and from being swallowed silently.
+            metricsRecorder?.markCompleted();
+            const persistPromise = persistAssistantResponse({
               supabase,
               conversationId: verifiedConversation?.id ?? null,
               userId,
               blocks: assistantBlocks as readonly Record<string, unknown>[],
               conversationState: nextConversationState,
+            }).catch((persistErr) => {
+              console.error('[cribai] post-stream persistence failed:', persistErr);
             });
+            const metricsPromise = metricsRecorder?.finish() ?? Promise.resolve();
+            await Promise.all([persistPromise, metricsPromise]);
 
             if (userId) {
               void supabase.from('ai_query_logs').insert({
@@ -520,8 +609,21 @@ export async function POST(request: NextRequest) {
             }
           } catch (err) {
             const message = err instanceof Error ? err.message : 'Stream error';
-            enqueueEvent(controller, encoder, { type: 'error', message });
-            controller.close();
+            // Reaches here if the SSE replay itself throws. AWAIT finish()
+            // FIRST so a cancelled SSE connection cannot silently drop the
+            // deterministic_stream_error row (codex P2 from push #4 — the
+            // previous order put controller calls first, which would throw
+            // on a closed stream and skip finish()). The error event +
+            // controller.close() are wrapped in a try/catch so a no-longer-
+            // writable controller doesn't bubble the error out of the
+            // ReadableStream start() callback.
+            await metricsRecorder?.finish({ errorKind: 'deterministic_stream_error' });
+            try {
+              enqueueEvent(controller, encoder, { type: 'error', message });
+              controller.close();
+            } catch (controllerErr) {
+              console.error('[cribai] controller already closed:', controllerErr);
+            }
           }
         },
       });
@@ -542,6 +644,10 @@ export async function POST(request: NextRequest) {
         let toolProposedMission = false;
         const serverBlocks: Array<Record<string, unknown>> = [];
         let currentServerText = '';
+        // AIN-19 — track whether the model actually emitted any assistant
+        // payload (text or tool_result). Empty/blocked Gemini replies that
+        // yield only `done` should leave final_assistant_message_at null.
+        let emittedAssistantContent = false;
 
         try {
           for await (const chunk of cribai.chat({
@@ -550,8 +656,12 @@ export async function POST(request: NextRequest) {
             conversationHistory,
           })) {
             if (typeof chunk === 'string') {
+              // AIN-19 — string chunks are streamed text from the model. Stamp
+              // TTFT here (idempotent) so the row reflects real model output.
+              metricsRecorder?.markFirstModelToken();
               enqueueEvent(controller, encoder, { type: 'text', content: chunk });
               currentServerText += chunk;
+              emittedAssistantContent = true;
               continue;
             }
 
@@ -560,7 +670,31 @@ export async function POST(request: NextRequest) {
             }
 
             if (chunk.type === 'done') {
+              // AIN-19 codex P2 follow-up — `done` is a control marker, not a
+              // model emission. Skip BEFORE stamping TTFT so empty/blocked
+              // Gemini replies that only yield `done` leave
+              // first_model_token_at null (consistent with the
+              // emittedAssistantContent discipline used for
+              // final_assistant_message_at below).
               continue;
+            }
+
+            // AIN-19 — track tool invocations + first-tool-result timing.
+            // (final_assistant_message_at is stamped once after the loop,
+            // right before controller.close(), gated on
+            // emittedAssistantContent so empty/blocked Gemini replies keep
+            // it null while card-only LLM turns still get it.)
+            if (chunk.type === 'tool_call') {
+              // tool_call is a real model emission — stamp TTFT.
+              metricsRecorder?.markFirstModelToken();
+              metricsRecorder?.recordToolCall(chunk.name);
+            } else if (chunk.type === 'tool_result') {
+              metricsRecorder?.markFirstModelToken();
+              metricsRecorder?.markFirstToolResult();
+              emittedAssistantContent = true;
+            } else if (chunk.type === 'text') {
+              metricsRecorder?.markFirstModelToken();
+              emittedAssistantContent = true;
             }
 
             if (chunk.type === 'tool_result' && 'statePatch' in chunk && chunk.statePatch) {
@@ -646,16 +780,33 @@ export async function POST(request: NextRequest) {
             );
           }
 
+          // AIN-19 — stamp final_assistant_message_at only when assistant
+          // content actually shipped. Card-only LLM turns qualify; empty/
+          // blocked Gemini replies that yield only `done` do not, so the
+          // marker stays null and downstream can detect those turns.
+          if (emittedAssistantContent) {
+            metricsRecorder?.markFinalAssistantMessage();
+          }
           enqueueEvent(controller, encoder, { type: 'done' });
           controller.close();
 
-          await persistAssistantResponse({
+          // AIN-19 — see the deterministic-path comment above for the full
+          // rationale. Same pattern: markCompleted freezes the timestamp,
+          // then metrics + persist run in PARALLEL so the conversation row
+          // isn't blocked behind the metrics insert (codex P2 from push
+          // #4).
+          metricsRecorder?.markCompleted();
+          const persistPromise = persistAssistantResponse({
             supabase,
             conversationId: verifiedConversation?.id ?? null,
             userId,
             blocks: serverBlocks,
             conversationState: nextConversationState,
+          }).catch((persistErr) => {
+            console.error('[cribai] post-stream persistence failed:', persistErr);
           });
+          const metricsPromise = metricsRecorder?.finish() ?? Promise.resolve();
+          await Promise.all([persistPromise, metricsPromise]);
 
           if (userId) {
             void supabase.from('ai_query_logs').insert({
@@ -668,19 +819,37 @@ export async function POST(request: NextRequest) {
           const raw = err instanceof Error ? err.message : 'Stream error';
           const isQuotaError =
             raw.includes('RESOURCE_EXHAUSTED') || raw.includes('429') || raw.includes('quota');
-          enqueueEvent(controller, encoder, {
-            type: 'error',
-            message: isQuotaError
-              ? 'CribAI is temporarily unavailable due to high demand. Please try again in a minute.'
-              : raw,
+          // AWAIT finish() FIRST so a cancelled SSE connection cannot drop
+          // the gemini_quota / llm_stream_error row (codex P2 from push
+          // #4). Controller calls are wrapped in try/catch so a
+          // no-longer-writable controller doesn't bubble out of start().
+          await metricsRecorder?.finish({
+            errorKind: isQuotaError ? 'gemini_quota' : 'llm_stream_error',
           });
-          controller.close();
+          try {
+            enqueueEvent(controller, encoder, {
+              type: 'error',
+              message: isQuotaError
+                ? 'CribAI is temporarily unavailable due to high demand. Please try again in a minute.'
+                : raw,
+            });
+            controller.close();
+          } catch (controllerErr) {
+            console.error('[cribai] controller already closed:', controllerErr);
+          }
         }
       },
     });
 
     return new Response(stream, { headers: SSE_HEADERS });
   } catch {
+    // AIN-19 — outer catch (e.g. JSON parse failure, env missing). Recorder
+    // may or may not exist depending on which validation step threw. Await
+    // the persist for the same reason as the early-return branches above:
+    // there's no later awaited work to keep the serverless function alive
+    // for a fire-and-forget insert. `await undefined` is a safe no-op so
+    // optional chaining behaves correctly when the recorder isn't built yet.
+    await metricsRecorder?.finish({ errorKind: 'handler_exception' });
     return jsonError('Internal server error', 500);
   }
 }
