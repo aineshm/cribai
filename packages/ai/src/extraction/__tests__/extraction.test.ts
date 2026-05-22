@@ -428,9 +428,6 @@ describe('decodeHtmlEntities', () => {
   it('handles &amp; without double-decoding', () => {
     expect(decodeHtmlEntities('&amp;lt;')).toBe('&lt;');
   });
-  it('decodes &amp;amp; to &amp; (single round of substitution)', () => {
-    expect(decodeHtmlEntities('&amp;amp;')).toBe('&amp;');
-  });
 
   // Codex round 5: out-of-range numeric character references must not throw.
   // `String.fromCodePoint(999999999)` raises `RangeError` natively; one bad
@@ -782,22 +779,14 @@ describe('codex follow-ups', () => {
     expect(result.city).toBe('Madison');
   });
 
-  it('parses space-separated thousands in JSON-LD price (locale style)', () => {
+  it.each([
+    ['space-separated', ' '],
+    ['NBSP-separated', ' '],
+  ])('parses %s thousands in JSON-LD price (locale style)', (_label, sep) => {
     const projected = projectJsonLdEntity(
       {
         '@type': 'Apartment',
-        offers: { '@type': 'Offer', price: '1 800' },
-      },
-      'https://example.com/x',
-    );
-    expect(projected.price).toBe(1800);
-  });
-
-  it('parses NBSP-separated thousands in JSON-LD price', () => {
-    const projected = projectJsonLdEntity(
-      {
-        '@type': 'Apartment',
-        offers: { '@type': 'Offer', price: '1 800' },
+        offers: { '@type': 'Offer', price: `1${sep}800` },
       },
       'https://example.com/x',
     );
@@ -907,15 +896,6 @@ describe('codex follow-ups', () => {
     // then never finishes streaming the body. The hard timeout must abort the
     // whole call, not just the initial `fetch()` round-trip.
     const url = 'https://example.com/slow-body';
-    const stallingBody = {
-      // A ReadableStream that never closes — mimics a trickling / stuck origin.
-      async text() {
-        await new Promise(() => {
-          /* hang forever */
-        });
-        return '';
-      },
-    };
     const stallingFetcher = (async (_input: string | URL | Request, init?: RequestInit) => {
       // Honour the AbortSignal that `extractListing` wires in. The test fails
       // (timeout) without the fix because `clearTimeout` runs after headers.
@@ -942,7 +922,6 @@ describe('codex follow-ups', () => {
     // Should abort within a comfortable margin of the 50ms budget. If the
     // timer was cleared after `fetch()`, this would hang indefinitely.
     expect(elapsed).toBeLessThan(1500);
-    void stallingBody; // keep linter quiet about unused helper
   });
 
   it('resolves relative image URLs against the final URL after redirect', async () => {

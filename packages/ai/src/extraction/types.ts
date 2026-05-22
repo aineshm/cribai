@@ -51,6 +51,17 @@ export interface ExtractedListing {
 }
 
 /**
+ * The subset of `ExtractedListing` fields that individual extractors
+ * (JSON-LD, OG) produce. The entry-point assembler is the only place that
+ * assigns `source_url`, `source_domain`, `extraction_method`, and
+ * `extraction_confidence`, so those four are excluded here.
+ */
+export type ExtractedFields = Omit<
+  ExtractedListing,
+  'source_url' | 'source_domain' | 'extraction_method' | 'extraction_confidence'
+>;
+
+/**
  * Optional dependency injection for the entry point. Tests pass a fake
  * `fetcher` that resolves with fixture HTML; production uses the global
  * `fetch`. The signature mirrors the standard `fetch` so callers can

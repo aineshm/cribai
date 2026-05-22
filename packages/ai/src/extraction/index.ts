@@ -20,6 +20,7 @@ import { extractFromJsonLd } from './json-ld';
 import { extractFromOg } from './og';
 import {
   ExtractionError,
+  type ExtractedFields,
   type ExtractedListing,
   type ExtractListingOptions,
 } from './types';
@@ -165,10 +166,10 @@ function mergeFields(
   jsonLd: ReturnType<typeof extractFromJsonLd>,
   og: ReturnType<typeof extractFromOg>,
 ): {
-  merged: Omit<ExtractedListing, 'source_url' | 'source_domain' | 'extraction_method' | 'extraction_confidence'>;
+  merged: ExtractedFields;
   ogContributed: boolean;
 } {
-  const merged: Omit<ExtractedListing, 'source_url' | 'source_domain' | 'extraction_method' | 'extraction_confidence'> = {};
+  const merged: ExtractedFields = {};
   let ogContributed = false;
 
   // Start with everything JSON-LD provided.
@@ -213,7 +214,7 @@ function mergeFields(
  *            nothing
  */
 function computeConfidence(
-  merged: Omit<ExtractedListing, 'source_url' | 'source_domain' | 'extraction_method' | 'extraction_confidence'>,
+  merged: ExtractedFields,
   hadJsonLd: boolean,
 ): 'high' | 'medium' | 'low' {
   const hasPrice = typeof merged.price === 'number';

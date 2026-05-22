@@ -9,7 +9,7 @@
  * well-defined `<meta>` tags is sufficient and keeps `@campusnest/ai` clean.
  */
 
-import type { ExtractedListing } from './types';
+import type { ExtractedFields } from './types';
 
 // `<meta ...>` — captures the full attribute block. We then look for
 // `property="…"` / `name="…"` / `content="…"` inside the captured block.
@@ -142,13 +142,13 @@ export function extractFromOg(
   html: string,
   sourceUrl: string,
 ): {
-  fields: Omit<ExtractedListing, 'source_url' | 'source_domain' | 'extraction_method' | 'extraction_confidence'>;
+  fields: ExtractedFields;
   raw_og: Record<string, string>;
   hasAnyOgData: boolean;
 } {
   const { single, multi } = parseMetaTags(html);
 
-  const fields: Omit<ExtractedListing, 'source_url' | 'source_domain' | 'extraction_method' | 'extraction_confidence'> = {};
+  const fields: ExtractedFields = {};
   const raw_og: Record<string, string> = {};
 
   const ogKeys = Object.keys(single).filter((k) => k.startsWith('og:') || k.startsWith('product:') || k.startsWith('twitter:'));

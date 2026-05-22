@@ -25,7 +25,7 @@
  * entities because `meta content=""` is HTML-attribute context.
  */
 
-import type { ExtractedListing } from './types';
+import type { ExtractedFields } from './types';
 
 /**
  * Schema.org `@type` values we treat as candidate listings. Selection across
@@ -119,10 +119,8 @@ function* findListingEntitiesBfs(root: unknown): IterableIterator<Record<string,
     if (getTypes(obj).some((x) => LISTING_TYPES.has(x))) {
       yield obj;
       // Do not descend into a yielded entity — its sub-objects are
-      // sub-units, related listings, or nested addresses. The caller takes
-      // the first yielded entity, so this early-out is a micro-optimization,
-      // not load-bearing; we still descend below to find disjoint matches
-      // in other branches.
+      // sub-units, related listings, or nested addresses.
+      continue;
     }
 
     for (const [key, value] of Object.entries(obj)) {
@@ -418,7 +416,7 @@ function extractBathrooms(entity: Record<string, unknown>): number | undefined {
 export function projectJsonLdEntity(
   entity: Record<string, unknown>,
   sourceUrl: string,
-): Omit<ExtractedListing, 'source_url' | 'source_domain' | 'extraction_method' | 'extraction_confidence'> & {
+): ExtractedFields & {
   raw_json_ld: Record<string, unknown>;
 } {
   const title = firstString(entity.name);
