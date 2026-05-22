@@ -4,6 +4,7 @@ import {
   countPendingTourRequests,
   deleteConversation,
   deletePendingTourRequests,
+  getMostRecentConversationId,
   waitForConversationState,
   waitForPendingActionKind,
 } from './utils/db-assertions';
@@ -46,8 +47,8 @@ import { getTestUserSession, plantSession, type TestUser } from './utils/test-us
  *
  * Parallel safety: the four tests share user + listingId. We run them
  * serially within the describe block to avoid the race where
- * `getActiveConversationId` (picks most-recent conversation for the user)
- * cross-talks between tests.
+ * `getMostRecentConversationId` (picks most-recent conversation for the
+ * user) cross-talks between tests.
  *
  * Desktop-only viewport: the chat panel UI differs on mobile-chrome
  * (MobileBottomBar instead of CTASidebar). The HITL contract itself is
@@ -199,45 +200,14 @@ async function primeChatWithListingContext(page: Page, listingId: string): Promi
     .not.toBeEmpty({ timeout: 45_000 });
 }
 
-/**
- * Pull the active conversationId out of the chat client. The component
- * exposes it on the assistant bubble's data attributes? No — it does not.
- * Instead we read the most-recently-touched conversation row for this
- * test user, which is what the API just wrote.
- *
- * This is robust for our purposes because:
- *  - The test user runs ONE conversation at a time within a test.
- *  - The DB ordering by updated_at DESC picks the freshest row.
- *  - We delete the conversation in afterEach so the next test starts fresh.
- */
-async function getActiveConversationId(user: TestUser): Promise<string> {
-  // Service-role read — bypasses RLS so we don't need a per-request session.
-  const { createClient } = await import('@supabase/supabase-js');
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SECRET_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } },
-  );
-  const { data, error } = await supabase
-    .from('conversations')
-    .select('id')
-    .eq('user_id', user.id)
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw new Error(`getActiveConversationId: ${error.message}`);
-  if (!data) throw new Error(`getActiveConversationId: no conversation for user ${user.id}`);
-  return data.id as string;
-}
-
 test.describe('Tour HITL — schedule_tour preview/publish gate (PR #71, AIN-32)', () => {
   // Desktop viewport — listing-detail CTASidebar holds the "Ask AI About
   // This Listing" button we use to prime listing context.
   test.use({ viewport: { width: 1280, height: 900 } });
   test.setTimeout(180_000);
   // Serial mode: all four tests share user.id + listingId, and
-  // getActiveConversationId picks the most-recently-updated conversation
-  // for the user. Running them in parallel would cross-talk.
+  // getMostRecentConversationId picks the most-recently-updated
+  // conversation for the user. Running them in parallel would cross-talk.
   test.describe.configure({ mode: 'serial' });
 
   let user: TestUser;
@@ -300,7 +270,7 @@ test.describe('Tour HITL — schedule_tour preview/publish gate (PR #71, AIN-32)
 
     // ASSERTION B: NO tour_requests row written. The pre-test cleanup zeroed
     // this counter; only handlePublish() should ever insert.
-    activeConversationId = await getActiveConversationId(user);
+    activeConversationId = await getMostRecentConversationId(user.id);
     const pendingState = await waitForPendingActionKind(activeConversationId, 'tour');
     expect(pendingState.pendingAction.payload?.previewConfirmedReady).toBe(true);
 
@@ -321,7 +291,7 @@ test.describe('Tour HITL — schedule_tour preview/publish gate (PR #71, AIN-32)
         `using e2e-tour-hitl@cribai.test`,
     );
 
-    activeConversationId = await getActiveConversationId(user);
+    activeConversationId = await getMostRecentConversationId(user.id);
     await waitForPendingActionKind(activeConversationId, 'tour');
 
     // Sanity: still zero rows before the user confirms.
@@ -372,7 +342,7 @@ test.describe('Tour HITL — schedule_tour preview/publish gate (PR #71, AIN-32)
       `schedule a tour for this listing on ${TOUR_DATES[0]} ` +
         `using e2e-tour-hitl@cribai.test`,
     );
-    activeConversationId = await getActiveConversationId(user);
+    activeConversationId = await getMostRecentConversationId(user.id);
     await waitForPendingActionKind(activeConversationId, 'tour');
 
     // Cancel — looksLikeCancellationIntent matches "nevermind" anchored at
@@ -415,7 +385,7 @@ test.describe('Tour HITL — schedule_tour preview/publish gate (PR #71, AIN-32)
       `schedule a tour for this listing on ${TOUR_DATES[0]} ` +
         `using e2e-tour-hitl@cribai.test`,
     );
-    activeConversationId = await getActiveConversationId(user);
+    activeConversationId = await getMostRecentConversationId(user.id);
     const initialState = await waitForPendingActionKind(activeConversationId, 'tour');
     const initialName = initialState.pendingAction.payload?.studentName as string | null;
     // Sanity: the runtime populated *some* name from the email.

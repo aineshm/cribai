@@ -46,9 +46,9 @@ export interface ConversationStateShape {
 /**
  * Read `conversation_state` JSONB for a conversation. Returns null when the
  * conversation does not exist (e.g. server hasn't persisted it yet — caller
- * should retry).
+ * should retry). Module-private — callers go through the wait helpers.
  */
-export async function getConversationState(
+async function getConversationState(
   conversationId: string,
 ): Promise<ConversationStateShape | null> {
   const { data, error } = await adminClient()
@@ -61,6 +61,33 @@ export async function getConversationState(
   }
   if (!data) return null;
   return data.conversation_state as ConversationStateShape;
+}
+
+/**
+ * Pull the most-recently-updated conversation id for a user. The chat client
+ * does not expose the active conversationId on assistant bubbles, so tests
+ * read it via the service-role client here. Robust under the AIN-32 spec's
+ * serial-mode constraint: one conversation per user per test, deleted in
+ * afterEach so the next test starts fresh.
+ *
+ * Throws when the user has no conversation rows yet — callers always invoke
+ * this after a turn has streamed, so a missing row is a real failure.
+ */
+export async function getMostRecentConversationId(userId: string): Promise<string> {
+  const { data, error } = await adminClient()
+    .from('conversations')
+    .select('id')
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`getMostRecentConversationId failed: ${error.message}`);
+  }
+  if (!data) {
+    throw new Error(`getMostRecentConversationId: no conversation for user ${userId}`);
+  }
+  return data.id as string;
 }
 
 /**
