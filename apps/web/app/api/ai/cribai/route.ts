@@ -577,31 +577,28 @@ export async function POST(request: NextRequest) {
             controller.close();
 
             // AIN-19 — stamp request_completed_at NOW so the row's latency
-            // reflects only client-visible work (closed at controller.close
-            // above), then AWAIT the persist. The await is safe with respect
-            // to baseline accuracy because markCompleted() already froze the
-            // timestamp — finish() just inserts a row built from that frozen
-            // state. The await is REQUIRED because on guest turns
-            // (userId === null) and first-turn conversations
-            // (conversationId === null), persistAssistantResponse() returns
-            // immediately, leaving no later awaited work to keep the function
-            // alive for a fire-and-forget insert (codex P1 from PR #76 push
-            // #3). This supersedes the "fire-and-forget" trade-off described
-            // in the original PR body.
+            // reflects only client-visible work, then run the metrics insert
+            // and the conversation persist in PARALLEL via Promise.all. Both
+            // must be awaited to keep the function alive (guest / first-turn
+            // turns leave persistAssistantResponse as a no-op, so it cannot
+            // be the sole keepalive — codex P1 from push #3). Running them
+            // concurrently rather than serially avoids widening the
+            // stale-conversation race window where a fast follow-up turn
+            // reads stale conversation_state (codex P2 from push #4).
+            // Per-promise .catch keeps a persist failure from rejecting the
+            // Promise.all and from being swallowed silently.
             metricsRecorder?.markCompleted();
-            await metricsRecorder?.finish();
-
-            try {
-              await persistAssistantResponse({
-                supabase,
-                conversationId: verifiedConversation?.id ?? null,
-                userId,
-                blocks: assistantBlocks as readonly Record<string, unknown>[],
-                conversationState: nextConversationState,
-              });
-            } catch (persistErr) {
+            const persistPromise = persistAssistantResponse({
+              supabase,
+              conversationId: verifiedConversation?.id ?? null,
+              userId,
+              blocks: assistantBlocks as readonly Record<string, unknown>[],
+              conversationState: nextConversationState,
+            }).catch((persistErr) => {
               console.error('[cribai] post-stream persistence failed:', persistErr);
-            }
+            });
+            const metricsPromise = metricsRecorder?.finish() ?? Promise.resolve();
+            await Promise.all([persistPromise, metricsPromise]);
 
             if (userId) {
               void supabase.from('ai_query_logs').insert({
@@ -612,15 +609,21 @@ export async function POST(request: NextRequest) {
             }
           } catch (err) {
             const message = err instanceof Error ? err.message : 'Stream error';
-            // Reaches here if the SSE replay itself throws (before close).
-            // Send the error event + close the stream FIRST so the client
-            // gets the error promptly, then AWAIT finish() so the
-            // deterministic_stream_error row lands before the function is
-            // allowed to terminate. The start() callback stays alive on the
-            // await — Vercel won't cancel until this returns.
-            enqueueEvent(controller, encoder, { type: 'error', message });
-            controller.close();
+            // Reaches here if the SSE replay itself throws. AWAIT finish()
+            // FIRST so a cancelled SSE connection cannot silently drop the
+            // deterministic_stream_error row (codex P2 from push #4 — the
+            // previous order put controller calls first, which would throw
+            // on a closed stream and skip finish()). The error event +
+            // controller.close() are wrapped in a try/catch so a no-longer-
+            // writable controller doesn't bubble the error out of the
+            // ReadableStream start() callback.
             await metricsRecorder?.finish({ errorKind: 'deterministic_stream_error' });
+            try {
+              enqueueEvent(controller, encoder, { type: 'error', message });
+              controller.close();
+            } catch (controllerErr) {
+              console.error('[cribai] controller already closed:', controllerErr);
+            }
           }
         },
       });
@@ -787,29 +790,23 @@ export async function POST(request: NextRequest) {
           enqueueEvent(controller, encoder, { type: 'done' });
           controller.close();
 
-          // AIN-19 — stamp request_completed_at NOW then AWAIT the persist.
-          // markCompleted() freezes the latency timestamp before any
-          // post-response bookkeeping, so awaiting finish() does not
-          // inflate the recorded latency. The await is required for guest
-          // turns and first-turn conversations where
-          // persistAssistantResponse no-ops, leaving no later awaited work
-          // to keep the function alive. (Codex P1 from PR #76 push #3 —
-          // supersedes the fire-and-forget trade-off in the original PR
-          // body; see deterministic-path comment above.)
+          // AIN-19 — see the deterministic-path comment above for the full
+          // rationale. Same pattern: markCompleted freezes the timestamp,
+          // then metrics + persist run in PARALLEL so the conversation row
+          // isn't blocked behind the metrics insert (codex P2 from push
+          // #4).
           metricsRecorder?.markCompleted();
-          await metricsRecorder?.finish();
-
-          try {
-            await persistAssistantResponse({
-              supabase,
-              conversationId: verifiedConversation?.id ?? null,
-              userId,
-              blocks: serverBlocks,
-              conversationState: nextConversationState,
-            });
-          } catch (persistErr) {
+          const persistPromise = persistAssistantResponse({
+            supabase,
+            conversationId: verifiedConversation?.id ?? null,
+            userId,
+            blocks: serverBlocks,
+            conversationState: nextConversationState,
+          }).catch((persistErr) => {
             console.error('[cribai] post-stream persistence failed:', persistErr);
-          }
+          });
+          const metricsPromise = metricsRecorder?.finish() ?? Promise.resolve();
+          await Promise.all([persistPromise, metricsPromise]);
 
           if (userId) {
             void supabase.from('ai_query_logs').insert({
@@ -822,20 +819,24 @@ export async function POST(request: NextRequest) {
           const raw = err instanceof Error ? err.message : 'Stream error';
           const isQuotaError =
             raw.includes('RESOURCE_EXHAUSTED') || raw.includes('429') || raw.includes('quota');
-          // Send the error event + close the stream FIRST so the client
-          // gets the error promptly, then AWAIT finish() so the
-          // gemini_quota / llm_stream_error row lands before the function
-          // is allowed to terminate. (Codex P2 from PR #76 push #3.)
-          enqueueEvent(controller, encoder, {
-            type: 'error',
-            message: isQuotaError
-              ? 'CribAI is temporarily unavailable due to high demand. Please try again in a minute.'
-              : raw,
-          });
-          controller.close();
+          // AWAIT finish() FIRST so a cancelled SSE connection cannot drop
+          // the gemini_quota / llm_stream_error row (codex P2 from push
+          // #4). Controller calls are wrapped in try/catch so a
+          // no-longer-writable controller doesn't bubble out of start().
           await metricsRecorder?.finish({
             errorKind: isQuotaError ? 'gemini_quota' : 'llm_stream_error',
           });
+          try {
+            enqueueEvent(controller, encoder, {
+              type: 'error',
+              message: isQuotaError
+                ? 'CribAI is temporarily unavailable due to high demand. Please try again in a minute.'
+                : raw,
+            });
+            controller.close();
+          } catch (controllerErr) {
+            console.error('[cribai] controller already closed:', controllerErr);
+          }
         }
       },
     });
