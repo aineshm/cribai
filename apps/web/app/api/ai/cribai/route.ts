@@ -576,20 +576,20 @@ export async function POST(request: NextRequest) {
             enqueueEvent(controller, encoder, { type: 'done' });
             controller.close();
 
-            // AIN-19 — stamp request_completed_at then persist the metrics
-            // row BEFORE awaiting post-response bookkeeping. This guarantees
-            // the row lands even if persistAssistantResponse() stalls, and
-            // keeps end-to-end latency from being inflated by that work.
-            // Trade-off: persist failures are logged to console but not
-            // recorded in error_kind (the row already shipped as success).
-            // Persist failures are rare and observable via Vercel logs; the
-            // AIN-19 baseline prioritizes completeness over per-row error
-            // attribution on this code path. `void` makes the discarded
-            // Promise explicit — the subsequent awaited persistAssistantResponse
-            // (or the stream's lifecycle) keeps the function alive long
-            // enough for the fire-and-forget insert to flush.
+            // AIN-19 — stamp request_completed_at NOW so the row's latency
+            // reflects only client-visible work (closed at controller.close
+            // above), then AWAIT the persist. The await is safe with respect
+            // to baseline accuracy because markCompleted() already froze the
+            // timestamp — finish() just inserts a row built from that frozen
+            // state. The await is REQUIRED because on guest turns
+            // (userId === null) and first-turn conversations
+            // (conversationId === null), persistAssistantResponse() returns
+            // immediately, leaving no later awaited work to keep the function
+            // alive for a fire-and-forget insert (codex P1 from PR #76 push
+            // #3). This supersedes the "fire-and-forget" trade-off described
+            // in the original PR body.
             metricsRecorder?.markCompleted();
-            void metricsRecorder?.finish();
+            await metricsRecorder?.finish();
 
             try {
               await persistAssistantResponse({
@@ -613,12 +613,14 @@ export async function POST(request: NextRequest) {
           } catch (err) {
             const message = err instanceof Error ? err.message : 'Stream error';
             // Reaches here if the SSE replay itself throws (before close).
-            // finish() preserves any earlier markCompleted timestamp. `void`
-            // makes the discarded Promise explicit; the stream's controller
-            // close + outer Response lifecycle keep the function alive.
-            void metricsRecorder?.finish({ errorKind: 'deterministic_stream_error' });
+            // Send the error event + close the stream FIRST so the client
+            // gets the error promptly, then AWAIT finish() so the
+            // deterministic_stream_error row lands before the function is
+            // allowed to terminate. The start() callback stays alive on the
+            // await — Vercel won't cancel until this returns.
             enqueueEvent(controller, encoder, { type: 'error', message });
             controller.close();
+            await metricsRecorder?.finish({ errorKind: 'deterministic_stream_error' });
           }
         },
       });
@@ -785,14 +787,17 @@ export async function POST(request: NextRequest) {
           enqueueEvent(controller, encoder, { type: 'done' });
           controller.close();
 
-          // AIN-19 — stamp request_completed_at then persist the metrics
-          // row BEFORE awaiting post-response bookkeeping (see
-          // deterministic path above for the same trade-off rationale).
-          // `void` makes the discarded Promise explicit; the subsequent
-          // awaited persistAssistantResponse keeps the function alive long
-          // enough for the fire-and-forget insert to flush.
+          // AIN-19 — stamp request_completed_at NOW then AWAIT the persist.
+          // markCompleted() freezes the latency timestamp before any
+          // post-response bookkeeping, so awaiting finish() does not
+          // inflate the recorded latency. The await is required for guest
+          // turns and first-turn conversations where
+          // persistAssistantResponse no-ops, leaving no later awaited work
+          // to keep the function alive. (Codex P1 from PR #76 push #3 —
+          // supersedes the fire-and-forget trade-off in the original PR
+          // body; see deterministic-path comment above.)
           metricsRecorder?.markCompleted();
-          void metricsRecorder?.finish();
+          await metricsRecorder?.finish();
 
           try {
             await persistAssistantResponse({
@@ -817,12 +822,10 @@ export async function POST(request: NextRequest) {
           const raw = err instanceof Error ? err.message : 'Stream error';
           const isQuotaError =
             raw.includes('RESOURCE_EXHAUSTED') || raw.includes('429') || raw.includes('quota');
-          // `void` makes the discarded Promise explicit; the stream's
-          // controller close + outer Response lifecycle keep the function
-          // alive briefly. (Documented trade-off in PR #76.)
-          void metricsRecorder?.finish({
-            errorKind: isQuotaError ? 'gemini_quota' : 'llm_stream_error',
-          });
+          // Send the error event + close the stream FIRST so the client
+          // gets the error promptly, then AWAIT finish() so the
+          // gemini_quota / llm_stream_error row lands before the function
+          // is allowed to terminate. (Codex P2 from PR #76 push #3.)
           enqueueEvent(controller, encoder, {
             type: 'error',
             message: isQuotaError
@@ -830,6 +833,9 @@ export async function POST(request: NextRequest) {
               : raw,
           });
           controller.close();
+          await metricsRecorder?.finish({
+            errorKind: isQuotaError ? 'gemini_quota' : 'llm_stream_error',
+          });
         }
       },
     });

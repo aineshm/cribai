@@ -174,6 +174,19 @@ function buildRequest(body: unknown, headers: Record<string, string> = {}): Next
   });
 }
 
+function buildGuestRequest(body: unknown, headers: Record<string, string> = {}): NextRequest {
+  // Guest turns omit the Authorization header. The cookies() mock returns
+  // empty so the dev-auth fallback also misses, leaving userId === null.
+  return new NextRequest('http://localhost/api/ai/cribai', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+    },
+    body: JSON.stringify(body),
+  });
+}
+
 async function drainStream(response: Response): Promise<string> {
   const reader = response.body!.getReader();
   const decoder = new TextDecoder();
@@ -416,6 +429,33 @@ describe('POST /api/ai/cribai — AIN-19 latency instrumentation', () => {
     expect(row.tools_called).toEqual([]);
     expect(row.tool_step_count).toBe(0);
     expect(row.error_kind).toBeNull();
+  });
+
+  // AIN-19 codex P1 follow-up (push #3): on guest turns userId === null, so
+  // persistAssistantResponse() early-returns, leaving NO awaited work after
+  // the metrics finish() call. The success-path `finish()` must therefore be
+  // awaited too — otherwise serverless cancellation drops the row. This test
+  // omits the microtask drain so a missing await regresses the assertion.
+  it('on guest turns, the success-path metrics row lands without a microtask drain', async () => {
+    const req = buildGuestRequest({
+      // Use a generic query that the deterministic mock will handle.
+      query: 'show me subleases near campus',
+      campusSlug: 'uw-madison',
+      history: [],
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    await drainStream(res);
+    // No setTimeout(5) drain. The await on `finish()` inside POST is the
+    // only thing that makes this assertion pass.
+
+    const metricsInserts = recordedInserts.filter((i) => i.table === 'ai_request_metrics');
+    expect(metricsInserts).toHaveLength(1);
+    const row = metricsInserts[0]!.row;
+    expect(row.user_id).toBeNull();
+    expect(row.runtime).toBe('deterministic');
+    expect(row.tools_called).toEqual(['search_listings']);
   });
 
   // Companion test: when the LLM DOES emit a text token, TTFT should be set.
