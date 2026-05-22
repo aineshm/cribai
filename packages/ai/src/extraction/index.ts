@@ -105,13 +105,19 @@ const COMMON_SUBDOMAIN_PREFIXES: readonly string[] = [
  * Derive a registrable-ish host like "zillow.com" from a URL. Strips any
  * sequence of common subdomain prefixes — `cdn.www.publisher.example` →
  * `publisher.example` — so per-publisher analytics doesn't fragment across
- * combined CDN + www / mobile + www layouts (codex round 4 P3). Falls
- * back to the raw hostname if parsing fails (which shouldn't happen since
- * we already fetched the URL successfully).
+ * combined CDN + www / mobile + www layouts.
  *
- * Bounded loop: at most `COMMON_SUBDOMAIN_PREFIXES.length` iterations
- * even on adversarial input, since each pass either consumes a prefix or
- * exits.
+ * NEVER strips into the publisher's registrable domain. `www.static.com`
+ * stays as `static.com`, not `com` — a real site can have an apex label
+ * that happens to match one of `COMMON_SUBDOMAIN_PREFIXES` (codex round 5
+ * P2). The guard requires the host to retain at least two dotted labels
+ * after stripping; we cap stripping there. This is still strictly more
+ * conservative than a real eTLD+1 collapse (which would need the Public
+ * Suffix List), but it correctly handles every case the codex review
+ * raised on this branch.
+ *
+ * Falls back to the raw hostname if parsing fails (which shouldn't happen
+ * since we already fetched the URL successfully).
  */
 function deriveSourceDomain(url: string): string {
   let host: string;
@@ -124,11 +130,16 @@ function deriveSourceDomain(url: string): string {
   while (stripped) {
     stripped = false;
     for (const prefix of COMMON_SUBDOMAIN_PREFIXES) {
-      if (host.startsWith(prefix)) {
-        host = host.slice(prefix.length);
-        stripped = true;
-        break;
-      }
+      if (!host.startsWith(prefix)) continue;
+      const candidate = host.slice(prefix.length);
+      // Don't strip into the registrable domain: a result like `com` or
+      // `example` would mean we've eaten the apex label. Require at least
+      // 2 dotted parts (1 dot) to remain — covers every gTLD/ccTLD shape
+      // without needing the full Public Suffix List.
+      if (!candidate.includes('.')) continue;
+      host = candidate;
+      stripped = true;
+      break;
     }
   }
   return host;

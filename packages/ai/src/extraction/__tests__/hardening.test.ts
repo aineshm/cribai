@@ -133,6 +133,20 @@ describe('SSRF (redirect chain)', () => {
     ).rejects.toMatchObject({ code: 'fetch_failed' });
   });
 
+  it('does NOT strip a prefix when doing so would eat the apex label (codex round 5 P2)', async () => {
+    // A real site whose apex label happens to match COMMON_SUBDOMAIN_PREFIXES:
+    // `www.static.com` should stay as `static.com`, NEVER become `com`.
+    const url = 'https://www.static.com/listing';
+    const html = `<!doctype html><meta property="og:title" content="Apex Edge" />`;
+    const fetcher = (async () => {
+      const res = new Response(html, { status: 200 });
+      Object.defineProperty(res, 'url', { value: url });
+      return res;
+    }) as typeof fetch;
+    const result = await extractListing(url, { fetcher, lookup: PUBLIC_IP });
+    expect(result.source_domain).toBe('static.com');
+  });
+
   it('strips stacked subdomain prefixes (cdn.www.publisher → publisher) — codex round 4 P3', async () => {
     const html = `<!doctype html><meta property="og:title" content="Stacked CDN" />`;
     const fetcher = (async (input: string | URL | Request) => {
