@@ -71,7 +71,15 @@ function deriveSourceDomain(url: string): string {
 }
 
 /**
- * Fetch the URL with a hard timeout. Returns the response body text.
+ * Fetch the URL with a hard timeout. Returns the response body text plus
+ * the final URL (after redirects) so the caller can resolve relative URLs
+ * against the page that actually served the HTML.
+ *
+ * The timeout is end-to-end: it covers DNS + connection + headers + the
+ * body stream. Previously `clearTimeout` ran the moment `fetch()` resolved
+ * (headers received), which meant a trickling / stalled body could hang
+ * `extractListing()` well past the advertised budget (codex round 6 P1).
+ *
  * Throws `ExtractionError` with `fetch_failed` or `fetch_blocked` on failure.
  */
 async function fetchHtml(
@@ -79,58 +87,73 @@ async function fetchHtml(
   fetcher: typeof fetch,
   userAgent: string,
   timeoutMs: number,
-): Promise<string> {
+): Promise<{ body: string; finalUrl: string }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  let response: Response;
   try {
-    response = await fetcher(url, {
-      headers: {
-        'User-Agent': userAgent,
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-      },
-      signal: controller.signal,
-      redirect: 'follow',
-    });
-  } catch (err) {
+    let response: Response;
+    try {
+      response = await fetcher(url, {
+        headers: {
+          'User-Agent': userAgent,
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+        signal: controller.signal,
+        redirect: 'follow',
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new ExtractionError('fetch_failed', `Network error fetching ${url}: ${message}`, url, err);
+    }
+
+    if (response.status === 403 || response.status === 429) {
+      throw new ExtractionError(
+        'fetch_blocked',
+        `Blocked by origin (HTTP ${response.status}) fetching ${url}`,
+        url,
+      );
+    }
+    if (!response.ok) {
+      throw new ExtractionError(
+        'fetch_failed',
+        `HTTP ${response.status} fetching ${url}`,
+        url,
+      );
+    }
+
+    let body: string;
+    try {
+      body = await response.text();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const aborted =
+        (err instanceof Error && err.name === 'AbortError') || controller.signal.aborted;
+      throw new ExtractionError(
+        'fetch_failed',
+        aborted
+          ? `Body read aborted (timeout ${timeoutMs}ms) for ${url}`
+          : `Failed to read body of ${url}: ${message}`,
+        url,
+        err,
+      );
+    }
+
+    const lowered = body.toLowerCase();
+    if (BLOCK_SIGNALS.some((sig) => lowered.includes(sig))) {
+      throw new ExtractionError(
+        'fetch_blocked',
+        `Page body contains a block / captcha signal (${url})`,
+        url,
+      );
+    }
+    // `response.url` is the post-redirect URL when `fetch` follows 3xx; some
+    // mock Responses leave it empty, in which case fall back to the input URL.
+    const finalUrl = typeof response.url === 'string' && response.url !== '' ? response.url : url;
+    return { body, finalUrl };
+  } finally {
     clearTimeout(timer);
-    const message = err instanceof Error ? err.message : String(err);
-    throw new ExtractionError('fetch_failed', `Network error fetching ${url}: ${message}`, url, err);
   }
-  clearTimeout(timer);
-
-  if (response.status === 403 || response.status === 429) {
-    throw new ExtractionError(
-      'fetch_blocked',
-      `Blocked by origin (HTTP ${response.status}) fetching ${url}`,
-      url,
-    );
-  }
-  if (!response.ok) {
-    throw new ExtractionError(
-      'fetch_failed',
-      `HTTP ${response.status} fetching ${url}`,
-      url,
-    );
-  }
-
-  let body: string;
-  try {
-    body = await response.text();
-  } catch (err) {
-    throw new ExtractionError('fetch_failed', `Failed to read body of ${url}`, url, err);
-  }
-
-  const lowered = body.toLowerCase();
-  if (BLOCK_SIGNALS.some((sig) => lowered.includes(sig))) {
-    throw new ExtractionError(
-      'fetch_blocked',
-      `Page body contains a block / captcha signal (${url})`,
-      url,
-    );
-  }
-  return body;
 }
 
 /**
@@ -236,10 +259,13 @@ export async function extractListing(
   const userAgent = opts.userAgent ?? DEFAULT_USER_AGENT;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
-  const html = await fetchHtml(url, fetcher, userAgent, timeoutMs);
+  const { body: html, finalUrl } = await fetchHtml(url, fetcher, userAgent, timeoutMs);
 
-  const jsonLd = extractFromJsonLd(html, url);
-  const og = extractFromOg(html, url);
+  // Relative URLs (image / og:image) in the served HTML resolve against the
+  // post-redirect URL, not the input URL — otherwise a redirector / shortener
+  // would rewrite asset paths against the wrong origin (codex round 6 P2).
+  const jsonLd = extractFromJsonLd(html, finalUrl);
+  const og = extractFromOg(html, finalUrl);
   const { merged, ogContributed } = mergeFields(jsonLd, og);
 
   const hasAnyField =

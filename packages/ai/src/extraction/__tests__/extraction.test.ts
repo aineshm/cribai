@@ -124,7 +124,7 @@ describe('JSON-LD primary path', () => {
     expect(result.title).toBe('522 State St');
     expect(result.description).toContain('cafes'); // JSON-LD strings preserved
     expect(result.price).toBe(3200);
-    expect(result.bedrooms).toBe(4); // numberOfRooms fallback
+    expect(result.bedrooms).toBe(4); // numberOfBedrooms on SingleFamilyResidence
     expect(result.bathrooms).toBe(2.5);
     expect(result.square_feet).toBe(1850);
     expect(result.photos).toEqual([
@@ -868,6 +868,110 @@ describe('codex follow-ups', () => {
     expect(result.title).toBe('MIME Param E2E');
     expect(result.extraction_method).toBe('json_ld');
     expect(result.extraction_confidence).toBe('high');
+  });
+
+  // -------------------------------------------------------------------------
+  // Codex round 6 follow-ups
+  // -------------------------------------------------------------------------
+
+  it('does NOT use numberOfRooms as a bedroom fallback (schema.org counts total rooms, not bedrooms)', () => {
+    // Schema.org `numberOfRooms` is "rooms excluding bathrooms and closets" —
+    // a 4-bed house is typically 7+ rooms. Storing rooms as bedrooms would
+    // materially over-report; `undefined` is safer than wrong.
+    const projected = projectJsonLdEntity(
+      {
+        '@type': 'SingleFamilyResidence',
+        name: 'Big House',
+        numberOfRooms: 8,
+      },
+      'https://example.com/x',
+    );
+    expect(projected.bedrooms).toBeUndefined();
+  });
+
+  it('still extracts bedrooms when numberOfBedrooms is present on SingleFamilyResidence', () => {
+    const projected = projectJsonLdEntity(
+      {
+        '@type': 'SingleFamilyResidence',
+        name: 'Correct House',
+        numberOfBedrooms: 3,
+        numberOfRooms: 8,
+      },
+      'https://example.com/x',
+    );
+    expect(projected.bedrooms).toBe(3);
+  });
+
+  it('enforces an end-to-end timeout that covers body download, not just headers', async () => {
+    // Simulate a publisher that resolves response headers immediately and
+    // then never finishes streaming the body. The hard timeout must abort the
+    // whole call, not just the initial `fetch()` round-trip.
+    const url = 'https://example.com/slow-body';
+    const stallingBody = {
+      // A ReadableStream that never closes — mimics a trickling / stuck origin.
+      async text() {
+        await new Promise(() => {
+          /* hang forever */
+        });
+        return '';
+      },
+    };
+    const stallingFetcher = (async (_input: string | URL | Request, init?: RequestInit) => {
+      // Honour the AbortSignal that `extractListing` wires in. The test fails
+      // (timeout) without the fix because `clearTimeout` runs after headers.
+      const signal = init?.signal;
+      return {
+        status: 200,
+        ok: true,
+        text: () =>
+          new Promise((_, reject) => {
+            if (signal) {
+              if (signal.aborted) reject(new DOMException('Aborted', 'AbortError'));
+              else signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+            }
+            // Never resolve on its own.
+          }),
+      } as unknown as Response;
+    }) as typeof fetch;
+
+    const start = Date.now();
+    await expect(
+      extractListing(url, { fetcher: stallingFetcher, timeoutMs: 50 }),
+    ).rejects.toMatchObject({ name: 'ExtractionError', code: 'fetch_failed' });
+    const elapsed = Date.now() - start;
+    // Should abort within a comfortable margin of the 50ms budget. If the
+    // timer was cleared after `fetch()`, this would hang indefinitely.
+    expect(elapsed).toBeLessThan(1500);
+    void stallingBody; // keep linter quiet about unused helper
+  });
+
+  it('resolves relative image URLs against the final URL after redirect', async () => {
+    // Origin responds at the redirected URL with a different host. Relative
+    // og:image / image URLs must resolve against the post-redirect URL, not
+    // the original request URL.
+    const requested = 'https://l.example.com/r/abc';
+    const finalUrl = 'https://cdn.publisher.example.com/listing/123';
+    const html = `<!doctype html><html><head>
+      <script type="application/ld+json">
+      {"@context":"https://schema.org","@type":"Apartment","name":"Redirected Listing",
+       "numberOfBedrooms":1,"offers":{"@type":"Offer","price":1100},
+       "address":{"@type":"PostalAddress","streetAddress":"1 Main","addressLocality":"Madison","addressRegion":"WI","postalCode":"53703"},
+       "image":["/photos/hero.jpg"]}
+      </script>
+      <meta property="og:image" content="/og/cover.jpg" />
+    </head><body></body></html>`;
+    const redirectingFetcher = (async () => {
+      const res = new Response(html, { status: 200 });
+      // `response.url` mirrors what `fetch` sets after following redirects.
+      Object.defineProperty(res, 'url', { value: finalUrl });
+      return res;
+    }) as typeof fetch;
+
+    const result = await extractListing(requested, { fetcher: redirectingFetcher });
+    // source_url stays as the caller's input — that's the URL they care about.
+    expect(result.source_url).toBe(requested);
+    // Photos must resolve against the post-redirect origin, not the redirector.
+    expect(result.photos).toContain('https://cdn.publisher.example.com/photos/hero.jpg');
   });
 });
 

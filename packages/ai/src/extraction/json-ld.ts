@@ -369,24 +369,24 @@ function extractGeo(entity: Record<string, unknown>): {
 }
 
 /**
- * Schema.org uses several keys for bedroom count depending on the type:
- *   - `numberOfBedrooms` (Residence, Apartment)
- *   - `numberOfRooms` (House, SingleFamilyResidence)
- *   - `numberOfBedrooms` may be `{value, unitText}` on some sites
+ * Schema.org uses `numberOfBedrooms` for bedroom count on Residence /
+ * Apartment / House / SingleFamilyResidence. It can be a number, a numeric
+ * string, or a `{value, unitText}` `QuantitativeValue` object.
+ *
+ * `numberOfRooms` is intentionally NOT a fallback. Per schema.org:
+ *   "The number of rooms (excluding bathrooms and closets) of the place."
+ * For an SFR a 4-bed home is typically 7+ rooms (bedrooms + kitchen + living
+ * + dining + …). Treating that count as bedrooms over-reports the value the
+ * caller stores in the CRM; `undefined` is materially safer (codex round 6).
  */
 function extractBedrooms(entity: Record<string, unknown>): number | undefined {
-  const candidates: unknown[] = [
-    entity.numberOfBedrooms,
-    entity.numberOfRooms,
-  ];
-  for (const c of candidates) {
-    if (c === undefined || c === null) continue;
-    const direct = toNumber(c);
-    if (direct !== undefined) return direct;
-    if (typeof c === 'object') {
-      const v = toNumber((c as Record<string, unknown>).value);
-      if (v !== undefined) return v;
-    }
+  const c = entity.numberOfBedrooms;
+  if (c === undefined || c === null) return undefined;
+  const direct = toNumber(c);
+  if (direct !== undefined) return direct;
+  if (typeof c === 'object') {
+    const v = toNumber((c as Record<string, unknown>).value);
+    if (v !== undefined) return v;
   }
   return undefined;
 }
