@@ -124,12 +124,20 @@ function parsePrice(raw: string | undefined): number | undefined {
 
 /**
  * Resolve a possibly-relative URL against the source URL. Returns the input
- * unchanged when it's not parseable (we'd rather pass through a weird URL
- * than drop the photo entirely).
+ * unchanged when it's not parseable. Returns `undefined` when the resolved
+ * URL has a scheme other than `http:` / `https:` — `new URL('javascript:..',
+ * base)` parses successfully, so dropping non-http schemes can only happen
+ * via an explicit `.protocol` check.
+ *
+ * `undefined` callers filter out via `.filter(Boolean)` so a malicious
+ * `og:image` of `javascript:alert(1)` never lands in `fields.photos`.
+ * `normalizeFields` reasserts the same rule downstream.
  */
-function safeResolveUrl(maybeRelative: string, base: string): string {
+function safeResolveUrl(maybeRelative: string, base: string): string | undefined {
   try {
-    return new URL(maybeRelative, base).href;
+    const resolved = new URL(maybeRelative, base);
+    if (resolved.protocol !== 'http:' && resolved.protocol !== 'https:') return undefined;
+    return resolved.href;
   } catch {
     return maybeRelative;
   }
@@ -172,7 +180,10 @@ export function extractFromOg(
   // Photos: prefer multi og:image, fall back to twitter:image.
   const photoSources = multi['og:image'] ?? (single['twitter:image'] ? [single['twitter:image']] : []);
   if (photoSources.length > 0) {
-    const photos = Array.from(new Set(photoSources.map((p) => safeResolveUrl(p, sourceUrl))));
+    const resolved = photoSources
+      .map((p) => safeResolveUrl(p, sourceUrl))
+      .filter((u): u is string => typeof u === 'string');
+    const photos = Array.from(new Set(resolved));
     if (photos.length > 0) fields.photos = photos;
   }
 

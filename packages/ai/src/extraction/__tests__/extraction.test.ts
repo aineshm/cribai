@@ -23,6 +23,16 @@ import {
   extractFromOg,
 } from '../index';
 import { projectJsonLdEntity, findListingEntitiesBfs } from '../json-ld';
+import type { DnsLookupOption } from '../types';
+
+/**
+ * Stub DNS lookup used by every fixture-driven test. Always returns a single
+ * public IP so the SSRF guard passes without touching the network. Tests
+ * that intentionally simulate DNS rebinding override this with their own.
+ */
+const publicLookup: DnsLookupOption = (async () => [
+  { address: '203.0.113.1', family: 4 as const },
+]) as DnsLookupOption;
 
 const FIXTURES_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '__fixtures__');
 
@@ -58,6 +68,7 @@ describe('JSON-LD primary path', () => {
     const url = 'https://www.zillow.com/homedetails/123-W-Gorham-St-APT-3-Madison-WI-53703/12345_zpid/';
     const result = await extractListing(url, {
       fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+      lookup: publicLookup,
     });
 
     expect(result.source_url).toBe(url);
@@ -83,7 +94,9 @@ describe('JSON-LD primary path', () => {
       'https://photos.zillowstatic.com/fp/abc-2.jpg',
     ]);
     expect(result.amenities).toEqual(['In-unit laundry', 'Dishwasher']); // pool=false dropped
-    expect(result.available_from).toBe('2026-08-15');
+    // AIN-38: available_from is normalised to ISO 8601 via Date.parse so the
+    // downstream `addListing` tool can rely on a canonical shape.
+    expect(result.available_from).toBe('2026-08-15T00:00:00.000Z');
     expect(result.extraction_method).toBe('json_ld');
     expect(result.extraction_confidence).toBe('high');
     expect(result.raw_json_ld).toBeDefined();
@@ -94,6 +107,7 @@ describe('JSON-LD primary path', () => {
     const url = 'https://www.apartments.com/the-hub-at-madison-madison-wi/abc123/';
     const result = await extractListing(url, {
       fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+      lookup: publicLookup,
     });
 
     expect(result.source_domain).toBe('apartments.com');
@@ -118,6 +132,7 @@ describe('JSON-LD primary path', () => {
     const url = 'https://www.realtor.com/realestateandhomes-detail/522-State-St_Madison_WI_53703_M12345';
     const result = await extractListing(url, {
       fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+      lookup: publicLookup,
     });
 
     expect(result.source_domain).toBe('realtor.com');
@@ -149,6 +164,7 @@ describe('OpenGraph fallback path', () => {
     const url = 'https://www.facebook.com/marketplace/item/abc123/';
     const result = await extractListing(url, {
       fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+      lookup: publicLookup,
     });
 
     expect(result.source_domain).toBe('facebook.com');
@@ -179,6 +195,7 @@ describe('OpenGraph fallback path', () => {
     const url = 'https://example.com/rich-og';
     const result = await extractListing(url, {
       fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+      lookup: publicLookup,
     });
     expect(result.extraction_method).toBe('og');
     expect(result.extraction_confidence).toBe('medium');
@@ -189,6 +206,7 @@ describe('OpenGraph fallback path', () => {
     const url = 'https://example.com/cozy-studio';
     const result = await extractListing(url, {
       fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+      lookup: publicLookup,
     });
 
     expect(result.title).toBe('Cozy Studio Apartment in Madison');
@@ -205,6 +223,7 @@ describe('OpenGraph fallback path', () => {
     const url = 'https://example.com/sparse';
     const result = await extractListing(url, {
       fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+      lookup: publicLookup,
     });
     expect(result.title).toBe('A Place');
     expect(result.extraction_method).toBe('og');
@@ -230,6 +249,7 @@ describe('JSON-LD + OG merge', () => {
     const url = 'https://example.com/merge-test';
     const result = await extractListing(url, {
       fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+      lookup: publicLookup,
     });
     expect(result.extraction_method).toBe('json_ld_plus_og');
     expect(result.description).toBe('OG-only description text.');
@@ -248,6 +268,7 @@ describe('JSON-LD + OG merge', () => {
     const url = 'https://example.com/precedence';
     const result = await extractListing(url, {
       fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+      lookup: publicLookup,
     });
     expect(result.title).toBe('JSON-LD title');
     // OG didn't fill any gap, so method stays json_ld (raw_og still attached as debug)
@@ -267,6 +288,7 @@ describe('error paths', () => {
     await expect(
       extractListing(url, {
         fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+      lookup: publicLookup,
       }),
     ).rejects.toMatchObject({
       name: 'ExtractionError',
@@ -292,7 +314,7 @@ describe('error paths', () => {
     const fetcher = (async () => {
       throw new Error('socket hang up');
     }) as typeof fetch;
-    await expect(extractListing(url, { fetcher })).rejects.toMatchObject({
+    await expect(extractListing(url, { fetcher, lookup: publicLookup })).rejects.toMatchObject({
       code: 'fetch_failed',
     });
   });
@@ -300,7 +322,7 @@ describe('error paths', () => {
   it('throws fetch_blocked on 403', async () => {
     const url = 'https://example.com/blocked';
     const fetcher = makeFixtureFetcher({ [url]: { body: 'nope', status: 403 } });
-    await expect(extractListing(url, { fetcher })).rejects.toMatchObject({
+    await expect(extractListing(url, { fetcher, lookup: publicLookup })).rejects.toMatchObject({
       code: 'fetch_blocked',
     });
   });
@@ -308,7 +330,7 @@ describe('error paths', () => {
   it('throws fetch_blocked on 429', async () => {
     const url = 'https://example.com/throttled';
     const fetcher = makeFixtureFetcher({ [url]: { body: 'nope', status: 429 } });
-    await expect(extractListing(url, { fetcher })).rejects.toMatchObject({
+    await expect(extractListing(url, { fetcher, lookup: publicLookup })).rejects.toMatchObject({
       code: 'fetch_blocked',
     });
   });
@@ -316,7 +338,7 @@ describe('error paths', () => {
   it('throws fetch_failed on 404', async () => {
     const url = 'https://example.com/missing';
     const fetcher = makeFixtureFetcher({ [url]: { body: 'nope', status: 404 } });
-    await expect(extractListing(url, { fetcher })).rejects.toMatchObject({
+    await expect(extractListing(url, { fetcher, lookup: publicLookup })).rejects.toMatchObject({
       code: 'fetch_failed',
     });
   });
@@ -326,7 +348,7 @@ describe('error paths', () => {
     const fetcher = makeFixtureFetcher({
       [url]: { body: '<html><body>Please verify you are human</body></html>' },
     });
-    await expect(extractListing(url, { fetcher })).rejects.toMatchObject({
+    await expect(extractListing(url, { fetcher, lookup: publicLookup })).rejects.toMatchObject({
       code: 'fetch_blocked',
     });
   });
@@ -346,7 +368,7 @@ describe('error paths', () => {
       });
     }) as typeof fetch;
     await expect(
-      extractListing(url, { fetcher, timeoutMs: 10 }),
+      extractListing(url, { fetcher, timeoutMs: 10, lookup: publicLookup }),
     ).rejects.toMatchObject({ code: 'fetch_failed' });
   });
 
@@ -641,6 +663,7 @@ describe('codex follow-ups', () => {
     const url = 'https://example.com/nested';
     const result = await extractListing(url, {
       fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+      lookup: publicLookup,
     });
     expect(result.title).toBe('Nested Listing');
     expect(result.bedrooms).toBe(1);
@@ -669,6 +692,7 @@ describe('codex follow-ups', () => {
     const url = 'https://example.com/og-range';
     const result = await extractListing(url, {
       fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+      lookup: publicLookup,
     });
     expect(result.price).toBe(1800);
   });
@@ -730,6 +754,7 @@ describe('codex follow-ups', () => {
     const url = 'https://example.com/wrapper';
     const result = await extractListing(url, {
       fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+      lookup: publicLookup,
     });
     expect(result.title).toBe('The Real Listing');
     expect(result.city).toBe('Madison');
@@ -754,6 +779,7 @@ describe('codex follow-ups', () => {
     const url = 'https://example.com/floorplans';
     const result = await extractListing(url, {
       fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+      lookup: publicLookup,
     });
     expect(result.title).toBe('Main Property');
     expect(result.city).toBe('Madison');
@@ -774,6 +800,7 @@ describe('codex follow-ups', () => {
     const url = 'https://example.com/place-only';
     const result = await extractListing(url, {
       fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+      lookup: publicLookup,
     });
     expect(result.title).toBe('Some Place');
     expect(result.city).toBe('Madison');
@@ -833,6 +860,7 @@ describe('codex follow-ups', () => {
     const url = 'https://example.com/og-nbsp';
     const result = await extractListing(url, {
       fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+      lookup: publicLookup,
     });
     expect(result.price).toBe(1800);
   });
@@ -883,6 +911,7 @@ describe('codex follow-ups', () => {
     const url = 'https://example.com/mime-e2e';
     const result = await extractListing(url, {
       fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+      lookup: publicLookup,
     });
     expect(result.title).toBe('MIME Param E2E');
     expect(result.extraction_method).toBe('json_ld');
@@ -946,7 +975,7 @@ describe('codex follow-ups', () => {
 
     const start = Date.now();
     await expect(
-      extractListing(url, { fetcher: stallingFetcher, timeoutMs: 50 }),
+      extractListing(url, { fetcher: stallingFetcher, timeoutMs: 50, lookup: publicLookup }),
     ).rejects.toMatchObject({ name: 'ExtractionError', code: 'fetch_failed' });
     const elapsed = Date.now() - start;
     // Should abort within a comfortable margin of the 50ms budget. If the
@@ -976,7 +1005,10 @@ describe('codex follow-ups', () => {
       return res;
     }) as typeof fetch;
 
-    const result = await extractListing(requested, { fetcher: redirectingFetcher });
+    const result = await extractListing(requested, {
+      fetcher: redirectingFetcher,
+      lookup: publicLookup,
+    });
     // source_url stays as the caller's input — that's the URL they care about.
     expect(result.source_url).toBe(requested);
     // Photos must resolve against the post-redirect origin, not the redirector.
@@ -1011,6 +1043,7 @@ describe('extractFromOg', () => {
     // Must not throw a bare RangeError from String.fromCodePoint.
     const result = await extractListing(url, {
       fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+      lookup: publicLookup,
     });
     // Title may include the unconverted entity token, but the call must succeed
     // and the other fields must come through.

@@ -62,10 +62,24 @@ export type ExtractedFields = Omit<
 >;
 
 /**
+ * Lookup signature accepted by the SSRF guard. Mirrors the subset of
+ * `dnsPromises.lookup({all:true})` we need so tests can stub DNS without
+ * importing the helper module.
+ */
+export type DnsLookupOption = (
+  host: string,
+  options: { all: true },
+) => Promise<{ address: string; family: 4 | 6 }[]>;
+
+/**
  * Optional dependency injection for the entry point. Tests pass a fake
  * `fetcher` that resolves with fixture HTML; production uses the global
  * `fetch`. The signature mirrors the standard `fetch` so callers can
  * swap in any compatible implementation without an adapter.
+ *
+ * `lookup` is injected by tests that need to simulate DNS rebinding — e.g.
+ * "this public hostname resolves to 169.254.169.254". Production uses the
+ * default `dns.promises.lookup`.
  */
 export interface ExtractListingOptions {
   fetcher?: typeof fetch;
@@ -73,6 +87,8 @@ export interface ExtractListingOptions {
   timeoutMs?: number;
   /** Override the user-agent. Defaults to the CribAI bot UA. */
   userAgent?: string;
+  /** Override DNS resolution (tests only). */
+  lookup?: DnsLookupOption;
 }
 
 /**

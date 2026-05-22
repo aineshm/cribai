@@ -18,6 +18,13 @@
 
 import { extractFromJsonLd } from './json-ld';
 import { extractFromOg } from './og';
+import { normalizeFields } from './normalize';
+import {
+  SsrfBlockedError,
+  assertHttpScheme,
+  assertPublicHost,
+  type DnsLookupFn,
+} from './ssrf-guard';
 import {
   ExtractionError,
   type ExtractedFields,
@@ -33,6 +40,8 @@ export {
 } from './types';
 export { parseAllJsonLdBlocks, projectJsonLdEntity, extractFromJsonLd } from './json-ld';
 export { parseMetaTags, decodeHtmlEntities, extractFromOg } from './og';
+export { SsrfBlockedError, assertHttpScheme, assertPublicHost } from './ssrf-guard';
+export { LIMITS, filterHttpUrls, normalizeFields } from './normalize';
 
 /**
  * The bot user-agent we present to listing sites. Honest about who we are,
@@ -42,6 +51,23 @@ export { parseMetaTags, decodeHtmlEntities, extractFromOg } from './og';
  */
 const DEFAULT_USER_AGENT = 'CribAI-Listing-Extractor/1.0 (+https://cribai.com/bot)';
 const DEFAULT_TIMEOUT_MS = 10_000;
+
+/**
+ * Hard cap on response body size. Listing pages are typically <2MB even with
+ * inline SVGs and base64-encoded hero images; 5MB is a generous budget that
+ * still defends against memory blow-up when a malicious origin returns a
+ * multi-gigabyte stream. The cap is enforced via streaming byte-counting
+ * (not the 10s timeout, which only caps wall-clock).
+ */
+const MAX_BODY_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Hard cap on redirect chain length. Most legitimate sites use 0-1 hops
+ * (canonical-URL rewrites); 3 covers the long tail (Apple-mapped marketing
+ * landing → A/B test variant → final). Beyond that we're either looping or
+ * being walked into a long indirection chain that's not worth following.
+ */
+const MAX_REDIRECTS = 3;
 
 /**
  * Block-detection heuristics — matches the pattern used by
@@ -72,14 +98,123 @@ function deriveSourceDomain(url: string): string {
 }
 
 /**
- * Fetch the URL with a hard timeout. Returns the response body text plus
- * the final URL (after redirects) so the caller can resolve relative URLs
- * against the page that actually served the HTML.
+ * Read a Response body with a hard byte cap. Aborts the controller (and
+ * therefore the underlying fetch) the moment the cumulative byte count
+ * exceeds `MAX_BODY_BYTES`. Falls back to `response.text()` when the body
+ * isn't a `ReadableStream` (some mocks return a plain string body) — in
+ * that branch the cap is enforced post-hoc on the decoded text length.
+ */
+async function readBodyWithCap(
+  response: Response,
+  controller: AbortController,
+  url: string,
+): Promise<string> {
+  const body = response.body;
+  if (!body || typeof body.getReader !== 'function') {
+    const text = await response.text();
+    if (text.length > MAX_BODY_BYTES) {
+      throw new ExtractionError(
+        'fetch_failed',
+        `Response body exceeds ${MAX_BODY_BYTES} bytes (text=${text.length}) for ${url}`,
+        url,
+      );
+    }
+    return text;
+  }
+
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > MAX_BODY_BYTES) {
+        controller.abort();
+        throw new ExtractionError(
+          'fetch_failed',
+          `Response body exceeds ${MAX_BODY_BYTES} bytes (read=${total}) for ${url}`,
+          url,
+        );
+      }
+      chunks.push(value);
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // Best-effort release; some implementations throw if the stream is
+      // already errored. Swallowing here keeps the original error visible.
+    }
+  }
+
+  // Reassemble. Sub-allocate once based on total to avoid quadratic copies.
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder('utf-8').decode(merged);
+}
+
+/**
+ * Perform a single HTTP request with SSRF + body-cap protection. Does NOT
+ * follow redirects on its own — that's handled by `fetchHtml` which makes
+ * a fresh `fetchOnce` call per hop and re-validates each Location URL.
+ */
+async function fetchOnce(
+  url: string,
+  fetcher: typeof fetch,
+  userAgent: string,
+  controller: AbortController,
+  lookup: DnsLookupFn | undefined,
+): Promise<Response> {
+  // Scheme gate fires first — `assertHttpScheme` is cheap and catches
+  // `javascript:` / `data:` / `file:` before we touch DNS.
+  assertHttpScheme(url);
+  try {
+    await assertPublicHost(url, lookup);
+  } catch (err) {
+    if (err instanceof SsrfBlockedError) {
+      throw new ExtractionError('fetch_blocked', err.message, url, err);
+    }
+    throw err;
+  }
+
+  try {
+    return await fetcher(url, {
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+      signal: controller.signal,
+      redirect: 'manual',
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new ExtractionError('fetch_failed', `Network error fetching ${url}: ${message}`, url, err);
+  }
+}
+
+/**
+ * Fetch the URL with SSRF protection, manual redirect resolution, hard
+ * end-to-end timeout, and a 5MB body cap. Returns the response body text
+ * plus the final URL (post-redirect) so the caller can resolve relative
+ * asset URLs against the page that actually served the HTML.
  *
- * The timeout is end-to-end: it covers DNS + connection + headers + the
- * body stream. Previously `clearTimeout` ran the moment `fetch()` resolved
- * (headers received), which meant a trickling / stalled body could hang
- * `extractListing()` well past the advertised budget (codex round 6 P1).
+ * Redirect handling is intentionally MANUAL (`redirect: 'manual'`):
+ *   - The kernel/fetch follow chain would skip the SSRF host check on the
+ *     302 target, opening a "302 → http://169.254.169.254/" bypass.
+ *   - Each hop re-runs `assertPublicHost`, so DNS rebinding or open-redirect
+ *     chains end at the first private IP.
+ *   - Max chain length is `MAX_REDIRECTS` (3); cycles are detected via the
+ *     same cap (no per-URL bookkeeping needed for that short a chain).
+ *
+ * The timeout is end-to-end and covers every redirect hop plus body read.
  *
  * Throws `ExtractionError` with `fetch_failed` or `fetch_blocked` on failure.
  */
@@ -88,53 +223,83 @@ async function fetchHtml(
   fetcher: typeof fetch,
   userAgent: string,
   timeoutMs: number,
+  lookup?: DnsLookupFn,
 ): Promise<{ body: string; finalUrl: string }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    let response: Response;
-    try {
-      response = await fetcher(url, {
-        headers: {
-          'User-Agent': userAgent,
-          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.9',
-        },
-        signal: controller.signal,
-        redirect: 'follow',
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      throw new ExtractionError('fetch_failed', `Network error fetching ${url}: ${message}`, url, err);
+    let currentUrl = url;
+    let response: Response | null = null;
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+      response = await fetchOnce(currentUrl, fetcher, userAgent, controller, lookup);
+
+      // Manual redirect handling: any 3xx with a Location header → re-resolve.
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        if (!location) {
+          throw new ExtractionError(
+            'fetch_failed',
+            `HTTP ${response.status} with no Location header for ${currentUrl}`,
+            url,
+          );
+        }
+        if (hop >= MAX_REDIRECTS) {
+          throw new ExtractionError(
+            'fetch_failed',
+            `Redirect chain exceeds ${MAX_REDIRECTS} hops at ${currentUrl}`,
+            url,
+          );
+        }
+        let nextUrl: string;
+        try {
+          nextUrl = new URL(location, currentUrl).href;
+        } catch (err) {
+          throw new ExtractionError(
+            'fetch_failed',
+            `Unparseable Location ${location} from ${currentUrl}`,
+            url,
+            err,
+          );
+        }
+        currentUrl = nextUrl;
+        continue;
+      }
+
+      break;
+    }
+
+    if (!response) {
+      throw new ExtractionError('fetch_failed', `No response after redirect chain for ${url}`, url);
     }
 
     if (response.status === 403 || response.status === 429) {
       throw new ExtractionError(
         'fetch_blocked',
-        `Blocked by origin (HTTP ${response.status}) fetching ${url}`,
+        `Blocked by origin (HTTP ${response.status}) fetching ${currentUrl}`,
         url,
       );
     }
     if (!response.ok) {
       throw new ExtractionError(
         'fetch_failed',
-        `HTTP ${response.status} fetching ${url}`,
+        `HTTP ${response.status} fetching ${currentUrl}`,
         url,
       );
     }
 
     let body: string;
     try {
-      body = await response.text();
+      body = await readBodyWithCap(response, controller, currentUrl);
     } catch (err) {
+      if (err instanceof ExtractionError) throw err;
       const message = err instanceof Error ? err.message : String(err);
       const aborted =
         (err instanceof Error && err.name === 'AbortError') || controller.signal.aborted;
       throw new ExtractionError(
         'fetch_failed',
         aborted
-          ? `Body read aborted (timeout ${timeoutMs}ms) for ${url}`
-          : `Failed to read body of ${url}: ${message}`,
+          ? `Body read aborted (timeout ${timeoutMs}ms) for ${currentUrl}`
+          : `Failed to read body of ${currentUrl}: ${message}`,
         url,
         err,
       );
@@ -144,14 +309,15 @@ async function fetchHtml(
     if (BLOCK_SIGNALS.some((sig) => lowered.includes(sig))) {
       throw new ExtractionError(
         'fetch_blocked',
-        `Page body contains a block / captcha signal (${url})`,
+        `Page body contains a block / captcha signal (${currentUrl})`,
         url,
       );
     }
-    // `response.url` is the post-redirect URL when `fetch` follows 3xx; some
-    // mock Responses leave it empty, in which case fall back to the input URL.
-    const finalUrl = typeof response.url === 'string' && response.url !== '' ? response.url : url;
-    return { body, finalUrl };
+    // `response.url` is meaningful on a real fetch; for the manual-redirect
+    // flow we've tracked it explicitly in `currentUrl`.
+    const responseFinal =
+      typeof response.url === 'string' && response.url !== '' ? response.url : currentUrl;
+    return { body, finalUrl: responseFinal };
   } finally {
     clearTimeout(timer);
   }
@@ -261,8 +427,22 @@ export async function extractListing(
   const fetcher = opts.fetcher ?? fetch;
   const userAgent = opts.userAgent ?? DEFAULT_USER_AGENT;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const lookup = opts.lookup as DnsLookupFn | undefined;
 
-  const { body: html, finalUrl } = await fetchHtml(url, fetcher, userAgent, timeoutMs);
+  const { body: html, finalUrl } = await fetchHtml(url, fetcher, userAgent, timeoutMs, lookup);
+
+  // Belt-and-braces: the manual-redirect loop validates each hop's URL via
+  // SSRF + scheme, but a test fixture-fetcher that fakes redirects can hand
+  // back a `response.url` with a non-http scheme. Re-gate before we use
+  // `finalUrl` as a base for relative URL resolution.
+  try {
+    assertHttpScheme(finalUrl);
+  } catch (err) {
+    if (err instanceof SsrfBlockedError) {
+      throw new ExtractionError('fetch_blocked', err.message, url, err);
+    }
+    throw err;
+  }
 
   // Relative URLs (image / og:image) in the served HTML resolve against the
   // post-redirect URL, not the input URL — otherwise a redirector / shortener
@@ -271,12 +451,16 @@ export async function extractListing(
   const og = extractFromOg(html, finalUrl);
   const { merged, ogContributed } = mergeFields(jsonLd, og);
 
+  // Apply length/array/scheme/geo/date caps in one place. After this point
+  // every field is shape-safe for the downstream `addListing` tool.
+  const normalized = normalizeFields(merged);
+
   const hasAnyField =
-    merged.title !== undefined ||
-    merged.description !== undefined ||
-    merged.price !== undefined ||
-    merged.address !== undefined ||
-    (merged.photos?.length ?? 0) > 0;
+    normalized.title !== undefined ||
+    normalized.description !== undefined ||
+    normalized.price !== undefined ||
+    normalized.address !== undefined ||
+    (normalized.photos?.length ?? 0) > 0;
 
   if (!hasAnyField) {
     throw new ExtractionError(
@@ -291,12 +475,12 @@ export async function extractListing(
   else if (jsonLd) extraction_method = 'json_ld';
   else extraction_method = 'og';
 
-  const extraction_confidence = computeConfidence(merged, jsonLd !== null);
+  const extraction_confidence = computeConfidence(normalized, jsonLd !== null);
 
   return {
     source_url: url,
     source_domain: deriveSourceDomain(url),
-    ...merged,
+    ...normalized,
     extraction_method,
     extraction_confidence,
   };
