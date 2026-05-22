@@ -172,6 +172,14 @@ export function createRequestMetricsRecorder(
     if (typeof toolName !== 'string' || toolName.length === 0) {
       return;
     }
+    // AIN-19 security LOW — bound the input. `toolName` comes from
+    // `fc.name ?? 'unknown'` in cribai.ts, i.e. Gemini-provided. Real tool
+    // names in this codebase are all [a-z0-9_]+ and well under 100 chars
+    // (see packages/ai/src/tools/schemas.ts), so this guard rejects no
+    // legitimate call.
+    if (toolName.length > 100 || !/^[a-z0-9_]+$/.test(toolName)) {
+      return;
+    }
     state.toolStepCount += 1;
     state.toolsCalled.push(toolName);
   };

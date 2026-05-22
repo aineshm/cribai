@@ -158,6 +158,45 @@ describe('createRequestMetricsRecorder', () => {
     expect(client.inserts[0]!.row.tools_called).toEqual(['search_listings']);
   });
 
+  it('rejects tool names longer than 100 chars (bound adversarial input)', async () => {
+    // AIN-19 follow-up (security LOW): recordToolCall consumes the tool name
+    // straight from `fc.name ?? 'unknown'` in cribai.ts — Gemini-provided
+    // input. Real tools in this codebase all match /^[a-z0-9_]+$/ with names
+    // well under 100 chars, so this bound costs nothing legitimate.
+    const client = buildMockClient();
+    const recorder = createRequestMetricsRecorder(
+      { requestId: 'r', runtime: 'deterministic' },
+      client,
+    );
+
+    recorder.recordToolCall('a'.repeat(101));
+
+    recorder.finish();
+    await flushAsync();
+
+    expect(client.inserts[0]!.row.tool_step_count).toBe(0);
+    expect(client.inserts[0]!.row.tools_called).toEqual([]);
+  });
+
+  it('rejects tool names with characters outside [a-z0-9_]', async () => {
+    // AIN-19 follow-up (security LOW): production tool names are all
+    // [a-z0-9_]+ (see packages/ai/src/tools/schemas.ts). Reject uppercase,
+    // hyphens, special chars, etc.
+    const client = buildMockClient();
+    const recorder = createRequestMetricsRecorder(
+      { requestId: 'r', runtime: 'deterministic' },
+      client,
+    );
+
+    recorder.recordToolCall('TOOL_NAME!');
+
+    recorder.finish();
+    await flushAsync();
+
+    expect(client.inserts[0]!.row.tool_step_count).toBe(0);
+    expect(client.inserts[0]!.row.tools_called).toEqual([]);
+  });
+
   it('records error_kind when supplied to finish()', async () => {
     const client = buildMockClient();
     const recorder = createRequestMetricsRecorder(
