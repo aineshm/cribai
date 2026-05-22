@@ -440,11 +440,15 @@ export async function extractListing(
   const { body: html, finalUrl } = await fetchHtml(url, fetcher, userAgent, timeoutMs, lookup);
 
   // Belt-and-braces: the manual-redirect loop validates each hop's URL via
-  // SSRF + scheme, but a test fixture-fetcher that fakes redirects can hand
-  // back a `response.url` with a non-http scheme. Re-gate before we use
-  // `finalUrl` as a base for relative URL resolution.
+  // SSRF + scheme, but `ExtractListingOptions.fetcher` is a `typeof fetch`
+  // — a caller-supplied implementation can ignore `redirect: 'manual'` and
+  // silently follow 3xx itself, in which case `response.url` reflects a
+  // host the SSRF guard never saw. Re-validate the final URL's scheme AND
+  // host before we use it as a base for relative URL resolution or hand
+  // it back as `source_domain` (codex P2).
   try {
     assertHttpScheme(finalUrl);
+    await assertPublicHost(finalUrl, lookup);
   } catch (err) {
     if (err instanceof SsrfBlockedError) {
       throw new ExtractionError('fetch_blocked', err.message, url, err);

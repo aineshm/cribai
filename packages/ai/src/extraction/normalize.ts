@@ -73,16 +73,27 @@ function sanitiseGeo(
 }
 
 /**
- * Normalise an `availabilityStarts`-shaped date string into ISO 8601. Returns
- * `undefined` for unparseable input. `Date.parse` is permissive (accepts
- * "2026-08-15", "August 15 2026", and a handful of locale forms); we keep
- * that flexibility and emit a canonical ISO string downstream.
+ * Normalise an `availabilityStarts`-shaped date string into YYYY-MM-DD.
+ * Returns `undefined` for unparseable input. Downstream validators
+ * (`tool-registry.ts`, `create-sublease.ts`) enforce a strict
+ * `^\d{4}-\d{2}-\d{2}$` shape, so the extractor must clamp to that
+ * contract — emitting an ISO timestamp would silently break the chain
+ * for every listing that has an availability date.
+ *
+ * `Date.parse` is permissive (accepts "2026-08-15", "August 15 2026",
+ * "2026-08-15T12:34:56Z"); we keep that flexibility and project down to
+ * the canonical date-only form. The time portion is discarded — the
+ * downstream contract doesn't carry it, and timezone juggling for what is
+ * effectively a calendar date would introduce silent ±1-day drift.
  */
 function normaliseAvailableFrom(raw: string | undefined): string | undefined {
   if (raw === undefined) return undefined;
   const parsed = Date.parse(raw);
   if (!Number.isFinite(parsed)) return undefined;
-  return new Date(parsed).toISOString();
+  // toISOString() always emits "YYYY-MM-DDTHH:mm:ss.sssZ"; slice the date
+  // portion. Date.parse('2026-08-15') treats the input as UTC midnight so
+  // there's no off-by-one risk on the date-only branch.
+  return new Date(parsed).toISOString().slice(0, 10);
 }
 
 /**

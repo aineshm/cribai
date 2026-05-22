@@ -36,18 +36,31 @@ describe('ipBlocked', () => {
     ['127.255.255.255', 'loopback'],
     ['169.254.169.254', 'link-local'],
     ['0.0.0.0', 'unspecified'],
+    // codex P2 follow-up: CGNAT + benchmarking.
+    ['100.64.0.0', 'CGNAT'],
+    ['100.127.255.255', 'CGNAT'],
+    ['198.18.0.1', 'benchmarking'],
+    ['198.19.255.255', 'benchmarking'],
   ])('flags %s as %s', (ip, label) => {
     const hit = ipBlocked(ip);
     expect(hit).not.toBeNull();
     expect(hit).toContain(label);
   });
 
-  it.each(['8.8.8.8', '1.1.1.1', '142.250.190.46', '172.15.255.255', '172.32.0.1'])(
-    'leaves %s alone (publicly routable)',
-    (ip) => {
-      expect(ipBlocked(ip)).toBeNull();
-    },
-  );
+  it.each([
+    '8.8.8.8',
+    '1.1.1.1',
+    '142.250.190.46',
+    '172.15.255.255',
+    '172.32.0.1',
+    // Just outside the expanded CGNAT + benchmarking blocks — must pass.
+    '100.63.255.255',
+    '100.128.0.0',
+    '198.17.255.255',
+    '198.20.0.0',
+  ])('leaves %s alone (publicly routable)', (ip) => {
+    expect(ipBlocked(ip)).toBeNull();
+  });
 
   it.each([
     ['::1', 'loopback'],

@@ -159,6 +159,28 @@ describe('SSRF (redirect chain)', () => {
     expect(result.source_domain).toBe('publisher.example');
   });
 
+  it('re-validates response.url after a fetcher-followed redirect (codex P2)', async () => {
+    // A caller that supplies a custom `fetcher` is free to ignore the
+    // `redirect: 'manual'` option and follow 3xx itself. In that case the
+    // returned Response's `.url` reflects a host the SSRF guard never saw.
+    // The entry point must re-validate it before resolving relative URLs
+    // against it (or returning source_domain).
+    const url = 'https://innocent.example/redirect';
+    const fetcher = (async () => {
+      const res = new Response('<html><meta property="og:title" content="X" /></html>', {
+        status: 200,
+      });
+      // Pretend the caller's fetch silently followed a 302 to metadata.
+      Object.defineProperty(res, 'url', {
+        value: 'http://169.254.169.254/latest/meta-data/',
+      });
+      return res;
+    }) as typeof fetch;
+    await expect(
+      extractListing(url, { fetcher, lookup: PUBLIC_IP }),
+    ).rejects.toMatchObject({ code: 'fetch_blocked' });
+  });
+
   it('follows a single legitimate redirect within the cap', async () => {
     const html = `<!doctype html><meta property="og:title" content="Final" />`;
     const fetcher = (async (input: string | URL | Request) => {

@@ -94,9 +94,9 @@ describe('JSON-LD primary path', () => {
       'https://photos.zillowstatic.com/fp/abc-2.jpg',
     ]);
     expect(result.amenities).toEqual(['In-unit laundry', 'Dishwasher']); // pool=false dropped
-    // AIN-38: available_from is normalised to ISO 8601 via Date.parse so the
-    // downstream `addListing` tool can rely on a canonical shape.
-    expect(result.available_from).toBe('2026-08-15T00:00:00.000Z');
+    // AIN-38: available_from is normalised to date-only via Date.parse so the
+    // downstream `addListing` validators (regex /^\d{4}-\d{2}-\d{2}$/) accept it.
+    expect(result.available_from).toBe('2026-08-15');
     expect(result.extraction_method).toBe('json_ld');
     expect(result.extraction_confidence).toBe('high');
     expect(result.raw_json_ld).toBeDefined();

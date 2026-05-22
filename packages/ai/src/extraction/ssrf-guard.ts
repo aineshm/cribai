@@ -97,9 +97,16 @@ function cidr4(base: string, prefix: number, label: string): Cidr4 {
 const IPV4_BLOCKLIST: readonly Cidr4[] = [
   cidr4('0.0.0.0', 8, 'unspecified/0.0.0.0'),
   cidr4('10.0.0.0', 8, 'RFC1918 10.0.0.0/8'),
+  // Carrier-grade NAT — IANA reserved (RFC 6598). Real-world ISP-owned
+  // ranges that some networks use internally; a listing URL pointing here
+  // can't be a public publisher (codex P2 follow-up).
+  cidr4('100.64.0.0', 10, 'CGNAT 100.64.0.0/10'),
   cidr4('127.0.0.0', 8, 'loopback 127.0.0.0/8'),
   cidr4('169.254.0.0', 16, 'link-local / cloud metadata 169.254.0.0/16'),
   cidr4('172.16.0.0', 12, 'RFC1918 172.16.0.0/12'),
+  // Benchmarking (RFC 2544). Not routable on the public Internet; some
+  // internal lab networks reuse the range, so block defensively.
+  cidr4('198.18.0.0', 15, 'benchmarking 198.18.0.0/15'),
   cidr4('192.168.0.0', 16, 'RFC1918 192.168.0.0/16'),
 ];
 

@@ -142,14 +142,22 @@ describe('normalizeFields — geo range validation', () => {
 });
 
 describe('normalizeFields — available_from date validation', () => {
-  it('normalises a valid ISO date to ISO 8601', () => {
+  it('normalises a valid date to YYYY-MM-DD (downstream-validator contract)', () => {
     const out = normalizeFields({ available_from: '2026-08-15' });
-    expect(out.available_from).toBe('2026-08-15T00:00:00.000Z');
+    // Downstream validators in tool-registry.ts + create-sublease.ts use
+    // /^\d{4}-\d{2}-\d{2}$/ — emitting a full ISO timestamp would break
+    // any flow that forwards extractor output (codex P1 follow-up).
+    expect(out.available_from).toBe('2026-08-15');
   });
 
-  it('normalises a valid full timestamp', () => {
+  it('projects a full timestamp down to date-only', () => {
     const out = normalizeFields({ available_from: '2026-08-15T12:34:56Z' });
-    expect(out.available_from).toBe('2026-08-15T12:34:56.000Z');
+    expect(out.available_from).toBe('2026-08-15');
+  });
+
+  it('handles natural-language date forms accepted by Date.parse', () => {
+    const out = normalizeFields({ available_from: 'August 15 2026 UTC' });
+    expect(out.available_from).toBe('2026-08-15');
   });
 
   it('drops a garbage date string', () => {
