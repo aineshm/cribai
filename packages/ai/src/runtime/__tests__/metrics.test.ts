@@ -360,6 +360,58 @@ describe('createRequestMetricsRecorder', () => {
     expect(recorder.snapshot().requestCompletedAt).toBe(first);
   });
 
+  it('setConversationId() late-binds the conversation id before finish()', async () => {
+    const client = buildMockClient();
+    const recorder = createRequestMetricsRecorder(
+      { requestId: 'r', runtime: 'deterministic', conversationId: null },
+      client,
+    );
+
+    recorder.setConversationId('conv-late-bound');
+    recorder.finish();
+    await flushAsync();
+
+    expect(client.inserts[0]!.row.conversation_id).toBe('conv-late-bound');
+    expect(recorder.snapshot().conversationId).toBe('conv-late-bound');
+  });
+
+  it('setConversationId() is a no-op after finish()', async () => {
+    const client = buildMockClient();
+    const recorder = createRequestMetricsRecorder(
+      { requestId: 'r', runtime: 'deterministic', conversationId: 'original' },
+      client,
+    );
+
+    recorder.finish();
+    await flushAsync();
+    recorder.setConversationId('attempted-late-write');
+
+    expect(client.inserts[0]!.row.conversation_id).toBe('original');
+    expect(recorder.snapshot().conversationId).toBe('original');
+  });
+
+  it('setConversationId(null) clears the id; trims and length-checks strings', () => {
+    const recorder = createRequestMetricsRecorder(
+      { requestId: 'r', runtime: 'deterministic', conversationId: 'original' },
+      null,
+    );
+
+    recorder.setConversationId('  trimmed-id  ');
+    expect(recorder.snapshot().conversationId).toBe('trimmed-id');
+
+    recorder.setConversationId(null);
+    expect(recorder.snapshot().conversationId).toBeNull();
+
+    // Reject empty / whitespace.
+    recorder.setConversationId('original-restored');
+    recorder.setConversationId('   ');
+    expect(recorder.snapshot().conversationId).toBe('original-restored');
+
+    // Reject pathologically long values.
+    recorder.setConversationId('x'.repeat(500));
+    expect(recorder.snapshot().conversationId).toBe('original-restored');
+  });
+
   it('supports llm_first runtime value (forward-compat with AIN-8)', async () => {
     const client = buildMockClient();
     const recorder = createRequestMetricsRecorder(

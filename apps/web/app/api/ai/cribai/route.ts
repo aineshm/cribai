@@ -423,15 +423,37 @@ export async function POST(request: NextRequest) {
       userId = devUser?.id ?? DEFAULT_DEV_USER.id;
     }
 
+    // AIN-19 codex P2 follow-up — create the metrics recorder NOW so all
+    // post-auth early-returns (query_too_long, rate_limit, campus_not_found)
+    // still produce a baseline row tagged with the appropriate `error_kind`.
+    // Conversation id is not resolved until later; pass null for now and
+    // accept the gap — that field is informational, not required by the
+    // schema. Earlier, pre-supabase failures (JSON parse, missing query,
+    // env not configured) are intentionally not instrumented because they
+    // happen before we even have a Supabase client to persist to; those
+    // remain visible via Vercel access logs.
+    metricsRecorder = createRequestMetricsRecorder(
+      {
+        requestId,
+        userId,
+        conversationId: null,
+        runtime: 'deterministic',
+        requestReceivedAt,
+      },
+      supabase,
+    );
+
     const isGuest = !userId;
     const maxQueryLength = isGuest ? GUEST_MAX_QUERY_LENGTH : AUTH_MAX_QUERY_LENGTH;
     if (trimmedQuery.length > maxQueryLength) {
+      metricsRecorder.finish({ errorKind: 'query_too_long' });
       return jsonError(`Query too long (max ${maxQueryLength} chars)`, 400);
     }
 
     if (userId) {
       const rateCheck = await checkRateLimit(supabase, userId, subscriptionTier);
       if (!rateCheck.allowed) {
+        metricsRecorder.finish({ errorKind: 'rate_limit' });
         return jsonError('Rate limit exceeded. Please try again later.', 429);
       }
     }
@@ -443,6 +465,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (!campus) {
+      metricsRecorder.finish({ errorKind: 'campus_not_found' });
       return jsonError('Campus not found', 404);
     }
 
@@ -491,20 +514,13 @@ export async function POST(request: NextRequest) {
       mapBounds,
     };
 
-    // AIN-19 — create the metrics recorder now that we have an authenticated
-    // (or guest) identity and the conversation id. `runtime: 'deterministic'`
-    // labels the entire current code path; AIN-8 will reuse the same recorder
-    // with `runtime: 'llm_first'` when the LLM-first turn handler ships.
-    metricsRecorder = createRequestMetricsRecorder(
-      {
-        requestId,
-        userId,
-        conversationId: verifiedConversation?.id ?? null,
-        runtime: 'deterministic',
-        requestReceivedAt,
-      },
-      supabase,
-    );
+    // AIN-19 — the recorder was created earlier so it can cover early-return
+    // error paths (query_too_long, rate_limit, campus_not_found). Now that the
+    // conversation row has been resolved, late-bind the id so success-path
+    // rows carry it. `runtime: 'deterministic'` labels the entire current code
+    // path; AIN-8 will swap this label for 'llm_first' when its turn handler
+    // ships.
+    metricsRecorder?.setConversationId(verifiedConversation?.id ?? null);
 
     const deterministicResult = await maybeHandleDeterministicTurn({
       query: trimmedQuery,
@@ -625,12 +641,10 @@ export async function POST(request: NextRequest) {
             tree,
             conversationHistory,
           })) {
-            // AIN-19 — first model emission (text or tool_call) marks TTFT.
-            // markFirstModelToken is idempotent so we call it unconditionally
-            // here without an `if` check; only the first call stamps a value.
-            metricsRecorder?.markFirstModelToken();
-
             if (typeof chunk === 'string') {
+              // AIN-19 — string chunks are streamed text from the model. Stamp
+              // TTFT here (idempotent) so the row reflects real model output.
+              metricsRecorder?.markFirstModelToken();
               enqueueEvent(controller, encoder, { type: 'text', content: chunk });
               currentServerText += chunk;
               emittedAssistantContent = true;
@@ -642,6 +656,12 @@ export async function POST(request: NextRequest) {
             }
 
             if (chunk.type === 'done') {
+              // AIN-19 codex P2 follow-up — `done` is a control marker, not a
+              // model emission. Skip BEFORE stamping TTFT so empty/blocked
+              // Gemini replies that only yield `done` leave
+              // first_model_token_at null (consistent with the
+              // emittedAssistantContent discipline used for
+              // final_assistant_message_at below).
               continue;
             }
 
@@ -651,11 +671,15 @@ export async function POST(request: NextRequest) {
             // emittedAssistantContent so empty/blocked Gemini replies keep
             // it null while card-only LLM turns still get it.)
             if (chunk.type === 'tool_call' && 'name' in chunk) {
+              // tool_call is a real model emission — stamp TTFT.
+              metricsRecorder?.markFirstModelToken();
               metricsRecorder?.recordToolCall(chunk.name);
             } else if (chunk.type === 'tool_result') {
+              metricsRecorder?.markFirstModelToken();
               metricsRecorder?.markFirstToolResult();
               emittedAssistantContent = true;
             } else if (chunk.type === 'text') {
+              metricsRecorder?.markFirstModelToken();
               emittedAssistantContent = true;
             }
 

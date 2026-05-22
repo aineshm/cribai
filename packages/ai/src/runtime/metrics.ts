@@ -60,6 +60,17 @@ export interface RequestMetricsRecorder {
   readonly recordToolCall: (toolName: string) => void;
   readonly markFinalAssistantMessage: () => void;
   /**
+   * Late-binding setter for `conversation_id`. The route handler creates
+   * the recorder immediately after authentication so it can fire even on
+   * early-return error paths (rate-limit, campus-not-found, etc.), but the
+   * conversation row isn't fetched until later. Callers update the recorder
+   * once the conversation has been resolved so the persisted row carries
+   * the id on success paths. No-op after `finish()` (the row is already
+   * either inserted or in-flight). Trim + length-check mirror identity
+   * field validation in the constructor.
+   */
+  readonly setConversationId: (conversationId: string | null) => void;
+  /**
    * Stamp `request_completed_at` without persisting. Useful when the
    * client-visible response has shipped (e.g. SSE stream closed) but
    * server-side bookkeeping is still pending. Idempotent. Call once
@@ -90,6 +101,7 @@ export interface RequestMetricsSnapshot {
 }
 
 interface RecorderState {
+  conversationId: string | null;
   firstModelTokenAt: Date | null;
   firstToolResultAt: Date | null;
   finalAssistantMessageAt: Date | null;
@@ -117,6 +129,7 @@ export function createRequestMetricsRecorder(
   const requestReceivedAt = identity.requestReceivedAt ?? new Date();
 
   const state: RecorderState = {
+    conversationId: identity.conversationId ?? null,
     firstModelTokenAt: null,
     firstToolResultAt: null,
     finalAssistantMessageAt: null,
@@ -151,6 +164,19 @@ export function createRequestMetricsRecorder(
     state.finalAssistantMessageAt = new Date();
   };
 
+  const setConversationId = (conversationId: string | null): void => {
+    // No-op once finished — the row is already inserted or in-flight.
+    if (state.finished) return;
+    if (conversationId === null) {
+      state.conversationId = null;
+      return;
+    }
+    if (typeof conversationId !== 'string') return;
+    const trimmed = conversationId.trim();
+    if (trimmed.length === 0 || trimmed.length > 200) return;
+    state.conversationId = trimmed;
+  };
+
   const markCompleted = (): void => {
     if (state.requestCompletedAt === null) {
       state.requestCompletedAt = new Date();
@@ -179,7 +205,7 @@ export function createRequestMetricsRecorder(
     const row = {
       request_id: identity.requestId,
       user_id: identity.userId ?? null,
-      conversation_id: identity.conversationId ?? null,
+      conversation_id: state.conversationId,
       runtime: identity.runtime,
       request_received_at: requestReceivedAt.toISOString(),
       first_model_token_at: state.firstModelTokenAt?.toISOString() ?? null,
@@ -207,7 +233,7 @@ export function createRequestMetricsRecorder(
   const snapshot = (): RequestMetricsSnapshot => ({
     requestId: identity.requestId,
     userId: identity.userId ?? null,
-    conversationId: identity.conversationId ?? null,
+    conversationId: state.conversationId,
     runtime: identity.runtime,
     requestReceivedAt,
     firstModelTokenAt: state.firstModelTokenAt,
@@ -225,6 +251,7 @@ export function createRequestMetricsRecorder(
     markFirstToolResult,
     recordToolCall,
     markFinalAssistantMessage,
+    setConversationId,
     markCompleted,
     finish,
     snapshot,
