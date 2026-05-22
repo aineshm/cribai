@@ -79,7 +79,23 @@ export interface RequestMetricsRecorder {
    * (or records an error if the bookkeeping itself failed).
    */
   readonly markCompleted: () => void;
-  readonly finish: (options?: FinishOptions) => void;
+  /**
+   * Stamp `request_completed_at` (if not already stamped via markCompleted)
+   * and persist the row. Idempotent — calling twice does not double-insert.
+   *
+   * Returns the persist promise so callers on routes WITHOUT a later awaited
+   * step (e.g. early-return error paths in a serverless runtime) can `await`
+   * the write before sending the response. Serverless platforms commonly
+   * cancel unawaited background work the moment the function returns, which
+   * would silently drop early-return rows.
+   *
+   * Callers that DO have a later awaited step (e.g. SSE streams that close
+   * the controller then await `persistAssistantResponse`) may safely discard
+   * the returned promise — the existing async work keeps the function alive
+   * long enough for the fire-and-forget insert to flush, matching the
+   * `agent-run-logger` pattern documented in PR #76.
+   */
+  readonly finish: (options?: FinishOptions) => Promise<void>;
   /** Test-only: snapshot of the current accumulated state. */
   readonly snapshot: () => RequestMetricsSnapshot;
 }
@@ -183,7 +199,7 @@ export function createRequestMetricsRecorder(
     }
   };
 
-  const finish = (options?: FinishOptions): void => {
+  const finish = async (options?: FinishOptions): Promise<void> => {
     if (state.finished) return;
     state.finished = true;
     // Only stamp request_completed_at here if it wasn't already set via
@@ -217,17 +233,19 @@ export function createRequestMetricsRecorder(
       error_kind: state.errorKind,
     };
 
-    // Fire-and-forget: intentionally not awaited. Mirrors agent-run-logger.
-    void (async () => {
-      try {
-        const { error } = await (client as MetricsClient).from('ai_request_metrics').insert(row);
-        if (error) {
-          console.error('[ai-request-metrics] insert failed:', error.message);
-        }
-      } catch (err: unknown) {
-        console.error('[ai-request-metrics] unexpected error:', err);
+    // Persist the row. The promise is returned so callers on routes without
+    // a later awaited step (e.g. early-return error paths in serverless
+    // runtimes) can `await` the insert before sending the response. Callers
+    // on streaming paths may safely discard the promise — see the JSDoc on
+    // the `finish` property of `RequestMetricsRecorder`.
+    try {
+      const { error } = await (client as MetricsClient).from('ai_request_metrics').insert(row);
+      if (error) {
+        console.error('[ai-request-metrics] insert failed:', error.message);
       }
-    })();
+    } catch (err: unknown) {
+      console.error('[ai-request-metrics] unexpected error:', err);
+    }
   };
 
   const snapshot = (): RequestMetricsSnapshot => ({

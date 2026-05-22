@@ -446,14 +446,18 @@ export async function POST(request: NextRequest) {
     const isGuest = !userId;
     const maxQueryLength = isGuest ? GUEST_MAX_QUERY_LENGTH : AUTH_MAX_QUERY_LENGTH;
     if (trimmedQuery.length > maxQueryLength) {
-      metricsRecorder.finish({ errorKind: 'query_too_long' });
+      // AWAIT the insert on early-return paths — serverless runtimes (Vercel
+      // notably) cancel unawaited background work the moment the function
+      // returns, which would silently drop the very rows this branch exists
+      // to capture.
+      await metricsRecorder.finish({ errorKind: 'query_too_long' });
       return jsonError(`Query too long (max ${maxQueryLength} chars)`, 400);
     }
 
     if (userId) {
       const rateCheck = await checkRateLimit(supabase, userId, subscriptionTier);
       if (!rateCheck.allowed) {
-        metricsRecorder.finish({ errorKind: 'rate_limit' });
+        await metricsRecorder.finish({ errorKind: 'rate_limit' });
         return jsonError('Rate limit exceeded. Please try again later.', 429);
       }
     }
@@ -465,7 +469,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (!campus) {
-      metricsRecorder.finish({ errorKind: 'campus_not_found' });
+      await metricsRecorder.finish({ errorKind: 'campus_not_found' });
       return jsonError('Campus not found', 404);
     }
 
@@ -580,9 +584,12 @@ export async function POST(request: NextRequest) {
             // recorded in error_kind (the row already shipped as success).
             // Persist failures are rare and observable via Vercel logs; the
             // AIN-19 baseline prioritizes completeness over per-row error
-            // attribution on this code path.
+            // attribution on this code path. `void` makes the discarded
+            // Promise explicit — the subsequent awaited persistAssistantResponse
+            // (or the stream's lifecycle) keeps the function alive long
+            // enough for the fire-and-forget insert to flush.
             metricsRecorder?.markCompleted();
-            metricsRecorder?.finish();
+            void metricsRecorder?.finish();
 
             try {
               await persistAssistantResponse({
@@ -606,8 +613,10 @@ export async function POST(request: NextRequest) {
           } catch (err) {
             const message = err instanceof Error ? err.message : 'Stream error';
             // Reaches here if the SSE replay itself throws (before close).
-            // finish() preserves any earlier markCompleted timestamp.
-            metricsRecorder?.finish({ errorKind: 'deterministic_stream_error' });
+            // finish() preserves any earlier markCompleted timestamp. `void`
+            // makes the discarded Promise explicit; the stream's controller
+            // close + outer Response lifecycle keep the function alive.
+            void metricsRecorder?.finish({ errorKind: 'deterministic_stream_error' });
             enqueueEvent(controller, encoder, { type: 'error', message });
             controller.close();
           }
@@ -779,8 +788,11 @@ export async function POST(request: NextRequest) {
           // AIN-19 — stamp request_completed_at then persist the metrics
           // row BEFORE awaiting post-response bookkeeping (see
           // deterministic path above for the same trade-off rationale).
+          // `void` makes the discarded Promise explicit; the subsequent
+          // awaited persistAssistantResponse keeps the function alive long
+          // enough for the fire-and-forget insert to flush.
           metricsRecorder?.markCompleted();
-          metricsRecorder?.finish();
+          void metricsRecorder?.finish();
 
           try {
             await persistAssistantResponse({
@@ -805,7 +817,10 @@ export async function POST(request: NextRequest) {
           const raw = err instanceof Error ? err.message : 'Stream error';
           const isQuotaError =
             raw.includes('RESOURCE_EXHAUSTED') || raw.includes('429') || raw.includes('quota');
-          metricsRecorder?.finish({
+          // `void` makes the discarded Promise explicit; the stream's
+          // controller close + outer Response lifecycle keep the function
+          // alive briefly. (Documented trade-off in PR #76.)
+          void metricsRecorder?.finish({
             errorKind: isQuotaError ? 'gemini_quota' : 'llm_stream_error',
           });
           enqueueEvent(controller, encoder, {
@@ -822,8 +837,12 @@ export async function POST(request: NextRequest) {
     return new Response(stream, { headers: SSE_HEADERS });
   } catch {
     // AIN-19 — outer catch (e.g. JSON parse failure, env missing). Recorder
-    // may or may not exist depending on which validation step threw.
-    metricsRecorder?.finish({ errorKind: 'handler_exception' });
+    // may or may not exist depending on which validation step threw. Await
+    // the persist for the same reason as the early-return branches above:
+    // there's no later awaited work to keep the serverless function alive
+    // for a fire-and-forget insert. `await undefined` is a safe no-op so
+    // optional chaining behaves correctly when the recorder isn't built yet.
+    await metricsRecorder?.finish({ errorKind: 'handler_exception' });
     return jsonError('Internal server error', 500);
   }
 }

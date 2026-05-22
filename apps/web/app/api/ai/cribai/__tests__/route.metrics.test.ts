@@ -313,7 +313,11 @@ describe('POST /api/ai/cribai — AIN-19 latency instrumentation', () => {
 
     const res = await POST(req);
     expect(res.status).toBe(429);
-    await new Promise((r) => setTimeout(r, 5));
+    // NOTE: deliberately NO `setTimeout(5)` drain here. Early-return paths
+    // MUST await `finish()` so the persist completes before the response is
+    // sent — otherwise serverless runtimes cancel the unawaited insert and
+    // these rows get dropped (codex P2 from PR #76 push #2). If this test
+    // ever needs a microtask drain to pass, the await is missing.
 
     const metricsInserts = recordedInserts.filter((i) => i.table === 'ai_request_metrics');
     expect(metricsInserts).toHaveLength(1);
@@ -346,7 +350,9 @@ describe('POST /api/ai/cribai — AIN-19 latency instrumentation', () => {
 
     const res = await POST(req);
     expect(res.status).toBe(404);
-    await new Promise((r) => setTimeout(r, 5));
+    // No microtask drain — `finish()` must be awaited on the
+    // campus_not_found early-return so serverless cancellation can't drop
+    // the row.
 
     const metricsInserts = recordedInserts.filter((i) => i.table === 'ai_request_metrics');
     expect(metricsInserts).toHaveLength(1);
@@ -365,7 +371,9 @@ describe('POST /api/ai/cribai — AIN-19 latency instrumentation', () => {
 
     const res = await POST(req);
     expect(res.status).toBe(400);
-    await new Promise((r) => setTimeout(r, 5));
+    // No microtask drain — same reasoning as the rate_limit / campus_not_found
+    // tests above. The await on `finish()` proves the row landed by the
+    // time the response was sent.
 
     const metricsInserts = recordedInserts.filter((i) => i.table === 'ai_request_metrics');
     expect(metricsInserts).toHaveLength(1);
