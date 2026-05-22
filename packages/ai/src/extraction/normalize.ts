@@ -99,15 +99,40 @@ const ISO_DATE_PREFIX = /^(\d{4}-\d{2}-\d{2})/;
  *     ("August 15 2026 UTC"). Those don't carry a publisher-intended local
  *     calendar date, so converting via toISOString().slice(0,10) is fine.
  */
+/**
+ * Validate that a captured `YYYY-MM-DD` is a real calendar date. Date.parse
+ * silently rolls invalid days over to the next month (`2023-02-29` →
+ * 2023-03-01), so checking `Date.parse(candidate)` is finite isn't enough.
+ * We round-trip via UTC components and confirm they match the captured
+ * digits before accepting.
+ */
+function isRealCalendarDate(candidate: string): boolean {
+  const parts = candidate.split('-');
+  if (parts.length !== 3) return false;
+  const [yy, mm, dd] = parts;
+  if (!yy || !mm || !dd) return false;
+  const year = Number(yy);
+  const month = Number(mm);
+  const day = Number(dd);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
+  if (month < 1 || month > 12) return false;
+  if (day < 1 || day > 31) return false;
+  // Date constructor uses local time but we only need it to detect rollover.
+  // Use UTC explicitly so the comparison is deterministic.
+  const d = new Date(Date.UTC(year, month - 1, day));
+  return (
+    d.getUTCFullYear() === year &&
+    d.getUTCMonth() === month - 1 &&
+    d.getUTCDate() === day
+  );
+}
+
 function normaliseAvailableFrom(raw: string | undefined): string | undefined {
   if (raw === undefined) return undefined;
   const datePrefix = ISO_DATE_PREFIX.exec(raw);
   if (datePrefix) {
     const candidate = datePrefix[1]!;
-    // Ensure the captured YYYY-MM-DD itself is a real calendar date —
-    // "2026-13-40" matches the regex but isn't valid.
-    const parsed = Date.parse(`${candidate}T00:00:00Z`);
-    if (!Number.isFinite(parsed)) return undefined;
+    if (!isRealCalendarDate(candidate)) return undefined;
     return candidate;
   }
   const parsed = Date.parse(raw);

@@ -178,6 +178,23 @@ describe('normalizeFields — available_from date validation', () => {
     expect(out.available_from).toBeUndefined();
   });
 
+  it.each([
+    // Feb 29 on a non-leap year — Date.parse silently rolls over to Mar 1.
+    '2023-02-29',
+    '2023-02-29T00:00:00Z',
+    '2026-02-31',
+    '2026-04-31', // April has 30 days
+    '2026-06-31', // June has 30 days
+  ])('rejects calendar-invalid date "%s" (codex round 4 P2)', (input) => {
+    const out = normalizeFields({ available_from: input });
+    expect(out.available_from).toBeUndefined();
+  });
+
+  it('accepts Feb 29 on an actual leap year', () => {
+    const out = normalizeFields({ available_from: '2024-02-29' });
+    expect(out.available_from).toBe('2024-02-29');
+  });
+
   it('drops a garbage date string', () => {
     const out = normalizeFields({ available_from: 'not a date' });
     expect(out.available_from).toBeUndefined();

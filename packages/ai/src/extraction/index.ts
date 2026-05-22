@@ -102,10 +102,16 @@ const COMMON_SUBDOMAIN_PREFIXES: readonly string[] = [
 ];
 
 /**
- * Derive a registrable-ish host like "zillow.com" from a URL. Strips the
- * common subdomain prefixes that map back to the same publisher. Falls
+ * Derive a registrable-ish host like "zillow.com" from a URL. Strips any
+ * sequence of common subdomain prefixes — `cdn.www.publisher.example` →
+ * `publisher.example` — so per-publisher analytics doesn't fragment across
+ * combined CDN + www / mobile + www layouts (codex round 4 P3). Falls
  * back to the raw hostname if parsing fails (which shouldn't happen since
  * we already fetched the URL successfully).
+ *
+ * Bounded loop: at most `COMMON_SUBDOMAIN_PREFIXES.length` iterations
+ * even on adversarial input, since each pass either consumes a prefix or
+ * exits.
  */
 function deriveSourceDomain(url: string): string {
   let host: string;
@@ -114,8 +120,16 @@ function deriveSourceDomain(url: string): string {
   } catch {
     return url;
   }
-  for (const prefix of COMMON_SUBDOMAIN_PREFIXES) {
-    if (host.startsWith(prefix)) return host.slice(prefix.length);
+  let stripped = true;
+  while (stripped) {
+    stripped = false;
+    for (const prefix of COMMON_SUBDOMAIN_PREFIXES) {
+      if (host.startsWith(prefix)) {
+        host = host.slice(prefix.length);
+        stripped = true;
+        break;
+      }
+    }
   }
   return host;
 }
