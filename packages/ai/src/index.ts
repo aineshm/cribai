@@ -20,3 +20,12 @@ export type {
   ExtractListingOptions,
   ExtractionErrorCode,
 } from './extraction';
+export { createRequestMetricsRecorder, resolveRequestId } from './runtime/metrics';
+export type {
+  RequestMetricsRecorder,
+  RequestMetricsIdentity,
+  RequestMetricsSnapshot,
+  RuntimeKind,
+  MetricsClient,
+  FinishOptions,
+} from './runtime/metrics';
