@@ -73,26 +73,45 @@ function sanitiseGeo(
 }
 
 /**
+ * Match a YYYY-MM-DD prefix at the start of the input. Captures the date
+ * portion regardless of any trailing time / offset.
+ */
+const ISO_DATE_PREFIX = /^(\d{4}-\d{2}-\d{2})/;
+
+/**
  * Normalise an `availabilityStarts`-shaped date string into YYYY-MM-DD.
- * Returns `undefined` for unparseable input. Downstream validators
- * (`tool-registry.ts`, `create-sublease.ts`) enforce a strict
- * `^\d{4}-\d{2}-\d{2}$` shape, so the extractor must clamp to that
- * contract — emitting an ISO timestamp would silently break the chain
- * for every listing that has an availability date.
+ * Returns `undefined` for unparseable input.
  *
- * `Date.parse` is permissive (accepts "2026-08-15", "August 15 2026",
- * "2026-08-15T12:34:56Z"); we keep that flexibility and project down to
- * the canonical date-only form. The time portion is discarded — the
- * downstream contract doesn't carry it, and timezone juggling for what is
- * effectively a calendar date would introduce silent ±1-day drift.
+ * Downstream validators (`tool-registry.ts`, `create-sublease.ts`) enforce
+ * a strict `^\d{4}-\d{2}-\d{2}$` shape, so the extractor must clamp to
+ * that contract — emitting an ISO timestamp would silently break the
+ * chain for every listing that has an availability date.
+ *
+ * Branching by input shape avoids the UTC-shift trap:
+ *
+ *   - If the input already starts with `YYYY-MM-DD`, use the date prefix
+ *     verbatim (after light validity check). This preserves the publisher's
+ *     intended calendar date even when their full timestamp carries a
+ *     wild timezone offset like "+14:00" — `toISOString()` would otherwise
+ *     shift `2026-08-15T00:30:00+14:00` back to `2026-08-14` (codex round-3 P2).
+ *
+ *   - Otherwise we accept Date.parse-able natural-language forms
+ *     ("August 15 2026 UTC"). Those don't carry a publisher-intended local
+ *     calendar date, so converting via toISOString().slice(0,10) is fine.
  */
 function normaliseAvailableFrom(raw: string | undefined): string | undefined {
   if (raw === undefined) return undefined;
+  const datePrefix = ISO_DATE_PREFIX.exec(raw);
+  if (datePrefix) {
+    const candidate = datePrefix[1]!;
+    // Ensure the captured YYYY-MM-DD itself is a real calendar date —
+    // "2026-13-40" matches the regex but isn't valid.
+    const parsed = Date.parse(`${candidate}T00:00:00Z`);
+    if (!Number.isFinite(parsed)) return undefined;
+    return candidate;
+  }
   const parsed = Date.parse(raw);
   if (!Number.isFinite(parsed)) return undefined;
-  // toISOString() always emits "YYYY-MM-DDTHH:mm:ss.sssZ"; slice the date
-  // portion. Date.parse('2026-08-15') treats the input as UTC midnight so
-  // there's no off-by-one risk on the date-only branch.
   return new Date(parsed).toISOString().slice(0, 10);
 }
 

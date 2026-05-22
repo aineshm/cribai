@@ -133,6 +133,31 @@ describe('SSRF (redirect chain)', () => {
     ).rejects.toMatchObject({ code: 'fetch_failed' });
   });
 
+  it('strips cdn./static./m. subdomain prefixes on the post-redirect host (codex round 3 P2)', async () => {
+    const html = `<!doctype html><meta property="og:title" content="CDN Hop" />`;
+    const fetcher = (async (input: string | URL | Request) => {
+      const requested =
+        typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      if (requested === 'https://shortener.example/r/xyz') {
+        return new Response('', {
+          status: 302,
+          headers: { Location: 'https://cdn.publisher.example/listing/abc' },
+        });
+      }
+      if (requested === 'https://cdn.publisher.example/listing/abc') {
+        return new Response(html, { status: 200 });
+      }
+      throw new Error(`Unexpected URL ${requested}`);
+    }) as typeof fetch;
+    const result = await extractListing('https://shortener.example/r/xyz', {
+      fetcher,
+      lookup: PUBLIC_IP,
+    });
+    // cdn. is stripped so per-publisher routing isn't fragmented across
+    // www.publisher.example / cdn.publisher.example.
+    expect(result.source_domain).toBe('publisher.example');
+  });
+
   it('uses the post-redirect host for source_domain (codex P2)', async () => {
     const html = `<!doctype html><meta property="og:title" content="Real Listing" />`;
     const fetcher = (async (input: string | URL | Request) => {

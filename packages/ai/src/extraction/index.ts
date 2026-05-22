@@ -83,18 +83,41 @@ const BLOCK_SIGNALS: readonly string[] = [
 ];
 
 /**
- * Derive a registrable host like "zillow.com" from a URL. Falls back to the
- * raw hostname if parsing fails (which shouldn't happen since we already
- * fetched the URL successfully).
+ * Common subdomain prefixes that publishers use to serve the same listings
+ * the canonical apex serves. Stripping these keeps per-publisher analytics
+ * unfragmented when a redirector lands on `cdn.publisher.com` vs
+ * `www.publisher.com`. A full eTLD+1 collapse would require the Public
+ * Suffix List (out of scope here); the static prefix list catches the
+ * cases that matter for housing CDNs without the heavy dep (codex round 3).
+ */
+const COMMON_SUBDOMAIN_PREFIXES: readonly string[] = [
+  'www.',
+  'm.',
+  'cdn.',
+  'static.',
+  'assets.',
+  'images.',
+  'www1.',
+  'www2.',
+];
+
+/**
+ * Derive a registrable-ish host like "zillow.com" from a URL. Strips the
+ * common subdomain prefixes that map back to the same publisher. Falls
+ * back to the raw hostname if parsing fails (which shouldn't happen since
+ * we already fetched the URL successfully).
  */
 function deriveSourceDomain(url: string): string {
+  let host: string;
   try {
-    const host = new URL(url).hostname.toLowerCase();
-    // Strip leading "www." for cleaner storage.
-    return host.startsWith('www.') ? host.slice(4) : host;
+    host = new URL(url).hostname.toLowerCase();
   } catch {
     return url;
   }
+  for (const prefix of COMMON_SUBDOMAIN_PREFIXES) {
+    if (host.startsWith(prefix)) return host.slice(prefix.length);
+  }
+  return host;
 }
 
 /**

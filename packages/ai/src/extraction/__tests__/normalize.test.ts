@@ -160,6 +160,24 @@ describe('normalizeFields — available_from date validation', () => {
     expect(out.available_from).toBe('2026-08-15');
   });
 
+  it('preserves the publisher-intended calendar date for offset timestamps (codex round 3)', () => {
+    // `2026-08-15T00:30:00+14:00` is `2026-08-14T10:30:00Z` after UTC
+    // conversion — slicing toISOString would shift the calendar day back
+    // by one. The publisher emitted `2026-08-15`; that's the move-in date.
+    const out = normalizeFields({ available_from: '2026-08-15T00:30:00+14:00' });
+    expect(out.available_from).toBe('2026-08-15');
+  });
+
+  it('preserves the date prefix even when time portion crosses midnight UTC', () => {
+    const out = normalizeFields({ available_from: '2026-08-15T23:30:00-12:00' });
+    expect(out.available_from).toBe('2026-08-15');
+  });
+
+  it('rejects YYYY-MM-DD with invalid components (e.g. 2026-13-40)', () => {
+    const out = normalizeFields({ available_from: '2026-13-40' });
+    expect(out.available_from).toBeUndefined();
+  });
+
   it('drops a garbage date string', () => {
     const out = normalizeFields({ available_from: 'not a date' });
     expect(out.available_from).toBeUndefined();
