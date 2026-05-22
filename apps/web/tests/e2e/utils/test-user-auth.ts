@@ -27,20 +27,35 @@ import { createClient } from '@supabase/supabase-js';
 import { loadTestEnvOnce } from './load-test-env';
 
 /**
- * Default email/password are overridden by env vars so production deploys
- * can supply real, gitignored credentials. The defaults exist purely so a
- * locally-pointed Supabase (where provisioning a throwaway user is cheap)
- * works out of the box.
+ * Test user credentials MUST come from env. We intentionally do NOT carry
+ * hardcoded defaults — a default password in source means anyone reading
+ * the repo could sign in as the test user against any environment where
+ * E2E_SKIP_USER_PROVISION is misconfigured (or where the default user
+ * happens to exist). Fail-fast and require explicit env wiring instead.
+ *
+ * Local dev: set E2E_TEST_USER_EMAIL / E2E_TEST_USER_PASSWORD in
+ * apps/web/.env.local (already gitignored).
  */
-const DEFAULT_EMAIL = 'e2e-tour-hitl@cribai.test';
-const DEFAULT_PASSWORD = 'AIN32-tour-hitl-e2e-Pa55!';
-
 function getTestUserEmail(): string {
-  return process.env.E2E_TEST_USER_EMAIL ?? DEFAULT_EMAIL;
+  const email = process.env.E2E_TEST_USER_EMAIL;
+  if (!email) {
+    throw new Error(
+      'test-user-auth: E2E_TEST_USER_EMAIL must be set in env ' +
+        '(no hardcoded default — see apps/web/.env.local).',
+    );
+  }
+  return email;
 }
 
 function getTestUserPassword(): string {
-  return process.env.E2E_TEST_USER_PASSWORD ?? DEFAULT_PASSWORD;
+  const password = process.env.E2E_TEST_USER_PASSWORD;
+  if (!password) {
+    throw new Error(
+      'test-user-auth: E2E_TEST_USER_PASSWORD must be set in env ' +
+        '(no hardcoded default — see apps/web/.env.local).',
+    );
+  }
+  return password;
 }
 
 /**
