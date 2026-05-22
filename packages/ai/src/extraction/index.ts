@@ -112,10 +112,18 @@ async function readBodyWithCap(
   const body = response.body;
   if (!body || typeof body.getReader !== 'function') {
     const text = await response.text();
-    if (text.length > MAX_BODY_BYTES) {
+    // codex P3: enforce the cap by BYTES, not code units. A 4-million-char
+    // UTF-8 body of 3-byte glyphs is ~12 MB on the wire even though
+    // `text.length` is well under MAX_BODY_BYTES (5 MB). Encode once and
+    // measure the byte view to honour the memory-hardening guarantee on
+    // the fallback path too. `Buffer.byteLength('utf8')` is O(n) and runs
+    // only on this rare branch — `response.body` is present on every real
+    // fetch / undici / Response, so the streaming path dominates production.
+    const bytes = Buffer.byteLength(text, 'utf8');
+    if (bytes > MAX_BODY_BYTES) {
       throw new ExtractionError(
         'fetch_failed',
-        `Response body exceeds ${MAX_BODY_BYTES} bytes (text=${text.length}) for ${url}`,
+        `Response body exceeds ${MAX_BODY_BYTES} bytes (text=${bytes}) for ${url}`,
         url,
       );
     }
@@ -479,7 +487,13 @@ export async function extractListing(
 
   return {
     source_url: url,
-    source_domain: deriveSourceDomain(url),
+    // codex P2: `source_domain` should reflect where the listing actually
+    // lives, not the shortener / tracking redirector the user happened to
+    // paste. Use the post-redirect URL so per-publisher logic (e.g. Zillow
+    // vs Apartments.com handling in downstream tools) keys correctly. The
+    // user-facing `source_url` stays as the input — that's the link they
+    // care about.
+    source_domain: deriveSourceDomain(finalUrl),
     ...normalized,
     extraction_method,
     extraction_confidence,

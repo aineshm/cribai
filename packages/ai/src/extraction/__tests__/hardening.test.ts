@@ -133,6 +133,32 @@ describe('SSRF (redirect chain)', () => {
     ).rejects.toMatchObject({ code: 'fetch_failed' });
   });
 
+  it('uses the post-redirect host for source_domain (codex P2)', async () => {
+    const html = `<!doctype html><meta property="og:title" content="Real Listing" />`;
+    const fetcher = (async (input: string | URL | Request) => {
+      const requested =
+        typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      if (requested === 'https://shortener.example/r/xyz') {
+        return new Response('', {
+          status: 302,
+          headers: { Location: 'https://www.publisher.example/listing/abc' },
+        });
+      }
+      if (requested === 'https://www.publisher.example/listing/abc') {
+        return new Response(html, { status: 200 });
+      }
+      throw new Error(`Unexpected URL ${requested}`);
+    }) as typeof fetch;
+    const result = await extractListing('https://shortener.example/r/xyz', {
+      fetcher,
+      lookup: PUBLIC_IP,
+    });
+    expect(result.source_url).toBe('https://shortener.example/r/xyz');
+    // source_domain should be the real publisher (no www prefix), not the
+    // shortener — otherwise downstream per-site logic fragments.
+    expect(result.source_domain).toBe('publisher.example');
+  });
+
   it('follows a single legitimate redirect within the cap', async () => {
     const html = `<!doctype html><meta property="og:title" content="Final" />`;
     const fetcher = (async (input: string | URL | Request) => {
@@ -234,6 +260,30 @@ describe('body size cap', () => {
         },
       });
       return new Response(stream, { status: 200 });
+    }) as typeof fetch;
+    await expect(
+      extractListing(url, { fetcher, lookup: PUBLIC_IP }),
+    ).rejects.toMatchObject({ code: 'fetch_failed' });
+  });
+
+  it('counts BYTES, not code units, in the non-stream fallback (codex P3)', async () => {
+    // Build a Response whose `body` is absent so `readBodyWithCap` takes
+    // the fallback branch. The text is 3-byte glyphs ("\u{1F600}" + variants
+    // would also work) so `text.length` < MAX_BODY_BYTES while
+    // Buffer.byteLength('utf8') > MAX_BODY_BYTES.
+    const url = 'https://www.example.com/multibyte';
+    // 2.5M chars of a 3-byte UTF-8 char (≈ 7.5 MB). Stays under length=5MB.
+    const big = '你'.repeat(2_500_000);
+    const fetcher = (async () => {
+      const res = {
+        status: 200,
+        ok: true,
+        // No `body` property → readBodyWithCap falls back to response.text().
+        text: async () => big,
+        headers: new Headers(),
+        url,
+      } as unknown as Response;
+      return res;
     }) as typeof fetch;
     await expect(
       extractListing(url, { fetcher, lookup: PUBLIC_IP }),
