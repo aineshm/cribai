@@ -120,6 +120,10 @@ export function* findListingEntitiesBfs(root: unknown): IterableIterator<Record<
   while (queue.length > 0) {
     const node = queue.shift();
     if (Array.isArray(node)) {
+      // Arrays can self-cycle too (`const a: any[] = []; a.push(a)`). Mark
+      // them visited before fanning out so a cyclic array doesn't spin.
+      if (visited.has(node)) continue;
+      visited.add(node);
       for (const item of node) queue.push(item);
       continue;
     }

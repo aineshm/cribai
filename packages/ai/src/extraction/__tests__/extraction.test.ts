@@ -785,13 +785,26 @@ describe('codex follow-ups', () => {
   // The cycle goes through two non-listing wrappers so the BFS actually has
   // to revisit a node (the yielded-entity branch `continue`s before queueing
   // sub-keys, so a self-referential listing alone wouldn't exercise the guard).
-  it('terminates on a cyclic graph and yields the listing entity once', () => {
+  it('terminates on a cyclic object graph and yields the listing entity once', () => {
     const wrapperA: Record<string, unknown> = {};
     const wrapperB: Record<string, unknown> = { back: wrapperA };
     wrapperA.forward = wrapperB;
     const apt: Record<string, unknown> = { '@type': 'Apartment', name: 'Cyclic Listing' };
     wrapperA.entity = apt;
     const yielded = Array.from(findListingEntitiesBfs(wrapperA));
+    expect(yielded).toHaveLength(1);
+    expect(yielded[0]).toBe(apt);
+  }, 2000);
+
+  // Arrays can self-cycle too — `const a: any[] = []; a.push(a)` — and the
+  // array branch sits before the object visited-check, so it needs its own
+  // guard. Without it this test hangs.
+  it('terminates on a cyclic array graph', () => {
+    const arr: unknown[] = [];
+    arr.push(arr);
+    const apt: Record<string, unknown> = { '@type': 'Apartment', name: 'Cyclic Array Listing' };
+    arr.push(apt);
+    const yielded = Array.from(findListingEntitiesBfs(arr));
     expect(yielded).toHaveLength(1);
     expect(yielded[0]).toBe(apt);
   }, 2000);
