@@ -75,14 +75,21 @@ export function parseMetaTags(html: string): {
 }
 
 /**
- * Coerce a string price like "$1,950" or "1950.00 USD" to a number. Ranged
- * strings like "$1,800 - $2,200" collapse to the lower bound — multi-unit
- * apartment pages commonly publish rent as a range and the lower number is
- * the value students filter against.
+ * Coerce a string price like "$1,950" or "1950.00 USD" to a number. Handles:
+ *   - Space-separated thousands ("1 800") — decodeHtmlEntities() above turns
+ *     `&nbsp;` into a normal space, so OG prices written as "1&nbsp;800"
+ *     arrive here as "1 800" and must collapse to "1800".
+ *   - Ranged values like "$1,800 - $2,200" — collapse to the lower bound;
+ *     multi-unit pages publish rent as a range and the low is the value
+ *     students filter by.
  */
 function parsePrice(raw: string | undefined): number | undefined {
   if (!raw) return undefined;
-  const tokens = raw.match(/-?\d[\d,]*(?:\.\d+)?/g);
+  // Collapse any whitespace BETWEEN digits (locale-style thousands separator)
+  // into nothing, but preserve standalone whitespace between tokens so a
+  // range "1 800 - 2 200" still resolves to two tokens (1800, 2200).
+  const normalized = raw.replace(/(\d)[\s   ](?=\d)/g, '$1');
+  const tokens = normalized.match(/-?\d[\d,]*(?:\.\d+)?/g);
   if (!tokens || tokens.length === 0) return undefined;
   const first = tokens[0]!.replace(/,/g, '');
   const parsed = Number(first);

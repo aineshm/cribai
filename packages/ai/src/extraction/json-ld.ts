@@ -27,17 +27,33 @@
 
 import type { ExtractedListing } from './types';
 
-const LISTING_TYPES: ReadonlySet<string> = new Set([
+/**
+ * Specific listing types — when one of these is present anywhere in the
+ * JSON-LD tree, it always wins over the generic `Place`/`Product` types
+ * (which a publisher's organizational schema can also expose, e.g.
+ * `publisher.location` as a `Place`).
+ */
+const SPECIFIC_LISTING_TYPES: ReadonlySet<string> = new Set([
   'RealEstateListing',
   'Apartment',
   'House',
   'Residence',
   'SingleFamilyResidence',
-  'Place',
-  'Product',
-  // Variations seen in the wild
   'ApartmentComplex',
   'ResidentialApartmentComplex',
+]);
+
+/**
+ * Generic types that real-estate publishers sometimes use for listings, but
+ * which are also used for unrelated entities (organization addresses, store
+ * locations, generic products). Only chosen when no specific listing type
+ * is present anywhere in the parsed JSON-LD.
+ */
+const GENERIC_LISTING_TYPES: ReadonlySet<string> = new Set(['Place', 'Product']);
+
+const LISTING_TYPES: ReadonlySet<string> = new Set([
+  ...SPECIFIC_LISTING_TYPES,
+  ...GENERIC_LISTING_TYPES,
 ]);
 
 const SCRIPT_TAG_REGEX =
@@ -99,20 +115,32 @@ function* findListingEntities(node: unknown): IterableIterator<Record<string, un
 }
 
 /**
+ * Collapse space-separated thousands (and other Unicode "narrow space"
+ * separators) into a single number string. Specifically: any whitespace
+ * character between two digits is removed. Standalone whitespace between
+ * tokens is preserved so ranged values like "1 800 - 2 200" still resolve
+ * to two tokens (1800, 2200).
+ *
+ * NBSP (` `), narrow NBSP (` `), thin space (` `), and
+ * regular space all collapse here.
+ */
+function collapseDigitSpaces(s: string): string {
+  return s.replace(/(\d)[\s   ](?=\d)/g, '$1');
+}
+
+/**
  * Coerce a value to a number when possible. Handles strings like "$1,950",
- * "1950 USD", and numeric values. Ranged strings like "$1,800 - $2,200" are
- * collapsed to the lower bound (the most useful value for filtering) and
- * a debug breadcrumb is preserved in `raw_json_ld` for the caller. Returns
- * undefined on failure.
+ * "1950 USD", "1 800" (space-separated thousands), and ranged values like
+ * "$1,800 - $2,200" (en-dash variants included) which collapse to the lower
+ * bound — multi-unit pages publish low–high and the low is what students
+ * filter by. Returns undefined on failure.
  */
 function toNumber(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value !== 'string') return undefined;
 
-  // Detect a range like "1,800 - 2,200" or "$1800–$2200" (en-dash). The first
-  // numeric token wins — multi-unit pages publish low–high; the low bound is
-  // what students filter by.
-  const tokens = value.match(/-?\d[\d,]*(?:\.\d+)?/g);
+  const normalized = collapseDigitSpaces(value);
+  const tokens = normalized.match(/-?\d[\d,]*(?:\.\d+)?/g);
   if (tokens && tokens.length > 0) {
     const first = tokens[0]!.replace(/,/g, '');
     const parsed = Number(first);
@@ -410,19 +438,43 @@ export function projectJsonLdEntity(
 }
 
 /**
- * Top-level helper: parse the HTML, find the first matching listing entity,
- * and project it. Returns `null` when no listing-shaped JSON-LD is found,
- * letting the caller fall through to the OpenGraph extractor.
+ * Return true when the entity has at least one of our specific listing types
+ * (Apartment, House, RealEstateListing, etc.) — used to break the tie when a
+ * page exposes both a real listing and an unrelated `Place` (e.g. the
+ * publisher's office location under `publisher.location`).
+ */
+function isSpecificListingEntity(entity: Record<string, unknown>): boolean {
+  const t = entity['@type'];
+  const types: string[] = Array.isArray(t)
+    ? t.filter((x): x is string => typeof x === 'string')
+    : typeof t === 'string'
+      ? [t]
+      : [];
+  return types.some((x) => SPECIFIC_LISTING_TYPES.has(x));
+}
+
+/**
+ * Top-level helper: parse the HTML, find the best matching listing entity,
+ * and project it. Prefers specific listing types (Apartment, House, etc.)
+ * over the broad `Place`/`Product` fallback to avoid mis-identifying a
+ * publisher's address as the listing. Returns `null` when no listing-shaped
+ * JSON-LD is found, letting the caller fall through to the OpenGraph
+ * extractor.
  */
 export function extractFromJsonLd(
   html: string,
   sourceUrl: string,
 ): ReturnType<typeof projectJsonLdEntity> | null {
   const blocks = parseAllJsonLdBlocks(html);
+  let firstGeneric: Record<string, unknown> | null = null;
   for (const block of blocks) {
     for (const entity of findListingEntities(block)) {
-      return projectJsonLdEntity(entity, sourceUrl);
+      if (isSpecificListingEntity(entity)) {
+        return projectJsonLdEntity(entity, sourceUrl);
+      }
+      if (firstGeneric === null) firstGeneric = entity;
     }
   }
+  if (firstGeneric) return projectJsonLdEntity(firstGeneric, sourceUrl);
   return null;
 }

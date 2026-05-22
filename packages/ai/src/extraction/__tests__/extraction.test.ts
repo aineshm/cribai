@@ -690,6 +690,101 @@ describe('codex follow-ups', () => {
     );
     expect(projected.available_from).toBe('2026-08-15');
   });
+
+  it('prefers a specific listing type over a nested generic Place', async () => {
+    // Publisher's location is a Place; the real listing is an Apartment
+    // nested under mainEntity. The Place comes FIRST in traversal — must
+    // not win.
+    const html = `<!doctype html><html><head>
+      <script type="application/ld+json">
+      {"@context":"https://schema.org","@type":"WebPage",
+       "publisher":{
+         "@type":"Organization","name":"Vendor",
+         "location":{"@type":"Place","name":"Vendor HQ",
+                     "address":{"@type":"PostalAddress","streetAddress":"9 Office Ln","addressLocality":"NYC","addressRegion":"NY","postalCode":"10001"}}
+       },
+       "mainEntity":{
+         "@type":"Apartment","name":"The Real Listing",
+         "address":{"@type":"PostalAddress","streetAddress":"1 Main St","addressLocality":"Madison","addressRegion":"WI","postalCode":"53703"},
+         "numberOfBedrooms":2,
+         "offers":{"@type":"Offer","price":1500}
+       }}
+      </script>
+    </head><body></body></html>`;
+    const url = 'https://example.com/wrapper';
+    const result = await extractListing(url, {
+      fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+    });
+    expect(result.title).toBe('The Real Listing');
+    expect(result.city).toBe('Madison');
+    expect(result.bedrooms).toBe(2);
+    expect(result.price).toBe(1500);
+  });
+
+  it('falls back to a generic Place only when no specific listing type exists', async () => {
+    // Page exposes ONLY a Place — extractor still picks it up (generic
+    // fallback). Codex's earlier review noted this fixture in the wild.
+    const html = `<!doctype html><html><head>
+      <script type="application/ld+json">
+      {"@context":"https://schema.org","@type":"Place","name":"Some Place",
+       "address":{"@type":"PostalAddress","streetAddress":"5 Side St","addressLocality":"Madison","addressRegion":"WI","postalCode":"53703"}}
+      </script>
+    </head><body></body></html>`;
+    const url = 'https://example.com/place-only';
+    const result = await extractListing(url, {
+      fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+    });
+    expect(result.title).toBe('Some Place');
+    expect(result.city).toBe('Madison');
+  });
+
+  it('parses space-separated thousands in JSON-LD price (locale style)', () => {
+    const projected = projectJsonLdEntity(
+      {
+        '@type': 'Apartment',
+        offers: { '@type': 'Offer', price: '1 800' },
+      },
+      'https://example.com/x',
+    );
+    expect(projected.price).toBe(1800);
+  });
+
+  it('parses NBSP-separated thousands in JSON-LD price', () => {
+    const projected = projectJsonLdEntity(
+      {
+        '@type': 'Apartment',
+        offers: { '@type': 'Offer', price: '1 800' },
+      },
+      'https://example.com/x',
+    );
+    expect(projected.price).toBe(1800);
+  });
+
+  it('parses NBSP-separated thousands in OG og:price:amount', async () => {
+    // The HTML literally contains `1&nbsp;800`. decodeHtmlEntities turns it
+    // into a real space; parsePrice must collapse digit-spaces.
+    const html = `<!doctype html><html><head>
+      <meta property="og:title" content="NBSP price" />
+      <meta property="og:price:amount" content="1&nbsp;800" />
+    </head><body></body></html>`;
+    const url = 'https://example.com/og-nbsp';
+    const result = await extractListing(url, {
+      fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+    });
+    expect(result.price).toBe(1800);
+  });
+
+  it('still handles ranged space-separated values', () => {
+    const projected = projectJsonLdEntity(
+      {
+        '@type': 'ApartmentComplex',
+        offers: { '@type': 'Offer', price: '1 800 - 2 200' },
+      },
+      'https://example.com/x',
+    );
+    // Space between digits collapses; range collapses to lower.
+    expect(projected.price).toBe(1800);
+  });
 });
 
 describe('extractFromOg', () => {
