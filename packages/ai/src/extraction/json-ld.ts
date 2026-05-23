@@ -56,9 +56,28 @@ const SCRIPT_TAG_REGEX =
   /<script[^>]*type\s*=\s*["']application\/ld\+json\s*(?:;[^"']*)?["'][^>]*>([\s\S]*?)<\/script>/gi;
 
 /**
+ * JSON.parse reviver that drops `__proto__` and `constructor` keys at parse
+ * time. Modern Node's `JSON.parse` already routes `__proto__` through
+ * `[[DefineOwnProperty]]` so the global Object.prototype is unaffected — but
+ * `raw_json_ld` is publicly attached to `ExtractedListing`, and a downstream
+ * `Object.assign(target, raw_json_ld)` would propagate an OWN `__proto__`
+ * property to `target`. Dropping these keys at parse time removes that risk
+ * before the value can travel further.
+ *
+ * Returning `undefined` from a reviver causes JSON.parse to omit the key
+ * entirely (per ECMA-262 24.5.1).
+ */
+function safeReviver(key: string, value: unknown): unknown {
+  if (key === '__proto__' || key === 'constructor') return undefined;
+  return value;
+}
+
+/**
  * Parse all JSON-LD blocks from raw HTML. Malformed blocks are skipped
  * silently — the goal is to extract whatever structured data is valid,
  * not to validate the whole page.
+ *
+ * Uses `safeReviver` to scrub `__proto__` / `constructor` keys.
  */
 export function parseAllJsonLdBlocks(html: string): unknown[] {
   const blocks: unknown[] = [];
@@ -67,7 +86,7 @@ export function parseAllJsonLdBlocks(html: string): unknown[] {
     const body = (match[1] ?? '').trim();
     if (!body) continue;
     try {
-      blocks.push(JSON.parse(body));
+      blocks.push(JSON.parse(body, safeReviver));
     } catch {
       // Malformed JSON-LD — graceful degradation, the OG fallback will catch it.
     }
@@ -261,11 +280,20 @@ function firstString(value: unknown): string | undefined {
 
 /**
  * Resolve a possibly-relative image URL against the source page URL.
- * Returns undefined if resolution fails.
+ * Returns undefined if resolution fails OR the resolved URL has a scheme
+ * other than `http:` / `https:`.
+ *
+ * Note: `new URL('javascript:alert(1)', base)` parses SUCCESSFULLY and
+ * yields `.protocol === 'javascript:'`. The scheme check is the only gate
+ * that catches that case — relying on `URL` to throw is not enough.
+ * The same is true for `data:` and `file:`. `normalizeFields` re-runs this
+ * check as belt-and-braces against any path that bypasses this helper.
  */
 function resolveUrl(maybeRelative: string, base: string): string | undefined {
   try {
-    return new URL(maybeRelative, base).href;
+    const resolved = new URL(maybeRelative, base);
+    if (resolved.protocol !== 'http:' && resolved.protocol !== 'https:') return undefined;
+    return resolved.href;
   } catch {
     return undefined;
   }
