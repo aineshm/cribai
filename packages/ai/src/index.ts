@@ -29,3 +29,32 @@ export type {
   MetricsClient,
   FinishOptions,
 } from './runtime/metrics';
+
+// PDR-004 Track A Days 3-4 (AIN-8) — LLM-first turn handler + supporting bits.
+export { runLlmTurn } from './runtime/llm-turn';
+export type { RunLlmTurnInput } from './runtime/llm-turn';
+export { selectRuntime, LLM_FIRST_FLAG } from './runtime/runtime-select';
+export type { SelectRuntimeInput } from './runtime/runtime-select';
+export { createAiSdkModel, AI_SDK_MODEL_ID } from './runtime/ai-sdk-provider';
+export type { CreateAiSdkModelOptions } from './runtime/ai-sdk-provider';
+export {
+  buildSystemPrompt,
+  composeSystemPrompt,
+  getUserProfileSnippet,
+  EMPTY_PROFILE_SNIPPET,
+} from './runtime/system-prompt';
+export type {
+  SystemPromptParts,
+  UserProfileSnippet,
+  BuildSystemPromptOptions,
+} from './runtime/system-prompt';
+export { buildToolRegistry, TOOL_SPECS, HITL_TOOLS } from './runtime/tool-registry';
+export type { ToolRegistry, ToolResultSink, ToolSpec } from './runtime/tool-registry';
+export {
+  ExplicitCacheMemo,
+  deriveCacheKey,
+} from './runtime/prompt-cache';
+export type {
+  ExplicitCacheHandle,
+  ExplicitCacheCreator,
+} from './runtime/prompt-cache';

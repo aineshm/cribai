@@ -63,7 +63,10 @@ const scheduleTourInput = z.object({
   // Phase 1 (confirmed=false or omitted): handler returns a tour preview for
   // the user to review. Phase 2 (confirmed=true): handler dispatches the
   // external tour request. See PDR-004 codex cross-review amendment A1.
-  confirmed: z.boolean().optional(),
+  // AIN-26: `.default(false)` so a model that OMITS the field can never
+  // accidentally trip the HITL gate — an omitted `confirmed` is preview, not
+  // publish. The handler re-parses and re-checks `confirmed === true`.
+  confirmed: z.boolean().default(false),
 });
 
 const explainLeaseTermInput = z.object({
@@ -120,7 +123,9 @@ const createSubleaseInput = z.object({
   property_type: z.enum(['apartment', 'house', 'room']).optional(),
   gender_restriction: z.string().max(50).optional(),
   roommate_info: z.string().max(200).optional(),
-  confirmed: z.boolean().optional(),
+  // AIN-26: `.default(false)` — same HITL-safety rationale as
+  // `scheduleTourInput.confirmed`. An omitted `confirmed` means preview.
+  confirmed: z.boolean().default(false),
 });
 
 const proposeMissionInput = z.object({
@@ -204,7 +209,30 @@ const DESCRIPTIONS: Readonly<Record<ToolName, string>> = {
  */
 export type ToolRegistry = Readonly<Record<ToolName, Tool>>;
 
-export function buildToolRegistry(context: ToolContext): ToolRegistry {
+/**
+ * Out-of-band sink for the full `ToolResult`. PDR-004 codex P1 (PR #69): the
+ * model must only ever receive the string `modelContext` from a tool call —
+ * NOT the `clientBlock`, `statePatch`, `machineData`, `mapBlock`, or
+ * `missionRequest`. Those are UI/state side-channels the turn loop consumes
+ * directly. The registry pushes the full result here BEFORE returning the
+ * string to the SDK.
+ *
+ * The sink receives the SDK-provided `toolCallId` so the turn loop can
+ * correlate EXACTLY with the stream's `tool-result` part (which carries the
+ * same id). Keying by id — not by tool name — is robust even when the SDK
+ * runs multiple calls to the same tool in parallel within one step and they
+ * complete out of call order.
+ */
+export type ToolResultSink = (
+  toolCallId: string,
+  toolName: ToolName,
+  result: ToolResult,
+) => void;
+
+export function buildToolRegistry(
+  context: ToolContext,
+  sink: ToolResultSink,
+): ToolRegistry {
   const make = <T extends z.ZodTypeAny>(
     name: ToolName,
     inputSchema: T,
@@ -213,9 +241,21 @@ export function buildToolRegistry(context: ToolContext): ToolRegistry {
       description: DESCRIPTIONS[name],
       inputSchema,
       // The Vercel AI SDK passes the parsed input through. We re-hand to the
-      // existing executor so HITL/auth/logging/allowlist behavior is reused.
-      execute: async (input): Promise<ToolResult> =>
-        executeTool(name, input as Record<string, unknown>, context),
+      // existing executor so HITL/auth/logging/allowlist behavior is reused
+      // unchanged. The executor may THROW (guest-disallowed tool, unknown
+      // tool, handler failure) — we let that propagate so the SDK emits a
+      // `tool-error` part and the turn loop renders an error block. The sink
+      // only fires on success, after which we hand the model ONLY the string
+      // `modelContext`. The full ToolResult never reaches the model.
+      execute: async (input, options): Promise<string> => {
+        const result = await executeTool(
+          name,
+          input as Record<string, unknown>,
+          context,
+        );
+        sink(options.toolCallId, name, result);
+        return result.modelContext;
+      },
     });
 
   return Object.freeze({

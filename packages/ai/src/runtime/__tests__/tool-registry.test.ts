@@ -14,7 +14,7 @@
  * by the existing per-handler test suites.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import {
   TOOL_SPECS,
@@ -23,7 +23,15 @@ import {
   type ToolSpec,
 } from '../tool-registry';
 import { CRIBAI_TOOLS_BY_NAME } from '../../tools/schemas';
+import { executeTool } from '../../tools/executor';
 import type { ToolContext, ToolName } from '../../tools/types';
+
+// The sink-refactor tests stub `executeTool` so they can assert what the
+// registry does with its result WITHOUT a live Supabase context. The
+// allowlist test re-imports the real implementation per-case.
+vi.mock('../../tools/executor', () => ({
+  executeTool: vi.fn(),
+}));
 
 const EXPECTED_NAMES: readonly ToolName[] = [
   'search_listings',
@@ -247,7 +255,7 @@ describe('tool-registry — buildToolRegistry()', () => {
       campusSlug: 'uw-madison',
     } as ToolContext;
 
-    const registry = buildToolRegistry(fakeContext);
+    const registry = buildToolRegistry(fakeContext, () => {});
     const keys = Object.keys(registry).sort();
     const expected = [...EXPECTED_NAMES].sort();
     expect(keys).toEqual(expected);
@@ -262,5 +270,106 @@ describe('tool-registry — buildToolRegistry()', () => {
 
     // Frozen — registry should not be mutated by accident
     expect(Object.isFrozen(registry)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PDR-004 codex P1 (PR #69): execute must return ONLY the string modelContext
+// to the model, while the full ToolResult is routed out-of-band to the sink.
+// ---------------------------------------------------------------------------
+
+const TOOL_EXEC_OPTS = { toolCallId: 'call-1', messages: [] } as never;
+
+describe('tool-registry — sink refactor (codex P1)', () => {
+  it('execute returns the string modelContext to the model, sink gets the full ToolResult', async () => {
+    const statePatch = { selectedListingId: 'listing-xyz' } as const;
+    const fullResult = {
+      modelContext: 'Found 3 listings near campus.',
+      clientBlock: { type: 'text', content: 'rendered card' },
+      machineData: { count: 3 },
+      statePatch,
+    };
+
+    vi.mocked(executeTool).mockResolvedValueOnce(fullResult as never);
+
+    const sinkCalls: Array<{ id: string; name: string; result: unknown }> = [];
+    const registry = buildToolRegistry(
+      { supabase: {} as never, campusId: 'c', campusSlug: 'uw-madison' } as ToolContext,
+      (id, name, result) => sinkCalls.push({ id, name, result }),
+    );
+
+    const execute = (registry.search_listings as { execute: (...a: unknown[]) => Promise<unknown> }).execute;
+    const returned = await execute({ semantic_query: 'near campus' }, TOOL_EXEC_OPTS);
+
+    // The model only ever sees the string.
+    expect(returned).toBe('Found 3 listings near campus.');
+    expect(typeof returned).toBe('string');
+
+    // The sink received the toolCallId + FULL ToolResult (statePatch + block).
+    expect(sinkCalls).toHaveLength(1);
+    expect(sinkCalls[0]!.id).toBe('call-1');
+    expect(sinkCalls[0]!.name).toBe('search_listings');
+    expect(sinkCalls[0]!.result).toEqual(fullResult);
+    expect((sinkCalls[0]!.result as typeof fullResult).statePatch).toEqual(statePatch);
+  });
+
+  it('routes through executeTool so the guest allowlist still throws', async () => {
+    // Real executeTool (unmocked) for this assertion — the allowlist guard
+    // lives there, and the registry must NOT bypass it.
+    vi.mocked(executeTool).mockImplementationOnce(
+      (await vi.importActual<typeof import('../../tools/executor')>('../../tools/executor'))
+        .executeTool,
+    );
+
+    const sinkCalls: unknown[] = [];
+    const registry = buildToolRegistry(
+      {
+        supabase: {} as never,
+        campusId: 'c',
+        campusSlug: 'uw-madison',
+        allowedToolNames: ['search_listings'], // guest allowlist — schedule_tour excluded
+      } as ToolContext,
+      (_id, _name, result) => sinkCalls.push(result),
+    );
+
+    const execute = (registry.schedule_tour as { execute: (...a: unknown[]) => Promise<unknown> }).execute;
+
+    await expect(
+      execute(
+        {
+          listing_id: '11111111-2222-4333-8444-555555555555',
+          student_name: 'A',
+          student_email: 'a@wisc.edu',
+          preferred_dates: ['2026-06-15'],
+        },
+        TOOL_EXEC_OPTS,
+      ),
+    ).rejects.toThrow(/signing in/i);
+
+    // Sink must NOT fire when the executor rejects.
+    expect(sinkCalls).toHaveLength(0);
+  });
+});
+
+describe('tool-registry — AIN-26 confirmed default', () => {
+  it('defaults schedule_tour.confirmed to false when omitted', () => {
+    const spec = TOOL_SPECS.find((s) => s.name === 'schedule_tour')!;
+    const parsed = (spec.inputSchema as z.ZodTypeAny).parse({
+      listing_id: '11111111-2222-4333-8444-555555555555',
+      student_name: 'A',
+      student_email: 'a@wisc.edu',
+      preferred_dates: ['2026-06-15'],
+    }) as { confirmed: boolean };
+    expect(parsed.confirmed).toBe(false);
+  });
+
+  it('defaults create_sublease.confirmed to false when omitted', () => {
+    const spec = TOOL_SPECS.find((s) => s.name === 'create_sublease')!;
+    const parsed = (spec.inputSchema as z.ZodTypeAny).parse({
+      address: '456 W Gorham St, Madison WI',
+      bedrooms_total: 2,
+      bedrooms_available: 1,
+    }) as { confirmed: boolean };
+    expect(parsed.confirmed).toBe(false);
   });
 });
