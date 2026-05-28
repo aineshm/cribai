@@ -34,7 +34,11 @@ const SIGN_IN_RESULT: ToolResult = {
 function formatTrueCost(branch: FanoutBranch<TrueCost>): string | null {
   if (branch.status !== 'ok') return null;
   const { data } = branch;
-  return `True cost: $${data.total}/mo (rent $${data.rent} + utilities ~$${data.utilities})`;
+  // FIX 5: addons = total - rent so the math is honest.
+  // The old "(rent $X + utilities ~$Y)" label was misleading because the total
+  // also includes parking, internet, laundry, renterInsurance, and moveInFees.
+  const addons = Math.round(data.total - data.rent);
+  return `True cost: ~$${data.total}/mo all-in — rent $${data.rent} + ~$${addons} in utilities, parking, internet & fees`;
 }
 
 function formatRedFlags(branch: FanoutBranch<RedFlagResult>): string | null {

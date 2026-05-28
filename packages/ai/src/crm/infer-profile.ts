@@ -25,6 +25,7 @@
 import { z } from 'zod';
 import { createGeminiClient } from '../gemini-client';
 import { inferenceConfidence } from './confidence';
+import { SCORING_FEATURES } from './scoring-features';
 import type {
   InferProfileDeps,
   InferProfileResult,
@@ -96,8 +97,26 @@ function serializeListingsForPrompt(rows: readonly CrmListingRow[]): string {
 /**
  * Build the Gemini prompt for profile inference.
  * The prompt instructs Gemini to return valid JSON matching GeminiProfileSchema.
+ *
+ * The weights instruction is derived from SCORING_FEATURES (single source of truth)
+ * so adding a new scoring dimension automatically updates the prompt too.
  */
 function buildInferProfilePrompt(listings: string): string {
+  // Build the weights key instruction from the canonical vocabulary so Gemini
+  // emits keys that rank-compare.ts resolveWeights can read directly.
+  const weightKeyGloss: Record<string, string> = {
+    rent: 'price/affordability importance',
+    bedrooms: 'bedroom-count importance',
+    sqft: 'space importance',
+    commute: 'commute importance',
+  };
+  const weightsInstruction = SCORING_FEATURES
+    .map((f) => `  "${f}": <0-1> (${weightKeyGloss[f] ?? f})`)
+    .join(',\n');
+  const weightsExample = SCORING_FEATURES
+    .map((f, i) => `  "${f}": ${i === 0 ? '0.4' : i === 1 ? '0.2' : i === 2 ? '0.2' : '0.2'}`)
+    .join(',\n');
+
   return `You are a student housing AI. Analyze the following saved listings and infer a structured preference profile.
 
 Return ONLY valid JSON with this exact shape (no extra keys, no markdown):
@@ -109,11 +128,19 @@ Return ONLY valid JSON with this exact shape (no extra keys, no markdown):
   "nice_to_have_amenities": string[],
   "home_base_address": string | null,
   "commute_max_minutes": integer | null,
-  "weights": { [key: string]: number }
+  "weights": {
+${weightsInstruction}
+  }
+}
+
+Example weights (must use EXACTLY these key names):
+{
+${weightsExample}
 }
 
 Rules:
-- Weights should sum to ~1.0 and cover the dimensions that matter most: price, commute, space, amenities.
+- Weights keys MUST be exactly: ${SCORING_FEATURES.map((f) => `"${f}"`).join(', ')}. Do not use synonyms or alternative labels.
+- Weights should sum to ~1.0.
 - Use null for any field you cannot infer from the listings.
 - must_have_amenities: amenities present in most listings.
 - nice_to_have_amenities: amenities present in some listings.

@@ -153,3 +153,74 @@ describe('amenitiesToCostFlags — immutability', () => {
     expect(input).toEqual(before);
   });
 });
+
+// ---------------------------------------------------------------------------
+// FIX 2 — Negation / extra-cost guard
+// ---------------------------------------------------------------------------
+
+describe('amenitiesToCostFlags — FIX 2 negation/extra-cost guard', () => {
+  // Parking negation
+  it('"No parking" → {} (negation guard)', () => {
+    expect(amenitiesToCostFlags(['No parking'])).toEqual({});
+  });
+
+  it('"Parking $150/mo extra" → {} (extra-cost guard)', () => {
+    expect(amenitiesToCostFlags(['Parking $150/mo extra'])).toEqual({});
+  });
+
+  it('"covered parking" → {parkingIncluded:true} (positive, no negation)', () => {
+    expect(amenitiesToCostFlags(['covered parking'])).toEqual({ parkingIncluded: true });
+  });
+
+  // Laundry tightened: only in-unit markers set the flag
+  it('"shared laundry" → {} (shared laundry does NOT set hasInUnitLaundry)', () => {
+    expect(amenitiesToCostFlags(['shared laundry'])).toEqual({});
+  });
+
+  it('"laundry" alone → {} (bare laundry does NOT set hasInUnitLaundry)', () => {
+    expect(amenitiesToCostFlags(['laundry'])).toEqual({});
+  });
+
+  it('"in-unit laundry" → {hasInUnitLaundry:true}', () => {
+    expect(amenitiesToCostFlags(['in-unit laundry'])).toEqual({ hasInUnitLaundry: true });
+  });
+
+  it('"washer/dryer in unit" → {hasInUnitLaundry:true}', () => {
+    expect(amenitiesToCostFlags(['washer/dryer in unit'])).toEqual({ hasInUnitLaundry: true });
+  });
+
+  it('"washer" alone → {hasInUnitLaundry:true} (in-unit marker)', () => {
+    expect(amenitiesToCostFlags(['washer'])).toEqual({ hasInUnitLaundry: true });
+  });
+
+  it('"dryer" alone → {hasInUnitLaundry:true} (in-unit marker)', () => {
+    expect(amenitiesToCostFlags(['dryer'])).toEqual({ hasInUnitLaundry: true });
+  });
+
+  // WiFi extra-cost guard
+  it('"WiFi available for $50/mo" → {} (extra-cost dollar sign)', () => {
+    expect(amenitiesToCostFlags(['WiFi available for $50/mo'])).toEqual({});
+  });
+
+  it('"wifi included" → {internetIncluded:true} (positive)', () => {
+    expect(amenitiesToCostFlags(['wifi included'])).toEqual({ internetIncluded: true });
+  });
+
+  // Coin-op laundry guard
+  it('"shared laundry (coin)" → {} (coin-op is not in-unit)', () => {
+    expect(amenitiesToCostFlags(['shared laundry (coin)'])).toEqual({});
+  });
+
+  // Existing positive cases kept (regression)
+  it('"Off-Street Parking Included" → {parkingIncluded:true} (still positive)', () => {
+    expect(amenitiesToCostFlags(['Off-Street Parking Included'])).toEqual({ parkingIncluded: true });
+  });
+
+  it('"underground parking garage" → {parkingIncluded:true} (still positive)', () => {
+    expect(amenitiesToCostFlags(['underground parking garage'])).toEqual({ parkingIncluded: true });
+  });
+
+  it('"internet additional $30/mo" → {} (extra-cost guard)', () => {
+    expect(amenitiesToCostFlags(['internet additional $30/mo'])).toEqual({});
+  });
+});

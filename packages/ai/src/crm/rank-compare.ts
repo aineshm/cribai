@@ -23,6 +23,8 @@
  *   'crm_inferred_profiles' — single profile row (may be absent)
  */
 
+import { SCORING_FEATURES } from './scoring-features';
+import type { ScoringFeature } from './scoring-features';
 import type {
   RankCompareDeps,
   RankCompareArgs,
@@ -38,11 +40,11 @@ import type {
 // ---------------------------------------------------------------------------
 
 /**
- * The four scoring features supported in Phase 1.
- * Extend this tuple when adding new dimensions (e.g. 'amenities' in v2).
+ * Canonical scoring features imported from the single source of truth.
+ * Use SCORING_FEATURES everywhere instead of a local literal to prevent drift.
  */
-const SUPPORTED_FEATURES = ['rent', 'bedrooms', 'sqft', 'commute'] as const;
-type Feature = (typeof SUPPORTED_FEATURES)[number];
+const SUPPORTED_FEATURES = SCORING_FEATURES;
+type Feature = ScoringFeature;
 
 /** Neutral commute sub-score used when home-base coords are unavailable (Phase 1). */
 const COMMUTE_NEUTRAL = 0.5;
@@ -89,13 +91,20 @@ export async function rankCompare(
   );
 
   // --- 2. Fetch inferred profile (optional) ---
+  // Use .maybeSingle() (not .single()) so a zero-row result yields
+  // {data:null, error:null} cleanly instead of throwing PGRST116.
+  // A genuine DB error is surfaced via the error field and re-thrown.
   const profileResult = await (db
     .from('crm_inferred_profiles')
     .select('*')
     .eq('user_id', userId)
-    .single() as unknown as Promise<{ data: InferredProfile | null; error: unknown }>);
+    .maybeSingle() as unknown as Promise<{ data: InferredProfile | null; error: unknown }>);
 
-  const { data: profileData } = profileResult;
+  const { data: profileData, error: profileError } = profileResult;
+
+  if (profileError) {
+    throw new Error(`rankCompare: failed to fetch inferred profile — ${String(profileError)}`);
+  }
 
   const profile: InferredProfile | null = profileData ?? null;
 
@@ -243,24 +252,72 @@ function computeMinMax(
 // ---------------------------------------------------------------------------
 
 /**
+ * Synonym map for LLM weight-key drift tolerance.
+ *
+ * When Gemini emits a stale or variant key, we map it onto the canonical key
+ * so resolveWeights doesn't silently zero out the weight. Synonyms are only
+ * applied when the canonical key is NOT already present in profileWeights.
+ *
+ * Canonical key → synonyms to remap to it:
+ *   rent     ← price
+ *   sqft     ← space
+ *   commute  ← location
+ *   bedrooms ← bedroom, beds
+ */
+const WEIGHT_SYNONYMS: Readonly<Record<string, Feature>> = {
+  price: 'rent',
+  space: 'sqft',
+  location: 'commute',
+  bedroom: 'bedrooms',
+  beds: 'bedrooms',
+};
+
+/**
+ * Apply synonym remapping to a raw weights map.
+ * Returns a new object — does not mutate the input.
+ * Only maps a synonym key if the canonical target is absent from the input.
+ */
+function applyWeightSynonyms(
+  weights: Readonly<Record<string, number>>,
+): Record<string, number> {
+  const result: Record<string, number> = { ...weights };
+  for (const [synonym, canonical] of Object.entries(WEIGHT_SYNONYMS)) {
+    if (synonym in result && !(canonical in result)) {
+      result[canonical] = result[synonym]!;
+      // Remove the synonym key so it doesn't accumulate as an unknown key.
+      delete result[synonym];
+    }
+  }
+  return result;
+}
+
+/**
  * Resolve the feature weights to use for scoring.
  *
  * Priority:
- *   1. profile.weights (jsonb map keyed by feature name)
+ *   1. profile.weights (jsonb map keyed by feature name), after synonym remapping
  *   2. Equal weights (1 / featureCount per feature)
  *
  * In both cases weights are normalized so they sum exactly to 1.
  * Unknown keys in profile.weights are silently ignored so the scorer
  * isn't affected by future profile fields.
+ *
+ * Synonym tolerance: common LLM-drift keys are remapped before reading so
+ * a profile with `{price:0.6, space:0.4}` degrades gracefully to
+ * `{rent:0.6, sqft:0.4}` rather than producing all-zero matched weights.
+ * Mapping: price→rent, space→sqft, location→commute, bedroom/beds→bedrooms.
+ * Only applied when the canonical key is absent (no double-counting).
  */
 function resolveWeights(
   profile: InferredProfile | null,
 ): Readonly<Record<Feature, number>> {
-  const profileWeights = profile?.weights;
+  const rawProfileWeights = profile?.weights;
 
   let raw: Record<Feature, number>;
 
-  if (profileWeights && Object.keys(profileWeights).length > 0) {
+  if (rawProfileWeights && Object.keys(rawProfileWeights).length > 0) {
+    // Apply synonym tolerance before reading canonical keys.
+    const profileWeights = applyWeightSynonyms(rawProfileWeights);
     // Extract only the supported features; default to 0 for absent ones.
     raw = {
       rent: profileWeights['rent'] ?? 0,
@@ -312,15 +369,40 @@ function buildCompareResult(
   let matchedRows: readonly CrmListingRow[];
 
   if (listingIds && listingIds.length > 0) {
+    // FIX 6: Deduplicate IDs preserving first occurrence to avoid duplicate rows.
+    const seenIds = new Set<string>();
+    const uniqueIds = listingIds.filter((id) => {
+      if (seenIds.has(id)) return false;
+      seenIds.add(id);
+      return true;
+    });
+
     // listingIds takes precedence over listingTitles.
-    matchedRows = listingIds
+    matchedRows = uniqueIds
       .map((id) => rows.find((r) => r.id === id))
       .filter((r): r is CrmListingRow => r !== undefined);
   } else if (listingTitles && listingTitles.length > 0) {
+    // FIX 6: Skip empty/whitespace-only requested titles before matching.
+    // FIX 6: Deduplicate titles preserving first occurrence.
+    // FIX 6: Do NOT match a requested title against a row whose title is null/empty
+    //         (guard: '' never matches a null-titled row).
+    const seenTitles = new Set<string>();
+    const uniqueTitles = listingTitles.filter((t) => {
+      if (t.trim() === '') return false; // skip empty/whitespace-only
+      if (seenTitles.has(t.toLowerCase())) return false; // deduplicate case-insensitively
+      seenTitles.add(t.toLowerCase());
+      return true;
+    });
+
     // Case-insensitive title match; preserve requested order; unknown titles omitted.
-    matchedRows = listingTitles
+    matchedRows = uniqueTitles
       .map((title) =>
-        rows.find((r) => (r.title ?? '').toLowerCase() === title.toLowerCase()),
+        rows.find((r) => {
+          const rowTitle = r.title ?? '';
+          // Guard: skip rows with null/empty title so '' never spuriously matches.
+          if (rowTitle === '') return false;
+          return rowTitle.toLowerCase() === title.toLowerCase();
+        }),
       )
       .filter((r): r is CrmListingRow => r !== undefined);
   } else {

@@ -18,6 +18,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { rankCompare } from '../rank-compare';
 import type { CrmListingRow, InferredProfile, RankCompareArgs } from '../types';
 import { makeCrmRow } from '../__fixtures__/crm-rows';
+import { SCORING_FEATURES } from '../scoring-features';
 
 // ---------------------------------------------------------------------------
 // Builder stub helpers
@@ -53,6 +54,8 @@ function makeDbStub(
       }),
       eq: () => builder,
       single: () => Promise.resolve(payload),
+      // FIX 3: maybeSingle needed after switching from .single() to .maybeSingle()
+      maybeSingle: () => Promise.resolve(payload),
       // The entire builder itself is thenable so callers can `await from(...).select(...).eq(...)`
       then: (resolve: (v: unknown) => unknown) => Promise.resolve(payload).then(resolve),
       catch: (reject: (e: unknown) => unknown) => Promise.resolve(payload).catch(reject),
@@ -69,10 +72,19 @@ function buildDb(
 ): SupabaseClient {
   return makeDbStub({
     crm_listings: { data: rows, error: null },
-    crm_inferred_profiles: {
-      data: profile,
-      error: profile ? null : { message: 'no rows found' },
-    },
+    // FIX 3: maybeSingle returns {data:null, error:null} when no profile — not an error.
+    crm_inferred_profiles: { data: profile, error: null },
+  });
+}
+
+/** Build a db stub that returns an error from the profile fetch. */
+function buildDbWithProfileError(
+  rows: CrmListingRow[],
+  profileError: { message: string },
+): SupabaseClient {
+  return makeDbStub({
+    crm_listings: { data: rows, error: null },
+    crm_inferred_profiles: { data: null, error: profileError },
   });
 }
 
@@ -395,9 +407,10 @@ describe('rankCompare — status filter', () => {
 
     // Build a db stub that returns BOTH rows (simulates a stub that hasn't filtered)
     // so we can verify the implementation filters on status internally.
+    // FIX 3: maybeSingle returns {data:null, error:null} for zero rows — not an error.
     const db = makeDbStub({
       crm_listings: { data: [activeRow, declinedRow], error: null },
-      crm_inferred_profiles: { data: null, error: { message: 'no rows' } },
+      crm_inferred_profiles: { data: null, error: null },
     });
     const result = await rankCompare({}, { db, userId: USER_ID });
 
@@ -583,6 +596,171 @@ describe('rankCompare — select-string column regression (FIX 5)', () => {
     const requested = (capturedListingsSelect ?? '').split(',').map((c) => c.trim());
     for (const col of requested) {
       expect(validColumns.has(col)).toBe(true);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// FIX 1 — SCORING_FEATURES cross-module: canonical weights produce non-degenerate ranking
+// ---------------------------------------------------------------------------
+
+describe('rankCompare — FIX 1 canonical weights produce non-degenerate ranking', () => {
+  it('profile with canonical-key weights {rent:0.5,bedrooms:0.2,sqft:0.2,commute:0.1} yields distinct scores', async () => {
+    const canonicalProfile: InferredProfile = {
+      rent_min: null, rent_max: null, bedrooms_target: null,
+      must_have_amenities: [], nice_to_have_amenities: [],
+      home_base_address: null, commute_max_minutes: null,
+      weights: { rent: 0.5, bedrooms: 0.2, sqft: 0.2, commute: 0.1 },
+      confidence: 0.7,
+    };
+    // cheapRow: rent=700, bedrooms=0, sqft=400
+    // expensiveRow: rent=2000, bedrooms=2, sqft=1100
+    // With rent heavily weighted, cheapRow should score higher than expensiveRow.
+    const rows = [cheapRow, midRow, expensiveRow];
+    const result = await rankCompare({}, makeDeps(rows, canonicalProfile));
+
+    if (result.mode !== 'rank') throw new Error('wrong mode');
+    // Non-degenerate: scores must NOT all be equal
+    const scores = result.ranked.map((r) => r.score);
+    const allEqual = scores.every((s) => Math.abs(s - scores[0]!) < 1e-9);
+    expect(allEqual).toBe(false);
+
+    // cheapRow should rank first (lowest rent → highest score with rent:0.5 weight)
+    expect(result.ranked[0]!.listingId).toBe('rc-cheap');
+  });
+
+  it('synonym weights {price:0.6,space:0.4} are mapped and produce non-degenerate ranking', async () => {
+    // FIX 1: synonym tolerance — 'price'→'rent', 'space'→'sqft'
+    const synonymProfile: InferredProfile = {
+      rent_min: null, rent_max: null, bedrooms_target: null,
+      must_have_amenities: [], nice_to_have_amenities: [],
+      home_base_address: null, commute_max_minutes: null,
+      // Stale LLM keys: 'price' instead of 'rent', 'space' instead of 'sqft'
+      weights: { price: 0.6, space: 0.4 },
+      confidence: 0.6,
+    };
+    const rows = [cheapRow, midRow, expensiveRow];
+    const result = await rankCompare({}, makeDeps(rows, synonymProfile));
+
+    if (result.mode !== 'rank') throw new Error('wrong mode');
+    // Non-degenerate: with price→rent (60%) + space→sqft (40%), cheapRow should
+    // score highest on rent but lowest on sqft; result must not be a three-way tie.
+    const scores = result.ranked.map((r) => r.score);
+    const allEqual = scores.every((s) => Math.abs(s - scores[0]!) < 1e-9);
+    expect(allEqual).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// FIX 3 — profile fetch: error throws; null data+null error → equal-weight fallback
+// ---------------------------------------------------------------------------
+
+describe('rankCompare — FIX 3 profile fetch error handling', () => {
+  it('throws when the profile fetch returns an error', async () => {
+    const db = buildDbWithProfileError([cheapRow, midRow], { message: 'connection lost' });
+    await expect(rankCompare({}, { db, userId: USER_ID })).rejects.toThrow(
+      'rankCompare: failed to fetch inferred profile',
+    );
+  });
+
+  it('proceeds with equal-weight fallback when profile fetch returns null data + null error (no profile)', async () => {
+    // FIX 3: .maybeSingle() returns {data:null, error:null} for zero rows — must NOT throw.
+    const db = buildDb([cheapRow, midRow, expensiveRow], null);
+    const result = await rankCompare({}, { db, userId: USER_ID });
+
+    if (result.mode !== 'rank') throw new Error('wrong mode');
+    // All scores should be valid numbers in [0,1]
+    for (const item of result.ranked) {
+      expect(Number.isNaN(item.score)).toBe(false);
+      expect(item.score).toBeGreaterThanOrEqual(0);
+      expect(item.score).toBeLessThanOrEqual(1 + 1e-9);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// FIX 6 — compare-mode input hygiene
+// ---------------------------------------------------------------------------
+
+describe('rankCompare — FIX 6 compare-mode input hygiene', () => {
+  it('deduplicates listing IDs so a duplicated id produces only one row', async () => {
+    const rowA = makeCrmRow({ id: 'dup-a', title: 'Dup A', status: 'active', rent: 1000 });
+    const rowB = makeCrmRow({ id: 'dup-b', title: 'Dup B', status: 'active', rent: 1200 });
+    const args: RankCompareArgs = {
+      mode: 'compare',
+      listingIds: ['dup-a', 'dup-b', 'dup-a'], // dup-a appears twice
+    };
+    const result = await rankCompare(args, makeDeps([rowA, rowB]));
+
+    if (result.mode !== 'compare') throw new Error('wrong mode');
+    // dup-a must appear only once
+    const ids = result.rows.map((r) => r.listingId);
+    expect(ids.filter((id) => id === 'dup-a').length).toBe(1);
+    expect(result.rows).toHaveLength(2);
+  });
+
+  it('deduplicates listing titles so a duplicated title produces only one row', async () => {
+    const rowA = makeCrmRow({ id: 'tdup-a', title: 'Tdup Alpha', status: 'active', rent: 1000 });
+    const rowB = makeCrmRow({ id: 'tdup-b', title: 'Tdup Beta', status: 'active', rent: 1200 });
+    const args: RankCompareArgs = {
+      mode: 'compare',
+      listingTitles: ['Tdup Alpha', 'Tdup Beta', 'Tdup Alpha'], // Alpha appears twice
+    };
+    const result = await rankCompare(args, makeDeps([rowA, rowB]));
+
+    if (result.mode !== 'compare') throw new Error('wrong mode');
+    const ids = result.rows.map((r) => r.listingId);
+    expect(ids.filter((id) => id === 'tdup-a').length).toBe(1);
+    expect(result.rows).toHaveLength(2);
+  });
+
+  it('skips empty/whitespace-only requested titles and does not match any row', async () => {
+    const rowA = makeCrmRow({ id: 'ws-a', title: 'Real Title', status: 'active', rent: 1000 });
+    // Empty string and whitespace-only titles must be skipped entirely
+    const args: RankCompareArgs = {
+      mode: 'compare',
+      listingTitles: ['', '   ', 'Real Title'],
+    };
+    const result = await rankCompare(args, makeDeps([rowA]));
+
+    if (result.mode !== 'compare') throw new Error('wrong mode');
+    // Only 'Real Title' should match; '' and '   ' should be skipped
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]!.listingId).toBe('ws-a');
+  });
+
+  it('does not match an empty requested title against a null-titled row', async () => {
+    // A row with title=null should NOT be matched by an empty requested title.
+    const nullTitleRow = makeCrmRow({ id: 'null-title', title: null, status: 'active', rent: 900 });
+    const args: RankCompareArgs = {
+      mode: 'compare',
+      listingTitles: [''],
+    };
+    const result = await rankCompare(args, makeDeps([nullTitleRow]));
+
+    if (result.mode !== 'compare') throw new Error('wrong mode');
+    // '' is empty → should be skipped; no rows should match
+    expect(result.rows).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// FIX 1 — SCORING_FEATURES import matches rank-compare vocabulary
+// ---------------------------------------------------------------------------
+
+describe('rankCompare — FIX 1 SCORING_FEATURES vocabulary', () => {
+  it('SCORING_FEATURES contains exactly the four canonical weight keys', () => {
+    expect(SCORING_FEATURES).toContain('rent');
+    expect(SCORING_FEATURES).toContain('bedrooms');
+    expect(SCORING_FEATURES).toContain('sqft');
+    expect(SCORING_FEATURES).toContain('commute');
+    expect(SCORING_FEATURES).toHaveLength(4);
+  });
+
+  it('SCORING_FEATURES does NOT contain stale LLM keys (price, space, location, amenities)', () => {
+    const stale = ['price', 'space', 'location', 'amenities'];
+    for (const key of stale) {
+      expect(SCORING_FEATURES).not.toContain(key);
     }
   });
 });

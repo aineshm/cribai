@@ -291,6 +291,47 @@ describe('firstSaveAnalysisHandler', () => {
     expect(result.modelContext).toBeTruthy();
     assertTextBlock(result);
   });
+
+  // FIX 5: formatTrueCost label math must reconcile — components stated must sum to total.
+  it('FIX 5 — formatTrueCost string: stated components reconcile to total (rent=1400, total=1740)', async () => {
+    const ctx = makeContext();
+    const listingId = '00000000-0000-0000-0000-000000000099';
+
+    const fsaResult: FirstSaveAnalysis = {
+      listingId,
+      trueCost: {
+        status: 'ok',
+        data: {
+          rent: 1400,
+          utilities: 200,
+          parking: 80,
+          internet: 40,
+          laundry: 20,
+          renterInsurance: 0,
+          moveInFees: 0,
+          total: 1740,
+        },
+      },
+      redFlags: { status: 'skipped', reason: 'no description' },
+      placesSnapshot: { status: 'skipped', reason: 'no coordinates' },
+      steeringQuestion: { status: 'ok', data: { question: 'What matters most?' } },
+    };
+    mockFsa.mockResolvedValueOnce(fsaResult);
+
+    const result = await firstSaveAnalysisHandler({ listing_id: listingId }, ctx);
+
+    // The trueCost string must mention both the rent ($1400) and the addon difference ($340).
+    // The numbers in the string must reconcile to the total (1740).
+    expect(result.modelContext).toContain('1740');
+    expect(result.modelContext).toContain('1400');
+    // Addons = total - rent = 1740 - 1400 = 340
+    expect(result.modelContext).toContain('340');
+    if (result.clientBlock.type === 'text') {
+      expect(result.clientBlock.content).toContain('1740');
+      expect(result.clientBlock.content).toContain('1400');
+      expect(result.clientBlock.content).toContain('340');
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

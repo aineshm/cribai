@@ -34,6 +34,7 @@ import {
   malformedJsonResponse,
   wrongShapeResponse,
 } from '../__fixtures__/gemini-responses';
+import { SCORING_FEATURES } from '../scoring-features';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -350,6 +351,62 @@ describe('inferProfile', () => {
 
     expect(result.status).toBe('needs_more_data');
     expect(upsertSpy).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // FIX 1 cross-module regression: prompt must use SCORING_FEATURES keys, not stale aliases
+  // -------------------------------------------------------------------------
+  it('FIX 1 — Gemini prompt contains all SCORING_FEATURES canonical keys', async () => {
+    const readDb = makeReadDb(fiveSavedRows);
+    const { db: writeDb } = makeWriteDb();
+    const gemini = makeGemini(cannedInferredProfileResponse);
+
+    const deps: InferProfileDeps = {
+      readDb,
+      writeDb,
+      userId: USER_ID,
+      gemini: gemini as never,
+    };
+
+    await inferProfile(USER_ID, deps);
+
+    // The prompt sent to Gemini must contain each canonical key so the model
+    // uses the correct vocabulary (rent, bedrooms, sqft, commute).
+    expect(gemini.models.generateContent).toHaveBeenCalledTimes(1);
+    const callArg = gemini.models.generateContent.mock.calls[0]![0] as {
+      contents: Array<{ parts: Array<{ text: string }> }>;
+    };
+    const promptText = callArg.contents[0]!.parts[0]!.text;
+
+    for (const feature of SCORING_FEATURES) {
+      expect(promptText).toContain(feature);
+    }
+  });
+
+  it('FIX 1 — Gemini prompt does NOT instruct stale/wrong weight keys (price, space)', async () => {
+    const readDb = makeReadDb(fiveSavedRows);
+    const { db: writeDb } = makeWriteDb();
+    const gemini = makeGemini(cannedInferredProfileResponse);
+
+    const deps: InferProfileDeps = {
+      readDb,
+      writeDb,
+      userId: USER_ID,
+      gemini: gemini as never,
+    };
+
+    await inferProfile(USER_ID, deps);
+
+    const callArg = gemini.models.generateContent.mock.calls[0]![0] as {
+      contents: Array<{ parts: Array<{ text: string }> }>;
+    };
+    const promptText = callArg.contents[0]!.parts[0]!.text;
+
+    // The prompt must NOT tell the model to use stale key names as weight keys.
+    // (These may appear in prose context but must not appear as the instructed key names.)
+    // We check that the weights instruction doesn't say "price" or "space" as a key label.
+    expect(promptText).not.toMatch(/"price"/);
+    expect(promptText).not.toMatch(/"space"/);
   });
 
   // -------------------------------------------------------------------------

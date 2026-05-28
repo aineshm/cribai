@@ -179,6 +179,11 @@ export async function addListing(
 
   // -------------------------------------------------------------------------
   // Step 2: Dedup — query for a non-archived row with the same user_id + url
+  //
+  // FIX 4: The migration 037 index on (user_id, source_url) is NON-UNIQUE, so a
+  // declined + active row can both exist for the same URL (PGRST116 from .maybeSingle()
+  // would hard-fail). Adding .order('saved_at', {ascending:false}).limit(1) ensures
+  // we always return at most one row (the most-recent non-archived one) without error.
   // -------------------------------------------------------------------------
   const dedupResult = await deps.db
     .from('crm_listings')
@@ -186,6 +191,8 @@ export async function addListing(
     .eq('user_id', deps.userId)
     .eq('source_url', url)
     .neq('status', 'archived')
+    .order('saved_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (dedupResult.error) {

@@ -30,6 +30,9 @@ import {
 interface DedupChain {
   eq: ReturnType<typeof vi.fn>;
   neq: ReturnType<typeof vi.fn>;
+  // FIX 4: order+limit added before .maybeSingle() to handle multiple non-archived rows
+  order: ReturnType<typeof vi.fn>;
+  limit: ReturnType<typeof vi.fn>;
   maybeSingle: ReturnType<typeof vi.fn>;
 }
 
@@ -67,11 +70,16 @@ function buildTableBuilder(
   const dedupChain: DedupChain = {
     eq: vi.fn(),
     neq: vi.fn(),
+    // FIX 4: order+limit must be chainable before .maybeSingle()
+    order: vi.fn(),
+    limit: vi.fn(),
     maybeSingle: vi.fn().mockResolvedValue({ data: dedupError ? null : dedupRow, error: dedupError }),
   };
-  // Chain: select().eq().eq().neq().maybeSingle()
+  // Chain: select().eq().eq().neq().order().limit().maybeSingle()
   dedupChain.eq.mockReturnValue(dedupChain);
   dedupChain.neq.mockReturnValue(dedupChain);
+  dedupChain.order.mockReturnValue(dedupChain);
+  dedupChain.limit.mockReturnValue(dedupChain);
 
   const insertSelectChain: InsertSelectChain = {
     single: vi.fn().mockResolvedValue({
@@ -308,6 +316,24 @@ describe('addListing', () => {
 
       expect(result.alreadySaved).toBe(false);
       expect(tableBuilder.insert).toHaveBeenCalledTimes(1);
+    });
+
+    // FIX 4: multiple non-archived rows (e.g. declined + active) → query uses order+limit(1) so
+    // maybeSingle doesn't throw PGRST116. Stub returns a single row via the limited query.
+    it('FIX 4 — returns alreadySaved:true without throwing when dedup stub returns one row (multiple non-archived scenario)', async () => {
+      // In production, .order('saved_at', {ascending:false}).limit(1) ensures we always get ≤1 row.
+      // The stub already returns one row via maybeSingle (simulating the limited query result).
+      const existingRow = { id: 'multi-row-id', extraction_confidence: 0.8 };
+      const tableBuilder = buildTableBuilder(existingRow);
+      const deps = makeDeps({ tableBuilder });
+
+      const result = await addListing(INPUT_URL, deps);
+
+      expect(result.alreadySaved).toBe(true);
+      expect(result.listingId).toBe('multi-row-id');
+      // Verify the dedup chain includes order and limit calls
+      expect(tableBuilder._dedupChain.order).toHaveBeenCalledWith('saved_at', { ascending: false });
+      expect(tableBuilder._dedupChain.limit).toHaveBeenCalledWith(1);
     });
 
     // FIX 4 regression: dedup query error must throw AddListingError, NOT fall through to insert
