@@ -26,6 +26,7 @@ import {
   LangfuseSpanProcessor,
   type LangfuseSpanProcessorParams,
 } from '@langfuse/otel';
+import { updateActiveObservation } from '@langfuse/tracing';
 import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
 
 /** Env keys Langfuse reads. `LANGFUSE_BASE_URL` is optional (SDK default). */
@@ -140,6 +141,30 @@ export async function flushLangfuse(): Promise<void> {
     await installedProcessor.forceFlush();
   } catch (err) {
     console.error('[langfuse] forceFlush failed:', err);
+  }
+}
+
+/**
+ * Tag the ACTIVE Langfuse observation (the GenAI span the AI SDK emitted for
+ * this turn) as `cost_cap_exceeded` — level WARNING + statusMessage + metadata.
+ * This is the Langfuse-side signal PDR-004 §Risks A6 alerting keys on (console
+ * logs don't reach Langfuse). No-op + never throws when Langfuse is not
+ * installed, so the cost-cap path is safe in dev / dark-flag-off / tests.
+ *
+ * Must be called while still inside the turn's span context — `runLlmTurn`
+ * calls it from the post-stream cost projector, before yielding `done`, which
+ * is within the active span the SDK opened.
+ */
+export function tagCostCapExceeded(metadata: Record<string, unknown>): void {
+  if (!installedProcessor) return;
+  try {
+    updateActiveObservation({
+      level: 'WARNING',
+      statusMessage: 'cost_cap_exceeded',
+      metadata: { event: 'cost_cap_exceeded', ...metadata },
+    });
+  } catch (err) {
+    console.error('[langfuse] tagCostCapExceeded failed:', err);
   }
 }
 

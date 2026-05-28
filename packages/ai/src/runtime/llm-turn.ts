@@ -56,7 +56,7 @@ import {
   ExplicitCacheMemo,
   type ExplicitCacheCreator,
 } from './prompt-cache';
-import { isLangfuseConfigured } from './observability';
+import { isLangfuseConfigured, tagCostCapExceeded } from './observability';
 import {
   projectTurnCost,
   isOverCap,
@@ -65,6 +65,7 @@ import {
   type TurnUsage,
 } from './turn-cost';
 import { GEMINI_FLASH_MODEL_ID } from './ai-sdk-provider';
+import { sanitizeCampusName } from './persona';
 
 /** Step budget mirrors `cribai.ts` maxToolCalls: 5 auth / 2 guest. */
 const AUTH_MAX_STEPS = 5;
@@ -289,7 +290,10 @@ export async function* runLlmTurn(
       metadata: {
         runtime: 'llm_first',
         isGuest,
-        campusName,
+        // AIN-24 — sanitize the campus name at the telemetry boundary too
+        // (it's the same trust boundary `buildPersona` sanitizes; defense in
+        // depth in case a trace is ever shared externally).
+        campusName: sanitizeCampusName(campusName),
         model: GEMINI_FLASH_MODEL_ID,
       },
     },
@@ -411,20 +415,23 @@ export async function* runLlmTurn(
       const cost = projectTurnCost(turnUsage);
       const capUsd = turnCostCapUsd ?? resolveTurnCostCapUsd();
       if (isOverCap(cost.costUsd, capUsd)) {
-        // Structured warning + trace tag. Do NOT throw — the turn already
-        // streamed. The route's separate output-token / tool-step alerts
-        // (PDR-004 A6) cover the runaway-output case.
-        console.warn(
-          '[cribai] cost_cap_exceeded',
-          JSON.stringify({
-            event: 'cost_cap_exceeded',
-            costUsd: cost.costUsd,
-            capUsd,
-            inputTokens: cost.inputTokens,
-            outputTokens: cost.outputTokens,
-            cachedTokens: cost.cachedTokens,
-          }),
-        );
+        // Structured warning + Langfuse trace tag. Do NOT throw — the turn
+        // already streamed. The route's separate output-token / tool-step
+        // alerts (PDR-004 A6) cover the runaway-output case.
+        const capMeta = {
+          costUsd: cost.costUsd,
+          capUsd,
+          inputTokens: cost.inputTokens,
+          outputTokens: cost.outputTokens,
+          cachedTokens: cost.cachedTokens,
+        };
+        console.warn('[cribai] cost_cap_exceeded', JSON.stringify(capMeta));
+        // Tag the active GenAI span so Langfuse alerting (A6) sees it. No-op
+        // when Langfuse isn't installed; gated on langfuseOn to avoid a
+        // wasted call when telemetry is off this turn.
+        if (langfuseOn) {
+          tagCostCapExceeded(capMeta);
+        }
       }
       onTurnCost(cost);
     } catch (costErr) {

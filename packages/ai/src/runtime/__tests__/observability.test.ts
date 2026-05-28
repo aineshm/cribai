@@ -11,6 +11,7 @@ import {
   initLangfuse,
   flushLangfuse,
   isLangfuseConfigured,
+  tagCostCapExceeded,
   __resetLangfuseForTests,
   type FlushableSpanProcessor,
   type LangfuseEnv,
@@ -112,6 +113,11 @@ describe('initLangfuse — installs when keys present (injected fakes)', () => {
 
     await flushLangfuse();
     expect(proc.flushed).toBe(1);
+  });
+
+  it('tagCostCapExceeded is a no-op (no throw) when nothing is installed', () => {
+    initLangfuse({ env: {} });
+    expect(() => tagCostCapExceeded({ costUsd: 0.2, capUsd: 0.05 })).not.toThrow();
   });
 
   it('flushLangfuse swallows a forceFlush rejection (never breaks the response)', async () => {
