@@ -56,6 +56,15 @@ import {
   ExplicitCacheMemo,
   type ExplicitCacheCreator,
 } from './prompt-cache';
+import { isLangfuseConfigured } from './observability';
+import {
+  projectTurnCost,
+  isOverCap,
+  resolveTurnCostCapUsd,
+  type TurnCost,
+  type TurnUsage,
+} from './turn-cost';
+import { GEMINI_FLASH_MODEL_ID } from './ai-sdk-provider';
 
 /** Step budget mirrors `cribai.ts` maxToolCalls: 5 auth / 2 guest. */
 const AUTH_MAX_STEPS = 5;
@@ -95,6 +104,29 @@ export interface RunLlmTurnInput {
    * moves earlier.
    */
   readonly onFirstModelToken?: () => void;
+  /**
+   * AIN-9 (Days 5-6) — fired exactly once, AFTER the stream fully drains and
+   * BEFORE the terminal `done` event, with the projected USD cost of the turn
+   * (from `result.totalUsage`, reusing the cost-logger pricing). The route
+   * wires this to its Langfuse/metrics bookkeeping. Cost is best-effort: if
+   * usage never resolves it is NOT fired. Independent of the AIN-19
+   * `ai_request_metrics` latency recorder — Langfuse holds the rich cost trace.
+   */
+  readonly onTurnCost?: (cost: TurnCost) => void;
+  /**
+   * Per-turn cost cap (USD). Defaults to `resolveTurnCostCapUsd()` (env
+   * CRIBAI_TURN_COST_CAP_USD, fallback $0.05). When the projected cost exceeds
+   * the cap, the handler logs a structured warning and tags the active
+   * Langfuse trace `cost_cap_exceeded` — it does NOT throw (the turn has
+   * already streamed to the user).
+   */
+  readonly turnCostCapUsd?: number;
+  /**
+   * Test seam: override whether Langfuse telemetry is wired into `streamText`.
+   * Defaults to `isLangfuseConfigured()` so prod gates on env keys and unit
+   * tests stay offline. Injecting `false` keeps the SDK from emitting spans.
+   */
+  readonly telemetryEnabled?: boolean;
 }
 
 /** Map the deterministic conversation history into AI SDK ModelMessages. */
@@ -118,6 +150,39 @@ function toolErrorBlock(message: string): ChatBlock {
 }
 
 /**
+ * Normalize the AI SDK's resolved `LanguageModelUsage` into the flat
+ * `TurnUsage` the cost projector expects. `inputTokens` is the TOTAL prompt
+ * tokens (includes cached); cached tokens come from `inputTokenDetails.
+ * cacheReadTokens` (preferred) or the deprecated `cachedInputTokens`, with the
+ * Google provider's `usageMetadata.cachedContentTokenCount` as a final
+ * fallback. Tolerates `undefined` fields → 0.
+ */
+function normalizeUsage(
+  usage: {
+    readonly inputTokens?: number;
+    readonly outputTokens?: number;
+    readonly cachedInputTokens?: number;
+    readonly inputTokenDetails?: { readonly cacheReadTokens?: number };
+  } | undefined,
+  providerMetadata: Record<string, unknown> | undefined,
+): TurnUsage {
+  const google = (providerMetadata?.google ?? {}) as {
+    usageMetadata?: { cachedContentTokenCount?: number | null };
+  };
+  const cachedFromProvider = google.usageMetadata?.cachedContentTokenCount ?? 0;
+  const cachedTokens =
+    usage?.inputTokenDetails?.cacheReadTokens ??
+    usage?.cachedInputTokens ??
+    cachedFromProvider ??
+    0;
+  return {
+    inputTokens: usage?.inputTokens ?? 0,
+    outputTokens: usage?.outputTokens ?? 0,
+    cachedTokens: cachedTokens ?? 0,
+  };
+}
+
+/**
  * Drive one LLM-first turn. Yields `ChatEvent`s in the A10-safe order. On a
  * provider/stream error, RETHROWS so the route's existing errorKind
  * classifier (quota / RESOURCE_EXHAUSTED / 429 → gemini_quota) still fires.
@@ -137,7 +202,14 @@ export async function* runLlmTurn(
     explicitCache = false,
     cacheCreator,
     onFirstModelToken,
+    onTurnCost,
+    turnCostCapUsd,
+    telemetryEnabled,
   } = input;
+
+  // AIN-9 — wire Langfuse telemetry into `streamText` only when configured.
+  // Gated so dev/test/dark-flag-off never emit spans or touch the network.
+  const langfuseOn = telemetryEnabled ?? isLangfuseConfigured();
 
   // FIX 3 — fire onFirstModelToken once, on the first model output part.
   let firstModelTokenFired = false;
@@ -206,6 +278,21 @@ export async function* runLlmTurn(
     tools,
     stopWhen: stepCountIs(isGuest ? GUEST_MAX_STEPS : AUTH_MAX_STEPS),
     ...(providerOptions ? { providerOptions } : {}),
+    // AIN-9 — Langfuse picks up the GenAI span the AI SDK emits here. We do
+    // NOT record raw inputs/outputs (PII / data-transfer), only the metadata
+    // tags. Disabled entirely when Langfuse is not configured.
+    experimental_telemetry: {
+      isEnabled: langfuseOn,
+      functionId: 'cribai.llm_turn',
+      recordInputs: false,
+      recordOutputs: false,
+      metadata: {
+        runtime: 'llm_first',
+        isGuest,
+        campusName,
+        model: GEMINI_FLASH_MODEL_ID,
+      },
+    },
   });
 
   // Per-step text buffer. Flushed only at the step boundary, after that
@@ -307,6 +394,42 @@ export async function* runLlmTurn(
   } catch (err) {
     // Rethrow so the route catch maps quota / RESOURCE_EXHAUSTED / 429.
     throw err instanceof Error ? err : new Error(String(err));
+  }
+
+  // AIN-9 — project the turn cost AFTER the stream drains (usage is resolved
+  // by now) and BEFORE `done`, so the route's post-stream bookkeeping
+  // (Promise.all([persist, metrics, flushLangfuse])) sees the cost already
+  // computed. Best-effort + never throws: a cost failure must not break a
+  // turn that already streamed successfully.
+  if (onTurnCost) {
+    try {
+      const [usage, providerMetadata] = await Promise.all([
+        result.totalUsage,
+        result.providerMetadata,
+      ]);
+      const turnUsage = normalizeUsage(usage, providerMetadata);
+      const cost = projectTurnCost(turnUsage);
+      const capUsd = turnCostCapUsd ?? resolveTurnCostCapUsd();
+      if (isOverCap(cost.costUsd, capUsd)) {
+        // Structured warning + trace tag. Do NOT throw — the turn already
+        // streamed. The route's separate output-token / tool-step alerts
+        // (PDR-004 A6) cover the runaway-output case.
+        console.warn(
+          '[cribai] cost_cap_exceeded',
+          JSON.stringify({
+            event: 'cost_cap_exceeded',
+            costUsd: cost.costUsd,
+            capUsd,
+            inputTokens: cost.inputTokens,
+            outputTokens: cost.outputTokens,
+            cachedTokens: cost.cachedTokens,
+          }),
+        );
+      }
+      onTurnCost(cost);
+    } catch (costErr) {
+      console.error('[cribai] turn-cost projection failed:', costErr);
+    }
   }
 
   yield { type: 'done' };

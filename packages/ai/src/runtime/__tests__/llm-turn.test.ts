@@ -615,3 +615,66 @@ describe('runLlmTurn — provider error mapping', () => {
     }).rejects.toThrow(/429|quota/);
   });
 });
+
+describe('runLlmTurn — onTurnCost (AIN-9 cost projection + cap)', () => {
+  it('fires onTurnCost with a projected cost from resolved usage', async () => {
+    const onTurnCost = vi.fn();
+    // Known usage on the finish part: 1000 input, 500 output, no cache.
+    const usage = {
+      inputTokens: { total: 1000, noCache: 1000, cacheRead: 0 },
+      outputTokens: { total: 500, reasoning: 0 },
+      totalTokens: 1500,
+    } as never;
+    const model = streamModel([
+      ...textPart('t1', 'Here you go.'),
+      { type: 'finish', finishReason: { unified: 'stop', raw: 'stop' }, usage },
+    ]);
+
+    await collect(runLlmTurn(baseInput(model, { onTurnCost })));
+
+    expect(onTurnCost).toHaveBeenCalledTimes(1);
+    const cost = onTurnCost.mock.calls[0]![0] as { costUsd: number; inputTokens: number; outputTokens: number };
+    expect(cost.inputTokens).toBe(1000);
+    expect(cost.outputTokens).toBe(500);
+    // 1000 * 0.15/M + 500 * 0.60/M
+    expect(cost.costUsd).toBeCloseTo(1000 * (0.15 / 1_000_000) + 500 * (0.6 / 1_000_000), 12);
+  });
+
+  it('logs cost_cap_exceeded (but does NOT throw) when the projected cost is over the cap', async () => {
+    const onTurnCost = vi.fn();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // Huge usage that breaches a tiny injected cap.
+    const usage = {
+      inputTokens: { total: 100_000, noCache: 100_000, cacheRead: 0 },
+      outputTokens: { total: 60_000, reasoning: 0 },
+      totalTokens: 160_000,
+    } as never;
+    const model = streamModel([
+      ...textPart('t1', 'A very long answer.'),
+      { type: 'finish', finishReason: { unified: 'stop', raw: 'stop' }, usage },
+    ]);
+
+    const events = await collect(
+      runLlmTurn(baseInput(model, { onTurnCost, turnCostCapUsd: 0.001 })),
+    );
+
+    expect(onTurnCost).toHaveBeenCalledTimes(1);
+    // Turn still completes cleanly — cap is observe-only, never throws.
+    expect(events[events.length - 1]!.type).toBe('done');
+    const loggedCapWarning = warnSpy.mock.calls.some((c) =>
+      c.some((arg) => typeof arg === 'string' && arg.includes('cost_cap_exceeded')),
+    );
+    expect(loggedCapWarning).toBe(true);
+    warnSpy.mockRestore();
+  });
+
+  it('does not fire onTurnCost when no callback is provided (no-op)', async () => {
+    // Just asserts no throw when onTurnCost is absent.
+    const model = streamModel([
+      ...textPart('t1', 'ok'),
+      finishPart('stop'),
+    ]);
+    const events = await collect(runLlmTurn(baseInput(model)));
+    expect(events[events.length - 1]!.type).toBe('done');
+  });
+});
