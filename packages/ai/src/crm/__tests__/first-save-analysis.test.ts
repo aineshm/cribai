@@ -109,12 +109,6 @@ function makeGeminiThrowing(message = 'Gemini API error') {
 }
 
 /**
- * Sentinel to distinguish "caller explicitly passed undefined" from "caller omitted".
- * This lets makeDeps propagate explicit undefined for optional fields like placesApiKey.
- */
-const OMITTED = Symbol('OMITTED');
-
-/**
  * Build a full deps object with overrides.
  * Pass `placesApiKey: undefined` explicitly to omit the key (no Places API key scenario).
  */
@@ -155,9 +149,6 @@ function makeDeps(
     perBranchTimeoutMs: rest.perBranchTimeoutMs,
   };
 }
-
-// Suppress unused symbol warning
-void OMITTED;
 
 // ---------------------------------------------------------------------------
 // Tests
