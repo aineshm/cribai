@@ -15,8 +15,8 @@
  *     keyword, the SAME amenity string is checked for negation or extra-cost markers.
  *     If any marker is found the flag is NOT set.
  *   - Laundry tightened: only strings with in-unit indicators (in-unit, in unit,
- *     in-suite, washer, dryer, hookup) set hasInUnitLaundry. Bare 'laundry' and
- *     'shared laundry' do not.
+ *     in-suite, washer, dryer) set hasInUnitLaundry. Bare 'laundry', 'shared
+ *     laundry', and 'laundry hookups' (tenant supplies their own appliance) do not.
  *
  * No I/O. No side effects. Input array is never mutated.
  */
@@ -62,7 +62,9 @@ const IN_UNIT_LAUNDRY_MARKERS = [
   'in-suite',
   'washer',
   'dryer',
-  'hookup',
+  // NOTE: 'hookup' is deliberately NOT a marker — a laundry hookup means the
+  // unit has connections for the tenant's OWN washer/dryer, so laundry is NOT
+  // an included amenity and its cost line must not be zeroed.
 ] as const;
 
 /** Return true if the (already-lowercased) amenity string signals an in-unit laundry. */

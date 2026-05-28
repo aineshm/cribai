@@ -40,8 +40,8 @@ describe('amenitiesToCostFlags — laundry', () => {
     expect(amenitiesToCostFlags(['laundry in unit'])).toEqual({ hasInUnitLaundry: true });
   });
 
-  it('sets hasInUnitLaundry=true for "LAUNDRY HOOKUPS"', () => {
-    expect(amenitiesToCostFlags(['LAUNDRY HOOKUPS'])).toEqual({ hasInUnitLaundry: true });
+  it('does NOT set hasInUnitLaundry for "LAUNDRY HOOKUPS" (tenant supplies their own appliance, so laundry is not included)', () => {
+    expect(amenitiesToCostFlags(['LAUNDRY HOOKUPS'])).toEqual({});
   });
 });
 
