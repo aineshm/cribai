@@ -19,6 +19,9 @@
 import { extractFromJsonLd } from './json-ld';
 import { extractFromOg } from './og';
 import { normalizeFields } from './normalize';
+import { extractFromDom } from './dom';
+import { pruneHtml } from './prune-html';
+import { createLlmExtractor } from './llm-parse';
 import {
   SsrfBlockedError,
   assertHttpScheme,
@@ -30,6 +33,7 @@ import {
   type ExtractedFields,
   type ExtractedListing,
   type ExtractListingOptions,
+  type ExtractionMethod,
 } from './types';
 
 export {
@@ -438,28 +442,133 @@ function mergeFields(
 }
 
 /**
- * Compute confidence from the merged field set and which path(s) ran.
- *   high   = JSON-LD fired AND merged set has price + address + bedrooms
- *   medium = (a) JSON-LD fired AND at least one of price/address/bedrooms,
- *              OR
- *            (b) OG-only path (no JSON-LD) that produced a price plus a
- *                title or photo array — enough structure to be useful.
- *   low    = anything else (OG-only with sparse fields, or JSON-LD that
- *            produced almost nothing).
+ * Which extraction layers contributed at least one field to the merged result.
+ * Built in `extractListing` and consumed by both `deriveExtractionMethod` (to
+ * name the method) and `computeConfidence` (to weight trust).
  */
-function computeConfidence(
+type Contributor = 'json_ld' | 'og' | 'dom' | 'llm';
+
+/**
+ * Fixed precedence order for `extraction_method`. The method string joins the
+ * contributing layers in THIS order with `_plus_`, regardless of the order they
+ * were added to the set — so `{dom, json_ld}` → `'json_ld_plus_dom'`. Every
+ * subsequence of this list is a literal of `ExtractionMethod` (Task 1
+ * enumerated all 15 combinations), so the join is type-safe by construction.
+ */
+const METHOD_ORDER: readonly Contributor[] = ['json_ld', 'og', 'dom', 'llm'];
+
+/**
+ * Derive the `extraction_method` literal from the set of contributing layers.
+ * Joins present layers in `METHOD_ORDER` with `_plus_`. The result is always a
+ * member of the `ExtractionMethod` union (the union enumerates every
+ * subsequence). `extractListing` guarantees the set is non-empty before calling
+ * this — an empty set would have thrown `no_listing_data` first.
+ */
+export function deriveExtractionMethod(contributors: ReadonlySet<Contributor>): ExtractionMethod {
+  const present = METHOD_ORDER.filter((c) => contributors.has(c));
+  return present.join('_plus_') as ExtractionMethod;
+}
+
+/**
+ * Compute confidence from the merged field set and which layers contributed.
+ *
+ * "Key fields" are price / address / bedrooms — the same trio the escalation
+ * gate uses. A non-LLM path is JSON-LD or DOM (both read structured / labeled
+ * data); the LLM rare path is trusted less because it reads free text.
+ *
+ *   high   = price + address + bedrooms ALL present AND at least one non-LLM
+ *            layer (json_ld OR dom) contributed. A DOM extractor that pulls all
+ *            three is as trustworthy as JSON-LD here.
+ *   medium = (a) any one of price/address/bedrooms present via a non-LLM layer;
+ *              OR
+ *            (b) the LLM contributed and price is present alongside a title or
+ *                photos (the model found enough structure to be useful);
+ *              OR
+ *            (c) OG-only path that produced a price plus a title or photo array.
+ *            An all-three result whose key fields arrived via the LLM is CAPPED
+ *            here — the LLM only runs when cheaper layers missed a key field,
+ *            so any LLM contribution is, by construction, a key field.
+ *   low    = anything else.
+ */
+export function computeConfidence(
   merged: ExtractedFields,
-  hadJsonLd: boolean,
+  contributors: ReadonlySet<Contributor>,
 ): 'high' | 'medium' | 'low' {
   const hasPrice = typeof merged.price === 'number';
   const hasAddress = typeof merged.address === 'string';
   const hasBedrooms = typeof merged.bedrooms === 'number';
+  const allThree = hasPrice && hasAddress && hasBedrooms;
 
-  if (hadJsonLd && hasPrice && hasAddress && hasBedrooms) return 'high';
-  if (hadJsonLd && (hasPrice || hasAddress || hasBedrooms)) return 'medium';
-  // OG-only path or near-empty JSON-LD.
-  if (!hadJsonLd && hasPrice && (merged.title || merged.photos?.length)) return 'medium';
+  const hasNonLlmStructured = contributors.has('json_ld') || contributors.has('dom');
+  const llmContributed = contributors.has('llm');
+  const ogContributed = contributors.has('og');
+
+  // high: full key set from a trusted (non-LLM) structured/labeled layer.
+  if (allThree && hasNonLlmStructured && !llmContributed) return 'high';
+
+  // medium cap: a full key set whose deciding fields came via the LLM is
+  // demoted from high to medium — the LLM is trusted less than structured/DOM,
+  // but all three key fields present is still a solid result.
+  if (allThree && llmContributed) return 'medium';
+
+  // medium (a): at least one key field from a non-LLM layer.
+  if (hasNonLlmStructured && (hasPrice || hasAddress || hasBedrooms)) return 'medium';
+  // medium (b): LLM filled in, but it found a price plus some descriptive shape.
+  if (llmContributed && hasPrice && (merged.title || merged.photos?.length)) return 'medium';
+  // medium (c): OG-only with price + a title or photo array.
+  if (ogContributed && hasPrice && (merged.title || merged.photos?.length)) return 'medium';
+
   return 'low';
+}
+
+/**
+ * The escalation gate. A result is "good enough" when it carries a price AND
+ * either a bedroom count or an address — the minimum a downstream `addListing`
+ * call needs to be useful. Evaluated on RAW (pre-normalize) merged fields,
+ * matching how price/bedrooms/address are typed before normalization.
+ *
+ * When this returns true the orchestrator stops escalating; when it returns
+ * false it falls through to the next (more expensive) layer.
+ */
+function hasKeyFields(f: ExtractedFields): boolean {
+  return (
+    typeof f.price === 'number' && (typeof f.bedrooms === 'number' || typeof f.address === 'string')
+  );
+}
+
+/**
+ * Fill gaps in `merged` from a layer's partial result: assign a field ONLY when
+ * `merged` doesn't already have it. Never overwrites a value an earlier (more
+ * trusted) layer set. Mutates `merged` in place and returns whether the partial
+ * contributed at least one field (used to mark the layer as a contributor).
+ *
+ * `raw_og` / `raw_json_ld` are debug blobs already attached by earlier layers;
+ * the DOM and LLM layers don't produce them, so this only walks the real
+ * listing fields.
+ */
+function fillGaps(merged: ExtractedFields, partial: Partial<ExtractedFields>): boolean {
+  let contributed = false;
+  for (const key of Object.keys(partial) as (keyof ExtractedFields)[]) {
+    const value = partial[key];
+    if (value === undefined) continue;
+    if (merged[key] !== undefined) continue;
+    (merged as Record<string, unknown>)[key] = value;
+    contributed = true;
+  }
+  return contributed;
+}
+
+/**
+ * Whether the LLM rare path is reachable. Skips the lazy `createLlmExtractor()`
+ * construction when no extractor is injected AND no Gemini credentials are
+ * configured — `createGeminiClient` throws without creds, and constructing it
+ * in CI (no creds) would be wasted work whose only outcome is `{}`. Tests that
+ * inject `opts.llmExtractor` always run the pass; production with creds always
+ * runs it. This keeps credential-less CI from ever building a client.
+ */
+function llmPathAvailable(opts: ExtractListingOptions): boolean {
+  if (opts.llmExtractor) return true;
+  return Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_CLOUD_PROJECT);
 }
 
 /**
@@ -514,6 +623,9 @@ export async function extractListing(
     throw err;
   }
 
+  const source_domain = deriveSourceDomain(finalUrl);
+
+  // ── Pass 1: STRUCTURED (JSON-LD + OpenGraph) ────────────────────────────
   // Relative URLs (image / og:image) in the served HTML resolve against the
   // post-redirect URL, not the input URL — otherwise a redirector / shortener
   // would rewrite asset paths against the wrong origin (codex round 6 P2).
@@ -521,6 +633,38 @@ export async function extractListing(
   const og = extractFromOg(html, finalUrl);
   const { merged, ogContributed } = mergeFields(jsonLd, og);
 
+  const contributors = new Set<Contributor>();
+  if (jsonLd !== null) contributors.add('json_ld');
+  if (ogContributed) contributors.add('og');
+
+  // ── Escalation: only when the structured pass missed the key fields. ────
+  // Each later layer is more expensive (DOM regex, then a model call), so we
+  // stop the moment the key-fields gate is satisfied. DOM/LLM fill GAPS only —
+  // they never overwrite a value an earlier, more-trusted layer set.
+  if (!hasKeyFields(merged)) {
+    // Pass 2: DOM (per-site extractor; only sites with one return data).
+    try {
+      const domFields = extractFromDom(html, finalUrl, source_domain);
+      if (fillGaps(merged, domFields)) contributors.add('dom');
+    } catch {
+      // `extractFromDom` already swallows per-site errors and returns {}, but
+      // the orchestrator must not break even if that contract ever regresses.
+    }
+
+    // Pass 3: LLM rare path — last resort, still missing key fields.
+    if (!hasKeyFields(merged) && llmPathAvailable(opts)) {
+      try {
+        const llm = opts.llmExtractor ?? createLlmExtractor();
+        const llmFields = await llm(pruneHtml(html), finalUrl);
+        if (fillGaps(merged, llmFields)) contributors.add('llm');
+      } catch {
+        // The LLM extractor is contracted never to throw, but a custom
+        // injected one (or a future change) might — degrade to no-LLM-fields.
+      }
+    }
+  }
+
+  // ── Finalize: single normalization pass over the fully-merged fields. ───
   // Apply length/array/scheme/geo/date caps in one place. After this point
   // every field is shape-safe for the downstream `addListing` tool.
   const normalized = normalizeFields(merged);
@@ -535,17 +679,13 @@ export async function extractListing(
   if (!hasAnyField) {
     throw new ExtractionError(
       'no_listing_data',
-      `Neither JSON-LD nor OpenGraph produced any usable fields for ${url}`,
+      `No extraction layer (JSON-LD, OpenGraph, DOM, or LLM) produced any usable fields for ${url}`,
       url,
     );
   }
 
-  let extraction_method: ExtractedListing['extraction_method'];
-  if (jsonLd && ogContributed) extraction_method = 'json_ld_plus_og';
-  else if (jsonLd) extraction_method = 'json_ld';
-  else extraction_method = 'og';
-
-  const extraction_confidence = computeConfidence(normalized, jsonLd !== null);
+  const extraction_method = deriveExtractionMethod(contributors);
+  const extraction_confidence = computeConfidence(normalized, contributors);
 
   return {
     source_url: url,
@@ -554,8 +694,9 @@ export async function extractListing(
     // paste. Use the post-redirect URL so per-publisher logic (e.g. Zillow
     // vs Apartments.com handling in downstream tools) keys correctly. The
     // user-facing `source_url` stays as the input — that's the link they
-    // care about.
-    source_domain: deriveSourceDomain(finalUrl),
+    // care about. Computed once above (`source_domain`) so the escalation
+    // DOM dispatch and the returned field key off the same value.
+    source_domain,
     ...normalized,
     extraction_method,
     extraction_confidence,
