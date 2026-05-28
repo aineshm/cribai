@@ -374,6 +374,108 @@ describe('runLlmTurn — guest tool rejection', () => {
   });
 });
 
+describe('runLlmTurn — onFirstModelToken (FIX 3: TTFT at first token)', () => {
+  it('fires onFirstModelToken on the FIRST text-delta, before the step boundary flush', async () => {
+    const onFirstModelToken = vi.fn();
+    // Two deltas in one step. The callback must fire on the first delta, NOT
+    // wait for finish-step (where the buffered `text` event is flushed).
+    const model = streamModel([
+      { type: 'text-start', id: 't1' },
+      { type: 'text-delta', id: 't1', delta: 'Hello ' },
+      { type: 'text-delta', id: 't1', delta: 'there.' },
+      { type: 'text-end', id: 't1' },
+      FINISH,
+    ]);
+
+    await collect(runLlmTurn(baseInput(model, { onFirstModelToken })));
+
+    expect(onFirstModelToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('fires onFirstModelToken on the FIRST tool-call', async () => {
+    vi.mocked(executeTool).mockResolvedValue(SEARCH_RESULT as never);
+    const onFirstModelToken = vi.fn();
+
+    const model = new MockLanguageModelV3({
+      doStream: async () => ({
+        stream: simulateReadableStream({
+          chunks: [
+            { type: 'stream-start', warnings: [] },
+            toolCallPart('call-1', 'search_listings', { semantic_query: '2 bed' }),
+            finishPart('stop'),
+          ] as LanguageModelV3StreamPart[],
+          initialDelayInMs: null,
+          chunkDelayInMs: null,
+        }),
+      }),
+    });
+
+    await collect(runLlmTurn(baseInput(model, { onFirstModelToken })));
+
+    expect(onFirstModelToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('fires exactly once even across multiple text deltas and tool calls', async () => {
+    vi.mocked(executeTool).mockResolvedValue(SEARCH_RESULT as never);
+    const onFirstModelToken = vi.fn();
+
+    let step = 0;
+    const model = new MockLanguageModelV3({
+      doStream: async () => {
+        const current = step++;
+        if (current === 0) {
+          return {
+            stream: simulateReadableStream({
+              chunks: [
+                { type: 'stream-start', warnings: [] },
+                toolCallPart('c1', 'search_listings', { semantic_query: 'a' }),
+                finishPart('tool-calls'),
+              ] as LanguageModelV3StreamPart[],
+              initialDelayInMs: null,
+              chunkDelayInMs: null,
+            }),
+          };
+        }
+        return {
+          stream: simulateReadableStream({
+            chunks: [
+              { type: 'stream-start', warnings: [] },
+              ...textPart('t1', 'Here are some options.'),
+              FINISH,
+            ] as LanguageModelV3StreamPart[],
+            initialDelayInMs: null,
+            chunkDelayInMs: null,
+          }),
+        };
+      },
+    });
+
+    await collect(runLlmTurn(baseInput(model, { onFirstModelToken })));
+
+    expect(onFirstModelToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not break A10 prose buffering — text still flushes at the step boundary', async () => {
+    const onFirstModelToken = vi.fn();
+    const model = streamModel([
+      { type: 'text-start', id: 't1' },
+      { type: 'text-delta', id: 't1', delta: 'Hello ' },
+      { type: 'text-delta', id: 't1', delta: 'there.' },
+      { type: 'text-end', id: 't1' },
+      FINISH,
+    ]);
+
+    const events = await collect(runLlmTurn(baseInput(model, { onFirstModelToken })));
+    const textEvents = events.filter((e) => e.type === 'text');
+    // Still one coalesced text event (buffering preserved), even though the
+    // metric marker fired on the first delta.
+    expect(textEvents).toHaveLength(1);
+    expect((textEvents[0] as Extract<ChatEvent, { type: 'text' }>).content).toBe(
+      'Hello there.',
+    );
+  });
+});
+
 describe('runLlmTurn — provider error mapping', () => {
   it('rethrows a quota error so the route classifier still recognizes it', async () => {
     const model = new MockLanguageModelV3({

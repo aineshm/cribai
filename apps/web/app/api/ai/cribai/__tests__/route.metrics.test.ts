@@ -98,8 +98,18 @@ vi.mock('@campusnest/ai', async () => {
     })),
     // AIN-8 — never build a real Vertex/AI Studio model in the route under test.
     createAiSdkModel: vi.fn(() => ({ __mockModel: true })),
-    runLlmTurn: vi.fn(async function* () {
+    // AIN-8 FIX 3 — the real runLlmTurn fires `onFirstModelToken` once, on the
+    // first model output part (text-delta / tool-call). The mock mirrors that:
+    // it invokes the callback before yielding the first text/tool_call chunk so
+    // the route's TTFT wiring is exercised exactly as in production.
+    runLlmTurn: vi.fn(async function* (input?: { onFirstModelToken?: () => void }) {
+      let signaled = false;
       for (const chunk of llmTurnChunks) {
+        const c = chunk as { type?: string };
+        if (!signaled && (c.type === 'text' || c.type === 'tool_call')) {
+          signaled = true;
+          input?.onFirstModelToken?.();
+        }
         yield chunk;
       }
     }),
@@ -121,7 +131,10 @@ const recordedInserts: Array<{ table: string; row: Record<string, unknown> }> = 
 // inject error states (e.g. campus not found) via beforeEach reset.
 let SINGLE_FIXTURES: Record<string, { data: unknown; error: null }> = {};
 const DEFAULT_SINGLE_FIXTURES: Record<string, { data: unknown; error: null }> = {
-  profiles: { data: { subscription_tier: 'free' }, error: null },
+  profiles: {
+    data: { subscription_tier: 'free', display_name: 'Test User' },
+    error: null,
+  },
   campus_configs: {
     data: {
       id: '6692cc4a-1592-4b7d-a642-6eaacfd5503c',
@@ -741,5 +754,65 @@ describe('POST /api/ai/cribai — AIN-19 latency instrumentation', () => {
     expect(row.request_id).toBe('trace-llm-first-quota');
     expect(row.error_kind).toBe('gemini_quota');
     expect(row.runtime).toBe('llm_first');
+  });
+
+  // --------------------------------------------------------------------
+  // AIN-8 FIX 2 — authenticated profile actually loads on the LLM-first
+  // path. Previously getUserProfileSnippet was called with an
+  // unauthenticated service-role client, so the snippet was always empty.
+  // Now the route threads the pre-fetched profiles.display_name + the
+  // validated campusSlug into runLlmTurn's profile arg.
+  // --------------------------------------------------------------------
+
+  it('passes a populated profile snippet to runLlmTurn for an authenticated turn', async () => {
+    process.env.CRIBAI_RUNTIME_LLM_FIRST = '1';
+    llmTurnChunks = [
+      { type: 'text', content: 'Here are some options.' },
+      { type: 'done' },
+    ];
+
+    const req = buildRequest({
+      query: 'find me a 2 bedroom',
+      campusSlug: 'uw-madison',
+      history: [],
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    await drainStream(res);
+
+    expect(runLlmTurn).toHaveBeenCalledTimes(1);
+    const passedInput = vi.mocked(runLlmTurn).mock.calls[0]![0] as {
+      profile: { displayName: string | null; campusSlug: string | null };
+    };
+    // profiles.display_name fixture is 'Test User'; campusSlug comes from the
+    // validated request body.
+    expect(passedInput.profile.displayName).toBe('Test User');
+    expect(passedInput.profile.campusSlug).toBe('uw-madison');
+  });
+
+  it('passes the empty profile snippet to runLlmTurn for a guest LLM-first turn', async () => {
+    process.env.CRIBAI_RUNTIME_LLM_FIRST = '1';
+    llmTurnChunks = [
+      { type: 'text', content: 'Here are some options.' },
+      { type: 'done' },
+    ];
+
+    const req = buildGuestRequest({
+      query: 'find me a 2 bedroom',
+      campusSlug: 'uw-madison',
+      history: [],
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    await drainStream(res);
+
+    expect(runLlmTurn).toHaveBeenCalledTimes(1);
+    const passedInput = vi.mocked(runLlmTurn).mock.calls[0]![0] as {
+      profile: { displayName: string | null; campusSlug: string | null };
+    };
+    expect(passedInput.profile.displayName).toBeNull();
+    expect(passedInput.profile.campusSlug).toBeNull();
   });
 });

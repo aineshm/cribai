@@ -14,15 +14,18 @@
  * identical precedence to `createGeminiClient`. The local dev + prod env
  * uses Vertex (`GOOGLE_GENAI_USE_VERTEXAI=true`).
  *
- * Vertex auth uses Application Default Credentials (or the inline JSON the
- * deterministic client materializes via `ensureVertexCredentials`); the AI
- * SDK's Vertex provider reads ADC the same way, so no extra wiring is needed
- * here beyond project + location.
+ * Vertex auth uses Application Default Credentials. On serverless (Vercel) the
+ * key is supplied inline via `GOOGLE_APPLICATION_CREDENTIALS_JSON`; we
+ * materialize it to a temp file by calling the SAME `ensureVertexCredentials`
+ * helper the deterministic `createGeminiClient` uses — single source of truth.
+ * Without this, a cold start where the deterministic client never ran would
+ * fail Google auth before the AI SDK could stream (codex P1, AIN-8).
  */
 
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createVertex } from '@ai-sdk/google-vertex';
 import type { LanguageModel } from 'ai';
+import { ensureVertexCredentials } from '../gemini-client';
 
 /** Model id used across both backends. Keep in lock-step with cribai.ts. */
 export const AI_SDK_MODEL_ID = 'gemini-2.5-flash';
@@ -52,6 +55,9 @@ export function createAiSdkModel(
   }
 
   if (project) {
+    // Materialize inline service-account JSON (serverless) the same way the
+    // deterministic client does, before the Vertex provider's ADC lookup runs.
+    ensureVertexCredentials();
     const provider = createVertex({ project, location });
     return provider(AI_SDK_MODEL_ID);
   }

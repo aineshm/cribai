@@ -80,6 +80,17 @@ export interface RunLlmTurnInput {
   readonly cacheCreator?: ExplicitCacheCreator;
   /** Shared in-process cache memo (injected so the route can keep it warm). */
   readonly cacheMemo?: ExplicitCacheMemo;
+  /**
+   * FIX 3 (AIN-8 review) — fired exactly once, the moment the FIRST model
+   * output part arrives (first `text-delta` OR first `tool-call`, whichever
+   * comes first). The route wires this to `metricsRecorder.markFirstModelToken()`
+   * so the AIN-19 TTFT metric is stamped at first token rather than at the
+   * step-boundary text flush — keeping the cross-runtime TTFT comparison fair
+   * on prose-only turns. Independent of A10 prose buffering: the buffered
+   * `text` event still flushes at the step boundary; only the metric marker
+   * moves earlier.
+   */
+  readonly onFirstModelToken?: () => void;
 }
 
 /** Map the deterministic conversation history into AI SDK ModelMessages. */
@@ -121,7 +132,16 @@ export async function* runLlmTurn(
     history = [],
     explicitCache = false,
     cacheCreator,
+    onFirstModelToken,
   } = input;
+
+  // FIX 3 — fire onFirstModelToken once, on the first model output part.
+  let firstModelTokenFired = false;
+  const signalFirstModelToken = (): void => {
+    if (firstModelTokenFired) return;
+    firstModelTokenFired = true;
+    onFirstModelToken?.();
+  };
 
   const { cachedPrefix, dynamicSuffix } = buildSystemPrompt(state, profile, {
     campusName,
@@ -178,10 +198,14 @@ export async function* runLlmTurn(
     for await (const part of result.fullStream) {
       switch (part.type) {
         case 'text-delta': {
+          // FIX 3: mark first model token at the first delta, even though the
+          // buffered text event is not flushed until the step boundary (A10).
+          signalFirstModelToken();
           stepText += part.text;
           break;
         }
         case 'tool-call': {
+          signalFirstModelToken();
           yield {
             type: 'tool_call',
             name: part.toolName,

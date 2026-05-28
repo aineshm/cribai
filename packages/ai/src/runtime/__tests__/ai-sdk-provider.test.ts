@@ -30,6 +30,15 @@ vi.mock('@ai-sdk/google', () => ({
   createGoogleGenerativeAI: (opts: unknown) => createGoogleSpy(opts as never),
 }));
 
+// FIX 1 (AIN-8 review) — stub node:fs so the credential-materialization path
+// (shared with gemini-client via the exported `ensureVertexCredentials`) is
+// observable without touching the real filesystem.
+const writeFileSyncSpy = vi.fn();
+vi.mock('node:fs', () => ({
+  default: { writeFileSync: (...args: unknown[]) => writeFileSyncSpy(...args) },
+  writeFileSync: (...args: unknown[]) => writeFileSyncSpy(...args),
+}));
+
 import { createAiSdkModel, AI_SDK_MODEL_ID } from '../ai-sdk-provider';
 
 const ENV_KEYS = [
@@ -37,6 +46,8 @@ const ENV_KEYS = [
   'GOOGLE_CLOUD_PROJECT',
   'GOOGLE_CLOUD_LOCATION',
   'GOOGLE_GENAI_USE_VERTEXAI',
+  'GOOGLE_APPLICATION_CREDENTIALS',
+  'GOOGLE_APPLICATION_CREDENTIALS_JSON',
 ] as const;
 
 function clearEnv() {
@@ -47,6 +58,7 @@ afterEach(() => {
   clearEnv();
   createVertexSpy.mockClear();
   createGoogleSpy.mockClear();
+  writeFileSyncSpy.mockClear();
 });
 
 describe('createAiSdkModel — backend selection', () => {
@@ -121,5 +133,49 @@ describe('createAiSdkModel — backend selection', () => {
   it('throws when neither backend is configured', () => {
     clearEnv();
     expect(() => createAiSdkModel()).toThrow(/not configured/i);
+  });
+});
+
+describe('createAiSdkModel — Vertex credential materialization (FIX 1)', () => {
+  it('materializes GOOGLE_APPLICATION_CREDENTIALS_JSON to a temp file before creating the Vertex model', () => {
+    clearEnv();
+    process.env.GOOGLE_CLOUD_PROJECT = 'cribai-prod';
+    // Serverless shape: inline JSON present, file path NOT set.
+    process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON = JSON.stringify({
+      type: 'service_account',
+      project_id: 'cribai-prod',
+    });
+
+    createAiSdkModel();
+
+    // The shared gemini-client logic must have written the key to a temp file
+    // and set GOOGLE_APPLICATION_CREDENTIALS so the Vertex provider's ADC
+    // lookup succeeds on a cold serverless start.
+    expect(writeFileSyncSpy).toHaveBeenCalledTimes(1);
+    expect(process.env.GOOGLE_APPLICATION_CREDENTIALS).toBeDefined();
+    expect(createVertexSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT materialize credentials when GOOGLE_APPLICATION_CREDENTIALS is already set', () => {
+    clearEnv();
+    process.env.GOOGLE_CLOUD_PROJECT = 'cribai-prod';
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = '/already/configured.json';
+    process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON = JSON.stringify({ type: 'sa' });
+
+    createAiSdkModel();
+
+    expect(writeFileSyncSpy).not.toHaveBeenCalled();
+    expect(createVertexSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT materialize credentials on the AI Studio path', () => {
+    clearEnv();
+    process.env.GEMINI_API_KEY = 'test-key';
+    process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON = JSON.stringify({ type: 'sa' });
+
+    createAiSdkModel();
+
+    expect(writeFileSyncSpy).not.toHaveBeenCalled();
+    expect(createGoogleSpy).toHaveBeenCalledTimes(1);
   });
 });

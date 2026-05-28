@@ -401,6 +401,11 @@ export async function POST(request: NextRequest) {
     const authHeader = request.headers.get('authorization');
     let userId: string | null = null;
     let subscriptionTier = 'free';
+    // AIN-8 FIX 2 — capture the authenticated display name from the SAME
+    // profiles fetch so the LLM-first system prompt can personalize. (The old
+    // path called getUserProfileSnippet with an unauthenticated service-role
+    // client, so it always fell back to the empty snippet.)
+    let profileDisplayName: string | null = null;
 
     if (authHeader) {
       const token = authHeader.replace('Bearer ', '');
@@ -412,11 +417,13 @@ export async function POST(request: NextRequest) {
 
         const { data: profile } = await supabase
           .from('profiles')
-          .select('subscription_tier')
+          .select('subscription_tier, display_name')
           .eq('id', user.id)
           .single();
 
         subscriptionTier = (profile?.subscription_tier as string) ?? 'free';
+        profileDisplayName =
+          typeof profile?.display_name === 'string' ? profile.display_name : null;
       }
     }
 
@@ -546,7 +553,10 @@ export async function POST(request: NextRequest) {
     // is off (default), this whole block is bypassed and the route is
     // byte-for-byte the prior deterministic behavior.
     if (runtime === 'llm_first') {
-      const profile = await getUserProfileSnippet(supabase, userId);
+      const profile = getUserProfileSnippet(userId, {
+        displayName: profileDisplayName,
+        campusSlug,
+      });
       const llmStream = new ReadableStream({
         async start(controller) {
           let nextConversationState = conversationState;
@@ -565,20 +575,22 @@ export async function POST(request: NextRequest) {
               campusName: campus.name as string,
               isGuest,
               history: clampHistory(parseHistory(history), isGuest),
+              // AIN-8 FIX 3 — stamp TTFT at the FIRST model output part (first
+              // text-delta or tool-call) rather than at the step-boundary text
+              // flush, so the cross-runtime TTFT comparison stays fair on
+              // prose-only turns. markFirstModelToken is idempotent.
+              onFirstModelToken: () => metricsRecorder?.markFirstModelToken(),
             })) {
               if (chunk.type === 'done') {
                 continue;
               }
 
               if (chunk.type === 'tool_call') {
-                metricsRecorder?.markFirstModelToken();
                 metricsRecorder?.recordToolCall(chunk.name);
               } else if (chunk.type === 'tool_result') {
-                metricsRecorder?.markFirstModelToken();
                 metricsRecorder?.markFirstToolResult();
                 emittedAssistantContent = true;
               } else if (chunk.type === 'text') {
-                metricsRecorder?.markFirstModelToken();
                 emittedAssistantContent = true;
               }
 

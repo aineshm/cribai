@@ -46,6 +46,7 @@ export {
 export type {
   SystemPromptParts,
   UserProfileSnippet,
+  UserProfileFields,
   BuildSystemPromptOptions,
 } from './runtime/system-prompt';
 export { buildToolRegistry, TOOL_SPECS, HITL_TOOLS } from './runtime/tool-registry';
