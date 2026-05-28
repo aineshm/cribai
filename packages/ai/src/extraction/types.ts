@@ -46,9 +46,42 @@ export interface ExtractedListing {
   available_from?: string;
   raw_json_ld?: Record<string, unknown>;
   raw_og?: Record<string, string>;
-  extraction_method: 'json_ld' | 'og' | 'json_ld_plus_og';
+  extraction_method: ExtractionMethod;
   extraction_confidence: 'high' | 'medium' | 'low';
 }
+
+/**
+ * Which extractor(s) contributed to the result. Day 3-4 produced only the
+ * JSON-LD / OG combinations; Day 5 adds a DOM-fallback extractor and Day 6
+ * adds the LLM-clean rare path, so the union now covers every combination of
+ * the four contributors.
+ *
+ * Task 3 derives these mechanically: it joins the set of contributing
+ * extractors with `_plus_` in a FIXED precedence order — `json_ld` > `og` >
+ * `dom` > `llm`. This type exhaustively enumerates the reachable combinations
+ * so that derivation is fully type-checked. (A bare `og_plus_dom` with no
+ * JSON-LD is reachable, as is `dom` or `llm` alone, etc.)
+ */
+export type ExtractionMethod =
+  // single-source
+  | 'json_ld'
+  | 'og'
+  | 'dom'
+  | 'llm'
+  // two-source
+  | 'json_ld_plus_og'
+  | 'json_ld_plus_dom'
+  | 'og_plus_dom'
+  | 'json_ld_plus_llm'
+  | 'og_plus_llm'
+  | 'dom_plus_llm'
+  // three-source
+  | 'json_ld_plus_og_plus_dom'
+  | 'json_ld_plus_og_plus_llm'
+  | 'json_ld_plus_dom_plus_llm'
+  | 'og_plus_dom_plus_llm'
+  // all four
+  | 'json_ld_plus_og_plus_dom_plus_llm';
 
 /**
  * The subset of `ExtractedListing` fields that individual extractors
@@ -60,6 +93,21 @@ export type ExtractedFields = Omit<
   ExtractedListing,
   'source_url' | 'source_domain' | 'extraction_method' | 'extraction_confidence'
 >;
+
+/**
+ * The LLM-clean rare path (Day 6). Given pruned page text and the source URL,
+ * returns the subset of fields the model could confidently extract. It is a
+ * best-effort fallback: it NEVER throws and returns `{}` when it can't parse a
+ * listing. The returned fields are RAW (un-normalized) — the entry point runs
+ * `normalizeFields` on the merged result.
+ *
+ * Production constructs the real Gemini-backed implementation lazily in
+ * `index.ts`; tests inject a stub via `ExtractListingOptions.llmExtractor`.
+ */
+export type LlmExtractor = (
+  prunedHtml: string,
+  sourceUrl: string,
+) => Promise<Partial<ExtractedFields>>;
 
 /**
  * Lookup signature accepted by the SSRF guard. Mirrors the subset of
@@ -89,6 +137,13 @@ export interface ExtractListingOptions {
   userAgent?: string;
   /** Override DNS resolution (tests only). */
   lookup?: DnsLookupOption;
+  /**
+   * Override the LLM-clean rare path (Day 6). Tests inject a stub so no
+   * network call is made; in production the entry point lazily constructs the
+   * real Gemini-backed extractor (`createLlmExtractor`) when escalation is
+   * warranted. When omitted, the LLM path is simply not run.
+   */
+  llmExtractor?: LlmExtractor;
 }
 
 /**

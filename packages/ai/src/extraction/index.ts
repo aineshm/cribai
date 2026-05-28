@@ -42,6 +42,12 @@ export { parseAllJsonLdBlocks, projectJsonLdEntity, extractFromJsonLd } from './
 export { parseMetaTags, decodeHtmlEntities, extractFromOg } from './og';
 export { SsrfBlockedError, assertHttpScheme, assertPublicHost } from './ssrf-guard';
 export { LIMITS, filterHttpUrls, normalizeFields } from './normalize';
+// Layer 4 (Day 5-6): HTML pruning + the LLM-clean rare path. The orchestration
+// that escalates into the LLM extractor lands in Task 3; these are exported now
+// so callers (and that wiring) can construct them.
+export { pruneHtml } from './prune-html';
+export { createLlmExtractor } from './llm-parse';
+export type { LlmExtractor, ExtractionMethod } from './types';
 
 /**
  * The bot user-agent we present to listing sites. Honest about who we are,
