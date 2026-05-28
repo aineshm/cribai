@@ -123,4 +123,6 @@ export interface EvalResult {
   readonly qualityRubric: number;
   /** True when quality < 3 → flagged for human review. */
   readonly needsHumanReview: boolean;
+  /** FIX 5 — projected USD cost of this seed's judge-model call. */
+  readonly judgeCostUsd: number;
 }

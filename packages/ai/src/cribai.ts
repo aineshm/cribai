@@ -9,6 +9,13 @@ import { PageIndexTraverser } from './pageindex-traverser';
 import { getToolDeclarations } from './tools/schemas';
 import { executeTool } from './tools/executor';
 import type { ToolContext, ToolName } from './tools/types';
+// AIN-9 review FIX 3 — `campus_configs.name` is a trust boundary that flows
+// into the deterministic runtime's `contextBlock` system-prompt interpolation
+// at line ~154 below. The LLM-first runtime already sanitizes via
+// `buildPersona` (PR #74 / AIN-24); the deterministic runtime — which is 100%
+// of live traffic today — was missed. Sanitize at the constructor so BOTH
+// runtimes are covered without forking the persona import surface.
+import { sanitizeCampusName } from './runtime/persona';
 
 export interface CribAIConfig {
   readonly geminiApiKey?: string;
@@ -131,7 +138,12 @@ export class CribAI {
   constructor(config: CribAIConfig) {
     this.ai = createGeminiClient(config.geminiApiKey);
     this.traverser = new PageIndexTraverser({ geminiApiKey: config.geminiApiKey });
-    this.campusName = config.campusName;
+    // AIN-9 review FIX 3 — sanitize the campus name once at the trust
+    // boundary. Every downstream interpolation (the `contextBlock` strings
+    // at ~line 154-155 below) then uses the safe value with no additional
+    // wrapping required. `sanitizeCampusName` is idempotent so a name that
+    // arrives clean is a no-op.
+    this.campusName = sanitizeCampusName(config.campusName);
     this.toolContext = config.toolContext;
     this.allowedTools =
       config.allowedTools ??

@@ -125,8 +125,15 @@ export async function contactPm(
     landlord = await fetchLandlord(listing.landlord_id, context);
   }
 
-  // Generate draft message
-  const draft = await generateDraft(listing, landlord, parsed.message);
+  // AIN-9 review FIX 2 — under eval `dryRun`, skip the live Gemini draft
+  // generation (it costs real tokens against the eval budget and isn't part
+  // of what the harness scores). The READ paths above are harmless under
+  // service-role; only the external draft call is gated. `contact_pm`
+  // doesn't send outreach today, so this is conservative defense in depth
+  // matching the spec's "contact_pm if it externally acts" clause.
+  const draft = context.dryRun
+    ? `[dry-run] draft inquiry to ${landlord?.name ?? 'the property manager'} about ${listing.address} skipped to save eval tokens.`
+    : await generateDraft(listing, landlord, parsed.message);
 
   const contactCard = formatContactCard(landlord, listing.contact_email);
   const draftSection = draft

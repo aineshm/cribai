@@ -95,6 +95,7 @@ export async function scoreSeed(
     hitlLeaked: hitl.leaked,
     qualityRubric: quality.rubric,
     needsHumanReview: quality.needsHumanReview,
+    judgeCostUsd: quality.judgeCostUsd,
   };
 }
 
@@ -251,6 +252,9 @@ export async function runEval(options: RunEvalOptions): Promise<EvalReport> {
     const { events, costUsd } = await replaySeed(seed, options.model, options.toolContext);
     totalCostUsd += costUsd;
     const result = await scoreSeed(seed, events, options.judgeModel);
+    // FIX 5 — the judge call is a real model call; add it to the running total
+    // so the ceiling covers turn + judge cost.
+    totalCostUsd += result.judgeCostUsd;
     results.push(result);
   }
 
@@ -266,8 +270,7 @@ export async function runEval(options: RunEvalOptions): Promise<EvalReport> {
  * service-role client + campus ids — the runner exercises real tool handlers,
  * so this is intentionally explicit. Throws with guidance if unset.
  */
-async function buildEvalToolContext(): Promise<ToolContext> {
-  const { createSecretClient } = await import('@campusnest/supabase/server');
+export async function buildEvalToolContext(): Promise<ToolContext> {
   const campusId = process.env.EVAL_CAMPUS_ID;
   const campusSlug = process.env.EVAL_CAMPUS_SLUG ?? 'uw-madison';
   const userId = process.env.EVAL_USER_ID;
@@ -277,11 +280,35 @@ async function buildEvalToolContext(): Promise<ToolContext> {
         'See packages/ai/src/eval/README.md.',
     );
   }
+
+  // FIX 2c — non-prod safety gate. The runner builds a SERVICE-ROLE client
+  // (RLS-bypass) and exercises real tool handlers. Even with dryRun skipping
+  // writes, service-role READS still target whatever Supabase the env points
+  // at. Fail closed: refuse a prod-looking URL (no `localhost`, no `staging`)
+  // unless the caller explicitly opts in with EVAL_ALLOW_PROD=1.
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+  const looksLikeProd =
+    supabaseUrl.length > 0 &&
+    !supabaseUrl.includes('localhost') &&
+    !supabaseUrl.includes('staging');
+  if (looksLikeProd && process.env.EVAL_ALLOW_PROD !== '1') {
+    throw new Error(
+      `Eval runner refusing to run against a prod-looking Supabase URL (${supabaseUrl}) ` +
+        'without EVAL_ALLOW_PROD=1. Point NEXT_PUBLIC_SUPABASE_URL at localhost/staging, ' +
+        'or set EVAL_ALLOW_PROD=1 to deliberately run against production. ' +
+        'See packages/ai/src/eval/README.md.',
+    );
+  }
+
+  const { createSecretClient } = await import('@campusnest/supabase/server');
   return {
     supabase: createSecretClient(),
     campusId,
     campusSlug,
     userId,
+    // FIX 2b — engage the handler dryRun gate so a confirmed HITL flow during
+    // an eval run can NEVER land a real tour_requests / listings row.
+    dryRun: true,
   };
 }
 

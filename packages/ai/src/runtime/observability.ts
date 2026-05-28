@@ -1,9 +1,12 @@
 /**
  * PDR-004 Track A Days 5-6 (AIN-9) — Langfuse observability bootstrap.
  *
- * Langfuse v4 is OpenTelemetry-based: a `LangfuseSpanProcessor` (from
+ * Langfuse v5.4 is OpenTelemetry-based: a `LangfuseSpanProcessor` (from
  * `@langfuse/otel`) is registered on an OTel `TracerProvider`, and the Vercel
  * AI SDK emits GenAI spans into it via `streamText({ experimental_telemetry })`.
+ *
+ * (Note: an earlier comment incorrectly called this "v4" — the installed dep
+ * is `@langfuse/*@^5.4` and the API surface here matches that version.)
  *
  * NO-OP CONTRACT (mirrors `metrics.ts` "no client = no-op"):
  *   - When `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` are absent, `initLangfuse`
@@ -26,7 +29,11 @@ import {
   LangfuseSpanProcessor,
   type LangfuseSpanProcessorParams,
 } from '@langfuse/otel';
-import { updateActiveObservation } from '@langfuse/tracing';
+import {
+  startObservation,
+  updateActiveObservation,
+  type LangfuseSpan,
+} from '@langfuse/tracing';
 import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
 
 /** Env keys Langfuse reads. `LANGFUSE_BASE_URL` is optional (SDK default). */
@@ -145,26 +152,89 @@ export async function flushLangfuse(): Promise<void> {
 }
 
 /**
- * Tag the ACTIVE Langfuse observation (the GenAI span the AI SDK emitted for
- * this turn) as `cost_cap_exceeded` — level WARNING + statusMessage + metadata.
- * This is the Langfuse-side signal PDR-004 §Risks A6 alerting keys on (console
- * logs don't reach Langfuse). No-op + never throws when Langfuse is not
- * installed, so the cost-cap path is safe in dev / dark-flag-off / tests.
+ * Tag a Langfuse observation as `cost_cap_exceeded` — level WARNING +
+ * statusMessage + metadata. This is the Langfuse-side signal PDR-004 §Risks A6
+ * alerting keys on (console logs don't reach Langfuse).
  *
- * Must be called while still inside the turn's span context — `runLlmTurn`
- * calls it from the post-stream cost projector, before yielding `done`, which
- * is within the active span the SDK opened.
+ * AIN-9 review FIX 1 — when given an OWNED span handle (the `cribai.llm_turn`
+ * span `startLlmTurnObservation` opens), we update THAT span directly via
+ * `span.update(...)`. Direct update doesn't need an active OTel context, so the
+ * generator's yield points can't interleave the span out of scope.
+ *
+ * Falling back to `updateActiveObservation` (when no span is passed) is kept
+ * for compatibility, but ONLY works while an OTel context is active for the
+ * intended span — the original AIN-9 implementation hit this trap because the
+ * AI SDK's GenAI span had already ended by the post-`await result.totalUsage`
+ * call site. Pass a span handle to make the tag deterministic.
+ *
+ * Always a no-op + never throws when Langfuse is not installed (or a span
+ * handle wasn't supplied and no active context exists), so the cost-cap path
+ * stays safe in dev / dark-flag-off / tests. When a span handle IS supplied
+ * the tag is delivered even when `installedProcessor` is unset (used in unit
+ * tests that wire an isolated tracer provider via `setLangfuseTracerProvider`).
  */
-export function tagCostCapExceeded(metadata: Record<string, unknown>): void {
+export function tagCostCapExceeded(
+  metadata: Record<string, unknown>,
+  span?: LangfuseSpan | null,
+): void {
+  const attributes = {
+    level: 'WARNING' as const,
+    statusMessage: 'cost_cap_exceeded',
+    metadata: { event: 'cost_cap_exceeded', ...metadata },
+  };
+  // Preferred path: tag the owned span directly — no active-context dependency.
+  if (span) {
+    try {
+      span.update(attributes);
+    } catch (err) {
+      console.error('[langfuse] tagCostCapExceeded (span.update) failed:', err);
+    }
+    return;
+  }
+  // Legacy path retained for compatibility; only useful when an OTel active
+  // context is genuinely live for the target span at the call site.
   if (!installedProcessor) return;
   try {
-    updateActiveObservation({
-      level: 'WARNING',
-      statusMessage: 'cost_cap_exceeded',
-      metadata: { event: 'cost_cap_exceeded', ...metadata },
-    });
+    updateActiveObservation(attributes);
   } catch (err) {
-    console.error('[langfuse] tagCostCapExceeded failed:', err);
+    console.error('[langfuse] tagCostCapExceeded (updateActiveObservation) failed:', err);
+  }
+}
+
+/**
+ * AIN-9 review FIX 1 — start an OWNED Langfuse span for one LLM-first turn.
+ *
+ * The AI SDK's `streamText` opens its own GenAI span, but that span is only
+ * active inside the SDK's synchronous callback stack — by the time `runLlmTurn`
+ * awaits `result.totalUsage` and projects the turn cost, that span has ended.
+ * To make `cost_cap_exceeded` land on a real span we open one we control,
+ * spanning the streamText call + drain + cost projection + tag, and end it
+ * just before yielding `done`. The handle is also passed into
+ * `tagCostCapExceeded` so the tag is delivered via direct `span.update`,
+ * independent of any active OTel context.
+ *
+ * Returns null when Langfuse is not configured (no keys → no install), so the
+ * caller can `if (handle) handle.end()` without a feature-flag.
+ *
+ * Pluggable factory so tests can inject `startObservation` directly bound to
+ * an isolated tracer provider; defaults to the real `@langfuse/tracing` export.
+ */
+export type StartTurnSpan = (name: string) => LangfuseSpan;
+
+export function startLlmTurnObservation(
+  name: string = 'cribai.llm_turn',
+  options: { readonly start?: StartTurnSpan } = {},
+): LangfuseSpan | null {
+  // Hide a misuse (no install + no test seam) behind a null so the caller is
+  // a single branch. Real tests inject `setLangfuseTracerProvider` so
+  // `startObservation` still returns a real handle even when
+  // `installedProcessor` is null.
+  const start = options.start ?? startObservation;
+  try {
+    return start(name);
+  } catch (err) {
+    console.error('[langfuse] startLlmTurnObservation failed:', err);
+    return null;
   }
 }
 

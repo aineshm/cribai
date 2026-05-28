@@ -56,7 +56,11 @@ import {
   ExplicitCacheMemo,
   type ExplicitCacheCreator,
 } from './prompt-cache';
-import { isLangfuseConfigured, tagCostCapExceeded } from './observability';
+import {
+  isLangfuseConfigured,
+  startLlmTurnObservation,
+  tagCostCapExceeded,
+} from './observability';
 import {
   projectTurnCost,
   isOverCap,
@@ -212,6 +216,16 @@ export async function* runLlmTurn(
   // Gated so dev/test/dark-flag-off never emit spans or touch the network.
   const langfuseOn = telemetryEnabled ?? isLangfuseConfigured();
 
+  // AIN-9 review FIX 1 — open an OWNED Langfuse span for this turn so the
+  // post-stream `cost_cap_exceeded` tag has a real span to land on. The AI
+  // SDK's own GenAI span is only active inside its synchronous callback stack
+  // and has already ended by the time we project cost (after
+  // `await result.totalUsage`). Owning the parent span makes the tag
+  // deterministic: we call `tagCostCapExceeded(metadata, turnSpan)` which
+  // updates this handle directly via `span.update(...)` — no active-context
+  // dependency. `null` when Langfuse is off → a clean no-op everywhere below.
+  const turnSpan = langfuseOn ? startLlmTurnObservation('cribai.llm_turn') : null;
+
   // FIX 3 — fire onFirstModelToken once, on the first model output part.
   let firstModelTokenFired = false;
   const signalFirstModelToken = (): void => {
@@ -303,7 +317,12 @@ export async function* runLlmTurn(
   // step's tool_call/tool_result events (A10).
   let stepText = '';
 
+  // AIN-9 review FIX 1 — outer try/finally so the owned turn span is ALWAYS
+  // ended (clean drain, mid-stream throw, OR cost-projection skip). The inner
+  // try/catch around the stream is preserved verbatim so the route's quota /
+  // RESOURCE_EXHAUSTED / 429 classifier still fires on a provider error.
   try {
+   try {
     for await (const part of result.fullStream) {
       switch (part.type) {
         case 'text-delta': {
@@ -395,17 +414,17 @@ export async function* runLlmTurn(
       yield { type: 'text', content: stepText };
       stepText = '';
     }
-  } catch (err) {
+   } catch (err) {
     // Rethrow so the route catch maps quota / RESOURCE_EXHAUSTED / 429.
     throw err instanceof Error ? err : new Error(String(err));
-  }
+   }
 
-  // AIN-9 — project the turn cost AFTER the stream drains (usage is resolved
-  // by now) and BEFORE `done`, so the route's post-stream bookkeeping
-  // (Promise.all([persist, metrics, flushLangfuse])) sees the cost already
-  // computed. Best-effort + never throws: a cost failure must not break a
-  // turn that already streamed successfully.
-  if (onTurnCost) {
+   // AIN-9 — project the turn cost AFTER the stream drains (usage is resolved
+   // by now) and BEFORE `done`, so the route's post-stream bookkeeping
+   // (Promise.all([persist, metrics, flushLangfuse])) sees the cost already
+   // computed. Best-effort + never throws: a cost failure must not break a
+   // turn that already streamed successfully.
+   if (onTurnCost) {
     try {
       const [usage, providerMetadata] = await Promise.all([
         result.totalUsage,
@@ -426,18 +445,28 @@ export async function* runLlmTurn(
           cachedTokens: cost.cachedTokens,
         };
         console.warn('[cribai] cost_cap_exceeded', JSON.stringify(capMeta));
-        // Tag the active GenAI span so Langfuse alerting (A6) sees it. No-op
-        // when Langfuse isn't installed; gated on langfuseOn to avoid a
-        // wasted call when telemetry is off this turn.
+        // AIN-9 review FIX 1 — pass the OWNED turn span so the tag lands via
+        // direct `span.update(...)` instead of `updateActiveObservation` (the
+        // GenAI span the SDK opened is already closed by this point). No-op
+        // when Langfuse is off / span unset.
         if (langfuseOn) {
-          tagCostCapExceeded(capMeta);
+          tagCostCapExceeded(capMeta, turnSpan);
         }
       }
       onTurnCost(cost);
     } catch (costErr) {
       console.error('[cribai] turn-cost projection failed:', costErr);
     }
-  }
+   }
 
-  yield { type: 'done' };
+   yield { type: 'done' };
+  } finally {
+    // FIX 1 — end the owned span exactly once (after `done` was yielded or a
+    // rethrown stream error). `end()` is a no-op when `turnSpan` is null.
+    try {
+      turnSpan?.end();
+    } catch (endErr) {
+      console.error('[langfuse] turnSpan.end failed:', endErr);
+    }
+  }
 }

@@ -725,9 +725,15 @@ export async function POST(request: NextRequest) {
             const raw = err instanceof Error ? err.message : 'Stream error';
             const isQuotaError =
               raw.includes('RESOURCE_EXHAUSTED') || raw.includes('429') || raw.includes('quota');
-            await metricsRecorder?.finish({
-              errorKind: isQuotaError ? 'gemini_quota' : 'llm_stream_error',
-            });
+            // FIX 4 — flush Langfuse on the error path too; failed turns are
+            // exactly the traces we most want to keep. flushLangfuse no-ops
+            // without keys, so the shape is identical configured vs not.
+            await Promise.all([
+              metricsRecorder?.finish({
+                errorKind: isQuotaError ? 'gemini_quota' : 'llm_stream_error',
+              }) ?? Promise.resolve(),
+              flushLangfuse(),
+            ]);
             try {
               enqueueEvent(controller, encoder, {
                 type: 'error',

@@ -227,6 +227,42 @@ async function handlePublish(
   parsed: z.infer<typeof inputSchema>,
   context: ToolContext,
 ): Promise<ToolResult> {
+  // AIN-9 review FIX 2 — eval dry-run gate. The eval runner sets
+  // `context.dryRun = true` so a confirmed create_sublease CANNOT land a
+  // real `listings` row (the handler uses a service-role client that
+  // bypasses RLS — without this gate, an eval would publish actual
+  // subleases). We skip the insert + embedding + analytics writes and
+  // return a synthetic success result with the SAME shape (markdown
+  // confirmation text + modelContext containing the word "published"), so
+  // the eval scorers see the tool ran end to end. Live traffic is always
+  // `dryRun=false` (default).
+  if (context.dryRun) {
+    const syntheticId = `dry-run-listing-${Date.now()}`;
+    const modelContext = [
+      'Sublease published successfully (dry-run, no insert)!',
+      `Listing ID: ${syntheticId}`,
+      `Address: ${parsed.address}`,
+      `View it at: /listing/${syntheticId}`,
+      '',
+      'Tell the user their sublease is now live on CribAI and share the link.',
+    ].join('\n');
+    return {
+      modelContext,
+      clientBlock: {
+        type: 'text' as const,
+        content: [
+          '**Your sublease is live on CribAI! (dry-run)**',
+          '',
+          `**${parsed.address}**`,
+          parsed.rent_monthly ? `$${parsed.rent_monthly}/mo` : 'Rent: Negotiable',
+          `${parsed.bedrooms_total} bed (${parsed.bedrooms_available} available)`,
+          '',
+          `[View your listing](/listing/${syntheticId})`,
+        ].join('\n'),
+      },
+    };
+  }
+
   const serviceClient = getServiceClient();
 
   // Resolve contact email: provided > user's auth email > null

@@ -26,6 +26,7 @@ import {
 } from '@campusnest/types';
 import type { ChatEvent } from '../cribai';
 import type { ToolName } from '../tools/types';
+import { projectTurnCost } from '../runtime/turn-cost';
 import type {
   DimensionScore,
   EvalSeed,
@@ -234,6 +235,12 @@ export function parseQualityScore(raw: string): number {
 export interface QualityScoreResult extends DimensionScore {
   readonly rubric: number;
   readonly needsHumanReview: boolean;
+  /**
+   * FIX 5 — projected USD cost of the judge-model call, so the runner can add
+   * it to the eval cost ceiling (the judge runs once per seed and was
+   * previously uncounted).
+   */
+  readonly judgeCostUsd: number;
 }
 
 /**
@@ -258,9 +265,16 @@ Scenario: ${seed.description}
 Score (1-5):`;
 
   let rubric = 3;
+  let judgeCostUsd = 0;
   try {
-    const { text } = await generateText({ model: judgeModel, prompt });
+    const { text, usage } = await generateText({ model: judgeModel, prompt });
     rubric = parseQualityScore(text);
+    // FIX 5 — count the judge call against the eval cost ceiling. The judge has
+    // no cached prefix, so cached tokens are 0.
+    judgeCostUsd = projectTurnCost({
+      inputTokens: usage?.inputTokens ?? 0,
+      outputTokens: usage?.outputTokens ?? 0,
+    }).costUsd;
   } catch (err) {
     // Judge failure → conservative middle score + flag for review.
     rubric = 3;
@@ -271,6 +285,7 @@ Score (1-5):`;
       detail: `judge model error: ${err instanceof Error ? err.message : String(err)}`,
       rubric,
       needsHumanReview: true,
+      judgeCostUsd: 0,
     };
   }
 
@@ -282,5 +297,6 @@ Score (1-5):`;
     detail: `quality rubric ${rubric}/5${needsHumanReview ? ' (needs human review)' : ''}`,
     rubric,
     needsHumanReview,
+    judgeCostUsd,
   };
 }

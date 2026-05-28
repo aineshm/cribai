@@ -37,6 +37,16 @@ export interface TurnCost {
 /** Default per-turn cost cap (USD). Override via CRIBAI_TURN_COST_CAP_USD. */
 export const TURN_COST_CAP_USD_DEFAULT = 0.05;
 
+// FIX 6 — fail LOUD at module load if the model id isn't priced. The previous
+// `?? PRICING['gemini-2.5-flash']` fallback silently used stale pricing when the
+// model id was bumped past what the cost-logger table knows.
+if (!Object.prototype.hasOwnProperty.call(PRICING, GEMINI_FLASH_MODEL_ID)) {
+  throw new Error(
+    `[turn-cost] model id "${GEMINI_FLASH_MODEL_ID}" has no entry in the cost-logger ` +
+      `PRICING table (known: ${Object.keys(PRICING).join(', ')}). Add its pricing ` +
+      `before bumping GEMINI_FLASH_MODEL_ID.`,
+  );
+}
 const PRICING_KEY = GEMINI_FLASH_MODEL_ID as keyof typeof PRICING;
 
 function nonNegative(n: number | undefined): number {
@@ -55,7 +65,7 @@ export function projectTurnCost(usage: TurnUsage): TurnCost {
   const cachedTokens = Math.min(nonNegative(usage.cachedTokens), inputTokens);
   const nonCachedInputTokens = Math.max(inputTokens - cachedTokens, 0);
 
-  const pricing = PRICING[PRICING_KEY] ?? PRICING['gemini-2.5-flash'];
+  const pricing = PRICING[PRICING_KEY];
   const costUsd =
     nonCachedInputTokens * pricing.input +
     cachedTokens * pricing.cached +
