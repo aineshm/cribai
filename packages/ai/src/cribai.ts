@@ -2,6 +2,9 @@ import type { GoogleGenAI, Content, FunctionCall, Part } from '@google/genai';
 import type { ChatBlock, ConversationState, PageIndexNode } from '@campusnest/types';
 import { createGeminiClient } from './gemini-client';
 import { logTokenUsage } from './cost-logger';
+// AIN-44 #5 — single source of truth for the Gemini Flash model id, shared
+// with the LLM-first runtime's AI SDK provider.
+import { GEMINI_FLASH_MODEL_ID } from './runtime/ai-sdk-provider';
 import { PageIndexTraverser } from './pageindex-traverser';
 import { getToolDeclarations } from './tools/schemas';
 import { executeTool } from './tools/executor';
@@ -181,7 +184,7 @@ export class CribAI {
       }
 
       const response = await this.ai.models.generateContentStream({
-        model: 'gemini-2.5-flash',
+        model: GEMINI_FLASH_MODEL_ID,
         config: {
           systemInstruction: systemPrompt + contextBlock,
           tools: toolsConfig,
@@ -216,7 +219,7 @@ export class CribAI {
       }
 
       // Log token usage for cost monitoring
-      logTokenUsage('gemini-2.5-flash', lastUsageMetadata as {
+      logTokenUsage(GEMINI_FLASH_MODEL_ID, lastUsageMetadata as {
         promptTokenCount?: number;
         candidatesTokenCount?: number;
         cachedContentTokenCount?: number;
