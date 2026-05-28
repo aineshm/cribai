@@ -56,16 +56,18 @@ interface TableBuilder {
  * @param dedupRow  Row returned by `.maybeSingle()`. null → no existing row.
  * @param insertId  Row id returned by `.single()` after insert. 'new-id' by default.
  * @param insertError  Error object to return from insert `.single()`. null → success.
+ * @param dedupError   Error object to return from dedup `.maybeSingle()`. null → success.
  */
 function buildTableBuilder(
   dedupRow: { id: string; extraction_confidence: number | null } | null = null,
   insertId = 'new-listing-id',
   insertError: unknown = null,
+  dedupError: unknown = null,
 ): TableBuilder {
   const dedupChain: DedupChain = {
     eq: vi.fn(),
     neq: vi.fn(),
-    maybeSingle: vi.fn().mockResolvedValue({ data: dedupRow, error: null }),
+    maybeSingle: vi.fn().mockResolvedValue({ data: dedupError ? null : dedupRow, error: dedupError }),
   };
   // Chain: select().eq().eq().neq().maybeSingle()
   dedupChain.eq.mockReturnValue(dedupChain);
@@ -306,6 +308,29 @@ describe('addListing', () => {
 
       expect(result.alreadySaved).toBe(false);
       expect(tableBuilder.insert).toHaveBeenCalledTimes(1);
+    });
+
+    // FIX 4 regression: dedup query error must throw AddListingError, NOT fall through to insert
+    it('throws AddListingError(db_error) when dedup maybeSingle returns an error, and does NOT insert', async () => {
+      const dedupError = { message: 'connection lost', code: 'PGRST301' };
+      const tableBuilder = buildTableBuilder(null, 'new-listing-id', null, dedupError);
+      const onSaved = vi.fn();
+      const deps = makeDeps({ tableBuilder, onSaved });
+
+      await expect(addListing(INPUT_URL, deps)).rejects.toSatisfy(
+        (err: unknown) => {
+          if (!(err instanceof AddListingError)) return false;
+          return (
+            err.code === 'db_error' &&
+            err.userMessage.includes("couldn't save")
+          );
+        },
+      );
+
+      // Insert must NOT have been called (we caught the error before Step 4)
+      expect(tableBuilder.insert).not.toHaveBeenCalled();
+      // onSaved must NOT be called
+      expect(onSaved).not.toHaveBeenCalled();
     });
   });
 

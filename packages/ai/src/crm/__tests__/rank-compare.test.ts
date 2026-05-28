@@ -13,7 +13,7 @@
  * rank-compare-specific variants where the pre-built arrays aren't sufficient.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { rankCompare } from '../rank-compare';
 import type { CrmListingRow, InferredProfile, RankCompareArgs } from '../types';
@@ -31,14 +31,26 @@ import { makeCrmRow } from '../__fixtures__/crm-rows';
  *
  * `callMap` maps table name → resolved value so two separate `.from()` calls
  * (one for listings, one for profiles) can return different payloads.
+ *
+ * The `select` spy on `crm_listings` captures the select-string argument so
+ * regression tests can assert which columns are requested (FIX 5).
  */
+
+/** Holds the last select-string argument passed to the crm_listings builder. */
+let capturedListingsSelect: string | undefined;
+
 function makeDbStub(
   callMap: Record<string, { data: unknown; error: null | { message: string } }>,
 ): SupabaseClient {
   const from = (table: string) => {
     const payload = callMap[table] ?? { data: null, error: null };
     const builder = {
-      select: () => builder,
+      select: vi.fn((arg?: string) => {
+        if (table === 'crm_listings') {
+          capturedListingsSelect = arg;
+        }
+        return builder;
+      }),
       eq: () => builder,
       single: () => Promise.resolve(payload),
       // The entire builder itself is thenable so callers can `await from(...).select(...).eq(...)`
@@ -535,6 +547,42 @@ describe('rankCompare — weight normalization', () => {
     for (const item of result.ranked) {
       expect(item.score).toBeGreaterThanOrEqual(0);
       expect(item.score).toBeLessThanOrEqual(1 + 1e-9); // float tolerance
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// FIX 5 — SELECT-STRING COLUMN REGRESSION (AIN-15 code-review fix)
+// ---------------------------------------------------------------------------
+
+describe('rankCompare — select-string column regression (FIX 5)', () => {
+  it('does NOT request latitude or longitude in the crm_listings select (migration 037 has no such columns)', async () => {
+    // Reset the captured value so any leftover from a prior test doesn't interfere.
+    capturedListingsSelect = undefined;
+
+    const rows = [cheapRow, midRow];
+    await rankCompare({}, makeDeps(rows));
+
+    // The select string must have been captured by the spy.
+    expect(capturedListingsSelect).toBeDefined();
+    expect(capturedListingsSelect).not.toMatch(/\blatitude\b/);
+    expect(capturedListingsSelect).not.toMatch(/\blongitude\b/);
+  });
+
+  it('only selects columns that exist in migration 037 on crm_listings', async () => {
+    // Valid columns per migration 037:
+    //   id, title, rent, bedrooms, bathrooms, sqft, amenities, status
+    // (coordinates is a PostGIS column; not selected in Phase 1 — see comment in impl.)
+    capturedListingsSelect = undefined;
+
+    await rankCompare({}, makeDeps([cheapRow]));
+
+    expect(capturedListingsSelect).toBeDefined();
+    // Verify each token in the select string is a known-valid column.
+    const validColumns = new Set(['id', 'title', 'rent', 'bedrooms', 'bathrooms', 'sqft', 'amenities', 'status', 'coordinates']);
+    const requested = (capturedListingsSelect ?? '').split(',').map((c) => c.trim());
+    for (const col of requested) {
+      expect(validColumns.has(col)).toBe(true);
     }
   });
 });

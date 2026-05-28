@@ -70,9 +70,11 @@ export async function rankCompare(
   // a PostgrestFilterBuilder that TypeScript doesn't overlap with Promise<…>
   // for a direct `as` cast. Casting through `unknown` first is the standard
   // pattern used across the codebase when the caller wants a typed result shape.
+  // Phase 2 commute scoring needs ST_Y(coordinates)/ST_X(coordinates) projected via an RPC;
+  // Phase 1 commute is neutral so coords aren't selected.
   const listingsResult = await (db
     .from('crm_listings')
-    .select('id, title, rent, bedrooms, bathrooms, sqft, amenities, latitude, longitude, status')
+    .select('id, title, rent, bedrooms, bathrooms, sqft, amenities, status')
     .eq('user_id', userId) as unknown as Promise<{ data: CrmListingRow[] | null; error: unknown }>);
 
   const { data: rawRows, error: listingsError } = listingsResult;

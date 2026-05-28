@@ -188,6 +188,14 @@ export async function addListing(
     .neq('status', 'archived')
     .maybeSingle();
 
+  if (dedupResult.error) {
+    throw new AddListingError(
+      'db_error',
+      "I couldn't save that listing. Please try again.",
+      dedupResult.error,
+    );
+  }
+
   if (dedupResult.data) {
     const existing = dedupResult.data as { id: string; extraction_confidence: number | null };
     return {

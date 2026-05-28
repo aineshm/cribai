@@ -87,6 +87,23 @@ function makeDb(row: FixtureRow | null): SupabaseClient {
 }
 
 /**
+ * Build a maybeSingle-style db stub that returns a DB error on the listing query.
+ * data is null, error is the provided error object.
+ * Used for FIX 2 regression test: DB error must NOT be masked as "Listing not found".
+ */
+function makeDbWithError(dbError: { message: string; code?: string }): SupabaseClient {
+  const payload = { data: null, error: dbError };
+  const maybeSingle = vi.fn().mockResolvedValue(payload);
+  const builder = {
+    select: () => builder,
+    eq: () => builder,
+    maybeSingle,
+  };
+  const from = vi.fn().mockReturnValue(builder);
+  return { from } as unknown as SupabaseClient;
+}
+
+/**
  * Build a Gemini mock that resolves with the given text as `result.text`.
  */
 function makeGemini(text: string) {
@@ -358,6 +375,33 @@ describe('firstSaveAnalysis', () => {
   // Test 8: listing not found → rejects with 'Listing not found'
   // -------------------------------------------------------------------------
   it('rejects with "Listing not found" when row is null', async () => {
+    const deps = makeDeps({ row: null });
+    await expect(firstSaveAnalysis(LISTING_ID, deps)).rejects.toThrow('Listing not found');
+  });
+
+  // -------------------------------------------------------------------------
+  // FIX 2 regression: DB error must NOT be masked as "Listing not found"
+  // -------------------------------------------------------------------------
+  it('rejects with a DB-error message (not "Listing not found") when maybeSingle returns an error', async () => {
+    const dbError = { message: 'connection lost', code: 'PGRST301' };
+    const db = makeDbWithError(dbError);
+    const deps = makeDeps({ db });
+
+    await expect(firstSaveAnalysis(LISTING_ID, deps)).rejects.toSatisfy(
+      (err: unknown) => {
+        if (!(err instanceof Error)) return false;
+        // Must reference the listing ID and original error, NOT "Listing not found"
+        return (
+          err.message.includes('failed to load listing') &&
+          err.message.includes(LISTING_ID) &&
+          !err.message.includes('Listing not found')
+        );
+      },
+    );
+  });
+
+  it('still rejects with "Listing not found" when data is null but error is also null (row absent, no DB error)', async () => {
+    // null data + null error → row simply doesn't exist → "Listing not found"
     const deps = makeDeps({ row: null });
     await expect(firstSaveAnalysis(LISTING_ID, deps)).rejects.toThrow('Listing not found');
   });

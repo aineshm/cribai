@@ -346,12 +346,18 @@ export async function firstSaveAnalysis(
   // -------------------------------------------------------------------------
   // Step 1: Load the row — the only hard-fail path.
   // -------------------------------------------------------------------------
-  const { data: row } = (await deps.db
+  const { data: row, error: rowError } = (await deps.db
     .from('crm_listings')
     .select('rent, amenities, description, title, address, coordinates')
     .eq('id', listingId)
     .eq('user_id', deps.userId)
     .maybeSingle()) as { data: CrmListingSelectRow | null; error: unknown };
+
+  if (rowError) {
+    throw new Error(
+      `firstSaveAnalysis: failed to load listing ${listingId} — ${String(rowError)}`,
+    );
+  }
 
   if (row === null) {
     throw new Error('Listing not found');

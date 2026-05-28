@@ -67,6 +67,25 @@ function makeReadDb(rows: unknown[]): SupabaseClient {
 }
 
 /**
+ * Build a thenable readDb stub that returns an error on the listings query.
+ * Used for FIX 3 regression: a read-DB error must propagate as a throw,
+ * not silently degrade to needs_more_data.
+ */
+function makeReadDbWithError(dbError: { message: string; code?: string }): SupabaseClient {
+  const payload = { data: null, error: dbError };
+  const builder = {
+    select: () => builder,
+    eq: () => builder,
+    neq: () => builder,
+    then: (resolve: (v: unknown) => unknown) => Promise.resolve(payload).then(resolve),
+    catch: (reject: (e: unknown) => unknown) => Promise.resolve(payload).catch(reject),
+    finally: (f: () => void) => Promise.resolve(payload).finally(f),
+  };
+  const from = vi.fn().mockReturnValue(builder);
+  return { from } as unknown as SupabaseClient;
+}
+
+/**
  * Build a writeDb stub with spy-able `from` and `upsert` methods.
  * The upsert resolves with { data: null, error: upsertError }.
  */
@@ -330,6 +349,33 @@ describe('inferProfile', () => {
     const result = await inferProfile(USER_ID, deps);
 
     expect(result.status).toBe('needs_more_data');
+    expect(upsertSpy).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // FIX 3 regression: read-DB error must throw, not silently degrade to needs_more_data
+  // -------------------------------------------------------------------------
+  it('throws when the readDb query returns an error (does NOT silently degrade to needs_more_data)', async () => {
+    const dbError = { message: 'connection lost', code: 'PGRST301' };
+    const readDb = makeReadDbWithError(dbError);
+    const { db: writeDb, upsertSpy, fromSpy: writeFromSpy } = makeWriteDb();
+    const gemini = makeGemini(cannedInferredProfileResponse);
+
+    const deps: InferProfileDeps = {
+      readDb,
+      writeDb,
+      userId: USER_ID,
+      gemini: gemini as never,
+    };
+
+    // Must throw — not silently return needs_more_data.
+    await expect(inferProfile(USER_ID, deps)).rejects.toThrow('inferProfile: failed to read saved listings');
+
+    // Gemini must NOT be called (error short-circuits before LLM)
+    expect(gemini.models.generateContent).not.toHaveBeenCalled();
+
+    // writeDb must NOT be touched
+    expect(writeFromSpy).not.toHaveBeenCalled();
     expect(upsertSpy).not.toHaveBeenCalled();
   });
 });

@@ -190,6 +190,11 @@ export async function inferProfile(
     .eq('user_id', userId)
     .eq('status', 'active') as unknown as Promise<{ data: CrmListingRow[] | null; error: unknown }>);
 
+  if (listingsResult.error) {
+    console.error('[inferProfile] failed to read saved listings:', listingsResult.error);
+    throw new Error('inferProfile: failed to read saved listings');
+  }
+
   const rows: CrmListingRow[] = listingsResult.data ?? [];
   const savedCount = rows.length;
 
