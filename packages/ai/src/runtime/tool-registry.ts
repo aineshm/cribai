@@ -63,7 +63,10 @@ const scheduleTourInput = z.object({
   // Phase 1 (confirmed=false or omitted): handler returns a tour preview for
   // the user to review. Phase 2 (confirmed=true): handler dispatches the
   // external tour request. See PDR-004 codex cross-review amendment A1.
-  confirmed: z.boolean().optional(),
+  // AIN-26: `.default(false)` so a model that OMITS the field can never
+  // accidentally trip the HITL gate — an omitted `confirmed` is preview, not
+  // publish. The handler re-parses and re-checks `confirmed === true`.
+  confirmed: z.boolean().default(false),
 });
 
 const explainLeaseTermInput = z.object({
@@ -120,7 +123,9 @@ const createSubleaseInput = z.object({
   property_type: z.enum(['apartment', 'house', 'room']).optional(),
   gender_restriction: z.string().max(50).optional(),
   roommate_info: z.string().max(200).optional(),
-  confirmed: z.boolean().optional(),
+  // AIN-26: `.default(false)` — same HITL-safety rationale as
+  // `scheduleTourInput.confirmed`. An omitted `confirmed` means preview.
+  confirmed: z.boolean().default(false),
 });
 
 const proposeMissionInput = z.object({
@@ -204,7 +209,60 @@ const DESCRIPTIONS: Readonly<Record<ToolName, string>> = {
  */
 export type ToolRegistry = Readonly<Record<ToolName, Tool>>;
 
-export function buildToolRegistry(context: ToolContext): ToolRegistry {
+/**
+ * Out-of-band sink for the full `ToolResult`. PDR-004 codex P1 (PR #69): the
+ * model must only ever receive the string `modelContext` from a tool call —
+ * NOT the `clientBlock`, `statePatch`, `machineData`, `mapBlock`, or
+ * `missionRequest`. Those are UI/state side-channels the turn loop consumes
+ * directly. The registry pushes the full result here BEFORE returning the
+ * string to the SDK.
+ *
+ * The sink receives the SDK-provided `toolCallId` so the turn loop can
+ * correlate EXACTLY with the stream's `tool-result` part (which carries the
+ * same id). Keying by id — not by tool name — is robust even when the SDK
+ * runs multiple calls to the same tool in parallel within one step and they
+ * complete out of call order.
+ */
+export type ToolResultSink = (
+  toolCallId: string,
+  toolName: ToolName,
+  result: ToolResult,
+) => void;
+
+/**
+ * PDR-004 codex P2 (AIN-8): per-turn tool-execution budget.
+ *
+ * The Vercel AI SDK's `stepCountIs` stop condition caps model ROUND-TRIPS, not
+ * individual tool executions: when the model emits several tool calls in a
+ * SINGLE step, the SDK runs ALL of their `execute` closures before re-checking
+ * the stop condition. That bypasses the legacy deterministic path's per-turn
+ * tool-call cap (5 authenticated / 2 guest), so one turn could fire many tool
+ * executions in parallel — cost blowup, and `propose_mission` auto-creates
+ * mission rows (queue spam).
+ *
+ * `ToolCallBudget` is a small mutable counter threaded into `buildToolRegistry`
+ * from `runLlmTurn`. The `execute` wrapper checks-and-increments it
+ * SYNCHRONOUSLY (before any `await`) so parallel calls within one step cannot
+ * race past the limit. Once `count` reaches `limit`, the wrapper does NOT call
+ * `executeTool` (no side effect, no mission row) and does NOT fire the sink —
+ * it just hands the model a short notice string. This is applied IN ADDITION
+ * to (and after) the executor's guest allowlist + HITL `confirmed` gating.
+ */
+export interface ToolCallBudget {
+  /** Max tool executions allowed this turn (5 auth / 2 guest). */
+  readonly limit: number;
+  /** Executions consumed so far this turn. Mutated by the registry. */
+  count: number;
+}
+
+/** Model-facing notice when the per-turn tool-call budget is exhausted. */
+const BUDGET_EXHAUSTED_MESSAGE = 'Tool call limit reached for this turn.';
+
+export function buildToolRegistry(
+  context: ToolContext,
+  sink: ToolResultSink,
+  budget?: ToolCallBudget,
+): ToolRegistry {
   const make = <T extends z.ZodTypeAny>(
     name: ToolName,
     inputSchema: T,
@@ -213,9 +271,36 @@ export function buildToolRegistry(context: ToolContext): ToolRegistry {
       description: DESCRIPTIONS[name],
       inputSchema,
       // The Vercel AI SDK passes the parsed input through. We re-hand to the
-      // existing executor so HITL/auth/logging/allowlist behavior is reused.
-      execute: async (input): Promise<ToolResult> =>
-        executeTool(name, input as Record<string, unknown>, context),
+      // existing executor so HITL/auth/logging/allowlist behavior is reused
+      // unchanged. The executor may THROW (guest-disallowed tool, unknown
+      // tool, handler failure) — we let that propagate so the SDK emits a
+      // `tool-error` part and the turn loop renders an error block. The sink
+      // only fires on success, after which we hand the model ONLY the string
+      // `modelContext`. The full ToolResult never reaches the model.
+      execute: async (input, options): Promise<string> => {
+        // codex P2: enforce the per-turn tool-execution cap at the `execute`
+        // seam so it also covers PARALLEL calls within one step. This check +
+        // increment runs SYNCHRONOUSLY before the first `await` — the SDK
+        // invokes every parallel `execute` closure concurrently, and each runs
+        // to its first suspension point synchronously, so an atomic
+        // check-then-increment here prevents the (limit+1)-th call from
+        // slipping through. When exhausted we DON'T call `executeTool` (no side
+        // effect / no mission row) and DON'T fire the sink (no clientBlock
+        // leak) — the model just gets a short notice string.
+        if (budget) {
+          if (budget.count >= budget.limit) {
+            return BUDGET_EXHAUSTED_MESSAGE;
+          }
+          budget.count += 1;
+        }
+        const result = await executeTool(
+          name,
+          input as Record<string, unknown>,
+          context,
+        );
+        sink(options.toolCallId, name, result);
+        return result.modelContext;
+      },
     });
 
   return Object.freeze({

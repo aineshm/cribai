@@ -79,6 +79,12 @@ vi.mock('../../../../../lib/conversation-state-helpers', () => ({
 // reach this fork.
 let llmChatChunks: Array<unknown> = [];
 
+// AIN-8 — controllable LLM-first turn-handler mock. When the dark flag is on
+// (CRIBAI_RUNTIME_LLM_FIRST='1'), the route streams `runLlmTurn(...)`. The
+// generator yields these chunks. A test can also override per-case with
+// `vi.mocked(runLlmTurn).mockImplementationOnce(...)` to throw mid-stream.
+let llmTurnChunks: Array<unknown> = [];
+
 vi.mock('@campusnest/ai', async () => {
   const actual = await vi.importActual<typeof import('@campusnest/ai')>('@campusnest/ai');
   return {
@@ -90,12 +96,29 @@ vi.mock('@campusnest/ai', async () => {
         }
       }),
     })),
+    // AIN-8 — never build a real Vertex/AI Studio model in the route under test.
+    createAiSdkModel: vi.fn(() => ({ __mockModel: true })),
+    // AIN-8 FIX 3 — the real runLlmTurn fires `onFirstModelToken` once, on the
+    // first model output part (text-delta / tool-call). The mock mirrors that:
+    // it invokes the callback before yielding the first text/tool_call chunk so
+    // the route's TTFT wiring is exercised exactly as in production.
+    runLlmTurn: vi.fn(async function* (input?: { onFirstModelToken?: () => void }) {
+      let signaled = false;
+      for (const chunk of llmTurnChunks) {
+        const c = chunk as { type?: string };
+        if (!signaled && (c.type === 'text' || c.type === 'tool_call')) {
+          signaled = true;
+          input?.onFirstModelToken?.();
+        }
+        yield chunk;
+      }
+    }),
   };
 });
 
 // Import CribAI after the mock so Fix 4 test 2 can override its behavior
 // per-test via vi.mocked(CribAI).mockImplementationOnce(...).
-import { CribAI } from '@campusnest/ai';
+import { CribAI, runLlmTurn } from '@campusnest/ai';
 
 // Capture inserts to ai_request_metrics across the test. Each .from(table)
 // call returns a chainable object whose .insert() resolves to {error:null}
@@ -108,7 +131,10 @@ const recordedInserts: Array<{ table: string; row: Record<string, unknown> }> = 
 // inject error states (e.g. campus not found) via beforeEach reset.
 let SINGLE_FIXTURES: Record<string, { data: unknown; error: null }> = {};
 const DEFAULT_SINGLE_FIXTURES: Record<string, { data: unknown; error: null }> = {
-  profiles: { data: { subscription_tier: 'free' }, error: null },
+  profiles: {
+    data: { subscription_tier: 'free', display_name: 'Test User' },
+    error: null,
+  },
   campus_configs: {
     data: {
       id: '6692cc4a-1592-4b7d-a642-6eaacfd5503c',
@@ -223,6 +249,12 @@ describe('POST /api/ai/cribai — AIN-19 latency instrumentation', () => {
     aiQueryLogsCount = 0;
     SINGLE_FIXTURES = { ...DEFAULT_SINGLE_FIXTURES };
     llmChatChunks = [];
+    llmTurnChunks = [];
+    delete process.env.CRIBAI_RUNTIME_LLM_FIRST;
+    // AIN-8 — clear call history (NOT implementation) so per-test
+    // "was/wasn't called" assertions don't see cumulative counts.
+    vi.mocked(maybeHandleDeterministicTurn).mockClear();
+    vi.mocked(runLlmTurn).mockClear();
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
@@ -634,5 +666,153 @@ describe('POST /api/ai/cribai — AIN-19 latency instrumentation', () => {
     expect(row.request_id).toBe('trace-handler-exc');
     expect(row.error_kind).toBe('handler_exception');
     expect(row.runtime).toBe('deterministic');
+  });
+
+  // ----------------------------------------------------------------------
+  // AIN-8 — LLM-first runtime write path. With the dark flag on, a full
+  // turn must write an ai_request_metrics row tagged runtime='llm_first'
+  // with the lifecycle marks set. The deterministic short-circuit must be
+  // skipped entirely (runLlmTurn drives the stream).
+  // ----------------------------------------------------------------------
+
+  it("writes an ai_request_metrics row with runtime='llm_first' on a full LLM-first turn", async () => {
+    process.env.CRIBAI_RUNTIME_LLM_FIRST = '1';
+    llmTurnChunks = [
+      { type: 'tool_call', name: 'search_listings', args: { semantic_query: 'sublease' } },
+      {
+        type: 'tool_result',
+        name: 'search_listings',
+        block: { type: 'text', content: 'results' },
+        statePatch: { selectedListingId: 'listing-1' },
+      },
+      { type: 'text', content: 'Here are 3 great options near campus.' },
+      { type: 'done' },
+    ];
+
+    const req = buildRequest(
+      {
+        query: 'show me subleases near campus',
+        campusSlug: 'uw-madison',
+        history: [],
+      },
+      { 'x-request-id': 'trace-llm-first-1' },
+    );
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    await drainStream(res);
+    await new Promise((r) => setTimeout(r, 5));
+
+    // The deterministic short-circuit must NOT run on the llm_first path.
+    expect(maybeHandleDeterministicTurn).not.toHaveBeenCalled();
+    // The LLM-first handler drove the turn.
+    expect(runLlmTurn).toHaveBeenCalledTimes(1);
+
+    const metricsInserts = recordedInserts.filter((i) => i.table === 'ai_request_metrics');
+    expect(metricsInserts).toHaveLength(1);
+    const row = metricsInserts[0]!.row;
+    expect(row.request_id).toBe('trace-llm-first-1');
+    expect(row.runtime).toBe('llm_first');
+    expect(row.user_id).toBe('00000000-0000-0000-0000-000000000001');
+    expect(typeof row.request_received_at).toBe('string');
+    expect(typeof row.request_completed_at).toBe('string');
+    // A tool_call shipped → TTFT stamped; tool_result shipped → first tool
+    // result stamped; text shipped → final assistant message stamped.
+    expect(typeof row.first_model_token_at).toBe('string');
+    expect(typeof row.first_tool_result_at).toBe('string');
+    expect(typeof row.final_assistant_message_at).toBe('string');
+    expect(row.tools_called).toEqual(['search_listings']);
+    expect(row.tool_step_count).toBe(1);
+    expect(row.error_kind).toBeNull();
+  });
+
+  it("classifies an LLM-first quota error as gemini_quota with runtime='llm_first'", async () => {
+    process.env.CRIBAI_RUNTIME_LLM_FIRST = '1';
+    vi.mocked(runLlmTurn).mockImplementationOnce(
+      // eslint-disable-next-line require-yield
+      (async function* () {
+        throw new Error('RESOURCE_EXHAUSTED: 429 quota exceeded');
+      }) as never,
+    );
+
+    const req = buildRequest(
+      {
+        query: 'why is housing so expensive',
+        campusSlug: 'uw-madison',
+        history: [],
+      },
+      { 'x-request-id': 'trace-llm-first-quota' },
+    );
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    await drainStream(res);
+
+    const metricsInserts = recordedInserts.filter((i) => i.table === 'ai_request_metrics');
+    expect(metricsInserts).toHaveLength(1);
+    const row = metricsInserts[0]!.row;
+    expect(row.request_id).toBe('trace-llm-first-quota');
+    expect(row.error_kind).toBe('gemini_quota');
+    expect(row.runtime).toBe('llm_first');
+  });
+
+  // --------------------------------------------------------------------
+  // AIN-8 FIX 2 — authenticated profile actually loads on the LLM-first
+  // path. Previously getUserProfileSnippet was called with an
+  // unauthenticated service-role client, so the snippet was always empty.
+  // Now the route threads the pre-fetched profiles.display_name + the
+  // validated campusSlug into runLlmTurn's profile arg.
+  // --------------------------------------------------------------------
+
+  it('passes a populated profile snippet to runLlmTurn for an authenticated turn', async () => {
+    process.env.CRIBAI_RUNTIME_LLM_FIRST = '1';
+    llmTurnChunks = [
+      { type: 'text', content: 'Here are some options.' },
+      { type: 'done' },
+    ];
+
+    const req = buildRequest({
+      query: 'find me a 2 bedroom',
+      campusSlug: 'uw-madison',
+      history: [],
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    await drainStream(res);
+
+    expect(runLlmTurn).toHaveBeenCalledTimes(1);
+    const passedInput = vi.mocked(runLlmTurn).mock.calls[0]![0] as {
+      profile: { displayName: string | null; campusSlug: string | null };
+    };
+    // profiles.display_name fixture is 'Test User'; campusSlug comes from the
+    // validated request body.
+    expect(passedInput.profile.displayName).toBe('Test User');
+    expect(passedInput.profile.campusSlug).toBe('uw-madison');
+  });
+
+  it('passes the empty profile snippet to runLlmTurn for a guest LLM-first turn', async () => {
+    process.env.CRIBAI_RUNTIME_LLM_FIRST = '1';
+    llmTurnChunks = [
+      { type: 'text', content: 'Here are some options.' },
+      { type: 'done' },
+    ];
+
+    const req = buildGuestRequest({
+      query: 'find me a 2 bedroom',
+      campusSlug: 'uw-madison',
+      history: [],
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    await drainStream(res);
+
+    expect(runLlmTurn).toHaveBeenCalledTimes(1);
+    const passedInput = vi.mocked(runLlmTurn).mock.calls[0]![0] as {
+      profile: { displayName: string | null; campusSlug: string | null };
+    };
+    expect(passedInput.profile.displayName).toBeNull();
+    expect(passedInput.profile.campusSlug).toBeNull();
   });
 });

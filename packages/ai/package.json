@@ -11,6 +11,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.80",
+    "@ai-sdk/google-vertex": "^4.0.139",
     "@campusnest/supabase": "workspace:*",
     "@campusnest/types": "workspace:*",
     "@google/genai": "^1.43.0",
@@ -21,6 +23,7 @@
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@ai-sdk/provider": "3.0.10",
     "@vitest/coverage-v8": "^2.1.9",
     "typescript": "^5.7.0",
     "vitest": "^2.1.0"

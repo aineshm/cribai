@@ -24,7 +24,6 @@
  */
 
 import type { ConversationState } from '@campusnest/types';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { z, type ZodTypeAny } from 'zod';
 import { buildPersona, DEFAULT_CAMPUS_NAME } from './persona';
 import { POLICY_BLOCK } from './policy';
@@ -306,49 +305,50 @@ export function estimateTokens(text: string): number {
 }
 
 // ---------------------------------------------------------------------------
-// Profile fetch (Supabase auth metadata)
+// Profile snippet (from pre-fetched, authenticated data)
 // ---------------------------------------------------------------------------
 
+/** Fields the caller has already loaded for a user (or null for a guest). */
+export interface UserProfileFields {
+  /**
+   * Authoritative app-managed display name from `profiles.display_name`.
+   * Null for guests or when the column is empty.
+   */
+  readonly displayName?: string | null;
+  /**
+   * Campus the user is browsing. The route validates this against
+   * `campus_configs` before the turn, so it's safe to thread through directly.
+   */
+  readonly campusSlug?: string | null;
+}
+
 /**
- * Pull a compact profile snippet from the user's Supabase auth metadata.
- * Returns the empty snippet for guest sessions or any failure — the prompt
- * builder treats missing fields gracefully.
+ * Build a compact profile snippet from already-authenticated, pre-fetched
+ * fields. Returns the empty snippet for guests (no userId) so personalization
+ * is silently skipped.
  *
- * Reads `user_metadata.full_name` (the key the signup form + AccountSettings
- * write) with `display_name` as a forward-compat fallback. Campus identity
- * comes from `user_metadata.campus_slug` (the key `apps/web/app/(main)/layout.tsx`
- * reads) with `campus` as a fallback.
+ * FIX 2 (AIN-8 review): the previous version called `supabase.auth.getUser()`
+ * with no token on the service-role client, which always returned null →
+ * personalization was dead for signed-in users. The route already loads the
+ * `profiles` row (for `subscription_tier`) and knows the validated `campusSlug`
+ * from the request, so we accept those pre-fetched fields here — one DB
+ * roundtrip, one code path, no extra auth call on the hot path.
+ *
+ * NOTE: this sources `displayName` from `profiles.display_name` (the
+ * authoritative app-managed column) rather than `user_metadata.full_name`.
+ * `campusSlug` comes from the request the user is actively browsing rather
+ * than a stale metadata copy — a deliberate, documented divergence from the
+ * original ticket text and a correctness improvement.
  */
-export async function getUserProfileSnippet(
-  supabase: SupabaseClient,
+export function getUserProfileSnippet(
   userId: string | null | undefined,
-): Promise<UserProfileSnippet> {
+  fields: UserProfileFields = {},
+): UserProfileSnippet {
   if (!userId) {
     return EMPTY_PROFILE_SNIPPET;
   }
-
-  try {
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data?.user) {
-      return EMPTY_PROFILE_SNIPPET;
-    }
-    // Only return profile if it matches the requested userId — defensive
-    // against a wrong client being passed in.
-    if (data.user.id !== userId) {
-      return EMPTY_PROFILE_SNIPPET;
-    }
-    const meta = (data.user.user_metadata ?? {}) as Record<string, unknown>;
-    const fullName = typeof meta.full_name === 'string' ? meta.full_name : null;
-    const fallbackDisplayName =
-      typeof meta.display_name === 'string' ? meta.display_name : null;
-    const displayName = fullName ?? fallbackDisplayName;
-    const campusSlugRaw =
-      typeof meta.campus_slug === 'string' ? meta.campus_slug : null;
-    const fallbackCampus =
-      typeof meta.campus === 'string' ? meta.campus : null;
-    const campusSlug = campusSlugRaw ?? fallbackCampus;
-    return { displayName, campusSlug };
-  } catch {
-    return EMPTY_PROFILE_SNIPPET;
-  }
+  return {
+    displayName: fields.displayName ?? null,
+    campusSlug: fields.campusSlug ?? null,
+  };
 }

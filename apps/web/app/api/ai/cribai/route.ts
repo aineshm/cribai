@@ -5,6 +5,10 @@ import {
   CribAI,
   createRequestMetricsRecorder,
   resolveRequestId,
+  selectRuntime,
+  runLlmTurn,
+  createAiSdkModel,
+  getUserProfileSnippet,
   type ChatEvent,
   type RequestMetricsRecorder,
 } from '@campusnest/ai';
@@ -397,6 +401,11 @@ export async function POST(request: NextRequest) {
     const authHeader = request.headers.get('authorization');
     let userId: string | null = null;
     let subscriptionTier = 'free';
+    // AIN-8 FIX 2 — capture the authenticated display name from the SAME
+    // profiles fetch so the LLM-first system prompt can personalize. (The old
+    // path called getUserProfileSnippet with an unauthenticated service-role
+    // client, so it always fell back to the empty snippet.)
+    let profileDisplayName: string | null = null;
 
     if (authHeader) {
       const token = authHeader.replace('Bearer ', '');
@@ -408,11 +417,13 @@ export async function POST(request: NextRequest) {
 
         const { data: profile } = await supabase
           .from('profiles')
-          .select('subscription_tier')
+          .select('subscription_tier, display_name')
           .eq('id', user.id)
           .single();
 
         subscriptionTier = (profile?.subscription_tier as string) ?? 'free';
+        profileDisplayName =
+          typeof profile?.display_name === 'string' ? profile.display_name : null;
       }
     }
 
@@ -432,12 +443,20 @@ export async function POST(request: NextRequest) {
     // env not configured) are intentionally not instrumented because they
     // happen before we even have a Supabase client to persist to; those
     // remain visible via Vercel access logs.
+    // AIN-8 — select the runtime BEFORE building the recorder so the
+    // `runtime` label is correct even on early-return error rows
+    // (query_too_long, rate_limit, campus_not_found). The selector depends
+    // only on env + userId, both available here. v1 is a binary dark flag
+    // (CRIBAI_RUNTIME_LLM_FIRST='1'); default is 'deterministic' and the
+    // entire current code path below is unchanged on that default.
+    const runtime = selectRuntime({ userId });
+
     metricsRecorder = createRequestMetricsRecorder(
       {
         requestId,
         userId,
         conversationId: null,
-        runtime: 'deterministic',
+        runtime,
         requestReceivedAt,
       },
       supabase,
@@ -521,10 +540,187 @@ export async function POST(request: NextRequest) {
     // AIN-19 — the recorder was created earlier so it can cover early-return
     // error paths (query_too_long, rate_limit, campus_not_found). Now that the
     // conversation row has been resolved, late-bind the id so success-path
-    // rows carry it. `runtime: 'deterministic'` labels the entire current code
-    // path; AIN-8 will swap this label for 'llm_first' when its turn handler
-    // ships.
+    // rows carry it. The `runtime` label was resolved at handler entry; the
+    // LLM-first branch below uses it to skip the deterministic short-circuit.
     metricsRecorder?.setConversationId(verifiedConversation?.id ?? null);
+
+    const encoder = new TextEncoder();
+
+    // AIN-8 — LLM-first branch (DARK behind CRIBAI_RUNTIME_LLM_FIRST). Skips
+    // the deterministic short-circuit + CribAI.chat entirely and streams
+    // `runLlmTurn` through the SAME ReadableStream + event-marking +
+    // persistence pattern the deterministic/CribAI paths use. When the flag
+    // is off (default), this whole block is bypassed and the route is
+    // byte-for-byte the prior deterministic behavior.
+    if (runtime === 'llm_first') {
+      const profile = getUserProfileSnippet(userId, {
+        displayName: profileDisplayName,
+        campusSlug,
+      });
+      const llmStream = new ReadableStream({
+        async start(controller) {
+          let nextConversationState = conversationState;
+          let toolProposedMission = false;
+          const serverBlocks: Array<Record<string, unknown>> = [];
+          let currentServerText = '';
+          let emittedAssistantContent = false;
+
+          try {
+            for await (const chunk of runLlmTurn({
+              model: createAiSdkModel(),
+              query: trimmedQuery,
+              state: conversationState,
+              profile,
+              toolContext,
+              campusName: campus.name as string,
+              isGuest,
+              history: clampHistory(parseHistory(history), isGuest),
+              // AIN-8 FIX 3 — stamp TTFT at the FIRST model output part (first
+              // text-delta or tool-call) rather than at the step-boundary text
+              // flush, so the cross-runtime TTFT comparison stays fair on
+              // prose-only turns. markFirstModelToken is idempotent.
+              onFirstModelToken: () => metricsRecorder?.markFirstModelToken(),
+            })) {
+              if (chunk.type === 'done') {
+                continue;
+              }
+
+              if (chunk.type === 'tool_call') {
+                metricsRecorder?.recordToolCall(chunk.name);
+              } else if (chunk.type === 'tool_result') {
+                metricsRecorder?.markFirstToolResult();
+                emittedAssistantContent = true;
+              } else if (chunk.type === 'text') {
+                emittedAssistantContent = true;
+              }
+
+              if (chunk.type === 'tool_result' && 'statePatch' in chunk && chunk.statePatch) {
+                nextConversationState = mergeConversationState(
+                  nextConversationState,
+                  chunk.statePatch,
+                );
+              }
+
+              if (chunk.type === 'tool_result' && 'block' in chunk && chunk.block.type === 'text') {
+                try {
+                  const parsed = JSON.parse(chunk.block.content) as Record<string, unknown>;
+                  if (parsed._missionProposal === true) {
+                    toolProposedMission = true;
+                    enqueueEvent(controller, encoder, {
+                      type: 'mission_proposal',
+                      intent: parsed.intent as string,
+                      confidence: 1,
+                      extractedFields: (parsed.extractedFields ?? {}) as Record<string, unknown>,
+                    });
+                    continue;
+                  }
+                } catch {
+                  // Non-JSON text blocks pass through normally.
+                }
+              }
+
+              if (
+                chunk.type === 'mission_request' &&
+                userId &&
+                REGISTERED_MISSION_INTENTS.has(chunk.missionType)
+              ) {
+                const missionId = await enqueueMission(supabase, {
+                  userId,
+                  campusId: campus.id as string,
+                  missionType: chunk.missionType,
+                  input: chunk.input,
+                });
+
+                if (missionId) {
+                  nextConversationState = mergeConversationState(nextConversationState, {
+                    mode: 'mission',
+                    pendingAction: {
+                      kind: 'mission',
+                      payload: { missionId, missionType: chunk.missionType },
+                    },
+                  });
+                  enqueueEvent(controller, encoder, { type: 'mission_created', missionId });
+                }
+                continue;
+              }
+
+              if (chunk.type !== 'text' && currentServerText) {
+                serverBlocks.push({ type: 'text', content: currentServerText });
+                currentServerText = '';
+              }
+
+              if (chunk.type === 'text' && 'content' in chunk) {
+                currentServerText += chunk.content ?? '';
+              }
+
+              if (chunk.type === 'tool_result' && 'block' in chunk && chunk.block) {
+                serverBlocks.push(chunk.block as Record<string, unknown>);
+              }
+
+              enqueueEvent(controller, encoder, chunk);
+            }
+
+            if (currentServerText) {
+              serverBlocks.push({ type: 'text', content: currentServerText });
+            }
+
+            if (!toolProposedMission) {
+              nextConversationState = preservePendingActionAfterLLMTurn(
+                nextConversationState,
+                trimmedQuery,
+              );
+            }
+
+            if (emittedAssistantContent) {
+              metricsRecorder?.markFinalAssistantMessage();
+            }
+            enqueueEvent(controller, encoder, { type: 'done' });
+            controller.close();
+
+            metricsRecorder?.markCompleted();
+            const persistPromise = persistAssistantResponse({
+              supabase,
+              conversationId: verifiedConversation?.id ?? null,
+              userId,
+              blocks: serverBlocks,
+              conversationState: nextConversationState,
+            }).catch((persistErr) => {
+              console.error('[cribai] post-stream persistence failed:', persistErr);
+            });
+            const metricsPromise = metricsRecorder?.finish() ?? Promise.resolve();
+            await Promise.all([persistPromise, metricsPromise]);
+
+            if (userId) {
+              void supabase.from('ai_query_logs').insert({
+                user_id: userId,
+                campus_id: campus.id,
+                query: trimmedQuery,
+              });
+            }
+          } catch (err) {
+            const raw = err instanceof Error ? err.message : 'Stream error';
+            const isQuotaError =
+              raw.includes('RESOURCE_EXHAUSTED') || raw.includes('429') || raw.includes('quota');
+            await metricsRecorder?.finish({
+              errorKind: isQuotaError ? 'gemini_quota' : 'llm_stream_error',
+            });
+            try {
+              enqueueEvent(controller, encoder, {
+                type: 'error',
+                message: isQuotaError
+                  ? 'CribAI is temporarily unavailable due to high demand. Please try again in a minute.'
+                  : raw,
+              });
+              controller.close();
+            } catch (controllerErr) {
+              console.error('[cribai] controller already closed:', controllerErr);
+            }
+          }
+        },
+      });
+
+      return new Response(llmStream, { headers: SSE_HEADERS });
+    }
 
     const deterministicResult = await maybeHandleDeterministicTurn({
       query: trimmedQuery,
@@ -532,8 +728,6 @@ export async function POST(request: NextRequest) {
       conversationState,
       listingId: effectiveListingId,
     });
-
-    const encoder = new TextEncoder();
 
     if (deterministicResult) {
       const nextConversationState = deterministicResult.conversationState;

@@ -27,6 +27,7 @@ import {
   buildSystemPrompt,
   composeSystemPrompt,
   estimateTokens,
+  getUserProfileSnippet,
   EMPTY_PROFILE_SNIPPET,
   type UserProfileSnippet,
 } from '../system-prompt';
@@ -262,5 +263,29 @@ describe('estimateTokens', () => {
     expect(estimateTokens('abc')).toBe(1);
     expect(estimateTokens('abcd')).toBe(1);
     expect(estimateTokens('abcde')).toBe(2);
+  });
+});
+
+describe('getUserProfileSnippet (FIX 2 — pre-fetched fields)', () => {
+  it('returns the empty snippet for a guest (no userId)', () => {
+    expect(getUserProfileSnippet(null, { displayName: 'Ignored', campusSlug: 'uw-madison' })).toEqual(
+      EMPTY_PROFILE_SNIPPET,
+    );
+    expect(getUserProfileSnippet(undefined)).toEqual(EMPTY_PROFILE_SNIPPET);
+  });
+
+  it('builds a populated snippet for an authenticated user from pre-fetched fields', () => {
+    const snippet = getUserProfileSnippet('user-1', {
+      displayName: 'Ainesh Mohan',
+      campusSlug: 'uw-madison',
+    });
+    expect(snippet.displayName).toBe('Ainesh Mohan');
+    expect(snippet.campusSlug).toBe('uw-madison');
+  });
+
+  it('coalesces missing fields to null for an authenticated user', () => {
+    const snippet = getUserProfileSnippet('user-1', {});
+    expect(snippet.displayName).toBeNull();
+    expect(snippet.campusSlug).toBeNull();
   });
 });

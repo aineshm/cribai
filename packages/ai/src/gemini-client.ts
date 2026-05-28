@@ -14,7 +14,21 @@ import os from 'node:os';
 import path from 'node:path';
 import { GoogleGenAI } from '@google/genai';
 
-function ensureVertexCredentials(): void {
+/**
+ * Materialize Vertex AI credentials for serverless environments.
+ *
+ * On Vercel (and similar) there is no well-known ADC file, so the service
+ * account key is supplied inline via `GOOGLE_APPLICATION_CREDENTIALS_JSON`
+ * (base64 or plain JSON). This writes it to a temp file and points
+ * `GOOGLE_APPLICATION_CREDENTIALS` at it so the Google auth library's ADC
+ * lookup succeeds. No-ops when a file path is already configured (local ADC)
+ * or no inline JSON is present.
+ *
+ * Exported so the LLM-first AI SDK provider (`createAiSdkModel`) reuses the
+ * EXACT same logic as the deterministic `createGeminiClient` — single source
+ * of truth for Vertex auth across both runtimes.
+ */
+export function ensureVertexCredentials(): void {
   // Already have a file path configured
   if (process.env.GOOGLE_APPLICATION_CREDENTIALS) return;
 
@@ -51,7 +65,7 @@ export function createGeminiClient(apiKeyOverride?: string): GoogleGenAI {
   }
 
   if (project) {
-    ensureVertexCredentials();
+    ensureVertexCredentials(); // shared with createAiSdkModel — single source of truth
     return new GoogleGenAI({
       vertexai: true,
       project,

@@ -14,7 +14,7 @@
  * by the existing per-handler test suites.
  */
 
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import {
   TOOL_SPECS,
@@ -23,7 +23,15 @@ import {
   type ToolSpec,
 } from '../tool-registry';
 import { CRIBAI_TOOLS_BY_NAME } from '../../tools/schemas';
+import { executeTool } from '../../tools/executor';
 import type { ToolContext, ToolName } from '../../tools/types';
+
+// The sink-refactor tests stub `executeTool` so they can assert what the
+// registry does with its result WITHOUT a live Supabase context. The
+// allowlist test re-imports the real implementation per-case.
+vi.mock('../../tools/executor', () => ({
+  executeTool: vi.fn(),
+}));
 
 const EXPECTED_NAMES: readonly ToolName[] = [
   'search_listings',
@@ -247,7 +255,7 @@ describe('tool-registry — buildToolRegistry()', () => {
       campusSlug: 'uw-madison',
     } as ToolContext;
 
-    const registry = buildToolRegistry(fakeContext);
+    const registry = buildToolRegistry(fakeContext, () => {});
     const keys = Object.keys(registry).sort();
     const expected = [...EXPECTED_NAMES].sort();
     expect(keys).toEqual(expected);
@@ -262,5 +270,209 @@ describe('tool-registry — buildToolRegistry()', () => {
 
     // Frozen — registry should not be mutated by accident
     expect(Object.isFrozen(registry)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PDR-004 codex P1 (PR #69): execute must return ONLY the string modelContext
+// to the model, while the full ToolResult is routed out-of-band to the sink.
+// ---------------------------------------------------------------------------
+
+const TOOL_EXEC_OPTS = { toolCallId: 'call-1', messages: [] } as never;
+
+describe('tool-registry — sink refactor (codex P1)', () => {
+  it('execute returns the string modelContext to the model, sink gets the full ToolResult', async () => {
+    const statePatch = { selectedListingId: 'listing-xyz' } as const;
+    const fullResult = {
+      modelContext: 'Found 3 listings near campus.',
+      clientBlock: { type: 'text', content: 'rendered card' },
+      machineData: { count: 3 },
+      statePatch,
+    };
+
+    vi.mocked(executeTool).mockResolvedValueOnce(fullResult as never);
+
+    const sinkCalls: Array<{ id: string; name: string; result: unknown }> = [];
+    const registry = buildToolRegistry(
+      { supabase: {} as never, campusId: 'c', campusSlug: 'uw-madison' } as ToolContext,
+      (id, name, result) => sinkCalls.push({ id, name, result }),
+    );
+
+    const execute = (registry.search_listings as { execute: (...a: unknown[]) => Promise<unknown> }).execute;
+    const returned = await execute({ semantic_query: 'near campus' }, TOOL_EXEC_OPTS);
+
+    // The model only ever sees the string.
+    expect(returned).toBe('Found 3 listings near campus.');
+    expect(typeof returned).toBe('string');
+
+    // The sink received the toolCallId + FULL ToolResult (statePatch + block).
+    expect(sinkCalls).toHaveLength(1);
+    expect(sinkCalls[0]!.id).toBe('call-1');
+    expect(sinkCalls[0]!.name).toBe('search_listings');
+    expect(sinkCalls[0]!.result).toEqual(fullResult);
+    expect((sinkCalls[0]!.result as typeof fullResult).statePatch).toEqual(statePatch);
+  });
+
+  it('routes through executeTool so the guest allowlist still throws', async () => {
+    // Real executeTool (unmocked) for this assertion — the allowlist guard
+    // lives there, and the registry must NOT bypass it.
+    vi.mocked(executeTool).mockImplementationOnce(
+      (await vi.importActual<typeof import('../../tools/executor')>('../../tools/executor'))
+        .executeTool,
+    );
+
+    const sinkCalls: unknown[] = [];
+    const registry = buildToolRegistry(
+      {
+        supabase: {} as never,
+        campusId: 'c',
+        campusSlug: 'uw-madison',
+        allowedToolNames: ['search_listings'], // guest allowlist — schedule_tour excluded
+      } as ToolContext,
+      (_id, _name, result) => sinkCalls.push(result),
+    );
+
+    const execute = (registry.schedule_tour as { execute: (...a: unknown[]) => Promise<unknown> }).execute;
+
+    await expect(
+      execute(
+        {
+          listing_id: '11111111-2222-4333-8444-555555555555',
+          student_name: 'A',
+          student_email: 'a@wisc.edu',
+          preferred_dates: ['2026-06-15'],
+        },
+        TOOL_EXEC_OPTS,
+      ),
+    ).rejects.toThrow(/signing in/i);
+
+    // Sink must NOT fire when the executor rejects.
+    expect(sinkCalls).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PDR-004 codex P2 (AIN-8): per-turn tool-execution budget. `stepCountIs` caps
+// model ROUND-TRIPS, not tool executions — when the model emits several tool
+// calls in ONE step the SDK runs ALL of them before re-checking the stop
+// condition. The budget enforces the legacy per-turn cap (5 auth / 2 guest)
+// at the `execute` seam so parallel calls in a single step are also capped:
+// once the limit is reached, `executeTool` is NOT invoked (no side effect, no
+// mission row), the sink does NOT fire, and the model gets a short string.
+// ---------------------------------------------------------------------------
+
+describe('tool-registry — per-turn tool-call budget (codex P2)', () => {
+  // These tests use persistent mocks (mockResolvedValue / mockImplementation)
+  // and assert exact call counts, so reset the spy between each.
+  beforeEach(() => {
+    vi.mocked(executeTool).mockReset();
+  });
+
+  it('does NOT count executions when no budget is supplied (back-compat)', async () => {
+    vi.mocked(executeTool).mockResolvedValue({
+      modelContext: 'ok',
+      clientBlock: { type: 'text', content: 'x' },
+    } as never);
+
+    const registry = buildToolRegistry(
+      { supabase: {} as never, campusId: 'c', campusSlug: 'uw-madison' } as ToolContext,
+      () => {},
+    );
+    const execute = (registry.search_listings as { execute: (...a: unknown[]) => Promise<unknown> }).execute;
+
+    // Many calls with no budget — all execute.
+    for (let i = 0; i < 10; i++) {
+      await execute({ semantic_query: 'x' }, { toolCallId: `c${i}`, messages: [] } as never);
+    }
+    expect(vi.mocked(executeTool)).toHaveBeenCalledTimes(10);
+  });
+
+  it('rejects executions beyond the limit: executeTool not called, sink not fired, model gets a string', async () => {
+    vi.mocked(executeTool).mockResolvedValue({
+      modelContext: 'Found listings.',
+      clientBlock: { type: 'text', content: 'card' },
+    } as never);
+
+    const sinkCalls: unknown[] = [];
+    const budget = { limit: 2, count: 0 };
+    const registry = buildToolRegistry(
+      { supabase: {} as never, campusId: 'c', campusSlug: 'uw-madison' } as ToolContext,
+      (_id, _name, result) => sinkCalls.push(result),
+      budget,
+    );
+    const execute = (registry.search_listings as { execute: (...a: unknown[]) => Promise<unknown> }).execute;
+
+    const r1 = await execute({ semantic_query: 'a' }, { toolCallId: 'c1', messages: [] } as never);
+    const r2 = await execute({ semantic_query: 'b' }, { toolCallId: 'c2', messages: [] } as never);
+    const r3 = await execute({ semantic_query: 'c' }, { toolCallId: 'c3', messages: [] } as never);
+
+    // First two run; third is rejected by the budget.
+    expect(r1).toBe('Found listings.');
+    expect(r2).toBe('Found listings.');
+    expect(r3).toMatch(/limit reached/i);
+
+    expect(vi.mocked(executeTool)).toHaveBeenCalledTimes(2);
+    expect(sinkCalls).toHaveLength(2);
+  });
+
+  it('caps PARALLEL calls in a single step (the codex P2 case)', async () => {
+    // Simulate the SDK firing N execute() closures concurrently within ONE
+    // step. The check+increment must be synchronous so the (limit+1)-th call
+    // sees the budget exhausted even though all started before any resolved.
+    vi.mocked(executeTool).mockImplementation(
+      (async () => {
+        // Force a microtask gap so all parallel calls interleave at the await.
+        await Promise.resolve();
+        return { modelContext: 'ok', clientBlock: { type: 'text', content: 'x' } };
+      }) as never,
+    );
+
+    const sinkCalls: unknown[] = [];
+    const budget = { limit: 3, count: 0 };
+    const registry = buildToolRegistry(
+      { supabase: {} as never, campusId: 'c', campusSlug: 'uw-madison' } as ToolContext,
+      (_id, _name, result) => sinkCalls.push(result),
+      budget,
+    );
+    const execute = (registry.search_listings as { execute: (...a: unknown[]) => Promise<unknown> }).execute;
+
+    // Fire 5 parallel executions (2 over the limit of 3).
+    const results = await Promise.all(
+      [0, 1, 2, 3, 4].map((i) =>
+        execute({ semantic_query: `q${i}` }, { toolCallId: `c${i}`, messages: [] } as never),
+      ),
+    );
+
+    const executed = results.filter((r) => r === 'ok');
+    const rejected = results.filter((r) => typeof r === 'string' && /limit reached/i.test(r as string));
+    expect(executed).toHaveLength(3);
+    expect(rejected).toHaveLength(2);
+
+    // No side effect beyond the cap.
+    expect(vi.mocked(executeTool)).toHaveBeenCalledTimes(3);
+    expect(sinkCalls).toHaveLength(3);
+  });
+});
+
+describe('tool-registry — AIN-26 confirmed default', () => {
+  it('defaults schedule_tour.confirmed to false when omitted', () => {
+    const spec = TOOL_SPECS.find((s) => s.name === 'schedule_tour')!;
+    const parsed = (spec.inputSchema as z.ZodTypeAny).parse({
+      listing_id: '11111111-2222-4333-8444-555555555555',
+      student_name: 'A',
+      student_email: 'a@wisc.edu',
+      preferred_dates: ['2026-06-15'],
+    }) as { confirmed: boolean };
+    expect(parsed.confirmed).toBe(false);
+  });
+
+  it('defaults create_sublease.confirmed to false when omitted', () => {
+    const spec = TOOL_SPECS.find((s) => s.name === 'create_sublease')!;
+    const parsed = (spec.inputSchema as z.ZodTypeAny).parse({
+      address: '456 W Gorham St, Madison WI',
+      bedrooms_total: 2,
+      bedrooms_available: 1,
+    }) as { confirmed: boolean };
+    expect(parsed.confirmed).toBe(false);
   });
 });
