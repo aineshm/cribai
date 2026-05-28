@@ -15,14 +15,26 @@
  */
 
 import type { ExtractedFields } from '../types';
-import { parseLabeledNumber, resolvePhotoUrls, coerceString } from '../dom';
+import {
+  parseLabeledNumber,
+  resolvePhotoUrls,
+  coerceString,
+  safeReviver,
+  MONEY_RANGE,
+  COUNT_RANGE,
+} from '../dom';
 
 /**
  * Read `window.__data = {…};` from an inline script. Non-greedy to the first
- * `};` — the fixture (and the real site's address blob) is a single statement,
- * so a naive object capture is sufficient here. Gap-fill semantics mean a
- * miss just leaves the address unfilled; it never breaks the rest of the
- * extraction.
+ * `};` followed by `;`.
+ *
+ * LIMITATION: a `};` literal inside a *string value* (e.g. a description
+ * containing "...rate};...") truncates the capture early, so the parse then
+ * fails on the unbalanced object and we return `{}`. We accept that here:
+ * address from this path is best-effort, gap-fill semantics mean a miss just
+ * leaves the address unfilled, and the parse degrades to `{}` safely rather
+ * than throwing. A balanced-brace scanner would be more robust but isn't worth
+ * the complexity for an optional gap-fill field.
  */
 const WINDOW_DATA_REGEX = /window\.__data\s*=\s*(\{[\s\S]*?\})\s*;/i;
 
@@ -31,7 +43,9 @@ function fromWindowData(html: string): Partial<ExtractedFields> {
   if (!match || !match[1]) return {};
   let parsed: unknown;
   try {
-    parsed = JSON.parse(match[1]);
+    // safeReviver scrubs `__proto__` / `constructor` — same proto-pollution
+    // defense as the __NEXT_DATA__ / JSON-LD paths (third-party HTML blob).
+    parsed = JSON.parse(match[1], safeReviver);
   } catch {
     return {};
   }
@@ -55,19 +69,22 @@ function fromWindowData(html: string): Partial<ExtractedFields> {
 function fromLabeledDom(html: string, sourceUrl: string): Partial<ExtractedFields> {
   const fields: Partial<ExtractedFields> = {};
   const price = parseLabeledNumber(
-    /class=["']rentInfoDetail["'][^>]*>\s*\$?([\d,]+)\s*\/?\s*mo/i.exec(html)?.[1],
+    new RegExp(`class=["']rentInfoDetail["'][^>]*>\\s*${MONEY_RANGE}\\s*\\/?\\s*mo`, 'i').exec(html)?.[1],
   );
   if (price !== undefined) fields.price = price;
+  // A multi-unit range ("2-3 Beds") collapses to the LOW bound via
+  // parseLabeledNumber. "Studio" is intentionally NOT mapped to 0 beds —
+  // left for gap-fill/LLM.
   const beds = parseLabeledNumber(
-    /class=["']bedRangeInfo["'][\s\S]*?(\d+(?:\.\d+)?)\s*beds?\b/i.exec(html)?.[1],
+    new RegExp(`class=["']bedRangeInfo["'][\\s\\S]*?${COUNT_RANGE}\\s*beds?\\b`, 'i').exec(html)?.[1],
   );
   if (beds !== undefined) fields.bedrooms = beds;
   const baths = parseLabeledNumber(
-    /class=["']bathRangeInfo["'][\s\S]*?(\d+(?:\.\d+)?)\s*baths?\b/i.exec(html)?.[1],
+    new RegExp(`class=["']bathRangeInfo["'][\\s\\S]*?${COUNT_RANGE}\\s*baths?\\b`, 'i').exec(html)?.[1],
   );
   if (baths !== undefined) fields.bathrooms = baths;
   const sqft = parseLabeledNumber(
-    /class=["']sqftInfo["'][\s\S]*?([\d,]+)\s*sqft\b/i.exec(html)?.[1],
+    new RegExp(`class=["']sqftInfo["'][\\s\\S]*?${MONEY_RANGE}\\s*sqft\\b`, 'i').exec(html)?.[1],
   );
   if (sqft !== undefined) fields.square_feet = sqft;
 

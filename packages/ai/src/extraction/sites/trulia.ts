@@ -21,6 +21,8 @@ import {
   resolvePhotoUrls,
   coerceNumber,
   coerceString,
+  MONEY_RANGE,
+  COUNT_RANGE,
 } from '../dom';
 
 function fromNextData(html: string, sourceUrl: string): Partial<ExtractedFields> {
@@ -77,14 +79,19 @@ function fromLabeledDom(html: string): Partial<ExtractedFields> {
   );
   if (address) fields.address = address;
   const price = parseLabeledNumber(
-    /data-testid=["']on-market-price-details["'][^>]*>\s*\$?([\d,]+)\s*\/?\s*mo/i.exec(html)?.[1],
+    new RegExp(
+      `data-testid=["']on-market-price-details["'][^>]*>\\s*${MONEY_RANGE}\\s*\\/?\\s*mo`,
+      'i',
+    ).exec(html)?.[1],
   );
   if (price !== undefined) fields.price = price;
-  const beds = parseLabeledNumber(/(\d+(?:\.\d+)?)\s*beds?\b/i.exec(html)?.[1]);
+  // A range ("2-3 beds") collapses to the LOW bound via parseLabeledNumber.
+  // "Studio" is intentionally NOT mapped to 0 beds — left for gap-fill/LLM.
+  const beds = parseLabeledNumber(new RegExp(`${COUNT_RANGE}\\s*beds?\\b`, 'i').exec(html)?.[1]);
   if (beds !== undefined) fields.bedrooms = beds;
-  const baths = parseLabeledNumber(/(\d+(?:\.\d+)?)\s*baths?\b/i.exec(html)?.[1]);
+  const baths = parseLabeledNumber(new RegExp(`${COUNT_RANGE}\\s*baths?\\b`, 'i').exec(html)?.[1]);
   if (baths !== undefined) fields.bathrooms = baths;
-  const sqft = parseLabeledNumber(/([\d,]+)\s*sqft\b/i.exec(html)?.[1]);
+  const sqft = parseLabeledNumber(new RegExp(`${MONEY_RANGE}\\s*sqft\\b`, 'i').exec(html)?.[1]);
   if (sqft !== undefined) fields.square_feet = sqft;
   return fields;
 }

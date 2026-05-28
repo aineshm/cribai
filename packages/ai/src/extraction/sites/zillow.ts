@@ -20,14 +20,17 @@ import {
   resolvePhotoUrls,
   coerceNumber,
   coerceString,
+  asObject,
+  MONEY_RANGE,
+  COUNT_RANGE,
 } from '../dom';
 
 function fromNextData(html: string, sourceUrl: string): Partial<ExtractedFields> {
   const data = extractNextData(html) as
     | { props?: { pageProps?: { componentProps?: { property?: Record<string, unknown> } } } }
     | null;
-  const property = data?.props?.pageProps?.componentProps?.property;
-  if (!property || typeof property !== 'object') return {};
+  const property = asObject(data?.props?.pageProps?.componentProps?.property);
+  if (!property) return {};
 
   const fields: Partial<ExtractedFields> = {};
   const price = coerceNumber(property.price);
@@ -67,13 +70,17 @@ function fromNextData(html: string, sourceUrl: string): Partial<ExtractedFields>
 
 function fromLabeledDom(html: string): Partial<ExtractedFields> {
   const fields: Partial<ExtractedFields> = {};
-  const price = parseLabeledNumber(/data-testid=["']price["'][^>]*>\s*\$?([\d,]+)\s*\/?\s*mo/i.exec(html)?.[1]);
+  const price = parseLabeledNumber(
+    new RegExp(`data-testid=["']price["'][^>]*>\\s*${MONEY_RANGE}\\s*\\/?\\s*mo`, 'i').exec(html)?.[1],
+  );
   if (price !== undefined) fields.price = price;
-  const beds = parseLabeledNumber(/(\d+(?:\.\d+)?)\s*beds?\b/i.exec(html)?.[1]);
+  // A range like "2-3 beds" resolves to the LOW bound (2) via parseLabeledNumber.
+  // "Studio" is intentionally NOT mapped to 0 beds here — left for gap-fill/LLM.
+  const beds = parseLabeledNumber(new RegExp(`${COUNT_RANGE}\\s*beds?\\b`, 'i').exec(html)?.[1]);
   if (beds !== undefined) fields.bedrooms = beds;
-  const baths = parseLabeledNumber(/(\d+(?:\.\d+)?)\s*baths?\b/i.exec(html)?.[1]);
+  const baths = parseLabeledNumber(new RegExp(`${COUNT_RANGE}\\s*baths?\\b`, 'i').exec(html)?.[1]);
   if (baths !== undefined) fields.bathrooms = baths;
-  const sqft = parseLabeledNumber(/([\d,]+)\s*sqft\b/i.exec(html)?.[1]);
+  const sqft = parseLabeledNumber(new RegExp(`${MONEY_RANGE}\\s*sqft\\b`, 'i').exec(html)?.[1]);
   if (sqft !== undefined) fields.square_feet = sqft;
   return fields;
 }

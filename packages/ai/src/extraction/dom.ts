@@ -94,7 +94,7 @@ const NEXT_DATA_REGEX =
  * `Object.assign`. Returning `undefined` causes JSON.parse to omit the key
  * entirely (ECMA-262 24.5.1).
  */
-function safeReviver(key: string, value: unknown): unknown {
+export function safeReviver(key: string, value: unknown): unknown {
   if (key === '__proto__' || key === 'constructor') return undefined;
   return value;
 }
@@ -120,8 +120,16 @@ export function extractNextData(html: string): unknown | null {
 
 /**
  * Parse a labeled-DOM number, e.g. "$1,950/mo" → 1950, "2 beds" → 2,
- * "1,200 sqft" → 1200. Strips thousands separators and takes the first numeric
- * token (handles fractional baths like "1.5"). Returns `undefined` on failure.
+ * "1,200 sqft" → 1200. Strips thousands separators and takes the FIRST numeric
+ * token, so a captured RANGE collapses to its LOW bound:
+ * "$1,200 - $1,800" → 1200, "2-3" → 2. This matches `parsePrice` in `og.ts` —
+ * the low is the value students filter by, and the two layers must agree so a
+ * gap-fill from one never contradicts the other. (handles fractional baths
+ * like "1.5"). Returns `undefined` on failure.
+ *
+ * NOTE: this only matters once the per-site regex actually CAPTURES the range.
+ * The site regexes use `LABELED_*` (below) so the captured group spans the full
+ * range; `parseLabeledNumber` then reduces it to the low bound here.
  */
 export function parseLabeledNumber(raw: string | undefined): number | undefined {
   if (!raw) return undefined;
@@ -130,6 +138,34 @@ export function parseLabeledNumber(raw: string | undefined): number | undefined 
   const parsed = Number(token[0]);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
+
+// ---------------------------------------------------------------------------
+// Labeled-DOM range-aware capture fragments (FIX 1 — AIN-47)
+//
+// Listing pages publish multi-unit rent/beds/baths/sqft as a RANGE
+// ("$1,200 - $1,800/mo", "2-3 beds", "1,000 - 1,400 sqft"). The earlier
+// single-token capture either dropped the price range entirely (the `/mo`
+// anchor failed to follow the first number) or grabbed the HIGH end of a
+// bed/bath range (the regex backtracked to the second number that was actually
+// followed by the label). Both contradict `og.ts`, which collapses a range to
+// its LOW bound.
+//
+// Fix: capture the WHOLE range (the optional `- N` suffix) into the group, then
+// let `parseLabeledNumber` reduce it to the low bound. The range suffix is
+// OPTIONAL, so single-value pages still match unchanged.
+// ---------------------------------------------------------------------------
+
+/** A money/sqft token: optional `$`, digits with optional thousands commas, optional decimal. */
+const MONEY_TOKEN = String.raw`\$?[\d,]+(?:\.\d+)?`;
+/** A bed/bath count token: digits with optional decimal (fractional baths). */
+const COUNT_TOKEN = String.raw`\d+(?:\.\d+)?`;
+/** Range separator: hyphen or en/em dash, optionally spaced (`-`, ` - `, `–`). */
+const RANGE_SEP = String.raw`\s*[-–—]\s*`;
+
+/** Capture a money/sqft value or range: "$1,200" or "$1,200 - $1,800" → group 1. */
+export const MONEY_RANGE = `(${MONEY_TOKEN}(?:${RANGE_SEP}${MONEY_TOKEN})?)`;
+/** Capture a count value or range: "2" or "2-3" → group 1. */
+export const COUNT_RANGE = `(${COUNT_TOKEN}(?:${RANGE_SEP}${COUNT_TOKEN})?)`;
 
 /**
  * Resolve a possibly-relative URL against the source URL, http(s)-only.

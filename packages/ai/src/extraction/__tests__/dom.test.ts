@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { describe, it, expect } from 'vitest';
 
-import { extractFromDom, extractNextData } from '../dom';
+import { extractFromDom, extractNextData, resolvePhotoUrl, resolvePhotoUrls } from '../dom';
 import { extractZillow } from '../sites/zillow';
 import { extractTrulia } from '../sites/trulia';
 import { extractRealtor } from '../sites/realtor';
@@ -74,6 +74,102 @@ describe('extractNextData', () => {
     const html = `<script type='application/json' id='__NEXT_DATA__'>{"props":{"y":2}}</script>`;
     const data = extractNextData(html) as { props: { y: number } } | null;
     expect(data?.props.y).toBe(2);
+  });
+});
+
+// ===========================================================================
+// resolvePhotoUrl / resolvePhotoUrls (shared helper — security guarantee)
+//
+// FIX 2 (AIN-47): the photo-scheme filter is the layer's security boundary —
+// it drops non-http(s) schemes (`javascript:`, `data:`) and resolves relative
+// URLs to absolute against the source URL. Previously covered only indirectly
+// via fixtures; these assert it directly.
+// ===========================================================================
+
+describe('resolvePhotoUrl (photo scheme filter)', () => {
+  const base = 'https://www.example.com/listing/123/';
+
+  it('drops a javascript: scheme photo entry', () => {
+    expect(resolvePhotoUrl('javascript:alert(1)', base)).toBeUndefined();
+  });
+
+  it('drops a data: scheme photo entry', () => {
+    expect(resolvePhotoUrl('data:text/html,<script>alert(1)</script>', base)).toBeUndefined();
+  });
+
+  it('resolves a relative /img path to an absolute https URL', () => {
+    expect(resolvePhotoUrl('/img/x.jpg', base)).toBe('https://www.example.com/img/x.jpg');
+  });
+
+  it('passes a normal absolute https URL through unchanged', () => {
+    expect(resolvePhotoUrl('https://cdn.example.com/a.jpg', base)).toBe(
+      'https://cdn.example.com/a.jpg',
+    );
+  });
+});
+
+describe('resolvePhotoUrls (list filter + resolve + dedupe)', () => {
+  const base = 'https://www.example.com/listing/123/';
+
+  it('drops javascript:, resolves relative, keeps https — in one pass', () => {
+    const result = resolvePhotoUrls(
+      ['javascript:alert(1)', '/img/x.jpg', 'https://cdn.example.com/a.jpg'],
+      base,
+    );
+    expect(result).toEqual([
+      'https://www.example.com/img/x.jpg',
+      'https://cdn.example.com/a.jpg',
+    ]);
+  });
+
+  it('returns undefined when nothing survives the scheme filter', () => {
+    expect(resolvePhotoUrls(['javascript:alert(1)', 'data:x'], base)).toBeUndefined();
+  });
+});
+
+// ===========================================================================
+// Labeled-DOM range parsing → LOW bound (FIX 1, AIN-47)
+//
+// Multi-unit pages publish rent/beds/sqft as a RANGE. The DOM layer must take
+// the LOW bound, consistent with `og.ts` parsePrice ("the low is the value
+// students filter by"). Before this fix the per-site regexes either dropped a
+// price range entirely (the `/mo` anchor failed after the first number) or
+// grabbed the HIGH end of a bed range. Exercised through Zillow's labeled-DOM
+// path (blob absent so the labeled regex is what runs).
+// ===========================================================================
+
+describe('labeled-DOM range parsing (low bound)', () => {
+  it('resolves a ranged labeled price to the LOW bound', () => {
+    const html = `<span data-testid="price">$1,200 - $1,800/mo</span>`;
+    const fields = extractZillow(html, 'https://www.zillow.com/homedetails/range/0_zpid/');
+    expect(fields.price).toBe(1200);
+  });
+
+  it('resolves a ranged labeled bed count to the LOW bound', () => {
+    const html = `<div>2-3 beds</div>`;
+    const fields = extractZillow(html, 'https://www.zillow.com/homedetails/range/0_zpid/');
+    expect(fields.bedrooms).toBe(2);
+  });
+
+  it('resolves a ranged labeled sqft to the LOW bound', () => {
+    const html = `<div>1,000 - 1,400 sqft</div>`;
+    const fields = extractZillow(html, 'https://www.zillow.com/homedetails/range/0_zpid/');
+    expect(fields.square_feet).toBe(1000);
+  });
+
+  it('still parses a single (non-range) labeled price unchanged', () => {
+    const html = `<span data-testid="price">$1,950/mo</span>`;
+    const fields = extractZillow(html, 'https://www.zillow.com/homedetails/single/0_zpid/');
+    expect(fields.price).toBe(1950);
+  });
+
+  it('skips a stray number nested before the labeled bed token (Apartments.com)', () => {
+    // Real markup nests other spans (icon labels) inside bedRangeInfo. The lazy
+    // capture must backtrack past a stray "42" that is NOT followed by "beds"
+    // and land on the actual "2-3 Beds" range → LOW bound (2).
+    const html = `<p class="bedRangeInfo"><span class="iconLabel">42</span><span class="rentInfoDetail">2-3 Beds</span></p>`;
+    const fields = extractApartmentsCom(html, 'https://www.apartments.com/x/');
+    expect(fields.bedrooms).toBe(2);
   });
 });
 

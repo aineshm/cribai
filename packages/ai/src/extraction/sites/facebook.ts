@@ -17,7 +17,7 @@
  */
 
 import type { ExtractedFields } from '../types';
-import { resolvePhotoUrls, coerceNumber, coerceString, asObject as obj } from '../dom';
+import { resolvePhotoUrls, coerceNumber, coerceString, asObject as obj, safeReviver } from '../dom';
 
 /**
  * Match a `<script type="application/json" data-sjs>…</script>` blob. Several
@@ -47,12 +47,12 @@ function findMarketplaceListing(root: unknown): Record<string, unknown> | undefi
       for (const item of node) stack.push(item);
       continue;
     }
-    const obj = node as Record<string, unknown>;
-    const ml = obj.marketplace_listing;
+    const record = node as Record<string, unknown>;
+    const ml = record.marketplace_listing;
     if (ml && typeof ml === 'object' && !Array.isArray(ml)) {
       return ml as Record<string, unknown>;
     }
-    for (const value of Object.values(obj)) stack.push(value);
+    for (const value of Object.values(record)) stack.push(value);
   }
   return undefined;
 }
@@ -87,7 +87,9 @@ export const extractFacebook = (html: string, sourceUrl: string): Partial<Extrac
     if (!body) continue;
     let parsed: unknown;
     try {
-      parsed = JSON.parse(body);
+      // safeReviver scrubs `__proto__` / `constructor` — same proto-pollution
+      // defense as the __NEXT_DATA__ / JSON-LD paths (third-party HTML blob).
+      parsed = JSON.parse(body, safeReviver);
     } catch {
       continue;
     }

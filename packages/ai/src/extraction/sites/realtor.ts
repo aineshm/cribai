@@ -20,6 +20,8 @@ import {
   resolvePhotoUrls,
   coerceNumber,
   coerceString,
+  MONEY_RANGE,
+  COUNT_RANGE,
 } from '../dom';
 
 function fromNextData(html: string, sourceUrl: string): Partial<ExtractedFields> {
@@ -75,19 +77,21 @@ function fromNextData(html: string, sourceUrl: string): Partial<ExtractedFields>
 function fromLabeledDom(html: string): Partial<ExtractedFields> {
   const fields: Partial<ExtractedFields> = {};
   const price = parseLabeledNumber(
-    /data-testid=["']list-price["'][^>]*>\s*\$?([\d,]+)\s*\/?\s*mo/i.exec(html)?.[1],
+    new RegExp(`data-testid=["']list-price["'][^>]*>\\s*${MONEY_RANGE}\\s*\\/?\\s*mo`, 'i').exec(html)?.[1],
   );
   if (price !== undefined) fields.price = price;
+  // A range collapses to the LOW bound via parseLabeledNumber.
+  // "Studio" is intentionally NOT mapped to 0 beds — left for gap-fill/LLM.
   const beds = parseLabeledNumber(
-    /data-label=["']property-meta-beds["'][^>]*>\s*(\d+(?:\.\d+)?)/i.exec(html)?.[1],
+    new RegExp(`data-label=["']property-meta-beds["'][^>]*>\\s*${COUNT_RANGE}`, 'i').exec(html)?.[1],
   );
   if (beds !== undefined) fields.bedrooms = beds;
   const baths = parseLabeledNumber(
-    /data-label=["']property-meta-baths["'][^>]*>\s*(\d+(?:\.\d+)?)/i.exec(html)?.[1],
+    new RegExp(`data-label=["']property-meta-baths["'][^>]*>\\s*${COUNT_RANGE}`, 'i').exec(html)?.[1],
   );
   if (baths !== undefined) fields.bathrooms = baths;
   const sqft = parseLabeledNumber(
-    /data-label=["']property-meta-sqft["'][^>]*>\s*([\d,]+)/i.exec(html)?.[1],
+    new RegExp(`data-label=["']property-meta-sqft["'][^>]*>\\s*${MONEY_RANGE}`, 'i').exec(html)?.[1],
   );
   if (sqft !== undefined) fields.square_feet = sqft;
   return fields;
