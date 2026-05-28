@@ -1,0 +1,28 @@
+<!-- FIXTURE: synthetic, modeled on facebook ScheduledServerJS blob 2026-05-27 -->
+<!doctype html>
+<html lang="en">
+<head>
+<title>Marketplace - 2BR Sublease | Facebook</title>
+<meta property="og:type" content="product" />
+<!--
+  Facebook usually auth-walls / 403s a live bot fetch (the parent task accepts
+  this is the weakest production path). When a page DOES render, the listing
+  payload is buried in a ScheduledServerJS / require blob. This synthetic blob
+  is shaped to be extractable so the FB DOM logic is testable.
+-->
+<script type="application/json" data-sjs>
+{"require":[["ScheduledServerJS","handle",null,[{"__bbox":{"result":{"data":{"marketplace_listing":{
+  "marketplace_listing_title":"2BR Sublease near Camp Randall",
+  "listing_price":{"amount":"1500","currency":"USD","formatted_amount":"$1,500/mo"},
+  "redacted_description":{"text":"Subleasing a 2 bed near Camp Randall from June to August. Utilities included."},
+  "location_text":{"text":"Madison, WI"},
+  "listing_photos":[
+    {"image":{"uri":"https://scontent.fbcdn.net/v/fb-sublease-1.jpg"}},
+    {"image":{"uri":"https://scontent.fbcdn.net/v/fb-sublease-2.jpg"}}
+  ]
+}}}}}]]]
+}
+</script>
+</head>
+<body><div role="main">2BR Sublease near Camp Randall</div></body>
+</html>

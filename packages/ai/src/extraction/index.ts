@@ -48,6 +48,10 @@ export { LIMITS, filterHttpUrls, normalizeFields } from './normalize';
 export { pruneHtml } from './prune-html';
 export { createLlmExtractor } from './llm-parse';
 export type { LlmExtractor, ExtractionMethod } from './types';
+// Layer 3 (Day 5-6): per-site DOM fallback extractors. Exported here so the
+// escalation wiring in Task 3 can call `extractFromDom`; `extractNextData` is
+// surfaced for callers that want the raw Next.js blob without per-site logic.
+export { extractFromDom, extractNextData, type SiteExtractor } from './dom';
 
 /**
  * The bot user-agent we present to listing sites. Honest about who we are,
