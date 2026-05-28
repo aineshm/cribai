@@ -1,0 +1,490 @@
+/**
+ * Tests for the `addListing` CRM workflow (AIN-15, Track C Phase 1).
+ *
+ * Follows TDD: tests assert the contract; the implementation lives in
+ * `packages/ai/src/crm/add-listing.ts`.
+ *
+ * Supabase stub pattern: two independent chains from `from('crm_listings')`:
+ *   - SELECT chain (dedup):  `.select().eq().eq().neq().maybeSingle()`
+ *   - INSERT chain:          `.insert().select().single()`
+ *
+ * The `from` mock is configured per test so each scenario can control
+ * both chains independently.
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { AddListingError, addListing } from '../add-listing';
+import { ExtractionError } from '../../extraction';
+import type { AddListingDeps, ExtractedListing } from '../types';
+import {
+  highConfidenceListing,
+  mediumConfidenceListing,
+  lowConfidenceOgOnly,
+} from '../__fixtures__/extracted-listing';
+
+// ---------------------------------------------------------------------------
+// DB builder stub helpers
+// ---------------------------------------------------------------------------
+
+interface DedupChain {
+  eq: ReturnType<typeof vi.fn>;
+  neq: ReturnType<typeof vi.fn>;
+  maybeSingle: ReturnType<typeof vi.fn>;
+}
+
+interface InsertSelectChain {
+  single: ReturnType<typeof vi.fn>;
+}
+
+interface InsertChain {
+  select: ReturnType<typeof vi.fn>;
+}
+
+interface TableBuilder {
+  select: ReturnType<typeof vi.fn>;
+  insert: ReturnType<typeof vi.fn>;
+  _dedupChain: DedupChain;
+  _insertChain: InsertChain;
+  _insertSelectChain: InsertSelectChain;
+}
+
+/**
+ * Build a Supabase table-builder stub whose dedup SELECT and INSERT chains
+ * are independently inspectable.
+ *
+ * @param dedupRow  Row returned by `.maybeSingle()`. null → no existing row.
+ * @param insertId  Row id returned by `.single()` after insert. 'new-id' by default.
+ * @param insertError  Error object to return from insert `.single()`. null → success.
+ */
+function buildTableBuilder(
+  dedupRow: { id: string; extraction_confidence: number | null } | null = null,
+  insertId = 'new-listing-id',
+  insertError: unknown = null,
+): TableBuilder {
+  const dedupChain: DedupChain = {
+    eq: vi.fn(),
+    neq: vi.fn(),
+    maybeSingle: vi.fn().mockResolvedValue({ data: dedupRow, error: null }),
+  };
+  // Chain: select().eq().eq().neq().maybeSingle()
+  dedupChain.eq.mockReturnValue(dedupChain);
+  dedupChain.neq.mockReturnValue(dedupChain);
+
+  const insertSelectChain: InsertSelectChain = {
+    single: vi.fn().mockResolvedValue({
+      data: insertError ? null : { id: insertId },
+      error: insertError,
+    }),
+  };
+  const insertChain: InsertChain = {
+    select: vi.fn().mockReturnValue(insertSelectChain),
+  };
+
+  // select() returns the dedup chain; insert() returns the insert chain.
+  const tableBuilder: TableBuilder = {
+    select: vi.fn().mockReturnValue(dedupChain),
+    insert: vi.fn().mockReturnValue(insertChain),
+    _dedupChain: dedupChain,
+    _insertChain: insertChain,
+    _insertSelectChain: insertSelectChain,
+  };
+
+  return tableBuilder;
+}
+
+/**
+ * Build a minimal SupabaseClient mock from a pre-configured table builder.
+ */
+function buildDb(tableBuilder: TableBuilder): SupabaseClient {
+  return { from: vi.fn().mockReturnValue(tableBuilder) } as unknown as SupabaseClient;
+}
+
+// ---------------------------------------------------------------------------
+// Default deps factory
+// ---------------------------------------------------------------------------
+
+function makeDeps(
+  overrides: Partial<AddListingDeps> & {
+    tableBuilder?: TableBuilder;
+    extractedListing?: ExtractedListing;
+    extractError?: unknown;
+  } = {},
+): AddListingDeps & { tableBuilder: TableBuilder } {
+  const listing = overrides.extractedListing ?? highConfidenceListing;
+  const extractFn = overrides.extractError
+    ? vi.fn().mockRejectedValue(overrides.extractError)
+    : vi.fn().mockResolvedValue(listing);
+
+  const tableBuilder = overrides.tableBuilder ?? buildTableBuilder();
+  const db = buildDb(tableBuilder);
+
+  const deps: AddListingDeps = {
+    extract: extractFn,
+    db,
+    userId: 'user-abc',
+    ...overrides,
+  };
+
+  return Object.assign(deps, { tableBuilder });
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+const INPUT_URL = 'https://zillow.com/homedetails/123-main-st/123456789_zpid/';
+
+describe('addListing', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // -------------------------------------------------------------------------
+  // Happy path
+  // -------------------------------------------------------------------------
+
+  describe('happy path (highConfidenceListing)', () => {
+    it('inserts correctly mapped row and returns success result', async () => {
+      const onSaved = vi.fn();
+      const deps = makeDeps({ onSaved });
+
+      const result = await addListing(INPUT_URL, deps);
+
+      // Return shape
+      expect(result.listingId).toBe('new-listing-id');
+      expect(result.alreadySaved).toBe(false);
+      expect(result.confidence).toBe(0.9); // high → 0.9
+
+      // Insert called exactly once
+      expect(deps.tableBuilder.insert).toHaveBeenCalledTimes(1);
+
+      const row = deps.tableBuilder.insert.mock.calls[0]![0] as Record<string, unknown>;
+
+      // Key field mappings from the spec
+      expect(row['source_url']).toBe(INPUT_URL);
+      expect(row['user_id']).toBe('user-abc');
+      expect(row['rent']).toBe(1400);             // price → rent
+      expect(row['sqft']).toBe(850);              // square_feet → sqft
+      expect(row['extraction_confidence']).toBe(0.9);
+      expect(Array.isArray(row['amenities'])).toBe(true);
+      expect(Array.isArray(row['photo_urls'])).toBe(true);
+
+      // raw_extraction stashes all three fields
+      const rawExtraction = row['raw_extraction'] as Record<string, unknown>;
+      expect(rawExtraction).toHaveProperty('raw_json_ld');
+      expect(rawExtraction).toHaveProperty('raw_og');
+      expect(rawExtraction).toHaveProperty('extraction_method');
+
+      // onSaved fired with the new id
+      expect(onSaved).toHaveBeenCalledTimes(1);
+      expect(onSaved).toHaveBeenCalledWith('new-listing-id');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Coordinate resolution
+  // -------------------------------------------------------------------------
+
+  describe('coordinate resolution', () => {
+    it('uses extracted lat/lng and does NOT call geocode', async () => {
+      const geocode = vi.fn();
+      const deps = makeDeps({ geocode, placesApiKey: 'key-abc' });
+
+      await addListing(INPUT_URL, deps);
+
+      expect(geocode).not.toHaveBeenCalled();
+
+      const row = deps.tableBuilder.insert.mock.calls[0]![0] as Record<string, unknown>;
+      // highConfidenceListing has lat=43.0731, lng=-89.4012
+      // PostGIS: POINT(lng lat) → longitude first
+      expect(row['coordinates']).toBe('SRID=4326;POINT(-89.4012 43.0731)');
+    });
+
+    it('calls geocode when extraction has no lat/lng but has address + apiKey', async () => {
+      const geocode = vi.fn().mockResolvedValue({ latitude: 43.1, longitude: -89.5 });
+      const tableBuilder = buildTableBuilder();
+      const deps = makeDeps({
+        extractedListing: mediumConfidenceListing, // no lat/lng, has address
+        tableBuilder,
+        geocode,
+        placesApiKey: 'key-abc',
+      });
+
+      await addListing(INPUT_URL, deps);
+
+      expect(geocode).toHaveBeenCalledTimes(1);
+      expect(geocode).toHaveBeenCalledWith(mediumConfidenceListing.address, 'key-abc');
+
+      const row = tableBuilder.insert.mock.calls[0]![0] as Record<string, unknown>;
+      expect(row['coordinates']).toBe('SRID=4326;POINT(-89.5 43.1)');
+    });
+
+    it('omits coordinates key entirely when no lat/lng and no geocode dep', async () => {
+      const tableBuilder = buildTableBuilder();
+      const deps = makeDeps({
+        extractedListing: lowConfidenceOgOnly, // no lat/lng, no address
+        tableBuilder,
+        // no geocode, no placesApiKey
+      });
+
+      await addListing(INPUT_URL, deps);
+
+      const row = tableBuilder.insert.mock.calls[0]![0] as Record<string, unknown>;
+      expect(row).not.toHaveProperty('coordinates');
+    });
+
+    it('omits coordinates when medium listing has address but no apiKey', async () => {
+      // geocode dep present but no apiKey → should not call geocode
+      const geocode = vi.fn();
+      const tableBuilder = buildTableBuilder();
+      const deps = makeDeps({
+        extractedListing: mediumConfidenceListing,
+        tableBuilder,
+        geocode,
+        // no placesApiKey
+      });
+
+      await addListing(INPUT_URL, deps);
+
+      expect(geocode).not.toHaveBeenCalled();
+      const row = tableBuilder.insert.mock.calls[0]![0] as Record<string, unknown>;
+      expect(row).not.toHaveProperty('coordinates');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Dedup
+  // -------------------------------------------------------------------------
+
+  describe('dedup', () => {
+    it('returns existing row without inserting when active row found', async () => {
+      const onSaved = vi.fn();
+      const existingRow = { id: 'existing-id', extraction_confidence: 0.7 };
+      const tableBuilder = buildTableBuilder(existingRow);
+      const deps = makeDeps({ tableBuilder, onSaved });
+
+      const result = await addListing(INPUT_URL, deps);
+
+      expect(result.listingId).toBe('existing-id');
+      expect(result.alreadySaved).toBe(true);
+      expect(result.confidence).toBe(0.7);
+
+      // No insert
+      expect(tableBuilder.insert).not.toHaveBeenCalled();
+      // onSaved NOT called on dedup
+      expect(onSaved).not.toHaveBeenCalled();
+    });
+
+    it('uses extracted confidence when existing row has null extraction_confidence', async () => {
+      const existingRow = { id: 'existing-id', extraction_confidence: null };
+      const tableBuilder = buildTableBuilder(existingRow);
+      const deps = makeDeps({ tableBuilder }); // highConfidenceListing → 0.9
+
+      const result = await addListing(INPUT_URL, deps);
+
+      expect(result.confidence).toBe(0.9);
+    });
+
+    it('filters dedup query by status != archived (neq called with archived)', async () => {
+      const tableBuilder = buildTableBuilder();
+      const deps = makeDeps({ tableBuilder });
+
+      await addListing(INPUT_URL, deps);
+
+      // neq should be called with 'status', 'archived'
+      expect(tableBuilder._dedupChain.neq).toHaveBeenCalledWith('status', 'archived');
+    });
+
+    it('proceeds with insert when only an archived row exists (dedup returns null)', async () => {
+      // The query filters status != 'archived', so an archived row won't be returned.
+      // Simulate: no row returned (dedup query already excludes archived rows server-side)
+      const tableBuilder = buildTableBuilder(null); // dedup returns null → insert proceeds
+      const deps = makeDeps({ tableBuilder });
+
+      const result = await addListing(INPUT_URL, deps);
+
+      expect(result.alreadySaved).toBe(false);
+      expect(tableBuilder.insert).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // ExtractionError mapping
+  // -------------------------------------------------------------------------
+
+  describe('ExtractionError mapping', () => {
+    const ERROR_CASES: Array<{
+      code: 'fetch_blocked' | 'fetch_failed' | 'parse_failed' | 'no_listing_data';
+      expectedCode: string;
+      expectedMessageFragment: string;
+    }> = [
+      {
+        code: 'fetch_blocked',
+        expectedCode: 'fetch_blocked',
+        expectedMessageFragment: 'blocking automated reads',
+      },
+      {
+        code: 'fetch_failed',
+        expectedCode: 'fetch_failed',
+        expectedMessageFragment: "couldn't reach",
+      },
+      {
+        code: 'parse_failed',
+        expectedCode: 'parse_failed',
+        expectedMessageFragment: "doesn't look like a valid listing URL",
+      },
+      {
+        code: 'no_listing_data',
+        expectedCode: 'no_listing_data',
+        expectedMessageFragment: "couldn't find listing details",
+      },
+    ];
+
+    for (const { code, expectedCode, expectedMessageFragment } of ERROR_CASES) {
+      it(`wraps ExtractionError(${code}) as AddListingError`, async () => {
+        const extractionErr = new ExtractionError(code, `test error for ${code}`, INPUT_URL);
+        const deps = makeDeps({ extractError: extractionErr });
+
+        await expect(addListing(INPUT_URL, deps)).rejects.toSatisfy(
+          (err: unknown) => {
+            if (!(err instanceof AddListingError)) return false;
+            return (
+              err.code === expectedCode &&
+              err.userMessage.includes(expectedMessageFragment)
+            );
+          },
+        );
+      });
+    }
+
+    it('defaults to fetch_failed code for unknown errors without a code property', async () => {
+      const unknownErr = new Error('network blew up');
+      const deps = makeDeps({ extractError: unknownErr });
+
+      await expect(addListing(INPUT_URL, deps)).rejects.toSatisfy(
+        (err: unknown) =>
+          err instanceof AddListingError && err.code === 'fetch_failed',
+      );
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // DB insert error
+  // -------------------------------------------------------------------------
+
+  describe('DB insert error', () => {
+    it('throws AddListingError with db_error code when insert fails', async () => {
+      const onSaved = vi.fn();
+      const dbError = { message: 'constraint violation', code: '23505' };
+      const tableBuilder = buildTableBuilder(null, 'irrelevant', dbError);
+      const deps = makeDeps({ tableBuilder, onSaved });
+
+      await expect(addListing(INPUT_URL, deps)).rejects.toSatisfy(
+        (err: unknown) =>
+          err instanceof AddListingError &&
+          err.code === 'db_error' &&
+          err.userMessage.includes("couldn't save"),
+      );
+
+      // onSaved must NOT be called when insert fails
+      expect(onSaved).not.toHaveBeenCalled();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // onSaved fire-and-forget safety
+  // -------------------------------------------------------------------------
+
+  describe('onSaved hook', () => {
+    it('does not throw when onSaved hook throws synchronously', async () => {
+      const onSaved = vi.fn().mockImplementation(() => {
+        throw new Error('hook exploded');
+      });
+      const deps = makeDeps({ onSaved });
+
+      // addListing should still resolve successfully
+      await expect(addListing(INPUT_URL, deps)).resolves.toMatchObject({
+        listingId: 'new-listing-id',
+        alreadySaved: false,
+      });
+    });
+
+    it('does not await onSaved (async throwing hook does not break addListing)', async () => {
+      const onSaved = vi.fn().mockReturnValue(
+        Promise.reject(new Error('async hook failed')),
+      );
+      const deps = makeDeps({ onSaved });
+
+      // Should resolve without propagating the async rejection
+      await expect(addListing(INPUT_URL, deps)).resolves.toMatchObject({
+        alreadySaved: false,
+      });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Row mapping details
+  // -------------------------------------------------------------------------
+
+  describe('row mapping', () => {
+    it('maps source_site from first dotted label of source_domain', async () => {
+      const deps = makeDeps(); // highConfidenceListing.source_domain = 'zillow.com'
+
+      await addListing(INPUT_URL, deps);
+
+      const row = deps.tableBuilder.insert.mock.calls[0]![0] as Record<string, unknown>;
+      expect(row['source_site']).toBe('zillow');
+    });
+
+    it('sets source_site to null when source_domain is empty', async () => {
+      const tableBuilder = buildTableBuilder();
+      const deps = makeDeps({
+        extractedListing: { ...highConfidenceListing, source_domain: '' },
+        tableBuilder,
+      });
+
+      await addListing(INPUT_URL, deps);
+
+      const row = tableBuilder.insert.mock.calls[0]![0] as Record<string, unknown>;
+      expect(row['source_site']).toBeNull();
+    });
+
+    it('maps low-confidence listing with minimal fields without crashing', async () => {
+      const tableBuilder = buildTableBuilder(null, 'low-conf-id');
+      const deps = makeDeps({
+        extractedListing: lowConfidenceOgOnly,
+        tableBuilder,
+      });
+
+      const result = await addListing(INPUT_URL, deps);
+
+      expect(result.listingId).toBe('low-conf-id');
+      expect(result.confidence).toBe(0.3);
+
+      const row = tableBuilder.insert.mock.calls[0]![0] as Record<string, unknown>;
+      expect(row['bedrooms']).toBeNull();
+      expect(row['bathrooms']).toBeNull();
+      expect(row['sqft']).toBeNull();
+      expect(row['address']).toBeNull();
+      expect(row['description']).toBeNull();
+      expect(Array.isArray(row['amenities'])).toBe(true);
+      expect(Array.isArray(row['photo_urls'])).toBe(true);
+    });
+
+    it('stores raw_og in raw_extraction when extraction has OG data', async () => {
+      const tableBuilder = buildTableBuilder(null, 'og-id');
+      const deps = makeDeps({
+        extractedListing: lowConfidenceOgOnly, // has raw_og
+        tableBuilder,
+      });
+
+      await addListing(INPUT_URL, deps);
+
+      const row = tableBuilder.insert.mock.calls[0]![0] as Record<string, unknown>;
+      const rawExtraction = row['raw_extraction'] as Record<string, unknown>;
+      expect(rawExtraction['raw_og']).toEqual(lowConfidenceOgOnly.raw_og);
+      expect(rawExtraction['extraction_method']).toBe('og');
+    });
+  });
+});
