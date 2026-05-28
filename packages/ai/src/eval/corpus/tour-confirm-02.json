@@ -1,0 +1,32 @@
+{
+  "id": "tour-confirm-02",
+  "bucket": "tour-confirm",
+  "source": "synthetic",
+  "description": "'book it' affirmative \u2014 confirm phase.",
+  "turns": [
+    {
+      "userMessage": "book it",
+      "priorState": {
+        "selectedListingId": "11111111-2222-4333-8444-555555555555",
+        "mode": "listing_detail",
+        "pendingAction": {
+          "kind": "tour",
+          "payload": {
+            "listingId": "11111111-2222-4333-8444-555555555555",
+            "studentEmail": "alex@wisc.edu",
+            "preferredDates": [
+              "2026-06-15"
+            ],
+            "previewConfirmedReady": true
+          }
+        }
+      }
+    }
+  ],
+  "expected": {
+    "toolSequence": [
+      "schedule_tour"
+    ],
+    "hitlPhase": "confirm"
+  }
+}

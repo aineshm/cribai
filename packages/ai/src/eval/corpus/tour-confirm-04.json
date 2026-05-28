@@ -1,0 +1,30 @@
+{
+  "id": "tour-confirm-04",
+  "bucket": "tour-confirm",
+  "source": "synthetic",
+  "description": "'actually wait' after preview \u2014 must NOT dispatch (no confirmed tour). HITL gate.",
+  "turns": [
+    {
+      "userMessage": "actually wait, let me think about it",
+      "priorState": {
+        "selectedListingId": "11111111-2222-4333-8444-555555555555",
+        "mode": "listing_detail",
+        "pendingAction": {
+          "kind": "tour",
+          "payload": {
+            "listingId": "11111111-2222-4333-8444-555555555555",
+            "studentEmail": "alex@wisc.edu",
+            "preferredDates": [
+              "2026-06-15"
+            ],
+            "previewConfirmedReady": true
+          }
+        }
+      }
+    }
+  ],
+  "expected": {
+    "toolSequence": [],
+    "hitlPhase": "preview"
+  }
+}

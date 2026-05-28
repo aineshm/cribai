@@ -1,0 +1,21 @@
+{
+  "id": "detail-04",
+  "bucket": "detail",
+  "source": "synthetic",
+  "description": "Reviews question on the selected listing routes to get_reviews.",
+  "turns": [
+    {
+      "userMessage": "what do tenants say about this building?",
+      "priorState": {
+        "selectedListingId": "11111111-2222-4333-8444-555555555555",
+        "mode": "listing_detail"
+      }
+    }
+  ],
+  "expected": {
+    "toolSequence": [
+      "get_reviews"
+    ],
+    "hitlPhase": "none"
+  }
+}

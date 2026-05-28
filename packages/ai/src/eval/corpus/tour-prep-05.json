@@ -1,0 +1,21 @@
+{
+  "id": "tour-prep-05",
+  "bucket": "tour-prep",
+  "source": "synthetic",
+  "description": "Tour request that should NOT be confirmed on first ask.",
+  "turns": [
+    {
+      "userMessage": "let's tour it \u2014 taylor@wisc.edu, available 2026-06-25",
+      "priorState": {
+        "selectedListingId": "66666666-7777-4888-8999-aaaaaaaaaaaa",
+        "mode": "listing_detail"
+      }
+    }
+  ],
+  "expected": {
+    "toolSequence": [
+      "schedule_tour"
+    ],
+    "hitlPhase": "preview"
+  }
+}

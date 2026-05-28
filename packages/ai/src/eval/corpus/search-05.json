@@ -1,0 +1,17 @@
+{
+  "id": "search-05",
+  "bucket": "search",
+  "source": "synthetic",
+  "description": "Price-bounded search with move-in framing.",
+  "turns": [
+    {
+      "userMessage": "3 bedroom apartments between $1800 and $2400 for fall"
+    }
+  ],
+  "expected": {
+    "toolSequence": [
+      "search_listings"
+    ],
+    "hitlPhase": "none"
+  }
+}

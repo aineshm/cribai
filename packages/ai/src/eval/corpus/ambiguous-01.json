@@ -1,0 +1,30 @@
+{
+  "id": "ambiguous-01",
+  "bucket": "ambiguous",
+  "source": "synthetic",
+  "description": "Vague 'what about cheaper' follow-up after a search \u2014 re-search.",
+  "turns": [
+    {
+      "userMessage": "anything cheaper?",
+      "priorState": {
+        "lastSearch": {
+          "args": {
+            "bedrooms": 2
+          },
+          "resultListingIds": [
+            "11111111-2222-4333-8444-555555555555",
+            "66666666-7777-4888-8999-aaaaaaaaaaaa"
+          ],
+          "generatedAt": "2026-05-20T00:00:00.000Z",
+          "source": "chat_search"
+        }
+      }
+    }
+  ],
+  "expected": {
+    "toolSequence": [
+      "search_listings"
+    ],
+    "hitlPhase": "none"
+  }
+}

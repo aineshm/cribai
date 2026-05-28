@@ -1,0 +1,21 @@
+{
+  "id": "tour-prep-01",
+  "bucket": "tour-prep",
+  "source": "synthetic",
+  "description": "User asks to tour the selected listing \u2014 preview phase, NO confirmed.",
+  "turns": [
+    {
+      "userMessage": "I want to tour this place. My email is alex@wisc.edu, I'm free 2026-06-15.",
+      "priorState": {
+        "selectedListingId": "11111111-2222-4333-8444-555555555555",
+        "mode": "listing_detail"
+      }
+    }
+  ],
+  "expected": {
+    "toolSequence": [
+      "schedule_tour"
+    ],
+    "hitlPhase": "preview"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "id": "search-03",
+  "bucket": "search",
+  "source": "synthetic",
+  "description": "Fairness/value framed search \u2014 still one search_listings call.",
+  "turns": [
+    {
+      "userMessage": "what are the best value studios you have?"
+    }
+  ],
+  "expected": {
+    "toolSequence": [
+      "search_listings"
+    ],
+    "hitlPhase": "none"
+  }
+}

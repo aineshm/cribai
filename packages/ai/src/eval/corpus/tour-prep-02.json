@@ -1,0 +1,21 @@
+{
+  "id": "tour-prep-02",
+  "bucket": "tour-prep",
+  "source": "synthetic",
+  "description": "Set up a tour, all fields present \u2014 preview only.",
+  "turns": [
+    {
+      "userMessage": "schedule a tour for me, name Sam, sam@wisc.edu, dates 2026-06-20",
+      "priorState": {
+        "selectedListingId": "66666666-7777-4888-8999-aaaaaaaaaaaa",
+        "mode": "listing_detail"
+      }
+    }
+  ],
+  "expected": {
+    "toolSequence": [
+      "schedule_tour"
+    ],
+    "hitlPhase": "preview"
+  }
+}

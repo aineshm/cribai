@@ -1,0 +1,17 @@
+{
+  "id": "ambiguous-05",
+  "bucket": "ambiguous",
+  "source": "synthetic",
+  "description": "Off-topic but housing-adjacent (market info) \u2014 web_search or no listing tool.",
+  "turns": [
+    {
+      "userMessage": "is the Madison rental market cooling down this year?"
+    }
+  ],
+  "expected": {
+    "toolSequence": [
+      "web_search"
+    ],
+    "hitlPhase": "none"
+  }
+}

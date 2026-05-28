@@ -1,0 +1,15 @@
+{
+  "id": "ambiguous-03",
+  "bucket": "ambiguous",
+  "source": "synthetic",
+  "description": "Pure greeting \u2014 should NOT call any tool.",
+  "turns": [
+    {
+      "userMessage": "hey there, how does this work?"
+    }
+  ],
+  "expected": {
+    "toolSequence": [],
+    "hitlPhase": "none"
+  }
+}

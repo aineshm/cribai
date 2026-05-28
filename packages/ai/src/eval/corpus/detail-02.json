@@ -1,0 +1,21 @@
+{
+  "id": "detail-02",
+  "bucket": "detail",
+  "source": "synthetic",
+  "description": "True-cost question on the selected listing.",
+  "turns": [
+    {
+      "userMessage": "what's the true cost on this place including utilities?",
+      "priorState": {
+        "selectedListingId": "11111111-2222-4333-8444-555555555555",
+        "mode": "listing_detail"
+      }
+    }
+  ],
+  "expected": {
+    "toolSequence": [
+      "get_listing_detail"
+    ],
+    "hitlPhase": "none"
+  }
+}

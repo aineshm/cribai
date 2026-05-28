@@ -1,0 +1,21 @@
+{
+  "id": "tour-prep-04",
+  "bucket": "tour-prep",
+  "source": "synthetic",
+  "description": "Tour with notes \u2014 preview, no confirmed.",
+  "turns": [
+    {
+      "userMessage": "book a tour, pat@wisc.edu, 2026-06-18, prefer afternoons",
+      "priorState": {
+        "selectedListingId": "22222222-3333-4444-8555-666666666666",
+        "mode": "listing_detail"
+      }
+    }
+  ],
+  "expected": {
+    "toolSequence": [
+      "schedule_tour"
+    ],
+    "hitlPhase": "preview"
+  }
+}

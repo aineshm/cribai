@@ -1,0 +1,17 @@
+{
+  "id": "ambiguous-04",
+  "bucket": "ambiguous",
+  "source": "synthetic",
+  "description": "Complex multi-step overnight request \u2014 propose_mission, not a single search.",
+  "turns": [
+    {
+      "userMessage": "watch all 3BR listings under $1500 for the next week and ping me"
+    }
+  ],
+  "expected": {
+    "toolSequence": [
+      "propose_mission"
+    ],
+    "hitlPhase": "none"
+  }
+}
