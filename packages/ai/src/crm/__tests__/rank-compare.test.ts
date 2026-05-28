@@ -250,6 +250,40 @@ describe('rankCompare — commute scoring', () => {
       expect(item.breakdown['commute']).toBeCloseTo(0.5, 5);
     }
   });
+
+  it('returns 0.5 commute sub-score even when profile has BOTH home_base_address AND commute_max_minutes set (Phase 1 contract)', async () => {
+    // Spec listed "near listing scores higher than far one" — but migration 037
+    // (crm_inferred_profiles) has NO home_base_latitude / home_base_longitude columns,
+    // and this module is forbidden from geocoding. Phase 1 therefore cannot compute
+    // straight-line distance to home base and always returns COMMUTE_NEUTRAL = 0.5.
+    //
+    // This test pins the Phase 1 contract: two listings at very different distances
+    // from a real UW-Madison address should produce identical commute sub-scores.
+    // Phase 2 fix: add home_base_latitude/longitude to crm_inferred_profiles OR
+    // accept a pre-computed commuteMinutes map as a deps argument.
+    const fullCommuteProfile: InferredProfile = {
+      rent_min: null,
+      rent_max: null,
+      bedrooms_target: null,
+      must_have_amenities: [],
+      nice_to_have_amenities: [],
+      home_base_address: '432 N Lake St, Madison, WI 53706',
+      commute_max_minutes: 20, // fully specified — but coords are unavailable
+      weights: { rent: 0, bedrooms: 0, sqft: 0, commute: 1 },
+      confidence: 0.7,
+    };
+    // nearRow is ~0.2 km from the home base, farRow is ~3 km away.
+    const nearRow = makeCrmRow({ id: 'comm-near', status: 'active', latitude: 43.075, longitude: -89.4 });
+    const farRow = makeCrmRow({ id: 'comm-far', status: 'active', latitude: 43.048, longitude: -89.42 });
+
+    const result = await rankCompare({}, makeDeps([nearRow, farRow], fullCommuteProfile));
+
+    if (result.mode !== 'rank') throw new Error('wrong mode');
+    for (const item of result.ranked) {
+      // Phase 1: ALL listings get neutral 0.5; spatial ordering is Phase 2.
+      expect(item.breakdown['commute']).toBeCloseTo(0.5, 5);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
