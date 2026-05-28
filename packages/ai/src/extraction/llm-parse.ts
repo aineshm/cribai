@@ -41,8 +41,14 @@ import type { ExtractedFields, LlmExtractor } from './types';
  * skip a bad LLM result than feed garbage downstream.
  *
  * MUST stay in sync with `RESPONSE_SCHEMA` below (same field set / types).
+ * The drift guard in `__tests__/llm-parse.test.ts` asserts the two stay
+ * aligned (field names + scalar/array kinds), so a field added to one schema
+ * but not the other fails CI rather than silently mis-extracting.
+ *
+ * Exported only so that drift guard can read the shape keys; not part of the
+ * runtime extraction path.
  */
-const LlmExtractionSchema = z.object({
+export const LlmExtractionSchema = z.object({
   title: z.string().optional(),
   description: z.string().optional(),
   address: z.string().optional(),
@@ -63,8 +69,12 @@ const LlmExtractionSchema = z.object({
  * interchangeable in `@google/genai`). Steers the model to emit a flat JSON
  * object with the fields we want. Kept in lockstep with `LlmExtractionSchema`
  * above; the Zod schema is the authoritative validator after `JSON.parse`.
+ *
+ * Exported only so the drift guard can compare its property set against the
+ * Zod shape; not part of the runtime extraction path beyond being passed to
+ * `responseSchema`.
  */
-const RESPONSE_SCHEMA = {
+export const RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
     title: { type: Type.STRING },

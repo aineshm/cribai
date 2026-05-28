@@ -44,37 +44,31 @@ const WHITESPACE_RUN_PATTERN = /\s+/g;
 
 /**
  * Truncate a string so its UTF-8 encoding is at most `maxBytes` bytes, without
- * splitting a multibyte character. We trim trailing characters until the byte
- * length fits — a character may be 1–4 bytes, so dropping whole characters
- * guarantees we never emit a partial code unit (which would decode to U+FFFD).
+ * splitting a Unicode character. We accumulate whole CODE POINTS (not UTF-16
+ * code units) until adding the next one would exceed the budget — a code point
+ * may be 1–4 UTF-8 bytes, so dropping whole code points guarantees we never
+ * emit a partial sequence (which would decode to U+FFFD).
  *
- * Fast path: input already within budget is returned untouched. Otherwise we
- * make a proportional estimate of how many characters fit (chars-per-byte
- * ratio scaled to the budget), then nudge the cut point down a character at a
- * time to land exactly under the cap. Dropping whole characters guarantees we
- * never emit a partial code unit (which would decode to U+FFFD). The estimate
- * keeps the final adjustment loop short even on all-multibyte input.
+ * Iterating UTF-16 code units would be wrong: an astral character (emoji,
+ * CJK extension, etc.) is a surrogate PAIR of two code units, and cutting
+ * between them leaves a lone surrogate — exactly the partial code point this
+ * function promises never to emit. `[...value]` / `Array.from` iterate by code
+ * point, so each element is a complete 1–4 byte character.
+ *
+ * Fast path: input already within budget is returned untouched.
  */
 function capBytes(value: string, maxBytes: number): string {
   if (Buffer.byteLength(value, 'utf8') <= maxBytes) return value;
 
-  // Proportional first cut. `maxBytes / totalBytes` is the fraction of the
-  // string that fits; scaling `length` by it lands us at or just past the cap
-  // in O(n) rather than trimming ~n characters one by one.
-  const totalBytes = Buffer.byteLength(value, 'utf8');
-  const estimateChars = Math.floor((value.length * maxBytes) / totalBytes);
-  let sliced = value.slice(0, estimateChars);
-
-  // The estimate can over- or under-shoot by a few bytes when char widths vary.
-  // Grow while there's headroom, then shrink if we're over — at most a handful
-  // of iterations either way.
-  while (sliced.length < value.length && Buffer.byteLength(sliced + value[sliced.length], 'utf8') <= maxBytes) {
-    sliced += value[sliced.length];
+  let out = '';
+  let bytes = 0;
+  for (const char of value) {
+    const charBytes = Buffer.byteLength(char, 'utf8');
+    if (bytes + charBytes > maxBytes) break;
+    out += char;
+    bytes += charBytes;
   }
-  while (sliced.length > 0 && Buffer.byteLength(sliced, 'utf8') > maxBytes) {
-    sliced = sliced.slice(0, -1);
-  }
-  return sliced;
+  return out;
 }
 
 /**

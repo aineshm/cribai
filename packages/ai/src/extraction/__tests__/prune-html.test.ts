@@ -101,6 +101,23 @@ describe('pruneHtml', () => {
     expect(Buffer.from(out, 'utf8').toString('utf8')).toBe(out);
   });
 
+  it('never splits a surrogate-pair (astral) character mid-pair when truncating', () => {
+    // '😀' (U+1F600) is an astral char: two UTF-16 code units, 4 UTF-8 bytes.
+    // A byte cap that lands between the two code units would, with naive
+    // code-UNIT truncation, leave a LONE HIGH SURROGATE — a partial code point
+    // that re-encodes to U+FFFD. Cap by code POINTS instead, so a 4-byte glyph
+    // is kept or dropped whole. Test several caps that land mid-glyph (4-byte
+    // boundaries fall on multiples of 4: 3, 7, 10 all bisect a pair).
+    const big = '😀'.repeat(50);
+    for (const cap of [3, 7, 10]) {
+      const out = pruneHtml(big, cap);
+      expect(Buffer.byteLength(out, 'utf8')).toBeLessThanOrEqual(cap);
+      // Clean UTF-8 round-trip <=> no lone surrogate / partial sequence survived.
+      expect(Buffer.from(out, 'utf8').toString('utf8')).toBe(out);
+      expect(out).not.toContain('�');
+    }
+  });
+
   it('returns an empty string for empty input', () => {
     expect(pruneHtml('')).toBe('');
   });

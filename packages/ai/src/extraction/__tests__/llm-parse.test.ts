@@ -11,7 +11,9 @@
  * and NEVER throws.
  */
 
+import { Type } from '@google/genai';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
 
 // Mock the shared client factory. Each test installs its own `generateContent`
 // behaviour via `setModelResponse` / `setModelReject`.
@@ -20,7 +22,7 @@ vi.mock('../../gemini-client', () => ({
 }));
 
 import { createGeminiClient } from '../../gemini-client';
-import { createLlmExtractor } from '../llm-parse';
+import { LlmExtractionSchema, RESPONSE_SCHEMA, createLlmExtractor } from '../llm-parse';
 
 const generateContent = vi.fn();
 
@@ -153,5 +155,55 @@ describe('createLlmExtractor — graceful degradation', () => {
     generateContent.mockResolvedValue({ text: undefined });
     const extract = createLlmExtractor();
     await expect(extract('<html>...</html>', 'https://example.com/x')).resolves.toEqual({});
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Schema drift guard
+// ---------------------------------------------------------------------------
+
+/**
+ * `LlmExtractionSchema` (Zod, the post-parse validator) and `RESPONSE_SCHEMA`
+ * (the Gemini-side OpenAPI-style schema) are two hand-maintained lists of the
+ * same fields. If they drift — a field added to one but not the other, or a
+ * scalar/array kind that disagrees — the extractor silently mis-extracts
+ * instead of failing loudly. These tests pin the two together so drift fails
+ * CI at the unit level.
+ *
+ * We classify each schema down to a coarse kind ('scalar' | 'array') because
+ * that's the only distinction that affects validation: a Zod `z.array(...)`
+ * must line up with a Gemini `Type.ARRAY`, and everything else is a scalar.
+ */
+type FieldKind = 'scalar' | 'array';
+
+/** Reduce a Zod field (possibly `.optional()`) to its coarse kind. */
+function zodKind(schema: z.ZodTypeAny): FieldKind {
+  const inner = schema instanceof z.ZodOptional ? schema.unwrap() : schema;
+  return inner instanceof z.ZodArray ? 'array' : 'scalar';
+}
+
+/** Reduce a Gemini property descriptor to its coarse kind. */
+function geminiKind(prop: { type: Type }): FieldKind {
+  return prop.type === Type.ARRAY ? 'array' : 'scalar';
+}
+
+describe('schema drift guard — LlmExtractionSchema ↔ RESPONSE_SCHEMA', () => {
+  const zodShape = LlmExtractionSchema.shape;
+  const geminiProps = RESPONSE_SCHEMA.properties;
+
+  it('declares the identical set of field names in both schemas', () => {
+    const zodKeys = Object.keys(zodShape).sort();
+    const geminiKeys = Object.keys(geminiProps).sort();
+    expect(geminiKeys).toEqual(zodKeys);
+  });
+
+  it('agrees on scalar/array kind for every field', () => {
+    const zodKinds = Object.fromEntries(
+      Object.entries(zodShape).map(([name, schema]) => [name, zodKind(schema as z.ZodTypeAny)]),
+    );
+    const geminiKinds = Object.fromEntries(
+      Object.entries(geminiProps).map(([name, prop]) => [name, geminiKind(prop as { type: Type })]),
+    );
+    expect(geminiKinds).toEqual(zodKinds);
   });
 });
