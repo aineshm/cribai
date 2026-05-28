@@ -78,6 +78,28 @@ export const cannedInferredProfileSparseResponse: string = JSON.stringify({
   confidence: 0.3,
 });
 
+/**
+ * Inferred profile whose weights sum to 2.0 (not normalized).
+ * Used by the weight-normalization test to verify inferProfile divides each
+ * weight by the total so the output sums to ~1.0.
+ * Keys: rent=0.8, bedrooms=0.4, location=0.4, amenities=0.4  → sum=2.0
+ */
+export const cannedInferredProfileUnnormalizedResponse: string = JSON.stringify({
+  rent_min: 1000,
+  rent_max: 1800,
+  bedrooms_target: 2,
+  must_have_amenities: ['In-Unit Laundry'],
+  nice_to_have_amenities: ['Parking'],
+  home_base_address: null,
+  commute_max_minutes: 20,
+  weights: {
+    rent: 0.8,
+    bedrooms: 0.4,
+    location: 0.4,
+    amenities: 0.4,
+  },
+});
+
 // ---------------------------------------------------------------------------
 // Malformed / error cases
 // ---------------------------------------------------------------------------
