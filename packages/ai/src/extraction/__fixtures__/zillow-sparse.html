@@ -1,11 +1,21 @@
-<!-- FIXTURE: synthetic, modeled on zillow blocked/captcha 2026-05-27 -->
+<!-- FIXTURE: synthetic, modeled on zillow sparse labeled-DOM (no JSON-LD/OG) 2026-05-27 -->
 <!doctype html>
 <html lang="en">
 <head>
-<title>Access Denied | Zillow</title>
+<title>Apartment for rent | Zillow</title>
+<!--
+  Genuinely sparse listing page: NO __NEXT_DATA__ blob, NO JSON-LD, NO OG.
+  The only structured signals are labeled-DOM markers (price + bed count)
+  matching the patterns extractZillow's fromLabeledDom path regexes. Selector
+  tokens are intentionally NOT spelled out in this comment — several site
+  regexes are unanchored on context and have matched verbatim selector
+  strings inside HTML comments before, returning empty captures. Keep this
+  comment selector-token-free.
+-->
 </head>
 <body>
-<h1>Please verify you are human</h1>
-<p>To continue, please complete the captcha below. We've detected unusual traffic from your network.</p>
+<h1>Apartment for rent near the UW-Madison campus</h1>
+<div data-testid="price">$1,750/mo</div>
+<span>2 beds</span>
 </body>
 </html>

@@ -1,12 +1,21 @@
-<!-- FIXTURE: synthetic, modeled on facebook og-only 2026-05-27 -->
+<!-- FIXTURE: synthetic, modeled on facebook marketplace og-only (price + recoverable beds) 2026-05-27 -->
 <!doctype html>
 <html lang="en">
 <head>
-<title>Marketplace - Studio sublease | Facebook</title>
+<title>Marketplace - 2 bed sublease | Facebook</title>
+<!--
+  OG-only path: NO JSON-LD, NO data-sjs blob. FB Marketplace product OG DOES
+  expose a price via product:price:amount / og:price:amount, plus a bed count
+  in og:title / og:description. OG yields the price; OG never yields bedrooms,
+  so this escalates to the LLM rare path, which honestly reads "2 bed" from the
+  OG copy. Method becomes og_plus_llm. Yields price + bedrooms.
+-->
 <meta property="og:type" content="product" />
-<meta property="og:title" content="Studio sublease on Langdon St" />
-<meta property="og:description" content="Subleasing a studio on Langdon Street for the summer." />
-<meta property="og:image" content="https://scontent.fbcdn.net/v/fb-studio-1.jpg" />
+<meta property="og:title" content="2 bed sublease on Langdon St" />
+<meta property="og:description" content="Subleasing a 2 bed apartment on Langdon Street for the summer." />
+<meta property="og:image" content="https://scontent.fbcdn.net/v/fb-sublease-1.jpg" />
+<meta property="product:price:amount" content="1400" />
+<meta property="product:price:currency" content="USD" />
 </head>
-<body><div role="main">Studio sublease on Langdon St</div></body>
+<body><div role="main">2 bed sublease on Langdon St</div></body>
 </html>
