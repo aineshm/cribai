@@ -9,6 +9,7 @@
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
     "worker:missions": "tsx packages/ai/src/missions/worker-loop.ts",
+    "eval": "tsx packages/ai/src/eval/run-eval.ts",
     "clean": "turbo clean",
     "review": "codex review --base main",
     "review:staged": "codex review --uncommitted",

@@ -12,7 +12,17 @@
  *   Output: free
  */
 
-const PRICING = {
+/**
+ * Per-token pricing (USD). Exported so the LLM-first turn-cost projector
+ * (runtime/turn-cost.ts) reuses the SAME numbers — no duplicate pricing table.
+ *
+ * R5 PRICING NOTE (AIN-9): PDR-004 §Risks cites $0.30/M input, $2.50/M output
+ * as the Gemini 2.5 Flash AI Studio LIST price. These values are the VERTEX AI
+ * blended price ($0.15/M in, $0.60/M out). Prod runs on Vertex, so we use the
+ * Vertex numbers here and in the turn-cost projector. If/when prod moves to AI
+ * Studio list pricing, bump these (or override via env in turn-cost).
+ */
+export const PRICING = {
   'gemini-2.5-flash': {
     input: 0.15 / 1_000_000,
     output: 0.60 / 1_000_000,

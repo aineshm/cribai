@@ -1,0 +1,21 @@
+{
+  "id": "tour-prep-03",
+  "bucket": "tour-prep",
+  "source": "synthetic",
+  "description": "Tour request phrased as a question \u2014 still a preview.",
+  "turns": [
+    {
+      "userMessage": "can I set up a visit? jordan@wisc.edu works, 2026-07-01 is good",
+      "priorState": {
+        "selectedListingId": "11111111-2222-4333-8444-555555555555",
+        "mode": "listing_detail"
+      }
+    }
+  ],
+  "expected": {
+    "toolSequence": [
+      "schedule_tour"
+    ],
+    "hitlPhase": "preview"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "id": "search-02",
+  "bucket": "search",
+  "source": "synthetic",
+  "description": "Sublease search via natural language.",
+  "turns": [
+    {
+      "userMessage": "show me summer subleases close to State Street"
+    }
+  ],
+  "expected": {
+    "toolSequence": [
+      "search_listings"
+    ],
+    "hitlPhase": "none"
+  }
+}

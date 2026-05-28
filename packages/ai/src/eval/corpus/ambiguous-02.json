@@ -1,0 +1,17 @@
+{
+  "id": "ambiguous-02",
+  "bucket": "ambiguous",
+  "source": "synthetic",
+  "description": "Lease-term question with no listing context \u2014 explain_lease_term, no tool-spam.",
+  "turns": [
+    {
+      "userMessage": "what does 'subletting allowed' actually mean?"
+    }
+  ],
+  "expected": {
+    "toolSequence": [
+      "explain_lease_term"
+    ],
+    "hitlPhase": "none"
+  }
+}

@@ -2,10 +2,20 @@ import type { GoogleGenAI, Content, FunctionCall, Part } from '@google/genai';
 import type { ChatBlock, ConversationState, PageIndexNode } from '@campusnest/types';
 import { createGeminiClient } from './gemini-client';
 import { logTokenUsage } from './cost-logger';
+// AIN-44 #5 — single source of truth for the Gemini Flash model id, shared
+// with the LLM-first runtime's AI SDK provider.
+import { GEMINI_FLASH_MODEL_ID } from './runtime/ai-sdk-provider';
 import { PageIndexTraverser } from './pageindex-traverser';
 import { getToolDeclarations } from './tools/schemas';
 import { executeTool } from './tools/executor';
 import type { ToolContext, ToolName } from './tools/types';
+// AIN-9 review FIX 3 — `campus_configs.name` is a trust boundary that flows
+// into the deterministic runtime's `contextBlock` system-prompt interpolation
+// at line ~154 below. The LLM-first runtime already sanitizes via
+// `buildPersona` (PR #74 / AIN-24); the deterministic runtime — which is 100%
+// of live traffic today — was missed. Sanitize at the constructor so BOTH
+// runtimes are covered without forking the persona import surface.
+import { sanitizeCampusName } from './runtime/persona';
 
 export interface CribAIConfig {
   readonly geminiApiKey?: string;
@@ -128,7 +138,12 @@ export class CribAI {
   constructor(config: CribAIConfig) {
     this.ai = createGeminiClient(config.geminiApiKey);
     this.traverser = new PageIndexTraverser({ geminiApiKey: config.geminiApiKey });
-    this.campusName = config.campusName;
+    // AIN-9 review FIX 3 — sanitize the campus name once at the trust
+    // boundary. Every downstream interpolation (the `contextBlock` strings
+    // at ~line 154-155 below) then uses the safe value with no additional
+    // wrapping required. `sanitizeCampusName` is idempotent so a name that
+    // arrives clean is a no-op.
+    this.campusName = sanitizeCampusName(config.campusName);
     this.toolContext = config.toolContext;
     this.allowedTools =
       config.allowedTools ??
@@ -181,7 +196,7 @@ export class CribAI {
       }
 
       const response = await this.ai.models.generateContentStream({
-        model: 'gemini-2.5-flash',
+        model: GEMINI_FLASH_MODEL_ID,
         config: {
           systemInstruction: systemPrompt + contextBlock,
           tools: toolsConfig,
@@ -216,7 +231,7 @@ export class CribAI {
       }
 
       // Log token usage for cost monitoring
-      logTokenUsage('gemini-2.5-flash', lastUsageMetadata as {
+      logTokenUsage(GEMINI_FLASH_MODEL_ID, lastUsageMetadata as {
         promptTokenCount?: number;
         candidatesTokenCount?: number;
         cachedContentTokenCount?: number;

@@ -1,0 +1,21 @@
+{
+  "id": "detail-05",
+  "bucket": "detail",
+  "source": "synthetic",
+  "description": "Neighborhood question on the selected listing.",
+  "turns": [
+    {
+      "userMessage": "how walkable is the area around this one?",
+      "priorState": {
+        "selectedListingId": "66666666-7777-4888-8999-aaaaaaaaaaaa",
+        "mode": "listing_detail"
+      }
+    }
+  ],
+  "expected": {
+    "toolSequence": [
+      "get_neighborhood_info"
+    ],
+    "hitlPhase": "none"
+  }
+}

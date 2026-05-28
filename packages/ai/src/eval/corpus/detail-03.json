@@ -1,0 +1,21 @@
+{
+  "id": "detail-03",
+  "bucket": "detail",
+  "source": "synthetic",
+  "description": "Fairness deep-dive on a specific listing.",
+  "turns": [
+    {
+      "userMessage": "is this a good deal? what's the fair rent?",
+      "priorState": {
+        "selectedListingId": "66666666-7777-4888-8999-aaaaaaaaaaaa",
+        "mode": "listing_detail"
+      }
+    }
+  ],
+  "expected": {
+    "toolSequence": [
+      "get_listing_detail"
+    ],
+    "hitlPhase": "none"
+  }
+}

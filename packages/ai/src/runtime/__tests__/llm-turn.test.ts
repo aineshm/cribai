@@ -615,3 +615,193 @@ describe('runLlmTurn — provider error mapping', () => {
     }).rejects.toThrow(/429|quota/);
   });
 });
+
+describe('runLlmTurn — onTurnCost (AIN-9 cost projection + cap)', () => {
+  it('fires onTurnCost with a projected cost from resolved usage', async () => {
+    const onTurnCost = vi.fn();
+    // Known usage on the finish part: 1000 input, 500 output, no cache.
+    const usage = {
+      inputTokens: { total: 1000, noCache: 1000, cacheRead: 0 },
+      outputTokens: { total: 500, reasoning: 0 },
+      totalTokens: 1500,
+    } as never;
+    const model = streamModel([
+      ...textPart('t1', 'Here you go.'),
+      { type: 'finish', finishReason: { unified: 'stop', raw: 'stop' }, usage },
+    ]);
+
+    await collect(runLlmTurn(baseInput(model, { onTurnCost })));
+
+    expect(onTurnCost).toHaveBeenCalledTimes(1);
+    const cost = onTurnCost.mock.calls[0]![0] as { costUsd: number; inputTokens: number; outputTokens: number };
+    expect(cost.inputTokens).toBe(1000);
+    expect(cost.outputTokens).toBe(500);
+    // 1000 * 0.15/M + 500 * 0.60/M
+    expect(cost.costUsd).toBeCloseTo(1000 * (0.15 / 1_000_000) + 500 * (0.6 / 1_000_000), 12);
+  });
+
+  it('logs cost_cap_exceeded (but does NOT throw) when the projected cost is over the cap', async () => {
+    const onTurnCost = vi.fn();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // Huge usage that breaches a tiny injected cap.
+    const usage = {
+      inputTokens: { total: 100_000, noCache: 100_000, cacheRead: 0 },
+      outputTokens: { total: 60_000, reasoning: 0 },
+      totalTokens: 160_000,
+    } as never;
+    const model = streamModel([
+      ...textPart('t1', 'A very long answer.'),
+      { type: 'finish', finishReason: { unified: 'stop', raw: 'stop' }, usage },
+    ]);
+
+    const events = await collect(
+      runLlmTurn(baseInput(model, { onTurnCost, turnCostCapUsd: 0.001 })),
+    );
+
+    expect(onTurnCost).toHaveBeenCalledTimes(1);
+    // Turn still completes cleanly — cap is observe-only, never throws.
+    expect(events[events.length - 1]!.type).toBe('done');
+    const loggedCapWarning = warnSpy.mock.calls.some((c) =>
+      c.some((arg) => typeof arg === 'string' && arg.includes('cost_cap_exceeded')),
+    );
+    expect(loggedCapWarning).toBe(true);
+    warnSpy.mockRestore();
+  });
+
+  it('does not fire onTurnCost when no callback is provided (no-op)', async () => {
+    // Just asserts no throw when onTurnCost is absent.
+    const model = streamModel([
+      ...textPart('t1', 'ok'),
+      finishPart('stop'),
+    ]);
+    const events = await collect(runLlmTurn(baseInput(model)));
+    expect(events[events.length - 1]!.type).toBe('done');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AIN-9 review FIX 1 — the cost-cap Langfuse tag must land on a real span.
+//
+// The old implementation called `updateActiveObservation` from AFTER the AI
+// SDK's GenAI span had already ended (post `await result.totalUsage`), so the
+// tag silently no-op'd — losing the A6 alerting signal. The fix is for
+// `runLlmTurn` to start an OWNED span via `startObservation('cribai.llm_turn')`
+// that encompasses the streamText call + drain + cost projection, and to pass
+// that span handle into `tagCostCapExceeded(metadata, span?)`. This test pipes
+// Langfuse's tracer through an in-memory OTel exporter and asserts a span
+// actually carries the `cost_cap_exceeded` status-message attribute (not just
+// "no throw").
+// ---------------------------------------------------------------------------
+
+describe('runLlmTurn — FIX 1: cost_cap_exceeded actually lands on a span', () => {
+  it('exports a span with the cost_cap_exceeded status-message attribute when over cap', async () => {
+    // Lazy-import the OTel test wiring so unrelated tests don't pay for it.
+    const sdkBase = await import('@opentelemetry/sdk-trace-base');
+    const sdkNode = await import('@opentelemetry/sdk-trace-node');
+    const langfuseTracing = await import('@langfuse/tracing');
+
+    const exporter = new sdkBase.InMemorySpanExporter();
+    const provider = new sdkNode.NodeTracerProvider({
+      spanProcessors: [new sdkBase.SimpleSpanProcessor(exporter)],
+    });
+    // Point the Langfuse-owned tracer at our in-memory provider, NOT the
+    // global one — so we don't leak into other tests.
+    langfuseTracing.setLangfuseTracerProvider(provider);
+
+    // Force the LLM-first runtime to take the "Langfuse is on" branch even
+    // without env keys (otherwise the cap tag is gated off in unit tests).
+    const onTurnCost = vi.fn();
+    const usage = {
+      inputTokens: { total: 100_000, noCache: 100_000, cacheRead: 0 },
+      outputTokens: { total: 60_000, reasoning: 0 },
+      totalTokens: 160_000,
+    } as never;
+    const model = streamModel([
+      ...textPart('t1', 'A very long answer.'),
+      { type: 'finish', finishReason: { unified: 'stop', raw: 'stop' }, usage },
+    ]);
+
+    try {
+      const events = await collect(
+        runLlmTurn(
+          baseInput(model, {
+            onTurnCost,
+            turnCostCapUsd: 0.001,
+            // Pretend Langfuse is wired so the cap-tag branch executes.
+            telemetryEnabled: true,
+          }),
+        ),
+      );
+      // Sanity: turn still streamed cleanly to done.
+      expect(events[events.length - 1]!.type).toBe('done');
+      expect(onTurnCost).toHaveBeenCalledTimes(1);
+
+      // Forward exporter buffer through the provider's processor cycle.
+      await provider.forceFlush();
+
+      const spans = exporter.getFinishedSpans();
+      const turnSpan = spans.find(
+        (s) =>
+          // Langfuse encodes statusMessage at
+          // `langfuse.observation.status_message`. Any owned span carrying
+          // `cost_cap_exceeded` proves the tag landed.
+          s.attributes['langfuse.observation.status_message'] ===
+          'cost_cap_exceeded',
+      );
+      expect(turnSpan).toBeDefined();
+      // Defensive: the span must also carry the WARNING level so Langfuse
+      // alerting can filter on it.
+      expect(turnSpan!.attributes['langfuse.observation.level']).toBe('WARNING');
+    } finally {
+      // Tear down so other tests start clean.
+      langfuseTracing.setLangfuseTracerProvider(null);
+      await provider.shutdown();
+    }
+  });
+
+  it('does NOT export a cost-cap span when the projected cost is under the cap', async () => {
+    const sdkBase = await import('@opentelemetry/sdk-trace-base');
+    const sdkNode = await import('@opentelemetry/sdk-trace-node');
+    const langfuseTracing = await import('@langfuse/tracing');
+
+    const exporter = new sdkBase.InMemorySpanExporter();
+    const provider = new sdkNode.NodeTracerProvider({
+      spanProcessors: [new sdkBase.SimpleSpanProcessor(exporter)],
+    });
+    langfuseTracing.setLangfuseTracerProvider(provider);
+
+    const usage = {
+      inputTokens: { total: 1000, noCache: 1000, cacheRead: 0 },
+      outputTokens: { total: 500, reasoning: 0 },
+      totalTokens: 1500,
+    } as never;
+    const model = streamModel([
+      ...textPart('t1', 'Short answer.'),
+      { type: 'finish', finishReason: { unified: 'stop', raw: 'stop' }, usage },
+    ]);
+
+    try {
+      await collect(
+        runLlmTurn(
+          baseInput(model, {
+            onTurnCost: vi.fn(),
+            turnCostCapUsd: 1.0, // far above projection
+            telemetryEnabled: true,
+          }),
+        ),
+      );
+      await provider.forceFlush();
+
+      const spans = exporter.getFinishedSpans();
+      const capSpan = spans.find(
+        (s) =>
+          s.attributes['langfuse.observation.status_message'] ===
+          'cost_cap_exceeded',
+      );
+      expect(capSpan).toBeUndefined();
+    } finally {
+      langfuseTracing.setLangfuseTracerProvider(null);
+      await provider.shutdown();
+    }
+  });
+});

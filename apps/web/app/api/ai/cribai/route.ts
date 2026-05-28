@@ -9,6 +9,8 @@ import {
   runLlmTurn,
   createAiSdkModel,
   getUserProfileSnippet,
+  initLangfuse,
+  flushLangfuse,
   type ChatEvent,
   type RequestMetricsRecorder,
 } from '@campusnest/ai';
@@ -553,6 +555,10 @@ export async function POST(request: NextRequest) {
     // is off (default), this whole block is bypassed and the route is
     // byte-for-byte the prior deterministic behavior.
     if (runtime === 'llm_first') {
+      // AIN-9 — idempotently install the Langfuse span processor (no-op when
+      // LANGFUSE_* keys are absent, so dev / dark-flag-off never touch the
+      // network). Safe to call per-request; installs at most once per process.
+      initLangfuse();
       const profile = getUserProfileSnippet(userId, {
         displayName: profileDisplayName,
         campusSlug,
@@ -580,6 +586,20 @@ export async function POST(request: NextRequest) {
               // flush, so the cross-runtime TTFT comparison stays fair on
               // prose-only turns. markFirstModelToken is idempotent.
               onFirstModelToken: () => metricsRecorder?.markFirstModelToken(),
+              // AIN-9 — the projected turn cost is best-effort + observe-only.
+              // It is recorded on the Langfuse trace (via the GenAI span the
+              // SDK emits); a structured `cost_cap_exceeded` warning is logged
+              // by runLlmTurn when over cap. We log it here too for local
+              // visibility. NOTE on stores: `ai_request_metrics` (AIN-19) is
+              // the SQL p50/p95/p99 latency table; Langfuse holds the rich
+              // per-turn traces + cost + eval data. Same turn timestamps, two
+              // different stores — they coexist, neither replaces the other.
+              onTurnCost: (cost) => {
+                console.log(
+                  '[cribai] turn_cost',
+                  JSON.stringify({ runtime: 'llm_first', costUsd: cost.costUsd }),
+                );
+              },
             })) {
               if (chunk.type === 'done') {
                 continue;
@@ -688,7 +708,11 @@ export async function POST(request: NextRequest) {
               console.error('[cribai] post-stream persistence failed:', persistErr);
             });
             const metricsPromise = metricsRecorder?.finish() ?? Promise.resolve();
-            await Promise.all([persistPromise, metricsPromise]);
+            // AIN-9 — flush buffered Langfuse spans alongside persist + metrics.
+            // flushLangfuse always resolves (no-op without keys), so the
+            // Promise.all shape is identical configured vs unconfigured.
+            // (`ai_request_metrics` = SQL p50/p95; Langfuse = rich trace/cost.)
+            await Promise.all([persistPromise, metricsPromise, flushLangfuse()]);
 
             if (userId) {
               void supabase.from('ai_query_logs').insert({
@@ -701,9 +725,15 @@ export async function POST(request: NextRequest) {
             const raw = err instanceof Error ? err.message : 'Stream error';
             const isQuotaError =
               raw.includes('RESOURCE_EXHAUSTED') || raw.includes('429') || raw.includes('quota');
-            await metricsRecorder?.finish({
-              errorKind: isQuotaError ? 'gemini_quota' : 'llm_stream_error',
-            });
+            // FIX 4 — flush Langfuse on the error path too; failed turns are
+            // exactly the traces we most want to keep. flushLangfuse no-ops
+            // without keys, so the shape is identical configured vs not.
+            await Promise.all([
+              metricsRecorder?.finish({
+                errorKind: isQuotaError ? 'gemini_quota' : 'llm_stream_error',
+              }) ?? Promise.resolve(),
+              flushLangfuse(),
+            ]);
             try {
               enqueueEvent(controller, encoder, {
                 type: 'error',

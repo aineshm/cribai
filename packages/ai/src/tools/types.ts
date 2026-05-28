@@ -30,6 +30,23 @@ export interface ToolContext {
   readonly userId?: string;
   readonly allowedToolNames?: readonly ToolName[];
   readonly mapBounds?: MapBounds;
+  /**
+   * AIN-9 review FIX 2 — side-effect kill-switch for the eval runner.
+   *
+   * When `true`, side-effecting handlers (currently `schedule_tour` and
+   * `create_sublease` Phase 2) MUST skip the real DB insert / external
+   * action and return a synthetic success result of the same shape. This is
+   * the boundary defense against an eval run landing real `tour_requests` /
+   * `listings` rows when the model drives a confirmed HITL flow with the
+   * service-role client.
+   *
+   * The eval HITL scorer detects leaks POST-HOC; `dryRun` PREVENTS them at
+   * the handler edge. Live runtime never sets this — production traffic is
+   * always `dryRun=false` (the default).
+   *
+   * Read-only handlers ignore this flag entirely.
+   */
+  readonly dryRun?: boolean;
 }
 
 export interface ToolResult<TMachine = Record<string, unknown>> {

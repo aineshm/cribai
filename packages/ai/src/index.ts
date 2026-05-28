@@ -35,7 +35,7 @@ export { runLlmTurn } from './runtime/llm-turn';
 export type { RunLlmTurnInput } from './runtime/llm-turn';
 export { selectRuntime, LLM_FIRST_FLAG } from './runtime/runtime-select';
 export type { SelectRuntimeInput } from './runtime/runtime-select';
-export { createAiSdkModel, AI_SDK_MODEL_ID } from './runtime/ai-sdk-provider';
+export { createAiSdkModel, AI_SDK_MODEL_ID, GEMINI_FLASH_MODEL_ID } from './runtime/ai-sdk-provider';
 export type { CreateAiSdkModelOptions } from './runtime/ai-sdk-provider';
 export {
   buildSystemPrompt,
@@ -59,3 +59,53 @@ export type {
   ExplicitCacheHandle,
   ExplicitCacheCreator,
 } from './runtime/prompt-cache';
+
+// PDR-004 Track A Days 5-6 (AIN-9) — Langfuse observability + turn cost.
+export {
+  initLangfuse,
+  flushLangfuse,
+  isLangfuseConfigured,
+} from './runtime/observability';
+export type {
+  LangfuseEnv,
+  FlushableSpanProcessor,
+  InitLangfuseOptions,
+} from './runtime/observability';
+export {
+  projectTurnCost,
+  isOverCap,
+  resolveTurnCostCapUsd,
+  TURN_COST_CAP_USD_DEFAULT,
+} from './runtime/turn-cost';
+export type { TurnUsage, TurnCost } from './runtime/turn-cost';
+
+// PDR-004 Track A Days 5-6 (AIN-9) — eval harness (scorers + corpus + runner).
+export {
+  scoreToolSequence,
+  scoreStatePatch,
+  scoreHitlIntegrity,
+  scoreQuality,
+  extractToolSequence,
+  mergeStatePatches,
+  deepEqual,
+} from './eval/scorers';
+export { loadCorpus, corpusByBucket } from './eval/corpus';
+export {
+  runEval,
+  scoreSeed,
+  aggregateReport,
+  formatReport,
+  resolveEvalCostCeilingUsd,
+} from './eval/run-eval';
+export type { EvalReport, BucketReport, RunEvalOptions } from './eval/run-eval';
+export {
+  EVAL_BUCKETS,
+  evalSeedSchema,
+} from './eval/types';
+export type {
+  EvalSeed,
+  EvalResult,
+  EvalBucket,
+  DimensionScore,
+  HitlPhase,
+} from './eval/types';

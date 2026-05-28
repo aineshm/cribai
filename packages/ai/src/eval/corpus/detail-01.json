@@ -1,0 +1,21 @@
+{
+  "id": "detail-01",
+  "bucket": "detail",
+  "source": "synthetic",
+  "description": "Ask for details on a selected listing \u2014 get_listing_detail.",
+  "turns": [
+    {
+      "userMessage": "tell me more about that first one",
+      "priorState": {
+        "selectedListingId": "11111111-2222-4333-8444-555555555555",
+        "mode": "listing_detail"
+      }
+    }
+  ],
+  "expected": {
+    "toolSequence": [
+      "get_listing_detail"
+    ],
+    "hitlPhase": "none"
+  }
+}

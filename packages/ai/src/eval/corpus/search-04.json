@@ -1,0 +1,17 @@
+{
+  "id": "search-04",
+  "bucket": "search",
+  "source": "synthetic",
+  "description": "Amenity-constrained search.",
+  "turns": [
+    {
+      "userMessage": "any 1 bedrooms with in-unit laundry and parking?"
+    }
+  ],
+  "expected": {
+    "toolSequence": [
+      "search_listings"
+    ],
+    "hitlPhase": "none"
+  }
+}

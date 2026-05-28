@@ -1,0 +1,30 @@
+{
+  "id": "compare-03",
+  "bucket": "compare",
+  "source": "synthetic",
+  "description": "Which is better \u2014 comparison framing.",
+  "turns": [
+    {
+      "userMessage": "which of these two is the better value?",
+      "priorState": {
+        "lastSearch": {
+          "args": {
+            "bedrooms": 2
+          },
+          "resultListingIds": [
+            "66666666-7777-4888-8999-aaaaaaaaaaaa",
+            "22222222-3333-4444-8555-666666666666"
+          ],
+          "generatedAt": "2026-05-20T00:00:00.000Z",
+          "source": "chat_search"
+        }
+      }
+    }
+  ],
+  "expected": {
+    "toolSequence": [
+      "compare_listings"
+    ],
+    "hitlPhase": "none"
+  }
+}

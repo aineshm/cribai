@@ -56,6 +56,20 @@ import {
   ExplicitCacheMemo,
   type ExplicitCacheCreator,
 } from './prompt-cache';
+import {
+  isLangfuseConfigured,
+  startLlmTurnObservation,
+  tagCostCapExceeded,
+} from './observability';
+import {
+  projectTurnCost,
+  isOverCap,
+  resolveTurnCostCapUsd,
+  type TurnCost,
+  type TurnUsage,
+} from './turn-cost';
+import { GEMINI_FLASH_MODEL_ID } from './ai-sdk-provider';
+import { sanitizeCampusName } from './persona';
 
 /** Step budget mirrors `cribai.ts` maxToolCalls: 5 auth / 2 guest. */
 const AUTH_MAX_STEPS = 5;
@@ -95,6 +109,29 @@ export interface RunLlmTurnInput {
    * moves earlier.
    */
   readonly onFirstModelToken?: () => void;
+  /**
+   * AIN-9 (Days 5-6) — fired exactly once, AFTER the stream fully drains and
+   * BEFORE the terminal `done` event, with the projected USD cost of the turn
+   * (from `result.totalUsage`, reusing the cost-logger pricing). The route
+   * wires this to its Langfuse/metrics bookkeeping. Cost is best-effort: if
+   * usage never resolves it is NOT fired. Independent of the AIN-19
+   * `ai_request_metrics` latency recorder — Langfuse holds the rich cost trace.
+   */
+  readonly onTurnCost?: (cost: TurnCost) => void;
+  /**
+   * Per-turn cost cap (USD). Defaults to `resolveTurnCostCapUsd()` (env
+   * CRIBAI_TURN_COST_CAP_USD, fallback $0.05). When the projected cost exceeds
+   * the cap, the handler logs a structured warning and tags the active
+   * Langfuse trace `cost_cap_exceeded` — it does NOT throw (the turn has
+   * already streamed to the user).
+   */
+  readonly turnCostCapUsd?: number;
+  /**
+   * Test seam: override whether Langfuse telemetry is wired into `streamText`.
+   * Defaults to `isLangfuseConfigured()` so prod gates on env keys and unit
+   * tests stay offline. Injecting `false` keeps the SDK from emitting spans.
+   */
+  readonly telemetryEnabled?: boolean;
 }
 
 /** Map the deterministic conversation history into AI SDK ModelMessages. */
@@ -118,6 +155,39 @@ function toolErrorBlock(message: string): ChatBlock {
 }
 
 /**
+ * Normalize the AI SDK's resolved `LanguageModelUsage` into the flat
+ * `TurnUsage` the cost projector expects. `inputTokens` is the TOTAL prompt
+ * tokens (includes cached); cached tokens come from `inputTokenDetails.
+ * cacheReadTokens` (preferred) or the deprecated `cachedInputTokens`, with the
+ * Google provider's `usageMetadata.cachedContentTokenCount` as a final
+ * fallback. Tolerates `undefined` fields → 0.
+ */
+function normalizeUsage(
+  usage: {
+    readonly inputTokens?: number;
+    readonly outputTokens?: number;
+    readonly cachedInputTokens?: number;
+    readonly inputTokenDetails?: { readonly cacheReadTokens?: number };
+  } | undefined,
+  providerMetadata: Record<string, unknown> | undefined,
+): TurnUsage {
+  const google = (providerMetadata?.google ?? {}) as {
+    usageMetadata?: { cachedContentTokenCount?: number | null };
+  };
+  const cachedFromProvider = google.usageMetadata?.cachedContentTokenCount ?? 0;
+  const cachedTokens =
+    usage?.inputTokenDetails?.cacheReadTokens ??
+    usage?.cachedInputTokens ??
+    cachedFromProvider ??
+    0;
+  return {
+    inputTokens: usage?.inputTokens ?? 0,
+    outputTokens: usage?.outputTokens ?? 0,
+    cachedTokens: cachedTokens ?? 0,
+  };
+}
+
+/**
  * Drive one LLM-first turn. Yields `ChatEvent`s in the A10-safe order. On a
  * provider/stream error, RETHROWS so the route's existing errorKind
  * classifier (quota / RESOURCE_EXHAUSTED / 429 → gemini_quota) still fires.
@@ -137,7 +207,24 @@ export async function* runLlmTurn(
     explicitCache = false,
     cacheCreator,
     onFirstModelToken,
+    onTurnCost,
+    turnCostCapUsd,
+    telemetryEnabled,
   } = input;
+
+  // AIN-9 — wire Langfuse telemetry into `streamText` only when configured.
+  // Gated so dev/test/dark-flag-off never emit spans or touch the network.
+  const langfuseOn = telemetryEnabled ?? isLangfuseConfigured();
+
+  // AIN-9 review FIX 1 — open an OWNED Langfuse span for this turn so the
+  // post-stream `cost_cap_exceeded` tag has a real span to land on. The AI
+  // SDK's own GenAI span is only active inside its synchronous callback stack
+  // and has already ended by the time we project cost (after
+  // `await result.totalUsage`). Owning the parent span makes the tag
+  // deterministic: we call `tagCostCapExceeded(metadata, turnSpan)` which
+  // updates this handle directly via `span.update(...)` — no active-context
+  // dependency. `null` when Langfuse is off → a clean no-op everywhere below.
+  const turnSpan = langfuseOn ? startLlmTurnObservation('cribai.llm_turn') : null;
 
   // FIX 3 — fire onFirstModelToken once, on the first model output part.
   let firstModelTokenFired = false;
@@ -206,13 +293,36 @@ export async function* runLlmTurn(
     tools,
     stopWhen: stepCountIs(isGuest ? GUEST_MAX_STEPS : AUTH_MAX_STEPS),
     ...(providerOptions ? { providerOptions } : {}),
+    // AIN-9 — Langfuse picks up the GenAI span the AI SDK emits here. We do
+    // NOT record raw inputs/outputs (PII / data-transfer), only the metadata
+    // tags. Disabled entirely when Langfuse is not configured.
+    experimental_telemetry: {
+      isEnabled: langfuseOn,
+      functionId: 'cribai.llm_turn',
+      recordInputs: false,
+      recordOutputs: false,
+      metadata: {
+        runtime: 'llm_first',
+        isGuest,
+        // AIN-24 — sanitize the campus name at the telemetry boundary too
+        // (it's the same trust boundary `buildPersona` sanitizes; defense in
+        // depth in case a trace is ever shared externally).
+        campusName: sanitizeCampusName(campusName),
+        model: GEMINI_FLASH_MODEL_ID,
+      },
+    },
   });
 
   // Per-step text buffer. Flushed only at the step boundary, after that
   // step's tool_call/tool_result events (A10).
   let stepText = '';
 
+  // AIN-9 review FIX 1 — outer try/finally so the owned turn span is ALWAYS
+  // ended (clean drain, mid-stream throw, OR cost-projection skip). The inner
+  // try/catch around the stream is preserved verbatim so the route's quota /
+  // RESOURCE_EXHAUSTED / 429 classifier still fires on a provider error.
   try {
+   try {
     for await (const part of result.fullStream) {
       switch (part.type) {
         case 'text-delta': {
@@ -304,10 +414,59 @@ export async function* runLlmTurn(
       yield { type: 'text', content: stepText };
       stepText = '';
     }
-  } catch (err) {
+   } catch (err) {
     // Rethrow so the route catch maps quota / RESOURCE_EXHAUSTED / 429.
     throw err instanceof Error ? err : new Error(String(err));
-  }
+   }
 
-  yield { type: 'done' };
+   // AIN-9 — project the turn cost AFTER the stream drains (usage is resolved
+   // by now) and BEFORE `done`, so the route's post-stream bookkeeping
+   // (Promise.all([persist, metrics, flushLangfuse])) sees the cost already
+   // computed. Best-effort + never throws: a cost failure must not break a
+   // turn that already streamed successfully.
+   if (onTurnCost) {
+    try {
+      const [usage, providerMetadata] = await Promise.all([
+        result.totalUsage,
+        result.providerMetadata,
+      ]);
+      const turnUsage = normalizeUsage(usage, providerMetadata);
+      const cost = projectTurnCost(turnUsage);
+      const capUsd = turnCostCapUsd ?? resolveTurnCostCapUsd();
+      if (isOverCap(cost.costUsd, capUsd)) {
+        // Structured warning + Langfuse trace tag. Do NOT throw — the turn
+        // already streamed. The route's separate output-token / tool-step
+        // alerts (PDR-004 A6) cover the runaway-output case.
+        const capMeta = {
+          costUsd: cost.costUsd,
+          capUsd,
+          inputTokens: cost.inputTokens,
+          outputTokens: cost.outputTokens,
+          cachedTokens: cost.cachedTokens,
+        };
+        console.warn('[cribai] cost_cap_exceeded', JSON.stringify(capMeta));
+        // AIN-9 review FIX 1 — pass the OWNED turn span so the tag lands via
+        // direct `span.update(...)` instead of `updateActiveObservation` (the
+        // GenAI span the SDK opened is already closed by this point). No-op
+        // when Langfuse is off / span unset.
+        if (langfuseOn) {
+          tagCostCapExceeded(capMeta, turnSpan);
+        }
+      }
+      onTurnCost(cost);
+    } catch (costErr) {
+      console.error('[cribai] turn-cost projection failed:', costErr);
+    }
+   }
+
+   yield { type: 'done' };
+  } finally {
+    // FIX 1 — end the owned span exactly once (after `done` was yielded or a
+    // rethrown stream error). `end()` is a no-op when `turnSpan` is null.
+    try {
+      turnSpan?.end();
+    } catch (endErr) {
+      console.error('[langfuse] turnSpan.end failed:', endErr);
+    }
+  }
 }

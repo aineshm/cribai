@@ -18,13 +18,54 @@
  * §Architectural Shape and codex amendment A2.
  */
 
+/** Default campus for code paths that haven't threaded campus through yet. */
+export const DEFAULT_CAMPUS_NAME = 'UW-Madison';
+
+/**
+ * AIN-24 (security) — `campus_configs.name` is a TRUST BOUNDARY.
+ *
+ * `campusName` flows from the `campus_configs` table (admin-editable) straight
+ * into the system-prompt prefix via string interpolation. Without
+ * sanitization, a malicious / mistyped campus name could carry newlines +
+ * instruction text ("Ignore prior instructions...") that the model reads as
+ * part of its persona — a prompt-injection vector. We neutralize it before
+ * interpolation:
+ *   - strip everything outside the safe set [A-Za-z0-9 \-] (drops control
+ *     chars, newlines, punctuation an attacker could use to break framing)
+ *   - collapse runs of whitespace, trim
+ *   - cap at 60 chars (real campus names are well under this)
+ *   - fall back to the default campus name if nothing survives
+ *
+ * The result is purely alphanumeric/space/hyphen, so it can never introduce a
+ * new prompt line or directive.
+ */
+const MAX_CAMPUS_NAME_LENGTH = 60;
+
+export function sanitizeCampusName(rawCampusName: string): string {
+  if (typeof rawCampusName !== 'string') {
+    return DEFAULT_CAMPUS_NAME;
+  }
+  const cleaned = rawCampusName
+    // Drop any character outside the safe allowlist (control chars, newlines,
+    // quotes, colons, etc. all go).
+    .replace(/[^A-Za-z0-9 \-]/g, ' ')
+    // Collapse whitespace runs introduced by the strip above.
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_CAMPUS_NAME_LENGTH)
+    .trim();
+  return cleaned.length > 0 ? cleaned : DEFAULT_CAMPUS_NAME;
+}
+
 /**
  * Campus-agnostic identity + voice. Campus name is interpolated once at the
  * persona-build step so the rest of the prefix stays byte-identical across
- * turns within a campus.
+ * turns within a campus. The campus name is sanitized first — see
+ * `sanitizeCampusName` (AIN-24 trust-boundary note).
  */
 export function buildPersona(campusName: string): string {
-  return `You are CribAI, an AI housing agent for a .edu-verified student housing platform at ${campusName}. You have real data and tools — use them.
+  const safeCampusName = sanitizeCampusName(campusName);
+  return `You are CribAI, an AI housing agent for a .edu-verified student housing platform at ${safeCampusName}. You have real data and tools — use them.
 
 Context:
 - 2,500+ Zillow listings + student subleases, all searchable via search_listings
@@ -44,6 +85,3 @@ Voice:
 - Never fabricate details. If a listing is already identified, use action tools directly.
 - Lease questions: use explain_lease_term + include a legal disclaimer.`;
 }
-
-/** Default campus for code paths that haven't threaded campus through yet. */
-export const DEFAULT_CAMPUS_NAME = 'UW-Madison';

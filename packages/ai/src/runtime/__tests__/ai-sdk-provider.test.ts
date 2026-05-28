@@ -39,7 +39,7 @@ vi.mock('node:fs', () => ({
   writeFileSync: (...args: unknown[]) => writeFileSyncSpy(...args),
 }));
 
-import { createAiSdkModel, AI_SDK_MODEL_ID } from '../ai-sdk-provider';
+import { createAiSdkModel, AI_SDK_MODEL_ID, GEMINI_FLASH_MODEL_ID } from '../ai-sdk-provider';
 
 const ENV_KEYS = [
   'GEMINI_API_KEY',
@@ -59,6 +59,16 @@ afterEach(() => {
   createVertexSpy.mockClear();
   createGoogleSpy.mockClear();
   writeFileSyncSpy.mockClear();
+});
+
+describe('AIN-44 #5 — GEMINI_FLASH_MODEL_ID single source of truth', () => {
+  it('exposes the canonical Gemini Flash model id', () => {
+    expect(GEMINI_FLASH_MODEL_ID).toBe('gemini-2.5-flash');
+  });
+
+  it('keeps AI_SDK_MODEL_ID as an alias of GEMINI_FLASH_MODEL_ID', () => {
+    expect(AI_SDK_MODEL_ID).toBe(GEMINI_FLASH_MODEL_ID);
+  });
 });
 
 describe('createAiSdkModel — backend selection', () => {

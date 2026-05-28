@@ -27,8 +27,22 @@ import { createVertex } from '@ai-sdk/google-vertex';
 import type { LanguageModel } from 'ai';
 import { ensureVertexCredentials } from '../gemini-client';
 
-/** Model id used across both backends. Keep in lock-step with cribai.ts. */
-export const AI_SDK_MODEL_ID = 'gemini-2.5-flash';
+/**
+ * AIN-44 #5 — single source of truth for the Gemini Flash model id.
+ *
+ * Both runtimes pin the same model: the LLM-first AI SDK provider (here) and
+ * the deterministic `@google/genai` runtime (`cribai.ts`). Previously the
+ * string `'gemini-2.5-flash'` was duplicated across `cribai.ts` (model arg +
+ * cost-logger arg) and this provider — a model bump had to be made in three
+ * places. This constant centralizes it.
+ */
+export const GEMINI_FLASH_MODEL_ID = 'gemini-2.5-flash';
+
+/**
+ * @deprecated Use `GEMINI_FLASH_MODEL_ID`. Retained as an alias so existing
+ * importers (and the provider test) keep working through the rename.
+ */
+export const AI_SDK_MODEL_ID = GEMINI_FLASH_MODEL_ID;
 
 export interface CreateAiSdkModelOptions {
   /** Override the AI Studio API key (mirrors `createGeminiClient`). */
@@ -51,7 +65,7 @@ export function createAiSdkModel(
   // credentials should not force local/dev deployments onto Vertex AI.
   if (apiKey && !useVertex) {
     const provider = createGoogleGenerativeAI({ apiKey });
-    return provider(AI_SDK_MODEL_ID);
+    return provider(GEMINI_FLASH_MODEL_ID);
   }
 
   if (project) {
@@ -59,7 +73,7 @@ export function createAiSdkModel(
     // deterministic client does, before the Vertex provider's ADC lookup runs.
     ensureVertexCredentials();
     const provider = createVertex({ project, location });
-    return provider(AI_SDK_MODEL_ID);
+    return provider(GEMINI_FLASH_MODEL_ID);
   }
 
   if (!apiKey) {
@@ -69,5 +83,5 @@ export function createAiSdkModel(
   }
 
   const provider = createGoogleGenerativeAI({ apiKey });
-  return provider(AI_SDK_MODEL_ID);
+  return provider(GEMINI_FLASH_MODEL_ID);
 }

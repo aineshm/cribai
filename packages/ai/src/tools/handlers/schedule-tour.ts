@@ -154,6 +154,36 @@ async function handlePublish(
   listingAddress: string,
   conflicts: DateConflictResult,
 ): Promise<ToolResult> {
+  // AIN-9 review FIX 2 — eval dry-run gate. The eval runner sets
+  // `context.dryRun = true` so a confirmed schedule_tour CANNOT land a real
+  // `tour_requests` row even when the model exercises the publish path. We
+  // skip the insert and return a synthetic success result with the SAME
+  // shape (tour_confirmation block + the same modelContext lead-in), so the
+  // eval scorers still see the tool ran end to end and the model state
+  // mirrors a real publish. Live traffic is always `dryRun=false` (default).
+  if (context.dryRun) {
+    const syntheticId = `dry-run-tour-${Date.now()}`;
+    let modelContext =
+      `Tour request submitted (dry-run, no insert) for ${listingAddress}. ` +
+      `Request ID: ${syntheticId}. The student will receive confirmation at ${parsed.student_email}.`;
+    if (conflicts.conflictingTours.length > 0) {
+      const conflictDetails = await resolveConflictAddresses(
+        context,
+        conflicts.conflictingTours,
+      );
+      modelContext += ` Note: The student has existing pending tours on ${conflicts.overlappingDates.join(', ')} at ${conflictDetails}. You may want to mention this scheduling overlap.`;
+    }
+    return {
+      modelContext,
+      clientBlock: {
+        type: 'tour_confirmation',
+        tourRequestId: syntheticId,
+        listingAddress,
+        status: 'pending',
+      },
+    };
+  }
+
   const { data: tour, error } = await context.supabase
     .from('tour_requests')
     .insert({

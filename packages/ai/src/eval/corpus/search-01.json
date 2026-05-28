@@ -1,0 +1,17 @@
+{
+  "id": "search-01",
+  "bucket": "search",
+  "source": "synthetic",
+  "description": "Plain 2BR search near campus \u2014 should call search_listings immediately.",
+  "turns": [
+    {
+      "userMessage": "find me a 2 bedroom near campus under $1500"
+    }
+  ],
+  "expected": {
+    "toolSequence": [
+      "search_listings"
+    ],
+    "hitlPhase": "none"
+  }
+}
