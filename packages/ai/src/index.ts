@@ -59,3 +59,22 @@ export type {
   ExplicitCacheHandle,
   ExplicitCacheCreator,
 } from './runtime/prompt-cache';
+
+// PDR-004 Track A Days 5-6 (AIN-9) — Langfuse observability + turn cost.
+export {
+  initLangfuse,
+  flushLangfuse,
+  isLangfuseConfigured,
+} from './runtime/observability';
+export type {
+  LangfuseEnv,
+  FlushableSpanProcessor,
+  InitLangfuseOptions,
+} from './runtime/observability';
+export {
+  projectTurnCost,
+  isOverCap,
+  resolveTurnCostCapUsd,
+  TURN_COST_CAP_USD_DEFAULT,
+} from './runtime/turn-cost';
+export type { TurnUsage, TurnCost } from './runtime/turn-cost';
