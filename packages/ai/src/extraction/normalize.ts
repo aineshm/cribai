@@ -155,16 +155,26 @@ export function normalizeFields(fields: ExtractedFields): ExtractedFields {
   const description = clamp(fields.description, LIMITS.DESCRIPTION_MAX);
   if (description) out.description = description;
 
-  if (typeof fields.price === 'number' && Number.isFinite(fields.price)) {
+  // Numeric fields are dropped unless finite AND non-negative. Rent, bed/bath
+  // counts, and square footage are physically non-negative; a negative value
+  // is corrupt publisher data, a sloppy labeled-DOM parse ("-2 beds"), or a
+  // misbehaving model (AIN-47 Layer 4 returns model JSON pre-normalize). A
+  // half-valid negative is worse than `undefined` for the downstream
+  // `addListing` tool, so drop it (mirrors the geo/date drop-on-invalid rule).
+  if (typeof fields.price === 'number' && Number.isFinite(fields.price) && fields.price >= 0) {
     out.price = fields.price;
   }
-  if (typeof fields.bedrooms === 'number' && Number.isFinite(fields.bedrooms)) {
+  if (typeof fields.bedrooms === 'number' && Number.isFinite(fields.bedrooms) && fields.bedrooms >= 0) {
     out.bedrooms = fields.bedrooms;
   }
-  if (typeof fields.bathrooms === 'number' && Number.isFinite(fields.bathrooms)) {
+  if (typeof fields.bathrooms === 'number' && Number.isFinite(fields.bathrooms) && fields.bathrooms >= 0) {
     out.bathrooms = fields.bathrooms;
   }
-  if (typeof fields.square_feet === 'number' && Number.isFinite(fields.square_feet)) {
+  if (
+    typeof fields.square_feet === 'number' &&
+    Number.isFinite(fields.square_feet) &&
+    fields.square_feet >= 0
+  ) {
     out.square_feet = fields.square_feet;
   }
 

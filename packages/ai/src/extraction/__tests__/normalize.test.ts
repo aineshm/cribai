@@ -233,4 +233,25 @@ describe('normalizeFields — overall', () => {
     expect(out.price).toBeUndefined();
     expect(out.bedrooms).toBeUndefined();
   });
+
+  it('drops negative numeric fields (corrupt parse / misbehaving model)', () => {
+    const out = normalizeFields({
+      price: -1500,
+      bedrooms: -2,
+      bathrooms: -1,
+      square_feet: -800,
+    });
+    expect(out.price).toBeUndefined();
+    expect(out.bedrooms).toBeUndefined();
+    expect(out.bathrooms).toBeUndefined();
+    expect(out.square_feet).toBeUndefined();
+  });
+
+  it('keeps zero numeric fields (studio = 0 beds, $0 placeholder)', () => {
+    const out = normalizeFields({ price: 0, bedrooms: 0, bathrooms: 0, square_feet: 0 });
+    expect(out.price).toBe(0);
+    expect(out.bedrooms).toBe(0);
+    expect(out.bathrooms).toBe(0);
+    expect(out.square_feet).toBe(0);
+  });
 });
