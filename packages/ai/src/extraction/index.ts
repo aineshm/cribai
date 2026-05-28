@@ -531,8 +531,16 @@ export function computeConfidence(
  * false it falls through to the next (more expensive) layer.
  */
 function hasKeyFields(f: ExtractedFields): boolean {
+  // Guard against non-finite numbers (NaN / ±Infinity). `normalizeFields` drops
+  // those later, so a raw `price: NaN` slipping through the gate would suppress
+  // the DOM/LLM rescue and then get dropped — leaving a method like `json_ld`
+  // with no price. Upstream parsers filter today, but the gate must not depend
+  // on that. Address stays a plain string check (no finiteness concept).
   return (
-    typeof f.price === 'number' && (typeof f.bedrooms === 'number' || typeof f.address === 'string')
+    typeof f.price === 'number' &&
+    Number.isFinite(f.price) &&
+    ((typeof f.bedrooms === 'number' && Number.isFinite(f.bedrooms)) ||
+      typeof f.address === 'string')
   );
 }
 
@@ -545,6 +553,12 @@ function hasKeyFields(f: ExtractedFields): boolean {
  * `raw_og` / `raw_json_ld` are debug blobs already attached by earlier layers;
  * the DOM and LLM layers don't produce them, so this only walks the real
  * listing fields.
+ *
+ * Array fields (`photos` / `amenities`) are filled WHOLE-FIELD, not merged: a
+ * layer that set `photos` at all blocks a richer `photos` set from a later
+ * layer. This is deliberate — it mirrors `mergeFields` and keeps each field's
+ * value sourced from a single, most-trusted layer rather than stitching arrays
+ * across layers of differing trust.
  */
 function fillGaps(merged: ExtractedFields, partial: Partial<ExtractedFields>): boolean {
   let contributed = false;
@@ -559,12 +573,15 @@ function fillGaps(merged: ExtractedFields, partial: Partial<ExtractedFields>): b
 }
 
 /**
- * Whether the LLM rare path is reachable. Skips the lazy `createLlmExtractor()`
- * construction when no extractor is injected AND no Gemini credentials are
- * configured — `createGeminiClient` throws without creds, and constructing it
- * in CI (no creds) would be wasted work whose only outcome is `{}`. Tests that
- * inject `opts.llmExtractor` always run the pass; production with creds always
- * runs it. This keeps credential-less CI from ever building a client.
+ * Whether the LLM rare path is reachable. Skips the LLM pass when no extractor
+ * is injected AND no Gemini credentials are configured. `createLlmExtractor()`
+ * is a pure factory — it returns a closure and never throws; the
+ * `createGeminiClient()` call happens INSIDE that closure and is already caught
+ * (the closure returns `{}` on any throw). So this gate is purely an
+ * optimization: it only saves an allocation plus a thrown-and-caught exception
+ * per call in credential-less CI, where the LLM pass could never produce
+ * fields anyway. Tests inject `opts.llmExtractor` (always runs); production
+ * with creds always runs it.
  */
 function llmPathAvailable(opts: ExtractListingOptions): boolean {
   if (opts.llmExtractor) return true;

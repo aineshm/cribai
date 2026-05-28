@@ -298,3 +298,79 @@ describe('computeConfidence', () => {
     expect(computeConfidence({ title: 'A Place' }, new Set(['llm']))).toBe('low');
   });
 });
+
+// ===========================================================================
+// 8. Full cascade json_ld → dom → llm, each layer contributing a distinct field
+// ===========================================================================
+
+describe('Full cascade (json_ld + dom + llm)', () => {
+  it('escalates through all three layers when each only fills a non-key field until the LLM', async () => {
+    // JSON-LD supplies a title ONLY (a non-key field) — gate fails (no price).
+    // The Zillow __NEXT_DATA__ blob supplies a description ONLY (different
+    // non-key field, so it survives gap-fill) — gate still fails. The body
+    // carries NO "$X/mo" / "N beds" / data-testid="price" text, so the Zillow
+    // labeled-DOM path adds no key field. Finally the LLM supplies the missing
+    // price + address → gate satisfied, all three layers contributed.
+    const html = `<!doctype html><html><head>
+      <script type="application/ld+json">
+      {"@context":"https://schema.org","@type":"Apartment","name":"Cascade Title Only"}
+      </script>
+      <script id="__NEXT_DATA__" type="application/json">
+      {"props":{"pageProps":{"componentProps":{"property":{
+        "description":"A roomy unit near campus."
+      }}}}}
+      </script>
+    </head><body></body></html>`;
+    const url = 'https://www.zillow.com/homedetails/cascade/0_zpid/';
+    const llm = makeLlm({ price: 1750, address: '321 Cascade Ave' });
+    const result = await extractListing(url, {
+      fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+      lookup: publicLookup,
+      llmExtractor: llm,
+    });
+
+    expect(llm).toHaveBeenCalledTimes(1);
+    expect(result.extraction_method).toBe('json_ld_plus_dom_plus_llm');
+    // Each layer's distinct field survives into the final record.
+    expect(result.title).toBe('Cascade Title Only'); // json_ld
+    expect(result.description).toBe('A roomy unit near campus.'); // dom
+    expect(result.price).toBe(1750); // llm
+    expect(result.address).toBe('321 Cascade Ave'); // llm
+  });
+});
+
+// ===========================================================================
+// 9. 'high' confidence via a DOM-only end-to-end run (no json_ld/og/llm)
+// ===========================================================================
+
+describe("'high' confidence via DOM-only end-to-end", () => {
+  it('yields high confidence and a dom-only method when DOM supplies all three key fields', async () => {
+    // Only a Zillow __NEXT_DATA__ blob — no JSON-LD, no OG meta, no LLM. The
+    // blob carries price + bedrooms + address, so the gate passes at Pass 2
+    // (DOM) and the LLM never runs. extraction_method must be exactly 'dom'
+    // (pins out og/json_ld), and confidence 'high' (all three key fields from
+    // a non-LLM structured layer).
+    const html = `<!doctype html><html><head>
+      <script id="__NEXT_DATA__" type="application/json">
+      {"props":{"pageProps":{"componentProps":{"property":{
+        "price":2250,"bedrooms":2,"streetAddress":"77 Dom High St","city":"Madison","state":"WI","zipcode":"53703"
+      }}}}}
+      </script>
+    </head><body></body></html>`;
+    const url = 'https://www.zillow.com/homedetails/dom-high/0_zpid/';
+    const llm = makeLlm({ price: 1 });
+    const result = await extractListing(url, {
+      fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+      lookup: publicLookup,
+      llmExtractor: llm,
+    });
+
+    expect(llm).not.toHaveBeenCalled();
+    expect(result.extraction_method).toBe('dom');
+    expect(result.extraction_method).not.toContain('llm');
+    expect(result.extraction_confidence).toBe('high');
+    expect(result.price).toBe(2250);
+    expect(result.bedrooms).toBe(2);
+    expect(result.address).toBe('77 Dom High St');
+  });
+});
