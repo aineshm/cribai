@@ -1,8 +1,10 @@
 #!/usr/bin/env sh
 
-# MANDATORY: Codex review on every push — NO EXCEPTIONS, NO BYPASS
-# This hook cannot be skipped with --no-verify
-# If codex review finds issues, the push is blocked
+# MANDATORY: Codex review on every push. Cannot be skipped with --no-verify.
+# Genuine codex findings HARD-BLOCK the push.
+# Exception (AIN-49): if codex is UNAVAILABLE (rate-limit / auth / transport outage),
+# the hook warns and allows the push — an external codex outage must not halt all dev.
+# A substitute review (human or subagent) is expected in that case.
 
 echo "========================================="
 echo "  MANDATORY Codex Review (pre-push)"
@@ -32,15 +34,27 @@ while read local_ref local_oid remote_ref remote_oid; do
   echo "Reviewing commits: $base...$local_oid"
   echo ""
 
-  # Run codex review on the diff being pushed
-  codex review --base "$base"
-  REVIEW_EXIT=$?
+  # Run codex review on the diff being pushed.
+  # Pin a cheaper model for the gate (AIN-49) — independent of the interactive codex model.
+  # `if` form so `set -e` doesn't abort before we can classify a non-zero exit.
+  if codex review --base "$base" -c model="gpt-5.4" -c model_reasoning_effort="high" > /tmp/codex_prepush.log 2>&1; then
+    REVIEW_EXIT=0
+  else
+    REVIEW_EXIT=$?
+  fi
+  cat /tmp/codex_prepush.log
 
   if [ $REVIEW_EXIT -ne 0 ]; then
-    echo ""
-    echo "❌ Codex review failed (exit code $REVIEW_EXIT)"
-    echo "Fix the issues above before pushing."
-    exit 1
+    if grep -qiE "usage limit|TokenRefreshFailed|worker quit with fatal|rate limit|stream error|connection refused|timed out" /tmp/codex_prepush.log; then
+      echo ""
+      echo "⚠️  Codex UNAVAILABLE (outage: rate-limit/auth/transport) — allowing push (AIN-49)."
+      echo "    Perform a substitute review (human or subagent) for these commits."
+    else
+      echo ""
+      echo "❌ Codex review found issues (exit code $REVIEW_EXIT)."
+      echo "Fix the issues above before pushing."
+      exit 1
+    fi
   fi
 done
 
