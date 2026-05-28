@@ -45,7 +45,11 @@ import {
   composeSystemPrompt,
   type UserProfileSnippet,
 } from './system-prompt';
-import { buildToolRegistry, type ToolResultSink } from './tool-registry';
+import {
+  buildToolRegistry,
+  type ToolCallBudget,
+  type ToolResultSink,
+} from './tool-registry';
 import type { ToolContext, ToolName, ToolResult } from '../tools/types';
 import type { ChatEvent } from '../cribai';
 import {
@@ -179,7 +183,21 @@ export async function* runLlmTurn(
     resultsByCallId.set(toolCallId, result);
   };
 
-  const tools = buildToolRegistry(toolContext, sink);
+  // codex P2: `stepCountIs` only caps model round-trips. The SDK runs ALL
+  // tool-call `execute` closures within a single step before re-evaluating the
+  // stop condition, so a step that emits N parallel tool calls would run all N
+  // — bypassing the legacy per-turn cap (5 auth / 2 guest) and letting
+  // `propose_mission` spam mission rows. This mutable budget is threaded into
+  // the registry's `execute` wrapper, which atomically caps tool EXECUTIONS at
+  // the same limit, covering the parallel-calls-in-one-step case. The
+  // `stepCountIs` stop condition is kept too: it still bounds round-trips
+  // (and matters for prose-only / single-call-per-step turns).
+  const toolCallBudget: ToolCallBudget = {
+    limit: isGuest ? GUEST_MAX_STEPS : AUTH_MAX_STEPS,
+    count: 0,
+  };
+
+  const tools = buildToolRegistry(toolContext, sink, toolCallBudget);
 
   const result = streamText({
     model,

@@ -14,7 +14,7 @@
  * by the existing per-handler test suites.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import {
   TOOL_SPECS,
@@ -348,6 +348,109 @@ describe('tool-registry — sink refactor (codex P1)', () => {
 
     // Sink must NOT fire when the executor rejects.
     expect(sinkCalls).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PDR-004 codex P2 (AIN-8): per-turn tool-execution budget. `stepCountIs` caps
+// model ROUND-TRIPS, not tool executions — when the model emits several tool
+// calls in ONE step the SDK runs ALL of them before re-checking the stop
+// condition. The budget enforces the legacy per-turn cap (5 auth / 2 guest)
+// at the `execute` seam so parallel calls in a single step are also capped:
+// once the limit is reached, `executeTool` is NOT invoked (no side effect, no
+// mission row), the sink does NOT fire, and the model gets a short string.
+// ---------------------------------------------------------------------------
+
+describe('tool-registry — per-turn tool-call budget (codex P2)', () => {
+  // These tests use persistent mocks (mockResolvedValue / mockImplementation)
+  // and assert exact call counts, so reset the spy between each.
+  beforeEach(() => {
+    vi.mocked(executeTool).mockReset();
+  });
+
+  it('does NOT count executions when no budget is supplied (back-compat)', async () => {
+    vi.mocked(executeTool).mockResolvedValue({
+      modelContext: 'ok',
+      clientBlock: { type: 'text', content: 'x' },
+    } as never);
+
+    const registry = buildToolRegistry(
+      { supabase: {} as never, campusId: 'c', campusSlug: 'uw-madison' } as ToolContext,
+      () => {},
+    );
+    const execute = (registry.search_listings as { execute: (...a: unknown[]) => Promise<unknown> }).execute;
+
+    // Many calls with no budget — all execute.
+    for (let i = 0; i < 10; i++) {
+      await execute({ semantic_query: 'x' }, { toolCallId: `c${i}`, messages: [] } as never);
+    }
+    expect(vi.mocked(executeTool)).toHaveBeenCalledTimes(10);
+  });
+
+  it('rejects executions beyond the limit: executeTool not called, sink not fired, model gets a string', async () => {
+    vi.mocked(executeTool).mockResolvedValue({
+      modelContext: 'Found listings.',
+      clientBlock: { type: 'text', content: 'card' },
+    } as never);
+
+    const sinkCalls: unknown[] = [];
+    const budget = { limit: 2, count: 0 };
+    const registry = buildToolRegistry(
+      { supabase: {} as never, campusId: 'c', campusSlug: 'uw-madison' } as ToolContext,
+      (_id, _name, result) => sinkCalls.push(result),
+      budget,
+    );
+    const execute = (registry.search_listings as { execute: (...a: unknown[]) => Promise<unknown> }).execute;
+
+    const r1 = await execute({ semantic_query: 'a' }, { toolCallId: 'c1', messages: [] } as never);
+    const r2 = await execute({ semantic_query: 'b' }, { toolCallId: 'c2', messages: [] } as never);
+    const r3 = await execute({ semantic_query: 'c' }, { toolCallId: 'c3', messages: [] } as never);
+
+    // First two run; third is rejected by the budget.
+    expect(r1).toBe('Found listings.');
+    expect(r2).toBe('Found listings.');
+    expect(r3).toMatch(/limit reached/i);
+
+    expect(vi.mocked(executeTool)).toHaveBeenCalledTimes(2);
+    expect(sinkCalls).toHaveLength(2);
+  });
+
+  it('caps PARALLEL calls in a single step (the codex P2 case)', async () => {
+    // Simulate the SDK firing N execute() closures concurrently within ONE
+    // step. The check+increment must be synchronous so the (limit+1)-th call
+    // sees the budget exhausted even though all started before any resolved.
+    vi.mocked(executeTool).mockImplementation(
+      (async () => {
+        // Force a microtask gap so all parallel calls interleave at the await.
+        await Promise.resolve();
+        return { modelContext: 'ok', clientBlock: { type: 'text', content: 'x' } };
+      }) as never,
+    );
+
+    const sinkCalls: unknown[] = [];
+    const budget = { limit: 3, count: 0 };
+    const registry = buildToolRegistry(
+      { supabase: {} as never, campusId: 'c', campusSlug: 'uw-madison' } as ToolContext,
+      (_id, _name, result) => sinkCalls.push(result),
+      budget,
+    );
+    const execute = (registry.search_listings as { execute: (...a: unknown[]) => Promise<unknown> }).execute;
+
+    // Fire 5 parallel executions (2 over the limit of 3).
+    const results = await Promise.all(
+      [0, 1, 2, 3, 4].map((i) =>
+        execute({ semantic_query: `q${i}` }, { toolCallId: `c${i}`, messages: [] } as never),
+      ),
+    );
+
+    const executed = results.filter((r) => r === 'ok');
+    const rejected = results.filter((r) => typeof r === 'string' && /limit reached/i.test(r as string));
+    expect(executed).toHaveLength(3);
+    expect(rejected).toHaveLength(2);
+
+    // No side effect beyond the cap.
+    expect(vi.mocked(executeTool)).toHaveBeenCalledTimes(3);
+    expect(sinkCalls).toHaveLength(3);
   });
 });
 

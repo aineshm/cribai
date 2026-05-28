@@ -476,6 +476,121 @@ describe('runLlmTurn — onFirstModelToken (FIX 3: TTFT at first token)', () => 
   });
 });
 
+describe('runLlmTurn — per-turn tool-call budget (codex P2)', () => {
+  it('caps tool executions at AUTH_MAX_STEPS (5) when many calls arrive in ONE step', async () => {
+    vi.mocked(executeTool).mockResolvedValue(SEARCH_RESULT as never);
+
+    // ONE step emits 7 parallel tool-calls (2 over the auth cap of 5). A
+    // stepCountIs-only stop condition would let ALL 7 run; the budget must
+    // stop at 5.
+    const model = new MockLanguageModelV3({
+      doStream: async () => ({
+        stream: simulateReadableStream({
+          chunks: [
+            { type: 'stream-start', warnings: [] },
+            ...Array.from({ length: 7 }, (_v, i) =>
+              toolCallPart(`c${i}`, 'search_listings', { semantic_query: `q${i}` }),
+            ),
+            finishPart('stop'),
+          ] as LanguageModelV3StreamPart[],
+          initialDelayInMs: null,
+          chunkDelayInMs: null,
+        }),
+      }),
+    });
+
+    const events = await collect(runLlmTurn(baseInput(model, { isGuest: false })));
+
+    // executeTool ran at most 5 times — beyond-cap calls were rejected.
+    expect(vi.mocked(executeTool)).toHaveBeenCalledTimes(5);
+    // Rich tool_result events (from the sink) only for the 5 that executed.
+    const rich = events.filter(
+      (e) => e.type === 'tool_result' && (e as { name: string }).name === 'search_listings',
+    );
+    expect(rich.length).toBe(5);
+    expect(events[events.length - 1]!.type).toBe('done');
+  });
+
+  it('caps tool executions at GUEST_MAX_STEPS (2) for guests', async () => {
+    vi.mocked(executeTool).mockResolvedValue(SEARCH_RESULT as never);
+
+    const model = new MockLanguageModelV3({
+      doStream: async () => ({
+        stream: simulateReadableStream({
+          chunks: [
+            { type: 'stream-start', warnings: [] },
+            ...Array.from({ length: 4 }, (_v, i) =>
+              toolCallPart(`c${i}`, 'search_listings', { semantic_query: `q${i}` }),
+            ),
+            finishPart('stop'),
+          ] as LanguageModelV3StreamPart[],
+          initialDelayInMs: null,
+          chunkDelayInMs: null,
+        }),
+      }),
+    });
+
+    const events = await collect(
+      runLlmTurn(
+        baseInput(model, {
+          isGuest: true,
+          toolContext: {
+            ...fakeContext,
+            userId: undefined,
+            allowedToolNames: ['search_listings'], // budget, not allowlist, must reject
+          },
+        }),
+      ),
+    );
+
+    expect(vi.mocked(executeTool)).toHaveBeenCalledTimes(2);
+    expect(events[events.length - 1]!.type).toBe('done');
+  });
+
+  it('caps across multiple steps too (cumulative per-turn budget)', async () => {
+    vi.mocked(executeTool).mockResolvedValue(SEARCH_RESULT as never);
+
+    // Three steps, 2 tool-calls each = 6 attempts. Auth cap is 5, so the 6th
+    // must be rejected even though it lands in a fresh step.
+    let step = 0;
+    const model = new MockLanguageModelV3({
+      doStream: async () => {
+        const current = step++;
+        if (current < 3) {
+          return {
+            stream: simulateReadableStream({
+              chunks: [
+                { type: 'stream-start', warnings: [] },
+                toolCallPart(`s${current}a`, 'search_listings', { semantic_query: 'a' }),
+                toolCallPart(`s${current}b`, 'search_listings', { semantic_query: 'b' }),
+                finishPart('tool-calls'),
+              ] as LanguageModelV3StreamPart[],
+              initialDelayInMs: null,
+              chunkDelayInMs: null,
+            }),
+          };
+        }
+        return {
+          stream: simulateReadableStream({
+            chunks: [
+              { type: 'stream-start', warnings: [] },
+              ...textPart('t1', 'done'),
+              FINISH,
+            ] as LanguageModelV3StreamPart[],
+            initialDelayInMs: null,
+            chunkDelayInMs: null,
+          }),
+        };
+      },
+    });
+
+    await collect(runLlmTurn(baseInput(model, { isGuest: false })));
+
+    // Cumulative cap of 5 across steps — never 6.
+    expect(vi.mocked(executeTool)).toHaveBeenCalledTimes(5);
+  });
+});
+
 describe('runLlmTurn — provider error mapping', () => {
   it('rethrows a quota error so the route classifier still recognizes it', async () => {
     const model = new MockLanguageModelV3({

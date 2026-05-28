@@ -229,9 +229,39 @@ export type ToolResultSink = (
   result: ToolResult,
 ) => void;
 
+/**
+ * PDR-004 codex P2 (AIN-8): per-turn tool-execution budget.
+ *
+ * The Vercel AI SDK's `stepCountIs` stop condition caps model ROUND-TRIPS, not
+ * individual tool executions: when the model emits several tool calls in a
+ * SINGLE step, the SDK runs ALL of their `execute` closures before re-checking
+ * the stop condition. That bypasses the legacy deterministic path's per-turn
+ * tool-call cap (5 authenticated / 2 guest), so one turn could fire many tool
+ * executions in parallel — cost blowup, and `propose_mission` auto-creates
+ * mission rows (queue spam).
+ *
+ * `ToolCallBudget` is a small mutable counter threaded into `buildToolRegistry`
+ * from `runLlmTurn`. The `execute` wrapper checks-and-increments it
+ * SYNCHRONOUSLY (before any `await`) so parallel calls within one step cannot
+ * race past the limit. Once `count` reaches `limit`, the wrapper does NOT call
+ * `executeTool` (no side effect, no mission row) and does NOT fire the sink —
+ * it just hands the model a short notice string. This is applied IN ADDITION
+ * to (and after) the executor's guest allowlist + HITL `confirmed` gating.
+ */
+export interface ToolCallBudget {
+  /** Max tool executions allowed this turn (5 auth / 2 guest). */
+  readonly limit: number;
+  /** Executions consumed so far this turn. Mutated by the registry. */
+  count: number;
+}
+
+/** Model-facing notice when the per-turn tool-call budget is exhausted. */
+const BUDGET_EXHAUSTED_MESSAGE = 'Tool call limit reached for this turn.';
+
 export function buildToolRegistry(
   context: ToolContext,
   sink: ToolResultSink,
+  budget?: ToolCallBudget,
 ): ToolRegistry {
   const make = <T extends z.ZodTypeAny>(
     name: ToolName,
@@ -248,6 +278,21 @@ export function buildToolRegistry(
       // only fires on success, after which we hand the model ONLY the string
       // `modelContext`. The full ToolResult never reaches the model.
       execute: async (input, options): Promise<string> => {
+        // codex P2: enforce the per-turn tool-execution cap at the `execute`
+        // seam so it also covers PARALLEL calls within one step. This check +
+        // increment runs SYNCHRONOUSLY before the first `await` — the SDK
+        // invokes every parallel `execute` closure concurrently, and each runs
+        // to its first suspension point synchronously, so an atomic
+        // check-then-increment here prevents the (limit+1)-th call from
+        // slipping through. When exhausted we DON'T call `executeTool` (no side
+        // effect / no mission row) and DON'T fire the sink (no clientBlock
+        // leak) — the model just gets a short notice string.
+        if (budget) {
+          if (budget.count >= budget.limit) {
+            return BUDGET_EXHAUSTED_MESSAGE;
+          }
+          budget.count += 1;
+        }
         const result = await executeTool(
           name,
           input as Record<string, unknown>,
