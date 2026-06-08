@@ -200,6 +200,59 @@ describe('inferProfile', () => {
   });
 
   // -------------------------------------------------------------------------
+  // Test 2b: dryRun → inferred profile computed, but upsert SKIPPED
+  // -------------------------------------------------------------------------
+  it('dryRun: computes the profile but SKIPS the service-role upsert', async () => {
+    const readDb = makeReadDb(fiveSavedRows);
+    const { db: writeDb, upsertSpy, fromSpy: writeFromSpy } = makeWriteDb();
+    const gemini = makeGemini(cannedInferredProfileResponse);
+
+    const deps: InferProfileDeps = {
+      readDb,
+      writeDb,
+      userId: USER_ID,
+      gemini: gemini as never,
+      dryRun: true,
+    };
+
+    const result = await inferProfile(USER_ID, deps);
+
+    // Read + Gemini compute still happen — the profile is the authoritative result.
+    expect(result.status).toBe('inferred');
+    if (result.status === 'inferred') {
+      expect(result.profile.rent_min).toBe(900);
+      expect(result.profile.confidence).toBeCloseTo(
+        inferenceConfidence(fiveSavedRows.length),
+        9,
+      );
+    }
+    expect(gemini.models.generateContent).toHaveBeenCalledTimes(1);
+
+    // The ONLY side effect — the upsert — must NOT fire.
+    expect(writeFromSpy).not.toHaveBeenCalled();
+    expect(upsertSpy).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Test 2c: dryRun absent → upsert still fires (regression guard)
+  // -------------------------------------------------------------------------
+  it('prod path still upserts when dryRun is absent (regression guard)', async () => {
+    const readDb = makeReadDb(fiveSavedRows);
+    const { db: writeDb, upsertSpy } = makeWriteDb();
+    const gemini = makeGemini(cannedInferredProfileResponse);
+
+    const result = await inferProfile(USER_ID, {
+      readDb,
+      writeDb,
+      userId: USER_ID,
+      gemini: gemini as never,
+    });
+
+    expect(result.status).toBe('inferred');
+    expect(upsertSpy).toHaveBeenCalledTimes(1);
+  });
+
+  // -------------------------------------------------------------------------
   // Test 3: malformed JSON → needs_more_data, NO write
   // -------------------------------------------------------------------------
   it('returns needs_more_data when Gemini returns malformed JSON', async () => {

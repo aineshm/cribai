@@ -113,6 +113,13 @@ export interface AddListingDeps {
   readonly placesApiKey?: string;
   /** Fire-and-forget hook called after the row is committed. */
   readonly onSaved?: (listingId: string) => void;
+  /**
+   * Eval side-effect kill-switch (mirrors `ToolContext.dryRun`). When true,
+   * `addListing` SKIPS the real extraction fetch AND the `.insert`, returning a
+   * synthetic-success `AddListingResult` of the same shape. The handler threads
+   * `context.dryRun` here. Live traffic leaves it undefined (default = false).
+   */
+  readonly dryRun?: boolean;
 }
 
 /** Successful result of addListing. */
@@ -209,6 +216,14 @@ export interface InferProfileDeps {
   readonly gemini?: GoogleGenAI;
   /** Minimum number of saved listings required before inference runs. Defaults to 3. */
   readonly minSavesForInference?: number;
+  /**
+   * Eval side-effect kill-switch (mirrors `ToolContext.dryRun`). When true,
+   * `inferProfile` keeps the read + Gemini inference compute but SKIPS the
+   * service-role `.upsert` into `crm_inferred_profiles`, still returning the
+   * computed `{status:'inferred', profile}`. The handler threads
+   * `context.dryRun` here. Live traffic leaves it undefined (default = false).
+   */
+  readonly dryRun?: boolean;
 }
 
 /** Discriminated result of inferProfile. */
