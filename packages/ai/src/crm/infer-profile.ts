@@ -325,16 +325,25 @@ export async function inferProfile(
     // NOTE: last_updated_at is intentionally omitted — a DB trigger handles it.
   };
 
-  const upsertResult = await deps.writeDb
-    .from('crm_inferred_profiles')
-    .upsert(upsertRow, { onConflict: 'user_id' });
+  // Eval dry-run gate (mirrors create-sublease / schedule-tour). The eval
+  // runner drives the real registry with `dryRun: true` + a service-role
+  // client, so the inference's only side effect — this service-role upsert into
+  // crm_inferred_profiles — MUST be skipped. We keep the read + Gemini compute
+  // above (those are not writes) and return the already-computed profile, the
+  // authoritative result for the caller. Live traffic is always
+  // `dryRun=false` (default), so the prod write path below is unchanged.
+  if (!deps.dryRun) {
+    const upsertResult = await deps.writeDb
+      .from('crm_inferred_profiles')
+      .upsert(upsertRow, { onConflict: 'user_id' });
 
-  if (upsertResult && (upsertResult as { error?: unknown }).error) {
-    console.error(
-      '[inferProfile] Upsert to crm_inferred_profiles failed:',
-      (upsertResult as { error: unknown }).error,
-    );
-    // Non-fatal: profile is still valid, return it.
+    if (upsertResult && (upsertResult as { error?: unknown }).error) {
+      console.error(
+        '[inferProfile] Upsert to crm_inferred_profiles failed:',
+        (upsertResult as { error: unknown }).error,
+      );
+      // Non-fatal: profile is still valid, return it.
+    }
   }
 
   // ---------------------------------------------------------------------------

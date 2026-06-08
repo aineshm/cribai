@@ -75,6 +75,9 @@ export async function addListingHandler(
       db: context.supabase,
       userId,
       placesApiKey: process.env.GOOGLE_PLACES_API_KEY,
+      // Eval kill-switch: forwards the ToolContext dry-run flag so a model-
+      // driven save during an eval run skips the real extract + insert.
+      dryRun: context.dryRun,
     });
 
     // The model drives analysis via the separate `first_save_analysis` tool.
