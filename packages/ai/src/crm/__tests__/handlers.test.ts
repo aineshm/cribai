@@ -127,7 +127,7 @@ describe('addListingHandler', () => {
     assertTextBlock(result);
   });
 
-  it('calls addListing with context.supabase as db and context.userId, returns ToolResult', async () => {
+  it('calls addListing with context.supabase as db and context.userId; does NOT pass an onSaved hook (AIN-15 Phase 2)', async () => {
     const ctx = makeContext();
     const addResult: AddListingResult = { listingId: 'listing-uuid-1', alreadySaved: false, confidence: 0.9 };
     mockAddListing.mockResolvedValueOnce(addResult);
@@ -140,12 +140,34 @@ describe('addListingHandler', () => {
     const deps = callArgs[1];
     expect(deps.db).toBe(ctx.supabase);
     expect(deps.userId).toBe(ctx.userId);
+    // AIN-15 Phase 2: analysis is model-driven; the handler no longer wires a
+    // fire-and-forget onSaved hook.
+    expect(deps.onSaved).toBeUndefined();
 
     expect(result.modelContext).toContain('listing-uuid-1');
     assertTextBlock(result);
   });
 
-  it('returns ToolResult with "already in CRM" note when alreadySaved is true', async () => {
+  it('new save: modelContext FORCEFULLY instructs the model to call first_save_analysis with the listing id', async () => {
+    const ctx = makeContext();
+    const addResult: AddListingResult = { listingId: 'listing-uuid-1', alreadySaved: false, confidence: 0.9 };
+    mockAddListing.mockResolvedValueOnce(addResult);
+
+    const result = await addListingHandler({ url: 'https://zillow.com/foo' }, ctx);
+
+    // Reports the save WITH the id, and instructs the chained tool call.
+    expect(result.modelContext).toMatch(/saved/i);
+    expect(result.modelContext).toContain('first_save_analysis');
+    expect(result.modelContext).toContain('listing_id="listing-uuid-1"');
+    // No false promise of an automatic/background analysis.
+    expect(result.modelContext).not.toMatch(/analysis is running/i);
+    // Client copy must not over-promise an automatic analysis either.
+    if (result.clientBlock.type === 'text') {
+      expect(result.clientBlock.content).not.toMatch(/will be ready in a moment/i);
+    }
+  });
+
+  it('returns ToolResult with "already in CRM" note when alreadySaved is true; allows on-request analysis, no auto-chain', async () => {
     const ctx = makeContext();
     const addResult: AddListingResult = { listingId: 'listing-uuid-2', alreadySaved: true, confidence: 0.8 };
     mockAddListing.mockResolvedValueOnce(addResult);
@@ -153,9 +175,11 @@ describe('addListingHandler', () => {
     const result = await addListingHandler({ url: 'https://zillow.com/bar' }, ctx);
 
     expect(result.modelContext).toMatch(/already/i);
-    // Regression (codex P3): the already-saved path does NOT fire onSaved, so
-    // the model must NOT be told analysis is running.
+    // The dedup path does NOT auto-start an analysis — must not claim one runs.
     expect(result.modelContext).not.toMatch(/analysis is running/i);
+    expect(result.modelContext).not.toMatch(/no new analysis was started[\s\S]*call the first_save_analysis tool now/i);
+    // But it still tells the model it CAN run first_save_analysis on request.
+    expect(result.modelContext).toContain('first_save_analysis');
     assertTextBlock(result);
   });
 
@@ -174,7 +198,7 @@ describe('addListingHandler', () => {
     }
   });
 
-  it('fires firstSaveAnalysis fire-and-forget via onSaved after successful save', async () => {
+  it('AIN-15 Phase 2: does NOT auto-invoke firstSaveAnalysis (no fire-and-forget onSaved hook)', async () => {
     const ctx = makeContext();
     const addResult: AddListingResult = { listingId: 'listing-uuid-3', alreadySaved: false, confidence: 0.9 };
 
@@ -184,22 +208,16 @@ describe('addListingHandler', () => {
       return addResult;
     });
 
-    const result = await addListingHandler({ url: 'https://zillow.com/baz' }, ctx);
+    await addListingHandler({ url: 'https://zillow.com/baz' }, ctx);
 
-    // Handler resolved — fire-and-forget not awaited
-    expect(result).toBeDefined();
+    // No onSaved hook is wired anymore.
     expect(capturedDeps).not.toBeNull();
-    expect(typeof capturedDeps!.onSaved).toBe('function');
+    expect(capturedDeps!.onSaved).toBeUndefined();
 
-    // Invoke onSaved manually to confirm it triggers firstSaveAnalysis
-    capturedDeps!.onSaved!('listing-uuid-3');
-    // Allow microtask queue to flush
+    // Flush microtasks just in case — firstSaveAnalysis must NEVER be invoked
+    // by the handler now; the model drives it via the separate tool.
     await Promise.resolve();
-
-    expect(mockFirstSaveAnalysis).toHaveBeenCalledWith(
-      'listing-uuid-3',
-      expect.objectContaining({ db: ctx.supabase, userId: ctx.userId }),
-    );
+    expect(mockFirstSaveAnalysis).not.toHaveBeenCalled();
   });
 });
 
