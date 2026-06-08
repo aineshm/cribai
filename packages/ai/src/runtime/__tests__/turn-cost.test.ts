@@ -1,9 +1,10 @@
 /**
  * PDR-004 Track A Days 5-6 (AIN-9) — turn-cost projection tests.
  *
- * Table-driven over the Vertex pricing ($0.15/M in, $0.60/M out, cached
- * $0.01875/M). Covers the cached discount, the $0.05 cap boundary, zero usage,
- * and the env-overridable cap.
+ * PR 2: the ACTIVE model is now the OpenAI default (`gpt-5.4-mini`) since
+ * AI_PROVIDER defaults to `openai`. These constants encode that model's LIST
+ * pricing ($0.75/M in, $4.50/M out, cached $0.075/M). Covers the cached
+ * discount, the $0.05 cap boundary, zero usage, and the env-overridable cap.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -14,9 +15,10 @@ import {
   TURN_COST_CAP_USD_DEFAULT,
 } from '../turn-cost';
 
-const IN = 0.15 / 1_000_000;
-const OUT = 0.6 / 1_000_000;
-const CACHED = 0.01875 / 1_000_000;
+// gpt-5.4-mini (active default under AI_PROVIDER=openai).
+const IN = 0.75 / 1_000_000;
+const OUT = 4.5 / 1_000_000;
+const CACHED = 0.075 / 1_000_000;
 
 describe('projectTurnCost', () => {
   it('zero usage projects $0', () => {
@@ -70,17 +72,23 @@ describe('isOverCap — $0.05 boundary', () => {
     expect(isOverCap(0.049, 0.05)).toBe(false);
   });
 
-  it('a realistic large turn that breaches the cap is flagged', () => {
-    // 100k input + 60k output ≈ $0.051 > $0.05.
-    const cost = projectTurnCost({ inputTokens: 100_000, outputTokens: 60_000 });
-    expect(cost.costUsd).toBeGreaterThan(0.05);
+  it('a runaway turn that breaches the recalibrated default cap is flagged', () => {
+    // 100k input + 110k output ≈ $0.57 (gpt-5.4-mini) > the $0.50 default cap.
+    const cost = projectTurnCost({ inputTokens: 100_000, outputTokens: 110_000 });
+    expect(cost.costUsd).toBeGreaterThan(0.5);
     expect(isOverCap(cost.costUsd, TURN_COST_CAP_USD_DEFAULT)).toBe(true);
+  });
+
+  it('a normal heavy reasoning turn does NOT breach the recalibrated cap (no false alert)', () => {
+    // 100k input + 60k output ≈ $0.345 (gpt-5.4-mini) — heavy, but under $0.50.
+    const cost = projectTurnCost({ inputTokens: 100_000, outputTokens: 60_000 });
+    expect(isOverCap(cost.costUsd, TURN_COST_CAP_USD_DEFAULT)).toBe(false);
   });
 });
 
 describe('resolveTurnCostCapUsd — env override', () => {
-  it('defaults to $0.05 when unset', () => {
-    expect(resolveTurnCostCapUsd({})).toBe(0.05);
+  it('defaults to $0.50 when unset (recalibrated for the OpenAI default)', () => {
+    expect(resolveTurnCostCapUsd({})).toBe(0.5);
   });
 
   it('uses a valid positive override', () => {
@@ -88,8 +96,8 @@ describe('resolveTurnCostCapUsd — env override', () => {
   });
 
   it('ignores a malformed / non-positive override', () => {
-    expect(resolveTurnCostCapUsd({ CRIBAI_TURN_COST_CAP_USD: 'abc' })).toBe(0.05);
-    expect(resolveTurnCostCapUsd({ CRIBAI_TURN_COST_CAP_USD: '-1' })).toBe(0.05);
-    expect(resolveTurnCostCapUsd({ CRIBAI_TURN_COST_CAP_USD: '0' })).toBe(0.05);
+    expect(resolveTurnCostCapUsd({ CRIBAI_TURN_COST_CAP_USD: 'abc' })).toBe(0.5);
+    expect(resolveTurnCostCapUsd({ CRIBAI_TURN_COST_CAP_USD: '-1' })).toBe(0.5);
+    expect(resolveTurnCostCapUsd({ CRIBAI_TURN_COST_CAP_USD: '0' })).toBe(0.5);
   });
 });

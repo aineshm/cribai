@@ -415,6 +415,29 @@ describe('runLlmTurn — onFirstModelToken (FIX 3: TTFT at first token)', () => 
     expect(onFirstModelToken).toHaveBeenCalledTimes(1);
   });
 
+  it('fires onFirstModelToken on a reasoning part, and reasoning never leaks as prose', async () => {
+    // gpt-5.4-mini (OpenAI Responses API) emits reasoning parts BEFORE any text.
+    // TTFT must mark on the reasoning part (so the AIN-19 baseline isn't inflated
+    // by the reasoning phase), and reasoning content must NOT surface as a
+    // client-visible text event.
+    const onFirstModelToken = vi.fn();
+    const model = streamModel([
+      { type: 'reasoning-start', id: 'r1' },
+      { type: 'reasoning-delta', id: 'r1', delta: 'Let me think about this...' },
+      { type: 'reasoning-end', id: 'r1' },
+      ...textPart('t1', 'Here is the answer.'),
+      FINISH,
+    ]);
+
+    const events = await collect(runLlmTurn(baseInput(model, { onFirstModelToken })));
+
+    expect(onFirstModelToken).toHaveBeenCalledTimes(1);
+    const textEvents = events.filter(
+      (e) => e.type === 'text',
+    ) as Extract<ChatEvent, { type: 'text' }>[];
+    expect(textEvents.every((e) => !e.content.includes('Let me think'))).toBe(true);
+  });
+
   it('fires exactly once even across multiple text deltas and tool calls', async () => {
     vi.mocked(executeTool).mockResolvedValue(SEARCH_RESULT as never);
     const onFirstModelToken = vi.fn();
@@ -636,8 +659,8 @@ describe('runLlmTurn — onTurnCost (AIN-9 cost projection + cap)', () => {
     const cost = onTurnCost.mock.calls[0]![0] as { costUsd: number; inputTokens: number; outputTokens: number };
     expect(cost.inputTokens).toBe(1000);
     expect(cost.outputTokens).toBe(500);
-    // 1000 * 0.15/M + 500 * 0.60/M
-    expect(cost.costUsd).toBeCloseTo(1000 * (0.15 / 1_000_000) + 500 * (0.6 / 1_000_000), 12);
+    // PR 2: active model is gpt-5.4-mini → 1000 * 0.75/M + 500 * 4.50/M.
+    expect(cost.costUsd).toBeCloseTo(1000 * (0.75 / 1_000_000) + 500 * (4.5 / 1_000_000), 12);
   });
 
   it('logs cost_cap_exceeded (but does NOT throw) when the projected cost is over the cap', async () => {
@@ -803,5 +826,44 @@ describe('runLlmTurn — FIX 1: cost_cap_exceeded actually lands on a span', () 
       langfuseTracing.setLangfuseTracerProvider(null);
       await provider.shutdown();
     }
+  });
+});
+
+describe('runLlmTurn — PR 2: explicit cache gated to Google provider', () => {
+  it('does NOT create an explicit cache under aiProvider=openai even when enabled', async () => {
+    const cacheCreator = vi.fn(async () => ({ key: 'k', name: 'cachedContent/abc' }));
+    const model = streamModel([...textPart('t1', 'Hello.'), FINISH]);
+
+    const events = await collect(
+      runLlmTurn(
+        baseInput(model, {
+          aiProvider: 'openai',
+          explicitCache: true,
+          cacheCreator,
+        }),
+      ),
+    );
+
+    // OpenAI has no explicit context cache → creator never invoked; the turn
+    // still streams cleanly to a terminal `done` (graceful prefix-inline path).
+    expect(cacheCreator).not.toHaveBeenCalled();
+    expect(events.at(-1)).toEqual({ type: 'done' });
+  });
+
+  it('DOES create an explicit cache under aiProvider=google when enabled', async () => {
+    const cacheCreator = vi.fn(async () => ({ key: 'k', name: 'cachedContent/abc' }));
+    const model = streamModel([...textPart('t1', 'Hello.'), FINISH]);
+
+    await collect(
+      runLlmTurn(
+        baseInput(model, {
+          aiProvider: 'google',
+          explicitCache: true,
+          cacheCreator,
+        }),
+      ),
+    );
+
+    expect(cacheCreator).toHaveBeenCalledTimes(1);
   });
 });
