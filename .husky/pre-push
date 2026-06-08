@@ -35,9 +35,15 @@ while read local_ref local_oid remote_ref remote_oid; do
   echo ""
 
   # Run codex review on the diff being pushed.
-  # Pin a cheaper model for the gate (AIN-49) — independent of the interactive codex model.
+  # NOTE (AIN-52): do NOT pin `-c model=...` here. The AIN-49 attempt pinned
+  # `gpt-5.4` for a cheaper gate, but ChatGPT-account codex plans REJECT it with
+  # a 400 "model not supported" — which is NOT in the graceful-degradation grep
+  # below, so it would HARD-BLOCK every push (it only slipped through on transient
+  # TokenRefreshFailed noise). Use the account default (config.toml), which is the
+  # `codex review --base <ref>` form proven to work. If a cheaper gate is wanted
+  # later, pin only a model the account actually supports.
   # `if` form so `set -e` doesn't abort before we can classify a non-zero exit.
-  if codex review --base "$base" -c model="gpt-5.4" -c model_reasoning_effort="high" > /tmp/codex_prepush.log 2>&1; then
+  if codex review --base "$base" > /tmp/codex_prepush.log 2>&1; then
     REVIEW_EXIT=0
   else
     REVIEW_EXIT=$?
