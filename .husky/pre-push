@@ -54,7 +54,11 @@ while read local_ref local_oid remote_ref remote_oid; do
     if grep -qiE "usage limit|TokenRefreshFailed|worker quit with fatal|rate limit|stream error|connection refused|timed out" /tmp/codex_prepush.log; then
       echo ""
       echo "⚠️  Codex UNAVAILABLE (outage: rate-limit/auth/transport) — allowing push (AIN-49)."
-      echo "    Perform a substitute review (human or subagent) for these commits."
+      echo "    REQUIRED substitute (the new default while codex is rate-limited"
+      echo "    until ~Jul 8 2026): dispatch a Claude review agent on this diff via"
+      echo "    Claude Code (code + security review of \`git diff <base>...HEAD\`)."
+      echo "    Fix any CRITICAL/HIGH findings before merge. Codex resumes as the"
+      echo "    gate automatically once available again."
     else
       echo ""
       echo "❌ Codex review found issues (exit code $REVIEW_EXIT)."

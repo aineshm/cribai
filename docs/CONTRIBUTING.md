@@ -365,6 +365,8 @@ The TOML key is `model_reasoning_effort` (not `reasoning_effort`). If `gpt-5.5` 
 
 Manual on-demand review: `codex review --base main`. The hook does not pass `--model` or `--reasoning-effort` flags, so the user-level config is the single source of truth — verify with `cat ~/.codex/config.toml`.
 
+**Default review when Codex is unavailable (current default — Codex rate-limited until ~Jul 8 2026).** When the hook detects a Codex outage (rate-limit / auth / transport) it warns and allows the push (AIN-49 graceful degradation). The **required substitute, and the current default review mechanism, is a Claude review agent**: dispatch a code + security review (via Claude Code) over `git diff <base>...HEAD`, and fix any CRITICAL/HIGH findings before merge. This is exactly the two-reviewer pass used for PRs #84/#85. Codex automatically resumes as the gate once it's available again — no config change needed.
+
 ## Common Tasks
 
 ### Adding a New Package
