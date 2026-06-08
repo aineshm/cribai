@@ -40,7 +40,9 @@ const mockClient: CrmClient = {
   listUnits: () => wait(UNITS),
   getList: () => wait(CRM_LIST),
   addListing: () => wait(ADD_LISTING_RESULT),
-  getAnalysis: (id) => wait(id === FIRST_UNIT_ID ? ANALYSIS_FULL : ANALYSIS_PARTIAL),
+  // Hero unit = a fresh paste with no coordinates yet → the honest PARTIAL
+  // analysis (skipped places branch). Other units → the all-ok analysis.
+  getAnalysis: (id) => wait(id === FIRST_UNIT_ID ? ANALYSIS_PARTIAL : ANALYSIS_FULL),
   rank: (mode) => wait(mode === 'compare' ? COMPARE_RESULT : RANK_RESULT),
   deleteUnit: () => wait(undefined),
   firstUnitId: () => FIRST_UNIT_ID,
@@ -49,7 +51,13 @@ const mockClient: CrmClient = {
 // Real impl: calls /api/crm/* (see WIRING-GUIDE.md). Stubbed until the Phase-2
 // endpoints exist; methods that have no backend yet throw a clear error.
 const realClient: CrmClient = {
-  listUnits: async () => (await fetch('/api/crm/listings')).json() as Promise<CrmUnit[]>,
+  listUnits: async () => {
+    // /api/crm/listings returns CrmListingRow[] with NO `_proposed` extensions.
+    // Casting to CrmUnit[] would plant runtime `undefined` on every
+    // `unit._proposed.*` read. Fail honestly (like getList) until PR3 returns
+    // CrmUnit-shaped rows incl. the contract extensions — see WIRING-GUIDE.md §4.
+    throw new Error('crm listings endpoint not implemented (Phase 2 / PR3)');
+  },
   getList: async () => {
     throw new Error('crm list endpoint not implemented (Phase 2)');
   },

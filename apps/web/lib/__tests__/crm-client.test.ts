@@ -14,6 +14,12 @@ describe('crmClient (mock mode)', () => {
     const a = await crmClient.getAnalysis(crmClient.firstUnitId());
     expect(a.trueCost.status).toBeDefined();
   });
+  it('the hero unit resolves to the honest PARTIAL analysis (skipped places)', async () => {
+    // A fresh paste has no coordinates yet, so the hero must exercise the
+    // skipped branch — guards against the full/partial wiring inverting.
+    const a = await crmClient.getAnalysis(crmClient.firstUnitId());
+    expect(a.placesSnapshot.status).toBe('skipped');
+  });
   it('rank returns a rank-mode result', async () => {
     const r = await crmClient.rank('rank');
     expect(r.mode).toBe('rank');
