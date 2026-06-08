@@ -34,6 +34,22 @@ vi.mock('../../tools/executor', () => ({
 }));
 import { executeTool } from '../../tools/executor';
 
+// AIN-15 Phase 2 — the CRM tools route through their `crm/` handlers (NOT
+// `executeTool`), so the integration test that drives add_listing →
+// first_save_analysis mocks the handlers directly. The barrel's schemas +
+// descriptions are preserved so the registry still constructs.
+vi.mock('../../crm', async (orig) => {
+  const actual = await orig<typeof import('../../crm')>();
+  return {
+    ...actual,
+    addListingHandler: vi.fn(),
+    firstSaveAnalysisHandler: vi.fn(),
+    inferProfileHandler: vi.fn(),
+    rankCompareHandler: vi.fn(),
+  };
+});
+import { addListingHandler, firstSaveAnalysisHandler } from '../../crm';
+
 const USAGE = {
   inputTokens: { total: 10, noCache: 10, cacheRead: 0 },
   outputTokens: { total: 5, reasoning: 0 },
@@ -122,6 +138,8 @@ const SEARCH_RESULT: ToolResult = {
 
 beforeEach(() => {
   vi.mocked(executeTool).mockReset();
+  vi.mocked(addListingHandler).mockReset();
+  vi.mocked(firstSaveAnalysisHandler).mockReset();
 });
 
 describe('runLlmTurn — no-tool turn', () => {
@@ -315,6 +333,102 @@ describe('runLlmTurn — multi-tool turn (A10 ordering)', () => {
     const textIdx = types.indexOf('text');
     expect(types.filter((t) => t === 'tool_result')).toHaveLength(2);
     expect(textIdx).toBeGreaterThan(lastToolResultIdx);
+    expect(types[types.length - 1]).toBe('done');
+  });
+});
+
+describe('runLlmTurn — CRM model-driven chaining (AIN-15 Phase 2)', () => {
+  it('streams add_listing then first_save_analysis as tool_result events in A10-safe order', async () => {
+    const mockAdd = vi.mocked(addListingHandler);
+    const mockFsa = vi.mocked(firstSaveAnalysisHandler);
+
+    const listingId = '11111111-2222-4333-8444-555555555555';
+    mockAdd.mockResolvedValue({
+      modelContext: `Saved listing ${listingId}. INSTRUCTIONS: call first_save_analysis now with listing_id="${listingId}".`,
+      clientBlock: { type: 'text', content: 'Listing saved to your CRM!' },
+    } as never);
+    mockFsa.mockResolvedValue({
+      modelContext: `Analysis for listing ${listingId}: true cost ~$1280/mo. INSTRUCTIONS: share it.`,
+      clientBlock: { type: 'text', content: '**Listing Analysis**\nTrue cost: ~$1280/mo' },
+    } as never);
+
+    // Step 0: model calls add_listing. Step 1: model (having read the
+    // instruction) calls first_save_analysis. Step 2: model writes prose.
+    let step = 0;
+    const model = new MockLanguageModelV3({
+      doStream: async () => {
+        const current = step++;
+        if (current === 0) {
+          return {
+            stream: simulateReadableStream({
+              chunks: [
+                { type: 'stream-start', warnings: [] },
+                toolCallPart('c-add', 'add_listing', { url: 'https://zillow.com/x' }),
+                finishPart('tool-calls'),
+              ] as LanguageModelV3StreamPart[],
+              initialDelayInMs: null,
+              chunkDelayInMs: null,
+            }),
+          };
+        }
+        if (current === 1) {
+          return {
+            stream: simulateReadableStream({
+              chunks: [
+                { type: 'stream-start', warnings: [] },
+                toolCallPart('c-fsa', 'first_save_analysis', {
+                  listing_id: '11111111-2222-4333-8444-555555555555',
+                }),
+                finishPart('tool-calls'),
+              ] as LanguageModelV3StreamPart[],
+              initialDelayInMs: null,
+              chunkDelayInMs: null,
+            }),
+          };
+        }
+        return {
+          stream: simulateReadableStream({
+            chunks: [
+              { type: 'stream-start', warnings: [] },
+              ...textPart('t1', "Here's the analysis for the listing you saved."),
+              FINISH,
+            ] as LanguageModelV3StreamPart[],
+            initialDelayInMs: null,
+            chunkDelayInMs: null,
+          }),
+        };
+      },
+    });
+
+    const events = await collect(runLlmTurn(baseInput(model)));
+
+    // CRM tools never flow through the legacy executor.
+    expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
+
+    // We assert on the STREAMED tool_result events (names + unique clientBlock
+    // content), NOT on handler spy call-counts. Both this file and
+    // tool-registry.test.ts `vi.mock('../../crm')`, so the registry can capture
+    // a different barrel instance than the spy this test holds — making spy
+    // identity unreliable across files. The streamed events prove the feature
+    // (add_listing -> first_save_analysis A10-ordered chaining) end-to-end
+    // regardless of spy identity. Production never mocks `../crm`.
+    // Both CRM tools stream as tool_result events, in order, carrying the
+    // clientBlock their handlers produced (proves both handlers ran and the
+    // sink wired the full ToolResult through the generic tool_result path).
+    const toolResults = events.filter(
+      (e) => e.type === 'tool_result',
+    ) as Extract<ChatEvent, { type: 'tool_result' }>[];
+    expect(toolResults.map((e) => e.name)).toEqual(['add_listing', 'first_save_analysis']);
+    expect((toolResults[0]!.block as { content: string }).content).toContain('Listing saved to your CRM!');
+    expect((toolResults[1]!.block as { content: string }).content).toContain('Listing Analysis');
+
+    // A10 ordering: every tool_result precedes the trailing prose, and the
+    // tool_call for each fires before its tool_result.
+    const types = events.map((e) => e.type);
+    const lastToolResultIdx = types.lastIndexOf('tool_result');
+    const textIdx = types.indexOf('text');
+    expect(textIdx).toBeGreaterThan(lastToolResultIdx);
+    expect(types.indexOf('tool_call')).toBeLessThan(types.indexOf('tool_result'));
     expect(types[types.length - 1]).toBe('done');
   });
 });

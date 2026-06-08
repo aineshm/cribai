@@ -18,12 +18,51 @@
  * This file does NOT modify any handler. The Day 10 cutover that deletes
  * `apps/web/lib/cribai-runtime.ts` re-routes the LLM-first turn handler
  * through this registry.
+ *
+ * AIN-15 Phase 2 — the 4 Personal CRM tools (`add_listing`,
+ * `first_save_analysis`, `infer_profile`, `rank_compare`) are registered here
+ * ALONGSIDE the 13 legacy tools. CRM tools do NOT route through `executeTool`
+ * (which switches on the 13 legacy `ToolName`s and would reject them); instead
+ * each is bound directly to its `crm/` handler via `makeCrm`. The two paths
+ * share one `runWithBudget` helper so the budget / sink / return contract is
+ * identical.
  */
 
 import { tool, type Tool } from 'ai';
 import { z } from 'zod';
 import { executeTool } from '../tools/executor';
 import type { ToolContext, ToolName, ToolResult } from '../tools/types';
+import {
+  addListingHandler,
+  firstSaveAnalysisHandler,
+  inferProfileHandler,
+  rankCompareHandler,
+  addListingInput,
+  ADD_LISTING_DESCRIPTION,
+  firstSaveAnalysisInput,
+  FIRST_SAVE_ANALYSIS_DESCRIPTION,
+  inferProfileInput,
+  INFER_PROFILE_DESCRIPTION,
+  rankCompareInput,
+  RANK_COMPARE_DESCRIPTION,
+  type CrmToolName,
+} from '../crm';
+
+/**
+ * AIN-15 Phase 2 — the registry-level tool-name union. It is the legacy 13
+ * (`ToolName`) PLUS the 4 CRM tools (`CrmToolName`). Used ONLY at this seam:
+ * the registry record type, the `ToolResultSink` `toolName` param, and the
+ * turn-loop's `tool-result` cast. The legacy `ToolName` union in
+ * `tools/types.ts` is deliberately NOT widened — `executeTool` switches on it
+ * and CRM tools must never flow through that path.
+ */
+export type RegistryToolName = ToolName | CrmToolName;
+
+/** Handler signature shared by all 4 CRM tool adapters in `crm/handlers/*`. */
+type CrmHandler = (
+  args: Record<string, unknown>,
+  context: ToolContext,
+) => Promise<ToolResult>;
 
 // ---------------------------------------------------------------------------
 // Input schemas (mirror handler-internal Zod schemas)
@@ -207,7 +246,7 @@ const DESCRIPTIONS: Readonly<Record<ToolName, string>> = {
  * allowlist) is closed over by each `execute` closure so the LLM-first turn
  * handler can pass the registry directly to `streamText`/`generateText`.
  */
-export type ToolRegistry = Readonly<Record<ToolName, Tool>>;
+export type ToolRegistry = Readonly<Record<RegistryToolName, Tool>>;
 
 /**
  * Out-of-band sink for the full `ToolResult`. PDR-004 codex P1 (PR #69): the
@@ -225,7 +264,7 @@ export type ToolRegistry = Readonly<Record<ToolName, Tool>>;
  */
 export type ToolResultSink = (
   toolCallId: string,
-  toolName: ToolName,
+  toolName: RegistryToolName,
   result: ToolResult,
 ) => void;
 
@@ -263,6 +302,48 @@ export function buildToolRegistry(
   sink: ToolResultSink,
   budget?: ToolCallBudget,
 ): ToolRegistry {
+  /**
+   * Shared `execute` body for BOTH the legacy (`make`) and CRM (`makeCrm`)
+   * paths. It owns the three invariants that must be identical across both:
+   *
+   *   1. codex P2 budget cap — a SYNCHRONOUS check-and-increment BEFORE the
+   *      first `await`. The SDK invokes every parallel `execute` closure
+   *      concurrently and each runs to its first suspension point
+   *      synchronously, so an atomic check-then-increment here stops the
+   *      (limit+1)-th call from slipping through. When exhausted we DON'T call
+   *      `invoke` (no side effect / no mission row) and DON'T fire the sink (no
+   *      clientBlock leak) — the model just gets a short notice string.
+   *   2. The sink fires with the SDK `toolCallId` + the FULL `ToolResult`, only
+   *      AFTER `invoke` resolves. If `invoke` throws (legacy executor's
+   *      guest-disallowed / unknown-tool / handler failure) the throw
+   *      propagates, the sink does NOT fire, and the SDK emits a `tool-error`
+   *      part — budget is still consumed (matches the legacy contract). CRM
+   *      handlers never throw, so their sink always fires (including the
+   *      sign-in gate, which sinks `SIGN_IN_RESULT`).
+   *   3. The model receives ONLY the string `result.modelContext`; the rest of
+   *      the `ToolResult` (clientBlock / statePatch / machineData / mapBlock /
+   *      missionRequest) reaches the turn loop out-of-band via the sink.
+   */
+  const runWithBudget = async (
+    name: RegistryToolName,
+    toolCallId: string,
+    invoke: () => Promise<ToolResult>,
+  ): Promise<string> => {
+    if (budget) {
+      if (budget.count >= budget.limit) {
+        return BUDGET_EXHAUSTED_MESSAGE;
+      }
+      budget.count += 1;
+    }
+    const result = await invoke();
+    sink(toolCallId, name, result);
+    return result.modelContext;
+  };
+
+  // Legacy 13 tools — routed through `executeTool` so HITL/auth/logging/
+  // allowlist behavior in `tools/executor.ts` is reused unchanged. The
+  // executor may THROW (guest-disallowed, unknown tool, handler failure); we
+  // let that propagate so the SDK emits a `tool-error` part.
   const make = <T extends z.ZodTypeAny>(
     name: ToolName,
     inputSchema: T,
@@ -270,37 +351,29 @@ export function buildToolRegistry(
     tool({
       description: DESCRIPTIONS[name],
       inputSchema,
-      // The Vercel AI SDK passes the parsed input through. We re-hand to the
-      // existing executor so HITL/auth/logging/allowlist behavior is reused
-      // unchanged. The executor may THROW (guest-disallowed tool, unknown
-      // tool, handler failure) — we let that propagate so the SDK emits a
-      // `tool-error` part and the turn loop renders an error block. The sink
-      // only fires on success, after which we hand the model ONLY the string
-      // `modelContext`. The full ToolResult never reaches the model.
-      execute: async (input, options): Promise<string> => {
-        // codex P2: enforce the per-turn tool-execution cap at the `execute`
-        // seam so it also covers PARALLEL calls within one step. This check +
-        // increment runs SYNCHRONOUSLY before the first `await` — the SDK
-        // invokes every parallel `execute` closure concurrently, and each runs
-        // to its first suspension point synchronously, so an atomic
-        // check-then-increment here prevents the (limit+1)-th call from
-        // slipping through. When exhausted we DON'T call `executeTool` (no side
-        // effect / no mission row) and DON'T fire the sink (no clientBlock
-        // leak) — the model just gets a short notice string.
-        if (budget) {
-          if (budget.count >= budget.limit) {
-            return BUDGET_EXHAUSTED_MESSAGE;
-          }
-          budget.count += 1;
-        }
-        const result = await executeTool(
-          name,
-          input as Record<string, unknown>,
-          context,
-        );
-        sink(options.toolCallId, name, result);
-        return result.modelContext;
-      },
+      execute: (input, options): Promise<string> =>
+        runWithBudget(name, options.toolCallId, () =>
+          executeTool(name, input as Record<string, unknown>, context),
+        ),
+    });
+
+  // AIN-15 Phase 2 — the 4 CRM tools. Bound DIRECTLY to their `crm/` handler
+  // (never `executeTool`). The CRM handlers do their own sign-in gate + input
+  // re-parse and never throw to the runtime, so there is no special error
+  // path beyond what `runWithBudget` already provides.
+  const makeCrm = <T extends z.ZodTypeAny>(
+    name: CrmToolName,
+    inputSchema: T,
+    description: string,
+    handler: CrmHandler,
+  ): Tool =>
+    tool({
+      description,
+      inputSchema,
+      execute: (input, options): Promise<string> =>
+        runWithBudget(name, options.toolCallId, () =>
+          handler(input as Record<string, unknown>, context),
+        ),
     });
 
   return Object.freeze({
@@ -317,6 +390,16 @@ export function buildToolRegistry(
     get_neighborhood_info: make('get_neighborhood_info', getNeighborhoodInfoInput),
     create_sublease: make('create_sublease', createSubleaseInput),
     propose_mission: make('propose_mission', proposeMissionInput),
+    // CRM tools (AIN-15 Phase 2)
+    add_listing: makeCrm('add_listing', addListingInput, ADD_LISTING_DESCRIPTION, addListingHandler),
+    first_save_analysis: makeCrm(
+      'first_save_analysis',
+      firstSaveAnalysisInput,
+      FIRST_SAVE_ANALYSIS_DESCRIPTION,
+      firstSaveAnalysisHandler,
+    ),
+    infer_profile: makeCrm('infer_profile', inferProfileInput, INFER_PROFILE_DESCRIPTION, inferProfileHandler),
+    rank_compare: makeCrm('rank_compare', rankCompareInput, RANK_COMPARE_DESCRIPTION, rankCompareHandler),
   });
 }
 
@@ -326,7 +409,7 @@ export function buildToolRegistry(
  * prompt builders that need to enumerate tools, and Langfuse setup.
  */
 export interface ToolSpec {
-  readonly name: ToolName;
+  readonly name: RegistryToolName;
   readonly description: string;
   readonly inputSchema: z.ZodTypeAny;
 }
@@ -345,6 +428,16 @@ export const TOOL_SPECS: readonly ToolSpec[] = Object.freeze([
   { name: 'get_neighborhood_info', description: DESCRIPTIONS.get_neighborhood_info, inputSchema: getNeighborhoodInfoInput },
   { name: 'create_sublease', description: DESCRIPTIONS.create_sublease, inputSchema: createSubleaseInput },
   { name: 'propose_mission', description: DESCRIPTIONS.propose_mission, inputSchema: proposeMissionInput },
+  // CRM tools (AIN-15 Phase 2) — enumerated here so the system-prompt builder
+  // renders them for the model. The model cannot call a tool it isn't told
+  // about. Rendered UNCONDITIONALLY (incl. guest sessions): the cached prefix
+  // must stay byte-identical across turns; guest safety is enforced at the
+  // handler sign-in gate + the dynamic-suffix guest guardrail, not by hiding
+  // the tool from the prompt.
+  { name: 'add_listing', description: ADD_LISTING_DESCRIPTION, inputSchema: addListingInput },
+  { name: 'first_save_analysis', description: FIRST_SAVE_ANALYSIS_DESCRIPTION, inputSchema: firstSaveAnalysisInput },
+  { name: 'infer_profile', description: INFER_PROFILE_DESCRIPTION, inputSchema: inferProfileInput },
+  { name: 'rank_compare', description: RANK_COMPARE_DESCRIPTION, inputSchema: rankCompareInput },
 ]);
 
 /** Tools whose handlers enforce a preview/confirm HITL gate. */

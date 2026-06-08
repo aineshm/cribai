@@ -193,6 +193,46 @@ describe('addListing', () => {
   });
 
   // -------------------------------------------------------------------------
+  // dryRun eval kill-switch
+  // -------------------------------------------------------------------------
+
+  describe('dryRun', () => {
+    const UUID_RE =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    it('skips extract + dedup + insert and returns synthetic success', async () => {
+      const onSaved = vi.fn();
+      const deps = makeDeps({ dryRun: true, onSaved });
+
+      const result = await addListing(INPUT_URL, deps);
+
+      // Synthetic-success shape: valid UUID, not already saved, mid confidence.
+      expect(result.listingId).toMatch(UUID_RE);
+      expect(result.alreadySaved).toBe(false);
+      expect(typeof result.confidence).toBe('number');
+
+      // No network fetch (extract), no DB reads, no insert, no onSaved.
+      expect(deps.extract).not.toHaveBeenCalled();
+      expect((deps.db.from as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled();
+      expect(deps.tableBuilder.insert).not.toHaveBeenCalled();
+      expect(onSaved).not.toHaveBeenCalled();
+    });
+
+    it('returns a fresh UUID per call', async () => {
+      const a = await addListing(INPUT_URL, makeDeps({ dryRun: true }));
+      const b = await addListing(INPUT_URL, makeDeps({ dryRun: true }));
+      expect(a.listingId).not.toBe(b.listingId);
+    });
+
+    it('prod path still fires when dryRun is absent (regression guard)', async () => {
+      const deps = makeDeps(); // dryRun undefined
+      await addListing(INPUT_URL, deps);
+      expect(deps.extract).toHaveBeenCalledTimes(1);
+      expect(deps.tableBuilder.insert).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // Coordinate resolution
   // -------------------------------------------------------------------------
 

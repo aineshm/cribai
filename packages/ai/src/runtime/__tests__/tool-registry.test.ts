@@ -24,7 +24,9 @@ import {
 } from '../tool-registry';
 import { CRIBAI_TOOLS_BY_NAME } from '../../tools/schemas';
 import { executeTool } from '../../tools/executor';
+import { CRM_TOOL_NAMES, type CrmToolName } from '../../crm';
 import type { ToolContext, ToolName } from '../../tools/types';
+import type { ToolResult } from '../../tools/types';
 
 // The sink-refactor tests stub `executeTool` so they can assert what the
 // registry does with its result WITHOUT a live Supabase context. The
@@ -33,7 +35,29 @@ vi.mock('../../tools/executor', () => ({
   executeTool: vi.fn(),
 }));
 
-const EXPECTED_NAMES: readonly ToolName[] = [
+// AIN-15 Phase 2 — the CRM tools route through their `crm/` handlers, NOT
+// `executeTool`. Mock the 4 handlers so the registry-level CRM tests stay
+// offline. The barrel re-export of schemas/descriptions is preserved (the
+// registry imports them at construction).
+vi.mock('../../crm', async (orig) => {
+  const actual = await orig<typeof import('../../crm')>();
+  return {
+    ...actual,
+    addListingHandler: vi.fn(),
+    firstSaveAnalysisHandler: vi.fn(),
+    inferProfileHandler: vi.fn(),
+    rankCompareHandler: vi.fn(),
+  };
+});
+import {
+  addListingHandler,
+  firstSaveAnalysisHandler,
+  inferProfileHandler,
+  rankCompareHandler,
+} from '../../crm';
+
+/** The 13 legacy tools, in canonical order (routed via `executeTool`). */
+const EXPECTED_LEGACY_NAMES: readonly ToolName[] = [
   'search_listings',
   'get_listing_detail',
   'compare_listings',
@@ -49,8 +73,19 @@ const EXPECTED_NAMES: readonly ToolName[] = [
   'propose_mission',
 ];
 
+/** The 4 CRM tools (AIN-15 Phase 2), in canonical order (routed via handlers). */
+const EXPECTED_CRM_NAMES: readonly CrmToolName[] = [
+  'add_listing',
+  'first_save_analysis',
+  'infer_profile',
+  'rank_compare',
+];
+
+/** Full registry: 13 legacy + 4 CRM = 17 tools, in canonical order. */
+const EXPECTED_NAMES = [...EXPECTED_LEGACY_NAMES, ...EXPECTED_CRM_NAMES];
+
 /** Minimum-valid payload per tool — sufficient for `safeParse` to succeed. */
-const VALID_INPUT_BY_TOOL: Record<ToolName, Record<string, unknown>> = {
+const VALID_INPUT_BY_TOOL: Record<ToolName | CrmToolName, Record<string, unknown>> = {
   search_listings: { semantic_query: 'quiet near campus' },
   get_listing_detail: { listing_id: '11111111-2222-4333-8444-555555555555' },
   compare_listings: {
@@ -78,28 +113,41 @@ const VALID_INPUT_BY_TOOL: Record<ToolName, Record<string, unknown>> = {
     bedrooms_available: 1,
   },
   propose_mission: { intent: 'housing_search' },
+  // CRM tools (AIN-15 Phase 2)
+  add_listing: { url: 'https://zillow.com/homedetails/123' },
+  first_save_analysis: { listing_id: '11111111-2222-4333-8444-555555555555' },
+  infer_profile: {},
+  rank_compare: { mode: 'rank' },
 };
 
 describe('tool-registry — static spec', () => {
-  it('exposes exactly 13 tools', () => {
-    expect(TOOL_SPECS).toHaveLength(13);
+  it('exposes exactly 17 tools (13 legacy + 4 CRM)', () => {
+    expect(TOOL_SPECS).toHaveLength(17);
   });
 
-  it('exposes the canonical tool names in canonical order', () => {
+  it('exposes the canonical tool names in canonical order (legacy then CRM)', () => {
     const actual = TOOL_SPECS.map((spec) => spec.name);
     expect(actual).toEqual(EXPECTED_NAMES);
   });
 
-  it('has parity with the deterministic CRIBAI_TOOLS_BY_NAME registry', () => {
+  it('anti-drift: every legacy executor tool is present, every CRM tool is present, and the only non-legacy specs are the CRM tools', () => {
     const specNames = new Set(TOOL_SPECS.map((spec) => spec.name));
     const legacyNames = new Set(Object.keys(CRIBAI_TOOLS_BY_NAME));
 
-    // Every legacy tool surfaces in the LLM-first registry
+    // Every legacy (executor) tool surfaces in the LLM-first registry.
     for (const name of legacyNames) {
       expect(specNames.has(name as ToolName)).toBe(true);
     }
-    // No accidental extras
-    expect(specNames.size).toBe(legacyNames.size);
+    // Every CRM tool surfaces too (AIN-15 Phase 2).
+    for (const name of CRM_TOOL_NAMES) {
+      expect(specNames.has(name)).toBe(true);
+    }
+    // The ONLY specs that aren't legacy executor tools are exactly the CRM
+    // tools — this keeps the drift guard meaningful: a stray new tool that is
+    // neither legacy nor CRM would fail here.
+    const nonLegacy = [...specNames].filter((n) => !legacyNames.has(n));
+    expect(new Set(nonLegacy)).toEqual(new Set(CRM_TOOL_NAMES));
+    expect(specNames.size).toBe(legacyNames.size + CRM_TOOL_NAMES.length);
   });
 
   it('gives every tool a non-empty `when_to_call` description', () => {
@@ -242,13 +290,37 @@ describe('tool-registry — static spec', () => {
             "intent",
           ],
         },
+        {
+          "headline": "Save a listing from any URL the user pastes into their personal CRM, then analyze it.",
+          "name": "add_listing",
+          "requiredKeys": [
+            "url",
+          ],
+        },
+        {
+          "headline": "Run the wow-moment analysis (true cost, red flags, nearby places, steering question) on a freshly saved CRM listing.",
+          "name": "first_save_analysis",
+          "requiredKeys": [
+            "listing_id",
+          ],
+        },
+        {
+          "headline": "Infer a structured housing-preference profile from the user's saved CRM listings and persist it.",
+          "name": "infer_profile",
+          "requiredKeys": [],
+        },
+        {
+          "headline": "Rank the user's saved CRM listings by weighted score, or produce a side-by-side comparison table.",
+          "name": "rank_compare",
+          "requiredKeys": [],
+        },
       ]
     `);
   });
 });
 
 describe('tool-registry — buildToolRegistry()', () => {
-  it('builds a frozen registry with the canonical 13 keys', () => {
+  it('builds a frozen registry with the canonical 17 keys (13 legacy + 4 CRM)', () => {
     const fakeContext = {
       supabase: {} as never,
       campusId: 'campus-uw-madison',
@@ -451,6 +523,168 @@ describe('tool-registry — per-turn tool-call budget (codex P2)', () => {
     // No side effect beyond the cap.
     expect(vi.mocked(executeTool)).toHaveBeenCalledTimes(3);
     expect(sinkCalls).toHaveLength(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AIN-15 Phase 2: the 4 CRM tools are registered ALONGSIDE the 13 legacy tools
+// but route through their `crm/` handlers directly (NOT `executeTool`). Their
+// `execute` closure must honor the SAME contract as the legacy path: the
+// budget atomic check-and-increment fires first, the sink receives the full
+// ToolResult keyed by toolCallId, and only the string `modelContext` is
+// returned to the model (never the clientBlock). The handlers' own sign-in
+// gate is preserved (no userId → SIGN_IN_RESULT modelContext, sink still fires
+// the sign-in block — handlers never throw).
+// ---------------------------------------------------------------------------
+
+describe('tool-registry — CRM tool path (AIN-15 Phase 2)', () => {
+  const mockAddListing = vi.mocked(addListingHandler);
+  const mockFirstSave = vi.mocked(firstSaveAnalysisHandler);
+  const mockInfer = vi.mocked(inferProfileHandler);
+  const mockRank = vi.mocked(rankCompareHandler);
+
+  beforeEach(() => {
+    vi.mocked(executeTool).mockReset();
+    mockAddListing.mockReset();
+    mockFirstSave.mockReset();
+    mockInfer.mockReset();
+    mockRank.mockReset();
+  });
+
+  function crmExecute(name: 'add_listing' | 'first_save_analysis' | 'infer_profile' | 'rank_compare') {
+    const sinkCalls: Array<{ id: string; name: string; result: unknown }> = [];
+    const budget = { limit: 5, count: 0 };
+    const registry = buildToolRegistry(
+      { supabase: {} as never, campusId: 'c', campusSlug: 'uw-madison', userId: 'u-1' } as ToolContext,
+      (id, n, result) => sinkCalls.push({ id, name: n, result }),
+      budget,
+    );
+    const execute = (registry[name] as { execute: (...a: unknown[]) => Promise<unknown> }).execute;
+    return { execute, sinkCalls, budget };
+  }
+
+  it('routes add_listing through addListingHandler (NOT executeTool); sink gets full ToolResult, model gets only modelContext', async () => {
+    const full: ToolResult = {
+      modelContext: 'Saved listing abc. INSTRUCTIONS: call first_save_analysis with listing_id="abc".',
+      clientBlock: { type: 'text', content: 'Listing saved to your CRM!' },
+    };
+    mockAddListing.mockResolvedValueOnce(full);
+
+    const { execute, sinkCalls } = crmExecute('add_listing');
+    const returned = await execute(
+      { url: 'https://zillow.com/x' },
+      { toolCallId: 'call-crm-1', messages: [] },
+    );
+
+    // Handler called, executeTool NOT touched (CRM never flows through it).
+    expect(mockAddListing).toHaveBeenCalledOnce();
+    expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
+
+    // Model sees ONLY the string modelContext — never the clientBlock.
+    expect(returned).toBe(full.modelContext);
+    expect(typeof returned).toBe('string');
+    expect(returned).not.toContain('Listing saved to your CRM!');
+
+    // Sink got the toolCallId + FULL ToolResult.
+    expect(sinkCalls).toHaveLength(1);
+    expect(sinkCalls[0]!.id).toBe('call-crm-1');
+    expect(sinkCalls[0]!.name).toBe('add_listing');
+    expect(sinkCalls[0]!.result).toEqual(full);
+  });
+
+  it('streams first_save_analysis, infer_profile, rank_compare through their handlers too', async () => {
+    const fsa: ToolResult = { modelContext: 'analysis mc', clientBlock: { type: 'text', content: 'analysis' } };
+    const inf: ToolResult = { modelContext: 'profile mc', clientBlock: { type: 'text', content: 'profile' } };
+    const rnk: ToolResult = { modelContext: 'rank mc', clientBlock: { type: 'text', content: 'ranked' } };
+    mockFirstSave.mockResolvedValueOnce(fsa);
+    mockInfer.mockResolvedValueOnce(inf);
+    mockRank.mockResolvedValueOnce(rnk);
+
+    const a = crmExecute('first_save_analysis');
+    expect(await a.execute({ listing_id: '11111111-2222-4333-8444-555555555555' }, { toolCallId: 'a', messages: [] })).toBe('analysis mc');
+    expect(a.sinkCalls[0]!.result).toEqual(fsa);
+
+    const b = crmExecute('infer_profile');
+    expect(await b.execute({}, { toolCallId: 'b', messages: [] })).toBe('profile mc');
+    expect(b.sinkCalls[0]!.result).toEqual(inf);
+
+    const c = crmExecute('rank_compare');
+    expect(await c.execute({ mode: 'rank' }, { toolCallId: 'c', messages: [] })).toBe('rank mc');
+    expect(c.sinkCalls[0]!.result).toEqual(rnk);
+  });
+
+  it('budget exhausted → returns notice string, handler NOT called, sink NOT fired', async () => {
+    mockAddListing.mockResolvedValue({
+      modelContext: 'ok',
+      clientBlock: { type: 'text', content: 'x' },
+    } as ToolResult);
+
+    const sinkCalls: unknown[] = [];
+    const budget = { limit: 1, count: 0 };
+    const registry = buildToolRegistry(
+      { supabase: {} as never, campusId: 'c', campusSlug: 'uw-madison', userId: 'u-1' } as ToolContext,
+      (_id, _n, result) => sinkCalls.push(result),
+      budget,
+    );
+    const execute = (registry.add_listing as { execute: (...a: unknown[]) => Promise<unknown> }).execute;
+
+    const r1 = await execute({ url: 'https://zillow.com/a' }, { toolCallId: 'c1', messages: [] });
+    const r2 = await execute({ url: 'https://zillow.com/b' }, { toolCallId: 'c2', messages: [] });
+
+    expect(r1).toBe('ok');
+    expect(r2).toMatch(/limit reached/i);
+    // Second call did NOT invoke the handler and did NOT fire the sink.
+    expect(mockAddListing).toHaveBeenCalledTimes(1);
+    expect(sinkCalls).toHaveLength(1);
+  });
+
+  it('budget check+increment is atomic across PARALLEL CRM calls in one step', async () => {
+    mockAddListing.mockImplementation((async () => {
+      await Promise.resolve(); // force a microtask gap so calls interleave
+      return { modelContext: 'ok', clientBlock: { type: 'text', content: 'x' } } as ToolResult;
+    }) as never);
+
+    const sinkCalls: unknown[] = [];
+    const budget = { limit: 2, count: 0 };
+    const registry = buildToolRegistry(
+      { supabase: {} as never, campusId: 'c', campusSlug: 'uw-madison', userId: 'u-1' } as ToolContext,
+      (_id, _n, result) => sinkCalls.push(result),
+      budget,
+    );
+    const execute = (registry.add_listing as { execute: (...a: unknown[]) => Promise<unknown> }).execute;
+
+    const results = await Promise.all(
+      [0, 1, 2, 3].map((i) =>
+        execute({ url: `https://zillow.com/${i}` }, { toolCallId: `c${i}`, messages: [] }),
+      ),
+    );
+    const executed = results.filter((r) => r === 'ok');
+    const rejected = results.filter((r) => typeof r === 'string' && /limit reached/i.test(r as string));
+    expect(executed).toHaveLength(2);
+    expect(rejected).toHaveLength(2);
+    expect(mockAddListing).toHaveBeenCalledTimes(2);
+    expect(sinkCalls).toHaveLength(2);
+  });
+
+  it('sign-in gate passes through: no userId → handler returns SIGN_IN_RESULT modelContext, sink still fires the sign-in block', async () => {
+    // Real handler (unmocked for THIS case) so the sign-in gate runs. The
+    // handler returns a ToolResult — it never throws.
+    const real = await vi.importActual<typeof import('../../crm')>('../../crm');
+    mockAddListing.mockImplementationOnce(real.addListingHandler);
+
+    const sinkCalls: Array<{ result: ToolResult }> = [];
+    const registry = buildToolRegistry(
+      { supabase: {} as never, campusId: 'c', campusSlug: 'uw-madison', userId: undefined } as ToolContext,
+      (_id, _n, result) => sinkCalls.push({ result }),
+    );
+    const execute = (registry.add_listing as { execute: (...a: unknown[]) => Promise<unknown> }).execute;
+
+    const returned = await execute({ url: 'https://zillow.com/x' }, { toolCallId: 'c1', messages: [] });
+
+    // Model gets the sign-in modelContext; sink fired the sign-in clientBlock.
+    expect(String(returned).toLowerCase()).toMatch(/sign.?in/);
+    expect(sinkCalls).toHaveLength(1);
+    expect(sinkCalls[0]!.result.clientBlock.type).toBe('text');
   });
 });
 

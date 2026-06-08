@@ -16,6 +16,7 @@
  *   ../extraction  ← ExtractionError (for instanceof check in catch)
  */
 
+import { randomUUID } from 'node:crypto';
 import { ExtractionError } from '../extraction';
 import { confidenceToNumeric } from './confidence';
 import type {
@@ -151,6 +152,26 @@ export async function addListing(
   url: string,
   deps: AddListingDeps,
 ): Promise<AddListingResult> {
+  // -------------------------------------------------------------------------
+  // Step 0: Eval dry-run gate (mirrors create-sublease / schedule-tour).
+  //
+  // The eval runner drives the real registry with `dryRun: true` + a
+  // service-role client specifically so a model-driven save can NEVER land a
+  // real `crm_listings` row. We short-circuit BEFORE the extract network fetch
+  // AND the `.insert`, returning a synthetic-success result of the SAME shape
+  // the real new-save path returns (a valid UUID listingId — required because
+  // the chained `first_save_analysis` tool's registry inputSchema is
+  // `z.string().uuid()` — `alreadySaved: false`, mid confidence). Live traffic
+  // is always `dryRun=false` (default), so the prod path below is unchanged.
+  // -------------------------------------------------------------------------
+  if (deps.dryRun) {
+    return {
+      listingId: randomUUID(),
+      alreadySaved: false,
+      confidence: 0.5,
+    };
+  }
+
   // -------------------------------------------------------------------------
   // Step 1: Extract
   // -------------------------------------------------------------------------

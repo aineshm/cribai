@@ -119,6 +119,9 @@ export async function inferProfileHandler(
       readDb: context.supabase,
       writeDb,
       userId: context.userId,
+      // Eval kill-switch: forwards the ToolContext dry-run flag so a model-
+      // driven inference during an eval run skips the service-role upsert.
+      dryRun: context.dryRun,
     });
 
     if (result.status === 'needs_more_data') {
