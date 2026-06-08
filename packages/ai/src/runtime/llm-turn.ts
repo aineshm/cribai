@@ -68,7 +68,11 @@ import {
   type TurnCost,
   type TurnUsage,
 } from './turn-cost';
-import { GEMINI_FLASH_MODEL_ID } from './ai-sdk-provider';
+import {
+  ACTIVE_MODEL_ID,
+  resolveAiProvider,
+  type AiProvider,
+} from './ai-sdk-provider';
 import { sanitizeCampusName } from './persona';
 
 /** Step budget mirrors `cribai.ts` maxToolCalls: 5 auth / 2 guest. */
@@ -96,6 +100,14 @@ export interface RunLlmTurnInput {
    * only when `explicitCache` is true.
    */
   readonly cacheCreator?: ExplicitCacheCreator;
+  /**
+   * PR 2 — active provider. Explicit Gemini context-cache creation is GATED to
+   * `google` only: OpenAI has no explicit context cache (it auto-caches
+   * server-side), so even with `explicitCache: true` + a `cacheCreator` we skip
+   * cache creation under `openai` and compose the prefix inline (the existing
+   * graceful-null path). Defaults to the env-resolved provider.
+   */
+  readonly aiProvider?: AiProvider;
   /** Shared in-process cache memo (injected so the route can keep it warm). */
   readonly cacheMemo?: ExplicitCacheMemo;
   /**
@@ -206,6 +218,7 @@ export async function* runLlmTurn(
     history = [],
     explicitCache = false,
     cacheCreator,
+    aiProvider = resolveAiProvider(),
     onFirstModelToken,
     onTurnCost,
     turnCostCapUsd,
@@ -242,9 +255,12 @@ export async function* runLlmTurn(
   // Resolve explicit cache (or null → compose prefix inline). A null handle
   // — whether from the disabled switch or a cache outage — falls back to a
   // composed prompt so chat is never taken down by a cache failure.
+  // PR 2 — explicit context caching is a Google-only capability. Under
+  // `openai` we never create a cache (OpenAI auto-caches server-side); the
+  // null handle composes the prefix inline via the existing graceful path.
   const memo = input.cacheMemo ?? new ExplicitCacheMemo();
   const cacheHandle =
-    explicitCache && cacheCreator
+    explicitCache && cacheCreator && aiProvider === 'google'
       ? await memo.resolve(cachedPrefix, true, cacheCreator)
       : null;
 
@@ -308,7 +324,7 @@ export async function* runLlmTurn(
         // (it's the same trust boundary `buildPersona` sanitizes; defense in
         // depth in case a trace is ever shared externally).
         campusName: sanitizeCampusName(campusName),
-        model: GEMINI_FLASH_MODEL_ID,
+        model: ACTIVE_MODEL_ID,
       },
     },
   });
@@ -325,6 +341,18 @@ export async function* runLlmTurn(
    try {
     for await (const part of result.fullStream) {
       switch (part.type) {
+        case 'reasoning-start':
+        case 'reasoning-delta': {
+          // gpt-5.4-mini (OpenAI Responses API) emits reasoning parts BEFORE any
+          // text/tool part. Mark TTFT here so the AIN-19 cross-runtime latency
+          // baseline measures time-to-first-model-output consistently and isn't
+          // inflated by the whole reasoning phase. signalFirstModelToken is
+          // idempotent (already called per text-delta). Reasoning content is
+          // deliberately NOT accumulated into stepText — it must never surface
+          // as visible prose (reasoning-* otherwise falls through to default).
+          signalFirstModelToken();
+          break;
+        }
         case 'text-delta': {
           // FIX 3: mark first model token at the first delta, even though the
           // buffered text event is not flushed until the step boundary (A10).

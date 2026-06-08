@@ -33,6 +33,23 @@ export const PRICING = {
     output: 0,
     cached: 0,
   },
+  // PR 2 (PDR-004 OpenAI inference swap) — OpenAI API LIST pricing (per 1M tokens):
+  //   gpt-5.4-mini → $0.75 in / $4.50 out / $0.075 cached input.
+  // Active model under AI_PROVIDER=openai (the new default). Cached input is a
+  // 90% discount (OpenAI auto-caches server-side; no explicit cache wiring).
+  'gpt-5.4-mini': {
+    input: 0.75 / 1_000_000,
+    output: 4.50 / 1_000_000,
+    cached: 0.075 / 1_000_000,
+  },
+  // Known-good fallback (AI_MODEL_ID=gpt-4o) — non-reasoning, identical
+  // streamText + tool-calling loop. OpenAI LIST: $2.50 in / $10.00 out /
+  // $1.25 cached input per 1M.
+  'gpt-4o': {
+    input: 2.50 / 1_000_000,
+    output: 10.00 / 1_000_000,
+    cached: 1.25 / 1_000_000,
+  },
 } as const;
 
 export interface TokenUsage {

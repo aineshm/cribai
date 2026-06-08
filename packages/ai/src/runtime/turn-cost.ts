@@ -12,7 +12,7 @@
  */
 
 import { PRICING } from '../cost-logger';
-import { GEMINI_FLASH_MODEL_ID } from './ai-sdk-provider';
+import { ACTIVE_MODEL_ID } from './ai-sdk-provider';
 
 /** Token usage for one turn (normalized from the AI SDK `LanguageModelUsage`). */
 export interface TurnUsage {
@@ -34,20 +34,32 @@ export interface TurnCost {
   readonly costUsd: number;
 }
 
-/** Default per-turn cost cap (USD). Override via CRIBAI_TURN_COST_CAP_USD. */
-export const TURN_COST_CAP_USD_DEFAULT = 0.05;
+/**
+ * Default per-turn cost cap (USD). Override via CRIBAI_TURN_COST_CAP_USD.
+ *
+ * Recalibrated for the OpenAI default (PR 2): gpt-5.4-mini bills reasoning
+ * tokens as output at $4.50/M (vs Gemini-Vertex $0.60/M), so a heavy
+ * reasoning+tool turn lands near $0.30-0.35 where Gemini sat at ~$0.05. The cap
+ * is an ANOMALY/alerting signal (observe-only — it logs + tags Langfuse, never
+ * throws), so it's set above normal heavy turns to flag genuine runaways, not
+ * to spam on every reasoning turn. Lower it via env for tighter Gemini-era
+ * budgets (AI_PROVIDER=google).
+ */
+export const TURN_COST_CAP_USD_DEFAULT = 0.5;
 
-// FIX 6 — fail LOUD at module load if the model id isn't priced. The previous
-// `?? PRICING['gemini-2.5-flash']` fallback silently used stale pricing when the
-// model id was bumped past what the cost-logger table knows.
-if (!Object.prototype.hasOwnProperty.call(PRICING, GEMINI_FLASH_MODEL_ID)) {
+// FIX 6 — fail LOUD at module load if the ACTIVE model id isn't priced. The
+// previous `?? PRICING['gemini-2.5-flash']` fallback silently used stale
+// pricing when the model id was bumped past what the cost-logger table knows.
+// PR 2: prices the ACTIVE model (OpenAI default or Google) — the guard must
+// pass for whichever provider AI_PROVIDER selects.
+if (!Object.prototype.hasOwnProperty.call(PRICING, ACTIVE_MODEL_ID)) {
   throw new Error(
-    `[turn-cost] model id "${GEMINI_FLASH_MODEL_ID}" has no entry in the cost-logger ` +
+    `[turn-cost] active model id "${ACTIVE_MODEL_ID}" has no entry in the cost-logger ` +
       `PRICING table (known: ${Object.keys(PRICING).join(', ')}). Add its pricing ` +
-      `before bumping GEMINI_FLASH_MODEL_ID.`,
+      `before selecting it via AI_PROVIDER / AI_MODEL_ID.`,
   );
 }
-const PRICING_KEY = GEMINI_FLASH_MODEL_ID as keyof typeof PRICING;
+const PRICING_KEY = ACTIVE_MODEL_ID as keyof typeof PRICING;
 
 function nonNegative(n: number | undefined): number {
   return typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : 0;

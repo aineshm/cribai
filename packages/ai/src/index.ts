@@ -35,8 +35,16 @@ export { runLlmTurn } from './runtime/llm-turn';
 export type { RunLlmTurnInput } from './runtime/llm-turn';
 export { selectRuntime, LLM_FIRST_FLAG } from './runtime/runtime-select';
 export type { SelectRuntimeInput } from './runtime/runtime-select';
-export { createAiSdkModel, AI_SDK_MODEL_ID, GEMINI_FLASH_MODEL_ID } from './runtime/ai-sdk-provider';
-export type { CreateAiSdkModelOptions } from './runtime/ai-sdk-provider';
+export {
+  createAiSdkModel,
+  AI_SDK_MODEL_ID,
+  GEMINI_FLASH_MODEL_ID,
+  OPENAI_DEFAULT_MODEL_ID,
+  ACTIVE_MODEL_ID,
+  resolveAiProvider,
+  resolveModelId,
+} from './runtime/ai-sdk-provider';
+export type { CreateAiSdkModelOptions, AiProvider } from './runtime/ai-sdk-provider';
 export {
   buildSystemPrompt,
   composeSystemPrompt,

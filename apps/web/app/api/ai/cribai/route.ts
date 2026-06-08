@@ -395,7 +395,15 @@ export async function POST(request: NextRequest) {
       return jsonError('Query is required', 400);
     }
 
-    if (!process.env.GOOGLE_CLOUD_PROJECT && !process.env.GEMINI_API_KEY) {
+    // PR2 (codex P1) — the AI service is "configured" if ANY supported provider
+    // has credentials. The LLM-first runtime now defaults to OpenAI, so an
+    // OpenAI-only deployment (OPENAI_API_KEY, no Google/Vertex) must pass this
+    // preflight; otherwise it 503s before ever reaching createAiSdkModel().
+    if (
+      !process.env.GOOGLE_CLOUD_PROJECT &&
+      !process.env.GEMINI_API_KEY &&
+      !process.env.OPENAI_API_KEY
+    ) {
       return jsonError('AI service not configured', 503);
     }
 
