@@ -15,6 +15,7 @@
     "@ai-sdk/google-vertex": "^4.0.139",
     "@campusnest/supabase": "workspace:*",
     "@campusnest/types": "workspace:*",
+    "@campusnest/utils": "workspace:*",
     "@google/genai": "^1.43.0",
     "@langfuse/otel": "^5.4.0",
     "@langfuse/tracing": "^5.4.0",
