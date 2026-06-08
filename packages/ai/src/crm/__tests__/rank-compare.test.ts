@@ -359,7 +359,34 @@ describe('rankCompare — missing numeric fields', () => {
     const result = await rankCompare({}, makeDeps([nullRentRow, normalRow]));
 
     if (result.mode !== 'rank') throw new Error('wrong mode');
-    expect(result.ranked.find((r) => r.listingId === 'rc-null-rent')).toBeDefined();
+    const nullItem = result.ranked.find((r) => r.listingId === 'rc-null-rent');
+    expect(nullItem).toBeDefined();
+    // Regression: a null rent must score 0 (worst) on the inverted rent feature,
+    // NOT invert to a perfect 1.0 ("treated as free").
+    expect(nullItem!.breakdown['rent']).toBeCloseTo(0, 5);
+  });
+
+  it('null-rent listing does NOT outrank a real cheap listing when rent is the only weight (regression)', async () => {
+    // The bug: null rent → `?? 0` → inverted to 1.0 (best) AND pinned rent.min=0,
+    // so the missing-rent row floated to the top. A real, genuinely cheap listing
+    // must beat a listing with no rent recorded.
+    const rentOnlyProfile: InferredProfile = {
+      ...profileWithRentWeight,
+      weights: { rent: 1, bedrooms: 0, sqft: 0, commute: 0 },
+    };
+    const nullRentRow = makeCrmRow({ id: 'rc-null', status: 'active', rent: null, bedrooms: 2, sqft: 900 });
+    const cheapRow2 = makeCrmRow({ id: 'rc-cheap', status: 'active', rent: 600, bedrooms: 2, sqft: 900 });
+    const pricyRow = makeCrmRow({ id: 'rc-pricy', status: 'active', rent: 2400, bedrooms: 2, sqft: 900 });
+    const result = await rankCompare({}, makeDeps([nullRentRow, cheapRow2, pricyRow], rentOnlyProfile));
+
+    if (result.mode !== 'rank') throw new Error('wrong mode');
+    expect(result.ranked[0]!.listingId).toBe('rc-cheap');
+    const nullItem = result.ranked.find((r) => r.listingId === 'rc-null')!;
+    const cheapItem = result.ranked.find((r) => r.listingId === 'rc-cheap')!;
+    // Null-rent must score strictly worse than the real cheap listing on rent.
+    expect(nullItem.breakdown['rent']!).toBeLessThan(cheapItem.breakdown['rent']!);
+    // And the null row must not pollute the cheap row's full-credit rent score.
+    expect(cheapItem.breakdown['rent']).toBeCloseTo(1, 5);
   });
 });
 

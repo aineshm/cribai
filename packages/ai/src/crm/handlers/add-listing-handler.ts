@@ -77,9 +77,14 @@ export async function addListingHandler(
       },
     });
 
-    const alreadyNote = result.alreadySaved ? ' (already in CRM)' : '';
+    // When the URL was already in the CRM, addListing returns from the dedup
+    // path WITHOUT firing onSaved → no firstSaveAnalysis runs. The model context
+    // must not claim analysis is running in that case (codex P3).
+    const statusLine = result.alreadySaved
+      ? `Listing ${result.listingId} was already in the CRM — no new analysis started.`
+      : `Saved listing ${result.listingId}. Analysis is running.`;
     const modelContext = [
-      `Saved listing ${result.listingId}${alreadyNote}. Analysis is running.`,
+      statusLine,
       `Confidence: ${Math.round(result.confidence * 100)}%`,
       '',
       result.alreadySaved

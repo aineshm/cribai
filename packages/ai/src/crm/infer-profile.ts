@@ -201,8 +201,10 @@ function buildProfile(
  * @returns       - `{status:'inferred', profile}` on success;
  *                  `{status:'needs_more_data', savedCount, steeringQuestion}` otherwise.
  *
- * Never throws. All LLM and DB errors are absorbed and degrade to needs_more_data
- * (or, for upsert errors only, log + return inferred profile).
+ * Error handling: LLM/parse errors are absorbed and degrade to needs_more_data;
+ * upsert (write) errors are logged and still return the inferred profile. The
+ * one intentional throw is a failed listings READ (FIX 3) — a real DB read
+ * failure must surface to the caller, not masquerade as "needs more data".
  */
 export async function inferProfile(
   userId: string,
@@ -241,9 +243,12 @@ export async function inferProfile(
   // Step 3: Build prompt and call Gemini Flash (JSON mode).
   //         Mirrors intent-classifier.ts lines 60-91 exactly.
   // ---------------------------------------------------------------------------
-  const ai = deps.gemini ?? createGeminiClient();
   let geminiText: string;
   try {
+    // Construct the client INSIDE the guard: createGeminiClient() throws when
+    // Gemini env/credentials are missing or invalid, and that must degrade to
+    // needs_more_data (no write) like any other LLM failure — not reject.
+    const ai = deps.gemini ?? createGeminiClient();
     const result = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       config: {

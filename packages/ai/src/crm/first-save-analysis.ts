@@ -118,10 +118,15 @@ function categorizePlaces(
  * Zod schema for Gemini's red-flag JSON response.
  * flags: 0-3 short strings (e.g. "lease length not specified")
  * summary: one-sentence rollup
+ *
+ * Caps are defensive against untrusted model output: per-flag length is bounded
+ * and the array is bounded well above the prompt's "0-3" contract (so normal
+ * output is never rejected, but a runaway response can't emit an unbounded
+ * client string when the handler joins them).
  */
 const RedFlagSchema = z.object({
-  flags: z.array(z.string()),
-  summary: z.string(),
+  flags: z.array(z.string().max(200)).max(10),
+  summary: z.string().max(500),
 });
 
 // ---------------------------------------------------------------------------

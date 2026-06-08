@@ -116,11 +116,14 @@ export function amenitiesToCostFlags(
       internetIncluded = true;
     }
 
-    // Utilities: phrases already require 'included' phrasing — kept as-is.
+    // Utilities: must have an 'included' phrase AND no extra-cost/negation
+    // marker — otherwise "No utilities included" or "heat included for $75/mo"
+    // would wrongly zero out the utilities cost line in calculateTrueCost.
     if (
-      lower.includes('utilities included') ||
-      lower.includes('heat included') ||
-      lower.includes('water included')
+      (lower.includes('utilities included') ||
+        lower.includes('heat included') ||
+        lower.includes('water included')) &&
+      !hasExtraCostMarker(lower)
     ) {
       utilitiesIncluded = true;
     }

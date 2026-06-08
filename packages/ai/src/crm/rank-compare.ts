@@ -163,7 +163,9 @@ function scoreRow(
  * Returns a value in [0, 1].
  *
  * Rent uses inverted normalization: lower rent = higher score.
- * Missing numeric values are treated as 0 (worst) before normalization.
+ * Missing numeric values score 0 (worst) directly — never normalized — so a
+ * null-rent listing is not inverted into a perfect score, and missing values
+ * are excluded from the min/max range (see computeMinMax).
  * Commute always returns COMMUTE_NEUTRAL (0.5) in Phase 1 — see file header.
  */
 function computeSubScore(
@@ -176,6 +178,15 @@ function computeSubScore(
   }
 
   const rawValue = resolveNumericField(feature, row);
+
+  // Missing numeric value → worst score (0) for EVERY feature, including the
+  // inverted rent feature. Returning 0 here (rather than letting `?? 0` flow
+  // through normalization) prevents a null-rent listing from inverting to a
+  // perfect 1.0 ("treated as free") and keeps "missing = worst" uniform.
+  if (rawValue === null) {
+    return 0;
+  }
+
   const normalized = minMaxNormalize(rawValue, range.min, range.max);
 
   // Lower rent is better → invert.
@@ -186,17 +197,17 @@ function computeSubScore(
   return normalized;
 }
 
-/** Extract the raw numeric value for a feature from a row; null/undefined → 0. */
-function resolveNumericField(feature: Feature, row: CrmListingRow): number {
+/** Extract the raw numeric value for a feature from a row; null/undefined → null (missing). */
+function resolveNumericField(feature: Feature, row: CrmListingRow): number | null {
   switch (feature) {
     case 'rent':
-      return row.rent ?? 0;
+      return row.rent ?? null;
     case 'bedrooms':
-      return row.bedrooms ?? 0;
+      return row.bedrooms ?? null;
     case 'sqft':
-      return row.sqft ?? 0;
+      return row.sqft ?? null;
     case 'commute':
-      return 0; // unused path; handled above
+      return null; // unused path; handled above
   }
 }
 
@@ -220,18 +231,33 @@ function computeMinMax(
     commute: { min: 0, max: 0 }, // unused in Phase 1
   };
 
+  // Only fold in rows that actually HAVE a value for the feature — a missing
+  // (null) value must not drag the min/max (e.g. a null rent pinning rent.min
+  // to 0 and distorting every other row's normalization). Missing values are
+  // scored as worst (0) directly in computeSubScore, never normalized here.
   for (const row of rows) {
-    const rentVal = row.rent ?? 0;
-    acc.rent.min = Math.min(acc.rent.min, rentVal);
-    acc.rent.max = Math.max(acc.rent.max, rentVal);
+    if (row.rent != null) {
+      acc.rent.min = Math.min(acc.rent.min, row.rent);
+      acc.rent.max = Math.max(acc.rent.max, row.rent);
+    }
+    if (row.bedrooms != null) {
+      acc.bedrooms.min = Math.min(acc.bedrooms.min, row.bedrooms);
+      acc.bedrooms.max = Math.max(acc.bedrooms.max, row.bedrooms);
+    }
+    if (row.sqft != null) {
+      acc.sqft.min = Math.min(acc.sqft.min, row.sqft);
+      acc.sqft.max = Math.max(acc.sqft.max, row.sqft);
+    }
+  }
 
-    const bedVal = row.bedrooms ?? 0;
-    acc.bedrooms.min = Math.min(acc.bedrooms.min, bedVal);
-    acc.bedrooms.max = Math.max(acc.bedrooms.max, bedVal);
-
-    const sqftVal = row.sqft ?? 0;
-    acc.sqft.min = Math.min(acc.sqft.min, sqftVal);
-    acc.sqft.max = Math.max(acc.sqft.max, sqftVal);
+  // A feature with NO non-null values across the set leaves its range at
+  // ±Infinity; normalize it to a neutral 0-range. Rows are all-missing for that
+  // feature in that case, so they score 0 via computeSubScore and this range is
+  // never actually consumed — but keep it finite for safety.
+  for (const feature of ['rent', 'bedrooms', 'sqft'] as const) {
+    if (!Number.isFinite(acc[feature].min)) {
+      acc[feature] = { min: 0, max: 0 };
+    }
   }
 
   // Guard against empty rows (min/max stuck at ±Infinity).

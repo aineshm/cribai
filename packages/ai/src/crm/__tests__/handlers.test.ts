@@ -153,6 +153,9 @@ describe('addListingHandler', () => {
     const result = await addListingHandler({ url: 'https://zillow.com/bar' }, ctx);
 
     expect(result.modelContext).toMatch(/already/i);
+    // Regression (codex P3): the already-saved path does NOT fire onSaved, so
+    // the model must NOT be told analysis is running.
+    expect(result.modelContext).not.toMatch(/analysis is running/i);
     assertTextBlock(result);
   });
 

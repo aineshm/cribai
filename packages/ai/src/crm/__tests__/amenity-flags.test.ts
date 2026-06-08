@@ -172,6 +172,19 @@ describe('amenitiesToCostFlags — FIX 2 negation/extra-cost guard', () => {
     expect(amenitiesToCostFlags(['covered parking'])).toEqual({ parkingIncluded: true });
   });
 
+  // Utilities negation / extra-fee (codex P2 — utilities was missing the guard)
+  it('"No utilities included" → {} (negation guard, not "free utilities")', () => {
+    expect(amenitiesToCostFlags(['No utilities included'])).toEqual({});
+  });
+
+  it('"heat included for $75/mo" → {} (extra-cost guard)', () => {
+    expect(amenitiesToCostFlags(['heat included for $75/mo'])).toEqual({});
+  });
+
+  it('"Utilities Included" (clean) still → {utilitiesIncluded:true}', () => {
+    expect(amenitiesToCostFlags(['Utilities Included'])).toEqual({ utilitiesIncluded: true });
+  });
+
   // Laundry tightened: only in-unit markers set the flag
   it('"shared laundry" → {} (shared laundry does NOT set hasInUnitLaundry)', () => {
     expect(amenitiesToCostFlags(['shared laundry'])).toEqual({});
