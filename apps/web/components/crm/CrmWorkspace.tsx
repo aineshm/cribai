@@ -39,18 +39,15 @@ export function CrmWorkspace() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-64px)] flex-col">
-      {/* App bar */}
-      <header
-        className="flex h-16 flex-shrink-0 items-center gap-3 border-b px-6"
+    // The global CribAI app bar/nav is owned by app/(main)/layout.tsx; this
+    // shell sits directly beneath it — no duplicate brand chrome. Height fills
+    // the viewport minus the persistent mobile bottom nav (0px on desktop).
+    <div className="flex h-[calc(100dvh-var(--mobile-nav-height,0px))] flex-col">
+      {/* Slim workspace toolbar — only the canvas toggle (no second brand bar) */}
+      <div
+        className="flex h-14 flex-shrink-0 items-center gap-3 border-b px-6"
         style={{ borderColor: 'var(--surface-200)' }}
       >
-        <span
-          className="text-[1.375rem] font-bold"
-          style={{ fontFamily: 'var(--font-display)', color: 'var(--surface-900)' }}
-        >
-          Crib<span style={{ color: 'var(--primary-800)' }}>AI</span>
-        </span>
         <div className="flex-1" />
         <button
           type="button"
@@ -69,7 +66,7 @@ export function CrmWorkspace() {
           <Building2 aria-hidden="true" className="h-4 w-4" />
           My Apartments
         </button>
-      </header>
+      </div>
 
       {/* Split workspace */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
