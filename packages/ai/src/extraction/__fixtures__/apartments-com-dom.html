@@ -1,0 +1,24 @@
+<!-- FIXTURE: synthetic, modeled on apartments.com labeled-DOM 2026-05-27 -->
+<!doctype html>
+<html lang="en">
+<head>
+<title>Lucky Apartments - Madison, WI | Apartments.com</title>
+<meta property="og:type" content="website" />
+<!--
+  Apartments.com often omits rent/bed/bath from JSON-LD on multi-unit pages
+  and instead renders them in labeled spans. The DOM layer regexes those out.
+  A small window.__data blob carries the address, mirroring the real site.
+-->
+<script>
+  window.__data = {"listing":{"address":{"streetAddress":"315 N Frances St","city":"Madison","state":"WI","postalCode":"53703"}}};
+</script>
+</head>
+<body>
+<h1 class="propertyName">Lucky Apartments</h1>
+<p class="rentInfoDetail">$1,895/mo</p>
+<p class="bedRangeInfo"><span class="rentInfoDetail">2 Beds</span></p>
+<p class="bathRangeInfo"><span class="rentInfoDetail">1 Bath</span></p>
+<p class="sqftInfo"><span class="rentInfoDetail">720 sqft</span></p>
+<img class="mainImage" src="https://images1.apartments.com/i2/lucky/exterior.jpg" />
+</body>
+</html>

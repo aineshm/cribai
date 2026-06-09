@@ -1,0 +1,22 @@
+<!-- FIXTURE: synthetic, modeled on facebook sparse-blob-partial 2026-05-27 -->
+<!doctype html>
+<html lang="en">
+<head>
+<title>Marketplace item | Facebook</title>
+<meta property="og:type" content="product" />
+<!--
+  Sparse scenario: the ScheduledServerJS blob carries only a title and photo —
+  NO price, NO address, NO beds. The DOM partial therefore fails
+  `price && (bedrooms || address)` on every axis, forcing escalation to the
+  LLM rare path (the common real-world FB outcome when the blob is thin).
+-->
+<script type="application/json" data-sjs>
+{"require":[["ScheduledServerJS","handle",null,[{"__bbox":{"result":{"data":{"marketplace_listing":{
+  "marketplace_listing_title":"Room available - message for details",
+  "listing_photos":[{"image":{"uri":"https://scontent.fbcdn.net/v/fb-room-1.jpg"}}]
+}}}}}]]]
+}
+</script>
+</head>
+<body><div role="main">Room available</div></body>
+</html>

@@ -1,0 +1,22 @@
+<!-- FIXTURE: synthetic, modeled on realtor sparse labeled-DOM (no JSON-LD/OG) 2026-05-27 -->
+<!doctype html>
+<html lang="en">
+<head>
+<title>Home for rent | realtor.com</title>
+<!--
+  Genuinely sparse listing page: NO __NEXT_DATA__ blob, NO JSON-LD, NO OG.
+  The only structured signals are labeled spans (price + bed count) matching
+  the patterns extractRealtor's fromLabeledDom path regexes. Selector tokens
+  are intentionally NOT spelled out in this comment — several site regexes
+  are unanchored on context and have matched verbatim selector strings inside
+  HTML comments before, returning empty captures. Keep this comment
+  selector-token-free.
+-->
+</head>
+<body>
+<h1>Home for rent near downtown Madison</h1>
+<span data-testid="list-price">$1,900/mo</span>
+<span data-label="property-meta-beds">2 beds</span>
+<span data-label="property-meta-baths">1 bath</span>
+</body>
+</html>

@@ -1,0 +1,18 @@
+<!-- FIXTURE: synthetic, modeled on apartments.com labeled-DOM-partial 2026-05-27 -->
+<!doctype html>
+<html lang="en">
+<head>
+<title>Riverside Flats - Madison, WI | Apartments.com</title>
+<!--
+  Sparse-DOM scenario: no JSON-LD, no window.__data, no OG price. The labeled
+  spans expose bed and bath but NO rent and NO address. The DOM partial lacks
+  `price`, failing `price && (bedrooms || address)` and forcing escalation.
+-->
+</head>
+<body>
+<h1 class="propertyName">Riverside Flats</h1>
+<p class="bedRangeInfo"><span class="rentInfoDetail">3 Beds</span></p>
+<p class="bathRangeInfo"><span class="rentInfoDetail">2 Baths</span></p>
+<p>Call for current availability and pricing.</p>
+</body>
+</html>

@@ -1,0 +1,18 @@
+<!-- FIXTURE: synthetic, modeled on trulia labeled-DOM-partial 2026-05-27 -->
+<!doctype html>
+<html lang="en">
+<head>
+<title>Home for rent | Trulia</title>
+<!--
+  Sparse-DOM scenario: no __NEXT_DATA__, no JSON-LD. Labeled DOM exposes a
+  price and an address but NO bed/bath/sqft. The DOM partial satisfies
+  `price && address` here, so to FORCE escalation the labels deliberately omit
+  the price token (only an address survives) — DOM returns address-only, which
+  fails `price && (bedrooms || address)` on the price axis.
+-->
+</head>
+<body>
+<div data-testid="home-details-summary-address">2210 University Ave, Madison, WI 53726</div>
+<p>Available this summer. Reach out for current pricing and a tour.</p>
+</body>
+</html>

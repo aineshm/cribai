@@ -1,0 +1,21 @@
+<!-- FIXTURE: synthetic, modeled on apartments.com sparse labeled-DOM (no JSON-LD/OG) 2026-05-27 -->
+<!doctype html>
+<html lang="en">
+<head>
+<title>Sublease near campus | Apartments.com</title>
+<!--
+  Genuinely sparse listing page: NO JSON-LD, NO window.__data blob, NO OG.
+  The only structured signals are labeled spans (price + bed count) matching
+  the patterns extractApartmentsCom's fromLabeledDom path regexes. Selector
+  tokens are intentionally NOT spelled out in this comment — several site
+  regexes are unanchored on context and have matched verbatim selector
+  strings inside HTML comments before, returning empty captures. Keep this
+  comment selector-token-free.
+-->
+</head>
+<body>
+<h1 class="propertyName">Sublease near campus</h1>
+<p class="rentInfoDetail">$1,650/mo</p>
+<p class="bedRangeInfo"><span class="rentInfoDetail">2 Beds</span></p>
+</body>
+</html>
