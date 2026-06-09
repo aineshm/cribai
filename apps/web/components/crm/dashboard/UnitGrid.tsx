@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import type { CrmUnit, CrmListMember } from '@/lib/crm/proposed-types';
-import { CRM_LIST } from '@/lib/crm/fixtures';
 import { SavedUnitCard } from '../SavedUnitCard';
 
 /**
@@ -29,19 +28,22 @@ const FILTERS: ReadonlyArray<{ key: FilterKey; label: string; match: (u: CrmUnit
   { key: 'declined', label: 'Declined', match: (u) => u._proposed.application.stage === 'decision' },
 ];
 
-const memberById = (id: string): CrmListMember | undefined =>
-  CRM_LIST.members.find((m) => m.id === id);
-
 export function UnitGrid({
   units,
+  members = [],
   onOpen,
 }: {
   units: readonly CrmUnit[];
+  /** Roster used to resolve each card's "added by" avatar. Threaded from
+   *  BoardView (crmClient.getList) — never read from fixtures here. */
+  members?: readonly CrmListMember[];
   onOpen: (id: string) => void;
 }) {
   const [active, setActive] = useState<FilterKey>('all');
   const filter = FILTERS.find((f) => f.key === active) ?? FILTERS[0]!;
   const shown = units.filter(filter.match);
+  const memberById = (id: string): CrmListMember | undefined =>
+    members.find((m) => m.id === id);
 
   return (
     <div>

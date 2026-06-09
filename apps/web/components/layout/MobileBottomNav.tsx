@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { Search, Bot, Heart, User, MessageSquare, Building2 } from 'lucide-react';
+import { isCrmEnabled } from '@/lib/crm/feature-flag';
 
 interface MobileBottomNavProps {
   readonly isAuthenticated: boolean;
@@ -22,7 +23,10 @@ function getNavItems(isAuthenticated: boolean): readonly NavItem[] {
     { href: '/explore', icon: Search, label: 'Search', match: '/explore' },
     { href: isAuthenticated ? '/messages' : '/login', icon: Bot, label: 'Agent', match: '/messages', showDot: isAuthenticated },
     { href: isAuthenticated ? '/chat' : '/login', icon: MessageSquare, label: 'Chat', match: '/chat', elevated: true },
-    { href: isAuthenticated ? '/my-apartments' : '/login', icon: Building2, label: 'Apartments', match: '/my-apartments' },
+    // "My Apartments" only when the CRM feature is enabled (merge-dark gate).
+    ...(isCrmEnabled()
+      ? [{ href: isAuthenticated ? '/my-apartments' : '/login', icon: Building2, label: 'Apartments', match: '/my-apartments' } as const]
+      : []),
     { href: isAuthenticated ? '/profile?tab=saved' : '/login', icon: Heart, label: 'Saved', match: '/profile' },
     { href: isAuthenticated ? '/profile' : '/login', icon: User, label: 'Profile', match: '/profile' },
   ];

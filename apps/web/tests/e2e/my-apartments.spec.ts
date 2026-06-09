@@ -3,31 +3,68 @@ import { test, expect } from '@playwright/test';
 /**
  * E2E — "My Apartments" Personal CRM front end (Phase 5 / plan Task 15).
  *
- * Covers the user-visible contract on the two CRM routes. Everything is
- * MOCK-DRIVEN (NEXT_PUBLIC_CRM_MOCK=true, the default — the flag is only off
- * when explicitly set to 'false'), so no backend / network is exercised; the
- * mock client adds ~350ms delays per call which `toBeVisible()` auto-waits out.
+ * Two gates guard these routes:
+ *  - Visibility flag NEXT_PUBLIC_CRM_ENABLED — without 'true' the routes 404
+ *    and the nav entries are hidden ("merge dark" kill-switch).
+ *  - Middleware auth (proxy.ts `protectedFlatRoutes`) — an unauthenticated
+ *    visit to /my-apartments(/board) redirects to /login, exactly like /post.
  *
- * Desktop-first layout: `CrmWorkspace` branches on `useIsMobile` (matchMedia,
- * 980px). At a mobile viewport the canvas renders as a `CanvasSheet` overlay
- * rather than the 60% desktop pane, and the chat narrows. We pin a desktop
- * viewport on the whole describe so the canvas-toggle assertions hold under the
- * `mobile-chrome` Playwright project too (same pattern as navigation.spec.ts /
- * explore-chat.spec.ts).
+ * The data layer is MOCK-DRIVEN (NEXT_PUBLIC_CRM_MOCK=true, the default), so no
+ * backend / network is exercised; the mock client adds ~350ms delays per call
+ * which `toBeVisible()` auto-waits out.
  *
- * Routes (`/my-apartments`, `/my-apartments/board`) live under the (main)
- * layout, which renders unauthenticated (verified 200, no /login redirect).
+ * Suite split:
+ *  - "route protection" runs in the default (unauthenticated) suite — it asserts
+ *    the /login redirect and does not depend on either flag.
+ *  - "workspace UI" needs an authenticated session (dev-auth: BYPASS_AUTH=true)
+ *    AND NEXT_PUBLIC_CRM_ENABLED=true. It auto-skips when the route redirects to
+ *    /login (i.e. auth isn't bypassed), so the default suite stays green while
+ *    the assertions still run under a dev-auth e2e configuration.
  */
 
 const WORKSPACE_URL = '/my-apartments';
 const BOARD_URL = '/my-apartments/board';
 const CHAPTER_URL = 'https://www.chapteratmadison.com/floor-plan/studio-s1/';
 
-test.describe('My Apartments — CRM front end', () => {
+test.describe('My Apartments — route protection', () => {
+  // Under dev-auth (BYPASS_AUTH=true) the proxy short-circuits BEFORE the
+  // protectedFlatRoutes check and injects a dev user, so these routes render
+  // instead of redirecting. The redirect assertion therefore applies only to
+  // the unauthenticated suite — probe at runtime and skip when auth is bypassed
+  // (env-agnostic; mirrors navigation.spec.ts's checkAuthBypassed approach).
+  const expectLoginRedirect = async (
+    page: import('@playwright/test').Page,
+    url: string,
+  ): Promise<void> => {
+    await page.goto(url);
+    test.skip(!/\/login/.test(page.url()), 'auth bypassed (dev-auth) — route renders, no redirect to assert');
+    await expect(page).toHaveURL(/\/login/);
+  };
+
+  test('workspace route redirects unauthenticated visitors to /login', async ({ page }) => {
+    await expectLoginRedirect(page, WORKSPACE_URL);
+  });
+
+  test('board route redirects unauthenticated visitors to /login', async ({ page }) => {
+    await expectLoginRedirect(page, BOARD_URL);
+  });
+});
+
+test.describe('My Apartments — workspace UI (requires dev-auth)', () => {
   // Desktop viewport: the workspace canvas is desktop-only (matchMedia 980px).
   test.use({ viewport: { width: 1280, height: 900 } });
   // First hit to each route cold-compiles under Turbopack; give nav headroom.
   test.setTimeout(90_000);
+
+  test.beforeEach(async ({ page }) => {
+    // In the default (unauthenticated) suite the proxy redirects these routes to
+    // /login — skip the UI assertions there. They run only under dev-auth
+    // (BYPASS_AUTH=true) with NEXT_PUBLIC_CRM_ENABLED=true.
+    await page.goto(WORKSPACE_URL);
+    if (/\/login/.test(page.url())) {
+      test.skip(true, 'requires dev-auth (BYPASS_AUTH=true) + NEXT_PUBLIC_CRM_ENABLED=true');
+    }
+  });
 
   test('workspace: pasting a listing URL yields a saved unit + first-look analysis', async ({
     page,

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MobileBottomNav } from '../MobileBottomNav';
 
@@ -14,6 +14,21 @@ describe('MobileBottomNav', () => {
   beforeEach(() => {
     mockPathname = '/explore';
     mockSearchParams = new URLSearchParams();
+    vi.stubEnv('NEXT_PUBLIC_CRM_ENABLED', ''); // gate off by default
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('shows the Apartments tab only when the CRM gate is on', () => {
+    vi.stubEnv('NEXT_PUBLIC_CRM_ENABLED', 'true');
+    render(<MobileBottomNav isAuthenticated />);
+    expect(screen.getByRole('link', { name: 'Apartments' })).toHaveAttribute('href', '/my-apartments');
+  });
+
+  it('hides the Apartments tab when the CRM gate is off', () => {
+    render(<MobileBottomNav isAuthenticated />);
+    expect(screen.queryByRole('link', { name: 'Apartments' })).not.toBeInTheDocument();
   });
 
   it('renders for unauthenticated users with login links for protected tabs', () => {

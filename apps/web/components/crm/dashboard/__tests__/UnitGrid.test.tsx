@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { UnitGrid } from '../UnitGrid';
-import { UNITS } from '@/lib/crm/fixtures';
+import { UNITS, CRM_LIST } from '@/lib/crm/fixtures';
 
 describe('UnitGrid', () => {
   it('renders one article per unit by default (All)', () => {
@@ -29,6 +29,18 @@ describe('UnitGrid', () => {
     for (const name of [/all/i, /saved/i, /toured/i, /applied/i, /declined/i]) {
       expect(screen.getByRole('tab', { name })).toBeInTheDocument();
     }
+  });
+
+  it('resolves the "added by" avatar from the members prop (not fixtures)', () => {
+    render(<UnitGrid units={UNITS} members={CRM_LIST.members} onOpen={() => {}} />);
+    // Maya added units in the fixtures; the All filter shows every unit, so her
+    // avatar resolves from the prop.
+    expect(screen.getAllByLabelText(/Added by Maya/i).length).toBeGreaterThan(0);
+  });
+
+  it('omits the "added by" avatar when no members are provided', () => {
+    render(<UnitGrid units={UNITS} onOpen={() => {}} />);
+    expect(screen.queryByLabelText(/Added by/i)).not.toBeInTheDocument();
   });
 
   it('forwards onOpen from a card', () => {

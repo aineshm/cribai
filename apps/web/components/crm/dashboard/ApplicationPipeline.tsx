@@ -3,7 +3,6 @@
 import { cn } from '@/lib/utils';
 import { MapPin } from 'lucide-react';
 import type { CrmUnit, CrmListMember } from '@/lib/crm/proposed-types';
-import { CRM_LIST } from '@/lib/crm/fixtures';
 import { money } from '@/lib/crm/format';
 import { StatusPill } from '../ui/StatusPill';
 import { DeadlinePill } from '../ui/DeadlinePill';
@@ -18,8 +17,9 @@ import { DeadlinePill } from '../ui/DeadlinePill';
  *
  * Cards lead with the floor-plan + building, show rent over the photo, a
  * DeadlinePill (urgent for Chapter's 48h waiver), document progress
- * (done/total), and the resolved "added by" member avatar. Stage→member
- * resolution uses the mock CRM_LIST roster directly (no list prop — mock-only).
+ * (done/total), and the resolved "added by" member avatar. The roster comes in
+ * via the `members` prop (threaded from BoardView's `crmClient.getList()`) so
+ * this component never reaches into the fixtures directly.
  */
 type Stage = CrmUnit['_proposed']['application']['stage'];
 
@@ -30,9 +30,6 @@ const STAGES: ReadonlyArray<{ key: Stage; label: string; dot: string }> = [
   { key: 'decision', label: 'Decision', dot: 'var(--surface-400)' },
 ];
 
-const memberById = (id: string): CrmListMember | undefined =>
-  CRM_LIST.members.find((m) => m.id === id);
-
 const stageOf = (u: CrmUnit): Stage => u._proposed.application.stage;
 
 const docProgress = (u: CrmUnit): { done: number; total: number } => {
@@ -42,11 +39,17 @@ const docProgress = (u: CrmUnit): { done: number; total: number } => {
 
 export function ApplicationPipeline({
   units,
+  members = [],
   onOpen,
 }: {
   units: readonly CrmUnit[];
+  /** Roster used to resolve each unit's "added by" avatar. Threaded from
+   *  BoardView (crmClient.getList) — never read from fixtures here. */
+  members?: readonly CrmListMember[];
   onOpen: (id: string) => void;
 }) {
+  const memberById = (id: string): CrmListMember | undefined =>
+    members.find((m) => m.id === id);
   return (
     <div className="grid grid-cols-1 items-start gap-[1.1rem] min-[760px]:grid-cols-2 min-[1180px]:grid-cols-4">
       {STAGES.map((stage) => {
@@ -80,7 +83,14 @@ export function ApplicationPipeline({
             </header>
 
             {items.length > 0 ? (
-              items.map((u) => <KanbanCard key={u.id} unit={u} onOpen={onOpen} />)
+              items.map((u) => (
+                <KanbanCard
+                  key={u.id}
+                  unit={u}
+                  addedByMember={memberById(u._proposed.addedBy)}
+                  onOpen={onOpen}
+                />
+              ))
             ) : (
               <p
                 className="rounded-xl border border-dashed py-6 text-center text-[0.78rem]"
@@ -96,10 +106,18 @@ export function ApplicationPipeline({
   );
 }
 
-function KanbanCard({ unit, onOpen }: { unit: CrmUnit; onOpen: (id: string) => void }) {
+function KanbanCard({
+  unit,
+  addedByMember,
+  onOpen,
+}: {
+  unit: CrmUnit;
+  addedByMember?: CrmListMember;
+  onOpen: (id: string) => void;
+}) {
   const { unit: u, application } = unit._proposed;
   const photo = unit.photo_urls?.[0] ?? '';
-  const by = memberById(unit._proposed.addedBy);
+  const by = addedByMember;
   const prog = docProgress(unit);
   const showDeadline =
     application.deadlineLabel != null &&

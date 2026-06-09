@@ -194,8 +194,12 @@ export function BoardView() {
       </div>
 
       {/* Active view */}
-      {view === 'pipeline' ? <ApplicationPipeline units={units} onOpen={setOpenId} /> : null}
-      {view === 'grid' ? <UnitGrid units={units} onOpen={setOpenId} /> : null}
+      {view === 'pipeline' ? (
+        <ApplicationPipeline units={units} members={list?.members ?? []} onOpen={setOpenId} />
+      ) : null}
+      {view === 'grid' ? (
+        <UnitGrid units={units} members={list?.members ?? []} onOpen={setOpenId} />
+      ) : null}
       {view === 'compare' ? (
         compare ? (
           <div>
