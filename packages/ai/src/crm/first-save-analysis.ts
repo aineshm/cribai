@@ -22,7 +22,7 @@
  *   ./types           ← FirstSaveAnalysis, FirstSaveAnalysisDeps, FanoutBranch,
  *                       RedFlagResult, PlacesSnapshot, SteeringQuestion, TrueCost
  *   ./amenity-flags   ← amenitiesToCostFlags
- *   ../gemini-client  ← createGeminiClient (fallback when deps.gemini absent)
+ *   ./generate        ← defaultCrmGenerate (AI SDK generateObject seam)
  *   ../tools/lib/google-places ← nearbySearch (default deps.nearby)
  *   @campusnest/utils ← calculateTrueCost, parseWkbPoint
  *   zod               ← z (RedFlagSchema)
@@ -30,7 +30,7 @@
 
 import { z } from 'zod';
 import { calculateTrueCost, parseWkbPoint } from '@campusnest/utils';
-import { createGeminiClient } from '../gemini-client';
+import { defaultCrmGenerate } from './generate';
 import { nearbySearch } from '../tools/lib/google-places';
 import { amenitiesToCostFlags } from './amenity-flags';
 import type {
@@ -229,9 +229,15 @@ ${amenitiesSection}`;
 }
 
 /**
- * redFlags branch — Gemini Flash JSON mode.
+ * redFlags branch — shared LLM via the `generateObject` seam.
  * Skips when both description and amenities are absent.
- * On Gemini error or JSON parse/Zod fail → status:'error'.
+ *
+ * On ANY failure (model/provider construction throw, LLM call throw, OR
+ * `generateObject` schema-validation throw — NoObjectGeneratedError) → the outer
+ * try/catch returns status:'error'. The overall `firstSaveAnalysis` still
+ * resolves; this branch never rethrows. `generateObject` validates against
+ * RedFlagSchema and throws on parse/validation failure, so the prior manual
+ * JSON.parse + safeParse is gone.
  */
 async function redFlagsBranch(
   row: CrmListingSelectRow,
@@ -245,41 +251,17 @@ async function redFlagsBranch(
       return { status: 'skipped', reason: REASON_NOTHING_TO_SCAN };
     }
 
-    const ai = deps.gemini ?? createGeminiClient();
-    let geminiText: string;
-
-    const result = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      config: {
-        responseMimeType: 'application/json',
-        // NOTE: NO tools config — responseMimeType + tools are mutually exclusive in Gemini
-      },
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: buildRedFlagPrompt(row.description, row.amenities) }],
-        },
-      ],
+    // Resolve the seam INSIDE the try so a missing OPENAI_API_KEY (or any
+    // model-resolution throw) degrades to {status:'error'} like any other LLM
+    // failure — it must not escape this branch.
+    const generate = deps.generate ?? defaultCrmGenerate;
+    const data = await generate<z.infer<typeof RedFlagSchema>>({
+      schema: RedFlagSchema,
+      prompt: buildRedFlagPrompt(row.description, row.amenities),
+      functionId: 'crm.red_flags',
     });
-    geminiText = result.text ?? '{}';
 
-    // Defensive parse: JSON.parse + Zod safeParse
-    let parsed: { flags: string[]; summary: string } | null = null;
-    try {
-      const raw = JSON.parse(geminiText) as unknown;
-      const safeResult = RedFlagSchema.safeParse(raw);
-      if (safeResult.success) {
-        parsed = safeResult.data;
-      }
-    } catch {
-      // JSON.parse threw — malformed response
-    }
-
-    if (parsed === null) {
-      return { status: 'error', error: 'Failed to parse Gemini red-flag response' };
-    }
-
-    return { status: 'ok', data: parsed };
+    return { status: 'ok', data };
   } catch (e: unknown) {
     return { status: 'error', error: String(e) };
   }
@@ -338,7 +320,7 @@ async function steeringQuestionBranch(): Promise<FanoutBranch<SteeringQuestion>>
  * Run 4 independent analyses in parallel after a listing is saved.
  *
  * @param listingId - The crm_listings row ID to analyse.
- * @param deps      - Dependency bundle (db, userId, gemini, nearby, placesApiKey, perBranchTimeoutMs).
+ * @param deps      - Dependency bundle (db, userId, generate, nearby, placesApiKey, perBranchTimeoutMs).
  * @returns         A fully-populated FirstSaveAnalysis struct. Each field is a
  *                  FanoutBranch that is always present (ok | skipped | error).
  * @throws {Error}  Only if the listing row is not found (before the fanout).
