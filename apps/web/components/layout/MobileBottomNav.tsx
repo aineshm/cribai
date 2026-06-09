@@ -22,7 +22,7 @@ function getNavItems(isAuthenticated: boolean): readonly NavItem[] {
     { href: '/explore', icon: Search, label: 'Search', match: '/explore' },
     { href: isAuthenticated ? '/messages' : '/login', icon: Bot, label: 'Agent', match: '/messages', showDot: isAuthenticated },
     { href: isAuthenticated ? '/chat' : '/login', icon: MessageSquare, label: 'Chat', match: '/chat', elevated: true },
-    { href: '/my-apartments', icon: Building2, label: 'Apartments', match: '/my-apartments' },
+    { href: isAuthenticated ? '/my-apartments' : '/login', icon: Building2, label: 'Apartments', match: '/my-apartments' },
     { href: isAuthenticated ? '/profile?tab=saved' : '/login', icon: Heart, label: 'Saved', match: '/profile' },
     { href: isAuthenticated ? '/profile' : '/login', icon: User, label: 'Profile', match: '/profile' },
   ];
