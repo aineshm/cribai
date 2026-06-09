@@ -12,17 +12,18 @@
  *   TrueCostInput                          ← @campusnest/utils
  *   GeocodeResult                          ← ../tools/lib/geocode-address
  *   SupabaseClient                         ← @supabase/supabase-js
- *   GoogleGenAI                            ← @google/genai
+ *   CrmGenerateObject                      ← ./generate (Vercel AI SDK seam)
  */
 
 import type { ExtractedListing, ExtractionErrorCode } from '../extraction';
 import type { TrueCost } from '@campusnest/types';
 import type { GeocodeResult } from '../tools/lib/geocode-address';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { GoogleGenAI } from '@google/genai';
+import type { CrmGenerateObject } from './generate';
 
 // Re-export the upstream types so consumers import from one place.
 export type { ExtractedListing, ExtractionErrorCode, TrueCost, GeocodeResult };
+export type { CrmGenerateObject } from './generate';
 
 /**
  * Input shape for calculateTrueCost (@campusnest/utils).
@@ -142,8 +143,12 @@ export type AddListingErrorCode = ExtractionErrorCode | 'db_error';
 export interface FirstSaveAnalysisDeps {
   readonly db: SupabaseClient;
   readonly userId: string;
-  /** Gemini client; used for red-flag scan + steering question generation. */
-  readonly gemini?: GoogleGenAI;
+  /**
+   * Structured-generation seam (Vercel AI SDK `generateObject` wrapper) used by
+   * the red-flag scan. Optional so unit tests inject a fake; defaults to
+   * `defaultCrmGenerate` (shared provider-neutral factory + Langfuse telemetry).
+   */
+  readonly generate?: CrmGenerateObject;
   /**
    * Nearby-places lookup function. Signature mirrors the Places API helper
    * used in the rest of the codebase (injectable for testing).
@@ -212,8 +217,12 @@ export interface InferProfileDeps {
   /** Service-role client — upsert into crm_inferred_profiles. */
   readonly writeDb: SupabaseClient;
   readonly userId: string;
-  /** Gemini client; optional so unit tests can skip LLM calls. */
-  readonly gemini?: GoogleGenAI;
+  /**
+   * Structured-generation seam (Vercel AI SDK `generateObject` wrapper).
+   * Optional so unit tests inject a fake; defaults to `defaultCrmGenerate`
+   * (shared provider-neutral factory + Langfuse telemetry).
+   */
+  readonly generate?: CrmGenerateObject;
   /** Minimum number of saved listings required before inference runs. Defaults to 3. */
   readonly minSavesForInference?: number;
   /**

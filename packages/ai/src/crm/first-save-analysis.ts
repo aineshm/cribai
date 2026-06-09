@@ -3,14 +3,22 @@
  *
  * After a listing is saved, runs a PARALLEL FANOUT of 4 independent analyses:
  *   1. trueCost     — calculateTrueCost(@campusnest/utils) on the saved row
- *   2. redFlags     — Gemini Flash JSON-mode scan of description + amenities
+ *   2. redFlags     — LLM JSON-mode scan of description + amenities (AI SDK
+ *                     generateObject via the shared factory — OpenAI by default)
  *   3. placesSnapshot — Google Places nearbySearch → bucketed categories
  *   4. steeringQuestion — deterministic static question (Phase 1; contextual in Phase 2)
  *
  * Design goals:
- *   - Target <1.5s perceived via Promise.allSettled parallelism.
- *   - Per-branch soft timeout (default 1200ms) on I/O branches (redFlags, placesSnapshot).
- *     NOTE: the underlying Gemini/nearbySearch calls have no abort-signal support;
+ *   - Low perceived latency via Promise.allSettled parallelism — total ≈ the
+ *     slowest branch, which is the LLM red-flag scan.
+ *   - Per-branch soft timeout (default 5000ms) on I/O branches (redFlags, placesSnapshot).
+ *     This is a HANG-CAP, not the expected latency: the red-flag scan now runs on
+ *     the shared AI SDK factory (OpenAI gpt-5.4-mini by default), whose structured-
+ *     output latency is ~1.6–2.6s — well above the 1200ms cap this used to carry
+ *     when the scan was Gemini Flash. 1200ms silently timed the red-flag branch
+ *     out on every real OpenAI call; 5000ms admits normal completion while still
+ *     capping a genuine hang. (Tunable; lower it if/when a faster model is used.)
+ *     NOTE: the underlying LLM/nearbySearch calls have no abort-signal support;
  *     the timeout is a Promise.race soft-cap. The loser's result is discarded.
  *   - NEVER throws after the listing is loaded (step 1). Partial failures degrade
  *     to FanoutBranch<T> with status:'error' or 'skipped'. The overall promise
@@ -22,7 +30,7 @@
  *   ./types           ← FirstSaveAnalysis, FirstSaveAnalysisDeps, FanoutBranch,
  *                       RedFlagResult, PlacesSnapshot, SteeringQuestion, TrueCost
  *   ./amenity-flags   ← amenitiesToCostFlags
- *   ../gemini-client  ← createGeminiClient (fallback when deps.gemini absent)
+ *   ./generate        ← defaultCrmGenerate (AI SDK generateObject seam)
  *   ../tools/lib/google-places ← nearbySearch (default deps.nearby)
  *   @campusnest/utils ← calculateTrueCost, parseWkbPoint
  *   zod               ← z (RedFlagSchema)
@@ -30,7 +38,7 @@
 
 import { z } from 'zod';
 import { calculateTrueCost, parseWkbPoint } from '@campusnest/utils';
-import { createGeminiClient } from '../gemini-client';
+import { defaultCrmGenerate } from './generate';
 import { nearbySearch } from '../tools/lib/google-places';
 import { amenitiesToCostFlags } from './amenity-flags';
 import type {
@@ -47,7 +55,11 @@ import type {
 // Constants
 // ---------------------------------------------------------------------------
 
-const DEFAULT_BRANCH_TIMEOUT_MS = 1200;
+// Exported so a unit test can pin it (regression guard): the red-flag branch
+// runs on OpenAI structured output (~1.6–2.6s), so this MUST stay above that or
+// every real red-flag scan silently times out to {status:'error'}. See the
+// `DEFAULT_BRANCH_TIMEOUT_MS regression guard` test.
+export const DEFAULT_BRANCH_TIMEOUT_MS = 5000;
 const RADIUS_METERS = 1000;
 
 /** Reason strings — exported as named consts so tests and impl stay in sync. */
@@ -229,9 +241,15 @@ ${amenitiesSection}`;
 }
 
 /**
- * redFlags branch — Gemini Flash JSON mode.
+ * redFlags branch — shared LLM via the `generateObject` seam.
  * Skips when both description and amenities are absent.
- * On Gemini error or JSON parse/Zod fail → status:'error'.
+ *
+ * On ANY failure (model/provider construction throw, LLM call throw, OR
+ * `generateObject` schema-validation throw — NoObjectGeneratedError) → the outer
+ * try/catch returns status:'error'. The overall `firstSaveAnalysis` still
+ * resolves; this branch never rethrows. `generateObject` validates against
+ * RedFlagSchema and throws on parse/validation failure, so the prior manual
+ * JSON.parse + safeParse is gone.
  */
 async function redFlagsBranch(
   row: CrmListingSelectRow,
@@ -245,41 +263,17 @@ async function redFlagsBranch(
       return { status: 'skipped', reason: REASON_NOTHING_TO_SCAN };
     }
 
-    const ai = deps.gemini ?? createGeminiClient();
-    let geminiText: string;
-
-    const result = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      config: {
-        responseMimeType: 'application/json',
-        // NOTE: NO tools config — responseMimeType + tools are mutually exclusive in Gemini
-      },
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: buildRedFlagPrompt(row.description, row.amenities) }],
-        },
-      ],
+    // Resolve the seam INSIDE the try so a missing OPENAI_API_KEY (or any
+    // model-resolution throw) degrades to {status:'error'} like any other LLM
+    // failure — it must not escape this branch.
+    const generate = deps.generate ?? defaultCrmGenerate;
+    const data = await generate<z.infer<typeof RedFlagSchema>>({
+      schema: RedFlagSchema,
+      prompt: buildRedFlagPrompt(row.description, row.amenities),
+      functionId: 'crm.red_flags',
     });
-    geminiText = result.text ?? '{}';
 
-    // Defensive parse: JSON.parse + Zod safeParse
-    let parsed: { flags: string[]; summary: string } | null = null;
-    try {
-      const raw = JSON.parse(geminiText) as unknown;
-      const safeResult = RedFlagSchema.safeParse(raw);
-      if (safeResult.success) {
-        parsed = safeResult.data;
-      }
-    } catch {
-      // JSON.parse threw — malformed response
-    }
-
-    if (parsed === null) {
-      return { status: 'error', error: 'Failed to parse Gemini red-flag response' };
-    }
-
-    return { status: 'ok', data: parsed };
+    return { status: 'ok', data };
   } catch (e: unknown) {
     return { status: 'error', error: String(e) };
   }
@@ -338,7 +332,7 @@ async function steeringQuestionBranch(): Promise<FanoutBranch<SteeringQuestion>>
  * Run 4 independent analyses in parallel after a listing is saved.
  *
  * @param listingId - The crm_listings row ID to analyse.
- * @param deps      - Dependency bundle (db, userId, gemini, nearby, placesApiKey, perBranchTimeoutMs).
+ * @param deps      - Dependency bundle (db, userId, generate, nearby, placesApiKey, perBranchTimeoutMs).
  * @returns         A fully-populated FirstSaveAnalysis struct. Each field is a
  *                  FanoutBranch that is always present (ok | skipped | error).
  * @throws {Error}  Only if the listing row is not found (before the fanout).

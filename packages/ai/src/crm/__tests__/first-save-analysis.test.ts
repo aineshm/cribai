@@ -1,29 +1,33 @@
 /**
  * Unit tests for crm/first-save-analysis.ts (AIN-15, Track C Phase 1).
  *
- * All external I/O is injected via deps (db, gemini, nearby, placesApiKey).
- * No real Supabase, Gemini, or Google Places calls are made.
+ * All external I/O is injected via deps (db, generate, nearby, placesApiKey).
+ * No real Supabase, LLM, or Google Places calls are made. The red-flag LLM call
+ * goes through the `deps.generate` seam (Vercel AI SDK `generateObject` wrapper);
+ * tests inject a fake `generate` that resolves the parsed object or rejects
+ * (mirroring `generateObject` throwing NoObjectGeneratedError).
  *
  * Test list (spec §TDD test list):
  *  1. all branches ok — all 4 fields status:'ok'
  *  2. trueCost amenity flags fed correctly — laundry/parking cost 0
- *  3a. per-branch isolation: gemini throws → redFlags:'error', others ok
+ *  3a. per-branch isolation: generate throws → redFlags:'error', others ok
  *  3b. per-branch isolation: nearby throws → placesSnapshot:'error', others ok
  *  3c. per-branch isolation: no coordinates → placesSnapshot:'skipped', others ok
  *  3d. per-branch isolation: null rent → trueCost:'skipped', others ok
  *  4. no Places key → placesSnapshot:'skipped'
  *  5. redFlags skipped when description AND amenities both empty
- *  6. redFlags malformed JSON → redFlags:'error'
+ *  6. redFlags generate rejects (schema/parse fail) → redFlags:'error'
  *  7. branch soft timeout: nearby never resolves + fake timers → placesSnapshot:'error' (timeout)
  *  8. listing not found → rejects with 'Listing not found'
  *  9. never throws on partial failure — full struct resolves even with bad branches
+ * 10. default seam: missing provider key → redFlags:'error', others ok (lazy construction)
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { firstSaveAnalysis } from '../first-save-analysis';
-import type { FirstSaveAnalysisDeps } from '../types';
-import { cannedRedFlagResponse, malformedJsonResponse } from '../__fixtures__/gemini-responses';
+import { firstSaveAnalysis, DEFAULT_BRANCH_TIMEOUT_MS } from '../first-save-analysis';
+import type { FirstSaveAnalysisDeps, CrmGenerateObject } from '../types';
+import { cannedRedFlagResponse } from '../__fixtures__/gemini-responses';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -104,25 +108,22 @@ function makeDbWithError(dbError: { message: string; code?: string }): SupabaseC
 }
 
 /**
- * Build a Gemini mock that resolves with the given text as `result.text`.
+ * Build a `generate` seam mock that resolves with the parsed object derived from
+ * a canned JSON string (mirroring `generateObject` returning the validated
+ * red-flag object).
  */
-function makeGemini(text: string) {
-  return {
-    models: {
-      generateContent: vi.fn().mockResolvedValue({ text }),
-    },
-  };
+function makeGenerate(jsonText: string): CrmGenerateObject {
+  return vi.fn(async () => JSON.parse(jsonText)) as unknown as CrmGenerateObject;
 }
 
 /**
- * Build a Gemini mock that rejects with an error.
+ * Build a `generate` seam mock that rejects — models the AI SDK throwing
+ * (NoObjectGeneratedError on parse/validation failure, or a provider error).
  */
-function makeGeminiThrowing(message = 'Gemini API error') {
-  return {
-    models: {
-      generateContent: vi.fn().mockRejectedValue(new Error(message)),
-    },
-  };
+function makeGenerateThrowing(message = 'generation failed'): CrmGenerateObject {
+  return vi.fn(async () => {
+    throw new Error(message);
+  }) as unknown as CrmGenerateObject;
 }
 
 /**
@@ -132,24 +133,24 @@ function makeGeminiThrowing(message = 'Gemini API error') {
 function makeDeps(
   overrides: Partial<FirstSaveAnalysisDeps> & {
     row?: FixtureRow | null;
-    geminiText?: string;
-    geminiThrows?: boolean;
+    generateText?: string;
+    generateThrows?: boolean;
     placesApiKey?: string | undefined;
   } = {},
 ): FirstSaveAnalysisDeps {
   const {
     row = BASE_ROW,
-    geminiText = cannedRedFlagResponse,
-    geminiThrows = false,
+    generateText = cannedRedFlagResponse,
+    generateThrows = false,
     ...rest
   } = overrides;
 
   const db = rest.db ?? makeDb(row);
-  const gemini = rest.gemini
-    ? rest.gemini
-    : geminiThrows
-      ? (makeGeminiThrowing() as never)
-      : (makeGemini(geminiText) as never);
+  const generate = rest.generate
+    ? rest.generate
+    : generateThrows
+      ? makeGenerateThrowing()
+      : makeGenerate(generateText);
   const nearby = rest.nearby ?? vi.fn().mockResolvedValue(FIXTURE_NEARBY_PLACES);
 
   // Use 'placesApiKey' in overrides to detect whether the caller explicitly set it
@@ -160,7 +161,7 @@ function makeDeps(
   return {
     db,
     userId: USER_ID,
-    gemini,
+    generate,
     nearby,
     ...(placesApiKey !== undefined ? { placesApiKey } : {}),
     perBranchTimeoutMs: rest.perBranchTimeoutMs,
@@ -240,10 +241,10 @@ describe('firstSaveAnalysis', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Test 3a: gemini throws → redFlags:'error', others ok
+  // Test 3a: generate throws → redFlags:'error', others ok
   // -------------------------------------------------------------------------
-  it('redFlags:error when Gemini throws; other branches remain ok', async () => {
-    const deps = makeDeps({ geminiThrows: true });
+  it('redFlags:error when the LLM call throws; other branches remain ok', async () => {
+    const deps = makeDeps({ generateThrows: true });
     const result = await firstSaveAnalysis(LISTING_ID, deps);
 
     expect(result.redFlags.status).toBe('error');
@@ -332,10 +333,14 @@ describe('firstSaveAnalysis', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Test 6: redFlags malformed JSON → redFlags:'error'
+  // Test 6: redFlags generate rejects (schema/parse fail) → redFlags:'error'
+  //   Models `generateObject` throwing NoObjectGeneratedError when the model
+  //   output can't be parsed/validated against RedFlagSchema.
   // -------------------------------------------------------------------------
-  it('redFlags:error when Gemini returns malformed JSON', async () => {
-    const deps = makeDeps({ geminiText: malformedJsonResponse });
+  it('redFlags:error when the LLM call rejects (response did not match schema)', async () => {
+    const deps = makeDeps({
+      generate: makeGenerateThrowing('No object generated: response did not match schema.'),
+    });
     const result = await firstSaveAnalysis(LISTING_ID, deps);
 
     expect(result.redFlags.status).toBe('error');
@@ -411,7 +416,7 @@ describe('firstSaveAnalysis', () => {
   // -------------------------------------------------------------------------
   it('resolves to a full FirstSaveAnalysis struct even when multiple branches fail', async () => {
     const deps = makeDeps({
-      geminiThrows: true,
+      generateThrows: true,
       nearby: vi.fn().mockRejectedValue(new Error('all broken')),
       row: { ...BASE_ROW, rent: null },  // trueCost skipped too
     });
@@ -433,5 +438,56 @@ describe('firstSaveAnalysis', () => {
 
     // steeringQuestion should still be ok (it's deterministic)
     expect(result.steeringQuestion.status).toBe('ok');
+  });
+
+  // -------------------------------------------------------------------------
+  // Test 10: default seam — missing provider key → redFlags:'error', others ok.
+  //   Exercises the REAL default `defaultCrmGenerate` (no deps.generate). With
+  //   AI_PROVIDER=openai (default) and OPENAI_API_KEY unset, createAiSdkModel()
+  //   throws INSIDE redFlagsBranch's try — it must degrade to {status:'error'},
+  //   never escape the branch, and never take down the overall analysis.
+  // -------------------------------------------------------------------------
+  it('default seam: missing OPENAI_API_KEY → redFlags:error (lazy construction), others ok', async () => {
+    const prevKey = process.env.OPENAI_API_KEY;
+    const prevProvider = process.env.AI_PROVIDER;
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.AI_PROVIDER; // default provider = openai
+
+    try {
+      // makeDeps always injects a fake generate; build deps manually so the
+      // real default seam is exercised (generate omitted).
+      const deps: FirstSaveAnalysisDeps = {
+        db: makeDb(BASE_ROW),
+        userId: USER_ID,
+        nearby: vi.fn().mockResolvedValue(FIXTURE_NEARBY_PLACES),
+        placesApiKey: 'fake-api-key',
+      };
+
+      const result = await firstSaveAnalysis(LISTING_ID, deps);
+
+      expect(result.redFlags.status).toBe('error');
+      // Other branches must remain healthy — the analysis never throws.
+      expect(result.trueCost.status).toBe('ok');
+      expect(result.placesSnapshot.status).toBe('ok');
+      expect(result.steeringQuestion.status).toBe('ok');
+    } finally {
+      if (prevKey !== undefined) process.env.OPENAI_API_KEY = prevKey;
+      if (prevProvider !== undefined) process.env.AI_PROVIDER = prevProvider;
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression guard (M1): the red-flag branch runs on OpenAI structured output
+// (~1.6–2.6s observed). The per-branch soft timeout used to be 1200ms (tuned for
+// Gemini Flash), which silently timed out EVERY real OpenAI red-flag scan to
+// {status:'error'} — caught only by the (billable, default-skipped) live smoke.
+// This pins the default above OpenAI's latency so a future "tidy-up" can't
+// silently revert the fix without turning CI red. If a faster model is adopted,
+// lower the constant AND this floor together, deliberately.
+// ---------------------------------------------------------------------------
+describe('DEFAULT_BRANCH_TIMEOUT_MS regression guard', () => {
+  it('stays above OpenAI structured-output latency (~2.6s) so redFlags is not silently timed out', () => {
+    expect(DEFAULT_BRANCH_TIMEOUT_MS).toBeGreaterThanOrEqual(3000);
   });
 });

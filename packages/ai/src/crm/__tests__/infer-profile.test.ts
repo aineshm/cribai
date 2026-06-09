@@ -2,7 +2,10 @@
  * Unit tests for crm/infer-profile.ts (AIN-15, Track C Phase 1).
  *
  * All tests inject fake `readDb` / `writeDb` builder stubs — no real Supabase
- * connection. `gemini` is mocked via vi.fn() returning a canned text response.
+ * connection. The LLM call is mocked via the `deps.generate` seam (a vi.fn()
+ * wrapping the Vercel AI SDK `generateObject` contract): the happy path resolves
+ * the parsed object; failure paths reject (mirroring `generateObject` throwing
+ * NoObjectGeneratedError on parse/validation failure, or the provider throwing).
  *
  * Builder stub pattern:
  *   - `readDb`: thenable builder (mirrors rank-compare.test.ts pattern) —
@@ -12,27 +15,26 @@
  *     certain failure paths.
  *
  * Test list (spec §TDD):
- *   1. < min saves → needs_more_data, NO write, NO gemini
- *   2. ≥ min saves → inferred + upsert (gemini called once, writeDb upsert called once)
- *   3. malformed JSON → needs_more_data, NO write
- *   4. wrong-shape JSON → needs_more_data, NO write
+ *   1. < min saves → needs_more_data, NO write, NO generate
+ *   2. ≥ min saves → inferred + upsert (generate called once, writeDb upsert called once)
+ *   3. generate rejects (malformed/invalid output) → needs_more_data, NO write
+ *   4. generate rejects (schema validation) → needs_more_data, NO write
  *   5. weights normalized: weights summing to 2.0 → upserted weights sum ~1.0
  *   6. service-role-not-RLS guard: upsert goes through writeDb, NOT readDb
  *   7. custom minSavesForInference: 1 → proceeds with twoSavedRows
- *   8. gemini throws → needs_more_data, NO write
+ *   8. generate throws → needs_more_data, NO write
+ *   9. default seam with no provider key → needs_more_data, NO write (lazy construction)
  */
 
 import { describe, it, expect, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { inferProfile } from '../infer-profile';
 import { inferenceConfidence } from '../confidence';
-import type { InferProfileDeps } from '../types';
+import type { InferProfileDeps, CrmGenerateObject } from '../types';
 import { twoSavedRows, fiveSavedRows } from '../__fixtures__/crm-rows';
 import {
   cannedInferredProfileResponse,
   cannedInferredProfileUnnormalizedResponse,
-  malformedJsonResponse,
-  wrongShapeResponse,
 } from '../__fixtures__/gemini-responses';
 import { SCORING_FEATURES } from '../scoring-features';
 
@@ -103,14 +105,22 @@ function makeWriteDb(upsertError: unknown = null): {
 }
 
 /**
- * Build a Gemini mock that resolves with the given text as `result.text`.
+ * Build a `generate` seam mock that resolves with the parsed object derived
+ * from a canned JSON string (mirroring `generateObject` returning `{ object }`,
+ * which inferProfile destructures as the validated profile).
  */
-function makeGemini(text: string) {
-  return {
-    models: {
-      generateContent: vi.fn().mockResolvedValue({ text }),
-    },
-  };
+function makeGenerate(jsonText: string): CrmGenerateObject {
+  return vi.fn(async () => JSON.parse(jsonText)) as unknown as CrmGenerateObject;
+}
+
+/**
+ * Build a `generate` seam mock that rejects — models the AI SDK throwing
+ * (NoObjectGeneratedError on parse/validation failure, or a provider error).
+ */
+function makeGenerateThrowing(message = 'generation failed'): CrmGenerateObject {
+  return vi.fn(async () => {
+    throw new Error(message);
+  }) as unknown as CrmGenerateObject;
 }
 
 // ---------------------------------------------------------------------------
@@ -119,18 +129,18 @@ function makeGemini(text: string) {
 
 describe('inferProfile', () => {
   // -------------------------------------------------------------------------
-  // Test 1: < min saves → needs_more_data, NO write, NO gemini
+  // Test 1: < min saves → needs_more_data, NO write, NO generate
   // -------------------------------------------------------------------------
   it('returns needs_more_data when saved count < minSavesForInference (default 3)', async () => {
     const readDb = makeReadDb(twoSavedRows);
     const { db: writeDb, upsertSpy, fromSpy: writeFromSpy } = makeWriteDb();
-    const gemini = makeGemini(cannedInferredProfileResponse);
+    const generate = makeGenerate(cannedInferredProfileResponse);
 
     const deps: InferProfileDeps = {
       readDb,
       writeDb,
       userId: USER_ID,
-      gemini: gemini as never,
+      generate,
     };
 
     const result = await inferProfile(USER_ID, deps);
@@ -142,8 +152,8 @@ describe('inferProfile', () => {
       expect(result.steeringQuestion.length).toBeGreaterThan(0);
     }
 
-    // Gemini must NOT be called
-    expect(gemini.models.generateContent).not.toHaveBeenCalled();
+    // The LLM seam must NOT be called
+    expect(generate).not.toHaveBeenCalled();
 
     // writeDb must NOT be touched
     expect(writeFromSpy).not.toHaveBeenCalled();
@@ -156,13 +166,13 @@ describe('inferProfile', () => {
   it('infers profile and upserts when savedCount >= minSavesForInference', async () => {
     const readDb = makeReadDb(fiveSavedRows);
     const { db: writeDb, upsertSpy, fromSpy: writeFromSpy } = makeWriteDb();
-    const gemini = makeGemini(cannedInferredProfileResponse);
+    const generate = makeGenerate(cannedInferredProfileResponse);
 
     const deps: InferProfileDeps = {
       readDb,
       writeDb,
       userId: USER_ID,
-      gemini: gemini as never,
+      generate,
     };
 
     const result = await inferProfile(USER_ID, deps);
@@ -170,8 +180,13 @@ describe('inferProfile', () => {
     expect(result.status).toBe('inferred');
     if (result.status !== 'inferred') return;
 
-    // Gemini called exactly once
-    expect(gemini.models.generateContent).toHaveBeenCalledTimes(1);
+    // The LLM seam called exactly once, with the right schema/functionId tags.
+    expect(generate).toHaveBeenCalledTimes(1);
+    const genArg = (generate as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0] as {
+      functionId: string;
+      prompt: string;
+    };
+    expect(genArg.functionId).toBe('crm.infer_profile');
 
     // writeDb.from called with the right table
     expect(writeFromSpy).toHaveBeenCalledWith('crm_inferred_profiles');
@@ -186,7 +201,7 @@ describe('inferProfile', () => {
     expect(upsertedRow.confidence).toBeCloseTo(expectedConfidence, 9);
     expect(result.profile.confidence).toBeCloseTo(expectedConfidence, 9);
 
-    // Profile fields from Gemini response
+    // Profile fields from the model response
     expect(result.profile.rent_min).toBe(900);
     expect(result.profile.rent_max).toBe(1600);
     expect(result.profile.bedrooms_target).toBe(1);
@@ -205,19 +220,19 @@ describe('inferProfile', () => {
   it('dryRun: computes the profile but SKIPS the service-role upsert', async () => {
     const readDb = makeReadDb(fiveSavedRows);
     const { db: writeDb, upsertSpy, fromSpy: writeFromSpy } = makeWriteDb();
-    const gemini = makeGemini(cannedInferredProfileResponse);
+    const generate = makeGenerate(cannedInferredProfileResponse);
 
     const deps: InferProfileDeps = {
       readDb,
       writeDb,
       userId: USER_ID,
-      gemini: gemini as never,
+      generate,
       dryRun: true,
     };
 
     const result = await inferProfile(USER_ID, deps);
 
-    // Read + Gemini compute still happen — the profile is the authoritative result.
+    // Read + LLM compute still happen — the profile is the authoritative result.
     expect(result.status).toBe('inferred');
     if (result.status === 'inferred') {
       expect(result.profile.rent_min).toBe(900);
@@ -226,7 +241,7 @@ describe('inferProfile', () => {
         9,
       );
     }
-    expect(gemini.models.generateContent).toHaveBeenCalledTimes(1);
+    expect(generate).toHaveBeenCalledTimes(1);
 
     // The ONLY side effect — the upsert — must NOT fire.
     expect(writeFromSpy).not.toHaveBeenCalled();
@@ -239,13 +254,13 @@ describe('inferProfile', () => {
   it('prod path still upserts when dryRun is absent (regression guard)', async () => {
     const readDb = makeReadDb(fiveSavedRows);
     const { db: writeDb, upsertSpy } = makeWriteDb();
-    const gemini = makeGemini(cannedInferredProfileResponse);
+    const generate = makeGenerate(cannedInferredProfileResponse);
 
     const result = await inferProfile(USER_ID, {
       readDb,
       writeDb,
       userId: USER_ID,
-      gemini: gemini as never,
+      generate,
     });
 
     expect(result.status).toBe('inferred');
@@ -253,18 +268,20 @@ describe('inferProfile', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Test 3: malformed JSON → needs_more_data, NO write
+  // Test 3: generate rejects (malformed/unparseable output) → needs_more_data, NO write
+  //   Models `generateObject` throwing NoObjectGeneratedError on an
+  //   unparseable response.
   // -------------------------------------------------------------------------
-  it('returns needs_more_data when Gemini returns malformed JSON', async () => {
+  it('returns needs_more_data when generate rejects (unparseable model output)', async () => {
     const readDb = makeReadDb(fiveSavedRows);
     const { db: writeDb, upsertSpy } = makeWriteDb();
-    const gemini = makeGemini(malformedJsonResponse);
+    const generate = makeGenerateThrowing('No object generated: could not parse the response.');
 
     const deps: InferProfileDeps = {
       readDb,
       writeDb,
       userId: USER_ID,
-      gemini: gemini as never,
+      generate,
     };
 
     const result = await inferProfile(USER_ID, deps);
@@ -275,18 +292,20 @@ describe('inferProfile', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Test 4: wrong-shape JSON (valid JSON, fails schema) → needs_more_data, NO write
+  // Test 4: generate rejects (schema validation) → needs_more_data, NO write
+  //   Models `generateObject` throwing NoObjectGeneratedError when the response
+  //   did not match the schema.
   // -------------------------------------------------------------------------
-  it('returns needs_more_data when Gemini returns valid JSON with wrong shape', async () => {
+  it('returns needs_more_data when generate rejects (response did not match schema)', async () => {
     const readDb = makeReadDb(fiveSavedRows);
     const { db: writeDb, upsertSpy } = makeWriteDb();
-    const gemini = makeGemini(wrongShapeResponse);
+    const generate = makeGenerateThrowing('No object generated: response did not match schema.');
 
     const deps: InferProfileDeps = {
       readDb,
       writeDb,
       userId: USER_ID,
-      gemini: gemini as never,
+      generate,
     };
 
     const result = await inferProfile(USER_ID, deps);
@@ -298,16 +317,16 @@ describe('inferProfile', () => {
   // -------------------------------------------------------------------------
   // Test 5: weights normalized
   // -------------------------------------------------------------------------
-  it('normalizes weights so they sum to ~1.0 when Gemini returns weights summing to 2.0', async () => {
+  it('normalizes weights so they sum to ~1.0 when the model returns weights summing to 2.0', async () => {
     const readDb = makeReadDb(fiveSavedRows);
     const { db: writeDb, upsertSpy } = makeWriteDb();
-    const gemini = makeGemini(cannedInferredProfileUnnormalizedResponse);
+    const generate = makeGenerate(cannedInferredProfileUnnormalizedResponse);
 
     const deps: InferProfileDeps = {
       readDb,
       writeDb,
       userId: USER_ID,
-      gemini: gemini as never,
+      generate,
     };
 
     const result = await inferProfile(USER_ID, deps);
@@ -335,7 +354,7 @@ describe('inferProfile', () => {
   it('upserts through writeDb and never calls readDb for crm_inferred_profiles', async () => {
     const readDb = makeReadDb(fiveSavedRows);
     const { db: writeDb, fromSpy: writeFromSpy } = makeWriteDb();
-    const gemini = makeGemini(cannedInferredProfileResponse);
+    const generate = makeGenerate(cannedInferredProfileResponse);
 
     // Spy on readDb.from to confirm it's NEVER called with 'crm_inferred_profiles'
     const readFromSpy = (readDb as unknown as { from: ReturnType<typeof vi.fn> }).from;
@@ -344,7 +363,7 @@ describe('inferProfile', () => {
       readDb,
       writeDb,
       userId: USER_ID,
-      gemini: gemini as never,
+      generate,
     };
 
     await inferProfile(USER_ID, deps);
@@ -364,13 +383,13 @@ describe('inferProfile', () => {
   it('proceeds to inference when minSavesForInference=1 and savedCount=2', async () => {
     const readDb = makeReadDb(twoSavedRows);
     const { db: writeDb } = makeWriteDb();
-    const gemini = makeGemini(cannedInferredProfileResponse);
+    const generate = makeGenerate(cannedInferredProfileResponse);
 
     const deps: InferProfileDeps = {
       readDb,
       writeDb,
       userId: USER_ID,
-      gemini: gemini as never,
+      generate,
       minSavesForInference: 1,
     };
 
@@ -378,26 +397,22 @@ describe('inferProfile', () => {
 
     // With min=1 and savedCount=2 we should get an inferred profile
     expect(result.status).toBe('inferred');
-    expect(gemini.models.generateContent).toHaveBeenCalledTimes(1);
+    expect(generate).toHaveBeenCalledTimes(1);
   });
 
   // -------------------------------------------------------------------------
-  // Test 8: gemini throws → needs_more_data, NO write
+  // Test 8: generate throws (network/quota) → needs_more_data, NO write
   // -------------------------------------------------------------------------
-  it('returns needs_more_data when Gemini call throws (network/quota error)', async () => {
+  it('returns needs_more_data when the LLM call throws (network/quota error)', async () => {
     const readDb = makeReadDb(fiveSavedRows);
     const { db: writeDb, upsertSpy } = makeWriteDb();
-    const gemini = {
-      models: {
-        generateContent: vi.fn().mockRejectedValue(new Error('quota exceeded')),
-      },
-    };
+    const generate = makeGenerateThrowing('quota exceeded');
 
     const deps: InferProfileDeps = {
       readDb,
       writeDb,
       userId: USER_ID,
-      gemini: gemini as never,
+      generate,
     };
 
     const result = await inferProfile(USER_ID, deps);
@@ -407,57 +422,89 @@ describe('inferProfile', () => {
   });
 
   // -------------------------------------------------------------------------
+  // Test 9: default seam with no provider key → needs_more_data, NO write.
+  //   Exercises the REAL default `defaultCrmGenerate` (no deps.generate). With
+  //   AI_PROVIDER=openai (default) and OPENAI_API_KEY unset, createAiSdkModel()
+  //   throws INSIDE the workflow's try — this must degrade, not propagate.
+  // -------------------------------------------------------------------------
+  it('default seam: missing OPENAI_API_KEY degrades to needs_more_data (lazy construction, no write)', async () => {
+    const prevKey = process.env.OPENAI_API_KEY;
+    const prevProvider = process.env.AI_PROVIDER;
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.AI_PROVIDER; // default provider = openai
+
+    try {
+      const readDb = makeReadDb(fiveSavedRows);
+      const { db: writeDb, upsertSpy, fromSpy: writeFromSpy } = makeWriteDb();
+
+      // NOTE: no `generate` injected → real defaultCrmGenerate path.
+      const deps: InferProfileDeps = {
+        readDb,
+        writeDb,
+        userId: USER_ID,
+      };
+
+      const result = await inferProfile(USER_ID, deps);
+
+      expect(result.status).toBe('needs_more_data');
+      expect(writeFromSpy).not.toHaveBeenCalled();
+      expect(upsertSpy).not.toHaveBeenCalled();
+    } finally {
+      if (prevKey !== undefined) process.env.OPENAI_API_KEY = prevKey;
+      if (prevProvider !== undefined) process.env.AI_PROVIDER = prevProvider;
+    }
+  });
+
+  // -------------------------------------------------------------------------
   // FIX 1 cross-module regression: prompt must use SCORING_FEATURES keys, not stale aliases
   // -------------------------------------------------------------------------
-  it('FIX 1 — Gemini prompt contains all SCORING_FEATURES canonical keys', async () => {
+  it('FIX 1 — the LLM prompt contains all SCORING_FEATURES canonical keys', async () => {
     const readDb = makeReadDb(fiveSavedRows);
     const { db: writeDb } = makeWriteDb();
-    const gemini = makeGemini(cannedInferredProfileResponse);
+    const generate = makeGenerate(cannedInferredProfileResponse);
 
     const deps: InferProfileDeps = {
       readDb,
       writeDb,
       userId: USER_ID,
-      gemini: gemini as never,
+      generate,
     };
 
     await inferProfile(USER_ID, deps);
 
-    // The prompt sent to Gemini must contain each canonical key so the model
+    // The prompt passed to the seam must contain each canonical key so the model
     // uses the correct vocabulary (rent, bedrooms, sqft, commute).
-    expect(gemini.models.generateContent).toHaveBeenCalledTimes(1);
-    const callArg = gemini.models.generateContent.mock.calls[0]![0] as {
-      contents: Array<{ parts: Array<{ text: string }> }>;
+    expect(generate).toHaveBeenCalledTimes(1);
+    const callArg = (generate as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0] as {
+      prompt: string;
     };
-    const promptText = callArg.contents[0]!.parts[0]!.text;
+    const promptText = callArg.prompt;
 
     for (const feature of SCORING_FEATURES) {
       expect(promptText).toContain(feature);
     }
   });
 
-  it('FIX 1 — Gemini prompt does NOT instruct stale/wrong weight keys (price, space)', async () => {
+  it('FIX 1 — the LLM prompt does NOT instruct stale/wrong weight keys (price, space)', async () => {
     const readDb = makeReadDb(fiveSavedRows);
     const { db: writeDb } = makeWriteDb();
-    const gemini = makeGemini(cannedInferredProfileResponse);
+    const generate = makeGenerate(cannedInferredProfileResponse);
 
     const deps: InferProfileDeps = {
       readDb,
       writeDb,
       userId: USER_ID,
-      gemini: gemini as never,
+      generate,
     };
 
     await inferProfile(USER_ID, deps);
 
-    const callArg = gemini.models.generateContent.mock.calls[0]![0] as {
-      contents: Array<{ parts: Array<{ text: string }> }>;
+    const callArg = (generate as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0] as {
+      prompt: string;
     };
-    const promptText = callArg.contents[0]!.parts[0]!.text;
+    const promptText = callArg.prompt;
 
     // The prompt must NOT tell the model to use stale key names as weight keys.
-    // (These may appear in prose context but must not appear as the instructed key names.)
-    // We check that the weights instruction doesn't say "price" or "space" as a key label.
     expect(promptText).not.toMatch(/"price"/);
     expect(promptText).not.toMatch(/"space"/);
   });
@@ -469,20 +516,20 @@ describe('inferProfile', () => {
     const dbError = { message: 'connection lost', code: 'PGRST301' };
     const readDb = makeReadDbWithError(dbError);
     const { db: writeDb, upsertSpy, fromSpy: writeFromSpy } = makeWriteDb();
-    const gemini = makeGemini(cannedInferredProfileResponse);
+    const generate = makeGenerate(cannedInferredProfileResponse);
 
     const deps: InferProfileDeps = {
       readDb,
       writeDb,
       userId: USER_ID,
-      gemini: gemini as never,
+      generate,
     };
 
     // Must throw — not silently return needs_more_data.
     await expect(inferProfile(USER_ID, deps)).rejects.toThrow('inferProfile: failed to read saved listings');
 
-    // Gemini must NOT be called (error short-circuits before LLM)
-    expect(gemini.models.generateContent).not.toHaveBeenCalled();
+    // The LLM seam must NOT be called (error short-circuits before LLM)
+    expect(generate).not.toHaveBeenCalled();
 
     // writeDb must NOT be touched
     expect(writeFromSpy).not.toHaveBeenCalled();
