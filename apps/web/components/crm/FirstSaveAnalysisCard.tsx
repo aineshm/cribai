@@ -17,7 +17,12 @@ import { BranchState } from './ui/BranchState';
  */
 const money = (n: number): string => `$${n.toLocaleString()}`;
 
-const QUICK_REPLIES = ['Just me', 'One roommate', 'Group house', 'Not sure yet'] as const;
+/**
+ * Canonical quick-reply chips for the steering question. Mirror the contract's
+ * fixed steering prompt ("…price, commute, or space?") in
+ * packages/ai/src/crm/first-save-analysis.ts.
+ */
+const QUICK_REPLIES = ['Price', 'Commute', 'Space'] as const;
 
 export function FirstSaveAnalysisCard({
   analysis,

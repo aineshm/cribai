@@ -2,7 +2,8 @@
 
 import { cn } from '@/lib/utils';
 import { Bed, Bath, MapPin, Check, Maximize2 } from 'lucide-react';
-import type { CrmUnit } from '@/lib/crm/proposed-types';
+import type { CrmUnit, CrmListMember } from '@/lib/crm/proposed-types';
+import { money, bedLabel } from '@/lib/crm/format';
 import { StatusPill } from './ui/StatusPill';
 import { DeadlinePill } from './ui/DeadlinePill';
 import { AmenitySplit } from './ui/AmenitySplit';
@@ -17,13 +18,6 @@ import { AmenitySplit } from './ui/AmenitySplit';
  * Reuses the Phase-1 primitives (StatusPill, DeadlinePill, AmenitySplit) rather
  * than re-implementing them.
  */
-const money = (n: number): string => `$${n.toLocaleString()}`;
-
-const bedLabel = (b: number | null): string => {
-  if (b == null) return '—';
-  return b === 0 ? 'Studio' : `${b} bed`;
-};
-
 /** Confidence (0..1) → fair-scale color treatment (mirrors `.badge-*`). */
 function confidenceColors(c: number): { color: string; background: string } {
   if (c >= 0.85) return { color: 'var(--fair-good)', background: 'var(--fair-good-bg)' };
@@ -34,11 +28,15 @@ function confidenceColors(c: number): { color: string; background: string } {
 export function SavedUnitCard({
   unit,
   onOpen,
+  addedByMember,
 }: {
   unit: CrmUnit;
   onOpen?: (id: string) => void;
+  /** Resolved roster member who added this unit. When absent, the
+   *  "added by" attribution line is omitted (we never parse the member id). */
+  addedByMember?: CrmListMember;
 }) {
-  const { unit: u, amenitySplit, application, addedBy } = unit._proposed;
+  const { unit: u, amenitySplit, application } = unit._proposed;
   const photo = unit.photo_urls?.[0] ?? '';
   const hasConfidence = unit.extraction_confidence != null;
   const conf = hasConfidence ? Math.round(unit.extraction_confidence! * 100) : 0;
@@ -128,10 +126,12 @@ export function SavedUnitCard({
             <Bed aria-hidden="true" className="h-3.5 w-3.5" style={{ color: 'var(--primary-700)' }} />
             {bedLabel(unit.bedrooms)}
           </MetaPill>
-          <MetaPill>
-            <Bath aria-hidden="true" className="h-3.5 w-3.5" style={{ color: 'var(--primary-700)' }} />
-            {unit.bathrooms} bath
-          </MetaPill>
+          {unit.bathrooms != null ? (
+            <MetaPill>
+              <Bath aria-hidden="true" className="h-3.5 w-3.5" style={{ color: 'var(--primary-700)' }} />
+              {unit.bathrooms} bath
+            </MetaPill>
+          ) : null}
           <span
             className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-bold"
             style={{ color: 'var(--primary-800)', background: 'var(--primary-50)', borderColor: 'var(--primary-100)' }}
@@ -165,7 +165,7 @@ export function SavedUnitCard({
           unit.status !== 'declined' ? (
             <DeadlinePill label={application.deadlineLabel} deadline={application.deadline} />
           ) : null}
-          <AddedBy memberId={addedBy} />
+          {addedByMember ? <AddedBy member={addedByMember} /> : null}
         </div>
       </div>
     </div>
@@ -184,29 +184,25 @@ function MetaPill({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * "added by" attribution. The member roster isn't on the unit itself, so render
- * the initials from the id deterministically (uppercased) — the visible name is
- * the member id's display when the roster is unavailable on the card.
+ * "added by" attribution. Renders the RESOLVED roster member (initials + name +
+ * brand color), matching the `MemberAvatars` primitive's avatar treatment — no
+ * id parsing. Callers omit this entirely when the member can't be resolved.
  */
-function AddedBy({ memberId }: { memberId: string }) {
-  if (!memberId) return null;
-  // Derive initials from the trailing id token (e.g. "usr_maya" → "MA").
-  const token = memberId.split('_').pop() ?? memberId;
-  const initials = token.slice(0, 2).toUpperCase();
+function AddedBy({ member }: { member: CrmListMember }) {
   return (
     <span
       className="ml-auto inline-flex items-center gap-1.5 text-[0.6875rem] font-semibold"
       style={{ color: 'var(--surface-400)' }}
-      aria-label={`Added by ${token}`}
+      aria-label={`Added by ${member.name}`}
     >
       <span
         className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[0.5rem] font-extrabold text-white"
-        style={{ background: 'var(--surface-400)' }}
+        style={{ background: member.color, boxShadow: 'inset 0 0 0 1.5px #fff, var(--shadow-card)' }}
         aria-hidden="true"
       >
-        {initials}
+        {member.initials}
       </span>
-      added by {token}
+      added by {member.name}
     </span>
   );
 }

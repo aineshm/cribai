@@ -311,18 +311,23 @@ const RED_FLAGS = {
     'Clean listing overall. The "signing fees waived in 48h" offer is a real incentive but also a pressure tactic — confirm the waived amount in writing. The furnished premium isn\'t broken out separately from base rent.',
 };
 
+// Title-case buckets match the contract category map
+// (TYPE_CATEGORY_MAP in packages/ai/src/crm/first-save-analysis.ts):
+// Grocery, Dining, Fitness, Health, Services, Other.
 const PLACES_SNAPSHOT = {
   categories: {
-    grocery: ["Trader Joe's", "Metcalfe's Market", 'Fresh Madison Market'],
-    transit: ['Metro Route 80', 'Regent St stop'],
-    gym: ['Building fitness center', 'UW Nat (Natatorium)'],
-    cafe: ['Colectivo Coffee', 'Steep & Brew'],
+    Grocery: ["Trader Joe's", "Metcalfe's Market", 'Fresh Madison Market'],
+    Dining: ['Colectivo Coffee', 'Steep & Brew', 'Ian’s Pizza on State'],
+    Fitness: ['UW Natatorium', 'Orangetheory Fitness'],
+    Health: ['Walgreens on Regent', 'UW Health University Hospital'],
+    Services: ['The Soap Opera Laundromat', 'UPS Store on State'],
   },
 };
 
+// Exact contract steering string (STATIC_STEERING_QUESTION in
+// packages/ai/src/crm/first-save-analysis.ts).
 const STEERING_QUESTION = {
-  question:
-    "Chapter's a furnished studio downtown — do you want a place to yourself, or is splitting a 2-bedroom with Maya or Jordan still on the table?",
+  question: 'What matters most to you in your next place — price, commute, or space?',
 };
 
 /** FirstSaveAnalysis — all branches OK. */
@@ -353,19 +358,19 @@ export const RANK_RESULT: RankCompareResult = {
       listingId: 'crm_langdon_1brc',
       title: 'The Langdon · "1BR-C"',
       score: 88,
-      breakdown: { price: 92, space: 64, commute: 95, amenities: 70 },
+      breakdown: { rent: 92, bedrooms: 60, sqft: 64, commute: 95 },
     },
     {
       listingId: 'crm_chapter_s1',
       title: 'Chapter at Madison · Studio "S1"',
       score: 85,
-      breakdown: { price: 80, space: 58, commute: 92, amenities: 90 },
+      breakdown: { rent: 80, bedrooms: 50, sqft: 58, commute: 92 },
     },
     {
       listingId: 'crm_dayton_2x1a',
       title: 'Dayton Row · "2x1-A"',
       score: 84,
-      breakdown: { price: 78, space: 82, commute: 90, amenities: 80 },
+      breakdown: { rent: 78, bedrooms: 88, sqft: 82, commute: 90 },
     },
   ],
 };

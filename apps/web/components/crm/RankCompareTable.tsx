@@ -2,6 +2,7 @@
 
 import { cn } from '@/lib/utils';
 import type { RankCompareResult, RankedListing, CompareRow } from '@campusnest/ai';
+import { money, bedLabel } from '@/lib/crm/format';
 
 /**
  * Renders a RankCompareResult, discriminating on `result.mode`:
@@ -15,15 +16,17 @@ import type { RankCompareResult, RankedListing, CompareRow } from '@campusnest/a
  * `RankedListing` / `CompareRow` arrive fully typed off the discriminated union,
  * so no separate contract import is needed beyond the result type itself.
  */
-const money = (n: number | null): string => (n != null ? `$${n.toLocaleString()}` : '—');
-
-const bedLabel = (b: number | null): string => {
-  if (b == null) return '—';
-  return b === 0 ? 'Studio' : `${b} bed`;
-};
-
-/** Dimensions shown as mini-bars, in display order (mockup: price/space/commute/amenities). */
-const DIMENSIONS = ['price', 'space', 'commute', 'amenities'] as const;
+/**
+ * Per-dimension mini-bars, in display order. Keys are the real contract scoring
+ * features (`SCORING_FEATURES` in packages/ai/src/crm/scoring-features.ts) used
+ * to read `item.breakdown[key]`; `label` is the human-facing display string.
+ */
+const DIMENSIONS = [
+  { key: 'rent', label: 'Price' },
+  { key: 'bedrooms', label: 'Beds' },
+  { key: 'sqft', label: 'Space' },
+  { key: 'commute', label: 'Commute' },
+] as const;
 
 /** Score (0..100) → fair-scale color treatment (mirrors `.dim-bar .fill.{good,ok,bad}`). */
 function scoreColor(v: number): string {
@@ -122,9 +125,9 @@ function RankRow({ item, rank, top }: { item: RankedListing; rank: number; top: 
         {/* Per-dimension mini-bars */}
         <div className="grid grid-cols-4 gap-3.5 max-[720px]:grid-cols-2">
           {DIMENSIONS.map((dim) => {
-            const v = item.breakdown[dim];
+            const v = item.breakdown[dim.key];
             if (v == null) return null;
-            return <DimBar key={dim} name={dim} value={v} />;
+            return <DimBar key={dim.key} name={dim.label} value={v} />;
           })}
         </div>
       </div>
