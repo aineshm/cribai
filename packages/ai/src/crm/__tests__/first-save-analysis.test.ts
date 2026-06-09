@@ -25,7 +25,7 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { firstSaveAnalysis } from '../first-save-analysis';
+import { firstSaveAnalysis, DEFAULT_BRANCH_TIMEOUT_MS } from '../first-save-analysis';
 import type { FirstSaveAnalysisDeps, CrmGenerateObject } from '../types';
 import { cannedRedFlagResponse } from '../__fixtures__/gemini-responses';
 
@@ -474,5 +474,20 @@ describe('firstSaveAnalysis', () => {
       if (prevKey !== undefined) process.env.OPENAI_API_KEY = prevKey;
       if (prevProvider !== undefined) process.env.AI_PROVIDER = prevProvider;
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression guard (M1): the red-flag branch runs on OpenAI structured output
+// (~1.6–2.6s observed). The per-branch soft timeout used to be 1200ms (tuned for
+// Gemini Flash), which silently timed out EVERY real OpenAI red-flag scan to
+// {status:'error'} — caught only by the (billable, default-skipped) live smoke.
+// This pins the default above OpenAI's latency so a future "tidy-up" can't
+// silently revert the fix without turning CI red. If a faster model is adopted,
+// lower the constant AND this floor together, deliberately.
+// ---------------------------------------------------------------------------
+describe('DEFAULT_BRANCH_TIMEOUT_MS regression guard', () => {
+  it('stays above OpenAI structured-output latency (~2.6s) so redFlags is not silently timed out', () => {
+    expect(DEFAULT_BRANCH_TIMEOUT_MS).toBeGreaterThanOrEqual(3000);
   });
 });

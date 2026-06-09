@@ -55,7 +55,11 @@ import type {
 // Constants
 // ---------------------------------------------------------------------------
 
-const DEFAULT_BRANCH_TIMEOUT_MS = 5000;
+// Exported so a unit test can pin it (regression guard): the red-flag branch
+// runs on OpenAI structured output (~1.6–2.6s), so this MUST stay above that or
+// every real red-flag scan silently times out to {status:'error'}. See the
+// `DEFAULT_BRANCH_TIMEOUT_MS regression guard` test.
+export const DEFAULT_BRANCH_TIMEOUT_MS = 5000;
 const RADIUS_METERS = 1000;
 
 /** Reason strings — exported as named consts so tests and impl stay in sync. */
