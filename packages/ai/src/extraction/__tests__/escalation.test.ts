@@ -181,6 +181,45 @@ describe('Gap-fill only (no overwrite of Pass-1 values)', () => {
 });
 
 // ===========================================================================
+// 4b. Negative structured price must NOT suppress the DOM rescue (regression)
+// ===========================================================================
+
+describe('Invalid structured number does not block escalation (regression)', () => {
+  it('escalates past a negative JSON-LD price and takes the valid DOM price', async () => {
+    // JSON-LD offers a NEGATIVE price (corrupt publisher data) plus a title.
+    // Pre-fix, `-1500` is finite so it satisfied the gate at Pass 1, the DOM
+    // rescue was skipped, and normalize then dropped it — yielding `json_ld`
+    // with NO price. `dropInvalidNumerics` now scrubs the negative out of the
+    // Pass-1 merge so the gate fails, DOM runs, and its valid price wins.
+    const html = `<!doctype html><html><head>
+      <script type="application/ld+json">
+      {"@context":"https://schema.org","@type":"Apartment","name":"Neg Price Listing",
+       "offers":{"@type":"Offer","price":-1500,"priceCurrency":"USD"}}
+      </script>
+      <script id="__NEXT_DATA__" type="application/json">
+      {"props":{"pageProps":{"componentProps":{"property":{
+        "price":2100,"bedrooms":3,"streetAddress":"410 W Dayton St","city":"Madison","state":"WI","zipcode":"53703"
+      }}}}}
+      </script>
+    </head><body></body></html>`;
+    const url = 'https://www.zillow.com/homedetails/neg-price/0_zpid/';
+    const llm = makeLlm({ price: 1 });
+    const result = await extractListing(url, {
+      fetcher: makeFixtureFetcher({ [url]: { body: html } }),
+      lookup: publicLookup,
+      llmExtractor: llm,
+    });
+
+    expect(llm).not.toHaveBeenCalled();
+    expect(result.price).toBe(2100); // valid DOM price, not the scrubbed -1500
+    expect(result.bedrooms).toBe(3);
+    expect(result.title).toBe('Neg Price Listing'); // json_ld's valid field survives
+    expect(result.extraction_method).toContain('dom');
+    expect(result.extraction_method).toContain('json_ld');
+  });
+});
+
+// ===========================================================================
 // 5. LLM output is normalized by the single final normalizeFields pass
 // ===========================================================================
 

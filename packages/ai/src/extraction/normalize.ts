@@ -30,6 +30,25 @@ export const LIMITS = {
   AMENITIES_MAX: 50,
 } as const;
 
+/**
+ * Upper sanity-bounds for numeric listing fields. These are not domain
+ * constraints — they reject only absurd/hostile values (e.g. `1e308` from a
+ * runaway model or a poisoned page) that would otherwise poison downstream
+ * ranking/affordability math. Generous so no real listing is ever rejected:
+ * a $10M price, 1000 beds/baths, and 10M sqft all pass.
+ */
+export const NUMERIC_MAX = {
+  PRICE: 1e7,
+  BEDROOMS: 1000,
+  BATHROOMS: 1000,
+  SQUARE_FEET: 1e7,
+} as const;
+
+/** True when `v` is a finite number within `[0, max]`. */
+export function inRange(v: unknown, max: number): v is number {
+  return typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= max;
+}
+
 function clamp(value: string | undefined, max: number): string | undefined {
   if (value === undefined) return undefined;
   return value.length > max ? value.slice(0, max) : value;
@@ -41,6 +60,15 @@ function clamp(value: string | undefined, max: number): string | undefined {
  * advertised them as photos but they can't be photos. Logging the drop is
  * out of scope for this module; the caller can re-parse `raw_json_ld` /
  * `raw_og` if it needs to know what was scrubbed.
+ *
+ * SECURITY (latent SSRF — see AIN-57): this is a SCHEME-only filter, not a
+ * HOST filter. The retained URLs are stored verbatim in `crm_listings.photo_urls`
+ * and may point at a private/link-local host (e.g. `http://169.254.169.254/...`)
+ * supplied by an attacker-controlled page. That is harmless TODAY — nothing
+ * server-side fetches stored photo URLs (no image proxy/thumbnailer exists). It
+ * becomes live SSRF the moment any such fetcher is added: that fetcher MUST run
+ * each URL through the SSRF-guarded path (`assertPublicHost`) first, or this
+ * function must grow an async host check. Do not fetch a stored photo URL raw.
  */
 export function filterHttpUrls(urls: readonly string[]): string[] {
   const out: string[] = [];
@@ -155,28 +183,19 @@ export function normalizeFields(fields: ExtractedFields): ExtractedFields {
   const description = clamp(fields.description, LIMITS.DESCRIPTION_MAX);
   if (description) out.description = description;
 
-  // Numeric fields are dropped unless finite AND non-negative. Rent, bed/bath
-  // counts, and square footage are physically non-negative; a negative value
-  // is corrupt publisher data, a sloppy labeled-DOM parse ("-2 beds"), or a
-  // misbehaving model (AIN-47 Layer 4 returns model JSON pre-normalize). A
-  // half-valid negative is worse than `undefined` for the downstream
-  // `addListing` tool, so drop it (mirrors the geo/date drop-on-invalid rule).
-  if (typeof fields.price === 'number' && Number.isFinite(fields.price) && fields.price >= 0) {
-    out.price = fields.price;
-  }
-  if (typeof fields.bedrooms === 'number' && Number.isFinite(fields.bedrooms) && fields.bedrooms >= 0) {
-    out.bedrooms = fields.bedrooms;
-  }
-  if (typeof fields.bathrooms === 'number' && Number.isFinite(fields.bathrooms) && fields.bathrooms >= 0) {
-    out.bathrooms = fields.bathrooms;
-  }
-  if (
-    typeof fields.square_feet === 'number' &&
-    Number.isFinite(fields.square_feet) &&
-    fields.square_feet >= 0
-  ) {
-    out.square_feet = fields.square_feet;
-  }
+  // Numeric fields are dropped unless finite AND within [0, sane-max]. Rent,
+  // bed/bath counts, and square footage are physically non-negative AND bounded;
+  // a negative value is corrupt publisher data / a sloppy labeled-DOM parse
+  // ("-2 beds") / a misbehaving model (AIN-47 Layer 4 returns model JSON
+  // pre-normalize), and an absurd value (e.g. `1e308` from a hostile page or a
+  // runaway model) would otherwise poison downstream ranking/affordability math
+  // (`rank-compare`, `infer-profile`) — the columns are `numeric` so the DB
+  // wouldn't reject it. A half-valid out-of-range number is worse than
+  // `undefined` for `addListing`, so drop it (mirrors the geo/date drop rule).
+  if (inRange(fields.price, NUMERIC_MAX.PRICE)) out.price = fields.price as number;
+  if (inRange(fields.bedrooms, NUMERIC_MAX.BEDROOMS)) out.bedrooms = fields.bedrooms as number;
+  if (inRange(fields.bathrooms, NUMERIC_MAX.BATHROOMS)) out.bathrooms = fields.bathrooms as number;
+  if (inRange(fields.square_feet, NUMERIC_MAX.SQUARE_FEET)) out.square_feet = fields.square_feet as number;
 
   const address = clamp(fields.address, LIMITS.ADDRESS_MAX);
   if (address) out.address = address;

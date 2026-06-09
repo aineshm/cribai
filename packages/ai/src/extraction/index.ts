@@ -18,7 +18,7 @@
 
 import { extractFromJsonLd } from './json-ld';
 import { extractFromOg } from './og';
-import { normalizeFields } from './normalize';
+import { normalizeFields, inRange, NUMERIC_MAX } from './normalize';
 import { extractFromDom } from './dom';
 import { pruneHtml } from './prune-html';
 import { createLlmExtractor } from './llm-parse';
@@ -531,17 +531,34 @@ export function computeConfidence(
  * false it falls through to the next (more expensive) layer.
  */
 function hasKeyFields(f: ExtractedFields): boolean {
-  // Guard against non-finite numbers (NaN / ±Infinity). `normalizeFields` drops
-  // those later, so a raw `price: NaN` slipping through the gate would suppress
-  // the DOM/LLM rescue and then get dropped — leaving a method like `json_ld`
-  // with no price. Upstream parsers filter today, but the gate must not depend
-  // on that. Address stays a plain string check (no finiteness concept).
+  // Use the SAME validity predicate as `normalizeFields` (`inRange`: finite &&
+  // within [0, sane-max]). A number `normalizeFields` will later DROP must not
+  // satisfy the gate — otherwise it suppresses the DOM/LLM rescue and is then
+  // dropped, leaving a method like `json_ld` with no price. In practice
+  // `dropInvalidNumerics` already scrubs such values out of `merged` before this
+  // runs, so this is belt-and-braces; keeping it single-sourced means the two
+  // can never drift. Address stays a plain string check.
   return (
-    typeof f.price === 'number' &&
-    Number.isFinite(f.price) &&
-    ((typeof f.bedrooms === 'number' && Number.isFinite(f.bedrooms)) ||
-      typeof f.address === 'string')
+    inRange(f.price, NUMERIC_MAX.PRICE) &&
+    (inRange(f.bedrooms, NUMERIC_MAX.BEDROOMS) || typeof f.address === 'string')
   );
+}
+
+/**
+ * Delete numeric fields that `normalizeFields` would later drop (non-finite,
+ * negative, or absurdly large) from a layer's partial, IN PLACE, returning the
+ * same object. Run on each layer's output BEFORE it enters `merged` so an
+ * invalid value never (a) satisfies `hasKeyFields` and suppresses escalation,
+ * nor (b) occupies a field slot that `fillGaps` then refuses to overwrite with
+ * a later layer's VALID value (`fillGaps` fills gaps only). Single-sourced with
+ * `normalizeFields` via `inRange`/`NUMERIC_MAX` so the two can't disagree.
+ */
+function dropInvalidNumerics<T extends Partial<ExtractedFields>>(fields: T): T {
+  if (!inRange(fields.price, NUMERIC_MAX.PRICE)) delete fields.price;
+  if (!inRange(fields.bedrooms, NUMERIC_MAX.BEDROOMS)) delete fields.bedrooms;
+  if (!inRange(fields.bathrooms, NUMERIC_MAX.BATHROOMS)) delete fields.bathrooms;
+  if (!inRange(fields.square_feet, NUMERIC_MAX.SQUARE_FEET)) delete fields.square_feet;
+  return fields;
 }
 
 /**
@@ -649,6 +666,10 @@ export async function extractListing(
   const jsonLd = extractFromJsonLd(html, finalUrl);
   const og = extractFromOg(html, finalUrl);
   const { merged, ogContributed } = mergeFields(jsonLd, og);
+  // Scrub numbers `normalizeFields` would drop (negative / non-finite / absurd)
+  // out of the Pass-1 result BEFORE the gate — so a corrupt structured price
+  // can't both fail the gate's escalation AND block a later layer's valid value.
+  dropInvalidNumerics(merged);
 
   const contributors = new Set<Contributor>();
   if (jsonLd !== null) contributors.add('json_ld');
@@ -662,7 +683,7 @@ export async function extractListing(
     // Pass 2: DOM (per-site extractor; only sites with one return data).
     try {
       const domFields = extractFromDom(html, finalUrl, source_domain);
-      if (fillGaps(merged, domFields)) contributors.add('dom');
+      if (fillGaps(merged, dropInvalidNumerics(domFields))) contributors.add('dom');
     } catch {
       // `extractFromDom` already swallows per-site errors and returns {}, but
       // the orchestrator must not break even if that contract ever regresses.
@@ -673,7 +694,7 @@ export async function extractListing(
       try {
         const llm = opts.llmExtractor ?? createLlmExtractor();
         const llmFields = await llm(pruneHtml(html), finalUrl);
-        if (fillGaps(merged, llmFields)) contributors.add('llm');
+        if (fillGaps(merged, dropInvalidNumerics(llmFields))) contributors.add('llm');
       } catch {
         // The LLM extractor is contracted never to throw, but a custom
         // injected one (or a future change) might — degrade to no-LLM-fields.

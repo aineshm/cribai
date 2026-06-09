@@ -103,6 +103,42 @@ describe('normalizeFields — array caps', () => {
   });
 });
 
+describe('normalizeFields — numeric range validation', () => {
+  it('drops negative numeric fields (corrupt parse / hostile page)', () => {
+    const out = normalizeFields({ price: -1500, bedrooms: -2, bathrooms: -1, square_feet: -50 });
+    expect(out.price).toBeUndefined();
+    expect(out.bedrooms).toBeUndefined();
+    expect(out.bathrooms).toBeUndefined();
+    expect(out.square_feet).toBeUndefined();
+  });
+
+  it('drops non-finite numeric fields (NaN / Infinity)', () => {
+    const out = normalizeFields({ price: NaN, square_feet: Infinity });
+    expect(out.price).toBeUndefined();
+    expect(out.square_feet).toBeUndefined();
+  });
+
+  it('drops absurdly large numeric fields (e.g. 1e308 from a runaway model)', () => {
+    const out = normalizeFields({ price: 1e308, bedrooms: 1e9, square_feet: 1e308 });
+    expect(out.price).toBeUndefined();
+    expect(out.bedrooms).toBeUndefined();
+    expect(out.square_feet).toBeUndefined();
+  });
+
+  it('keeps valid in-range numeric fields', () => {
+    const out = normalizeFields({ price: 1950, bedrooms: 2, bathrooms: 1.5, square_feet: 850 });
+    expect(out.price).toBe(1950);
+    expect(out.bedrooms).toBe(2);
+    expect(out.bathrooms).toBe(1.5);
+    expect(out.square_feet).toBe(850);
+  });
+
+  it('keeps zero (a valid boundary — e.g. studio = 0 bedrooms)', () => {
+    const out = normalizeFields({ bedrooms: 0 });
+    expect(out.bedrooms).toBe(0);
+  });
+});
+
 describe('normalizeFields — geo range validation', () => {
   it('drops both axes when latitude is out of range', () => {
     const out = normalizeFields({ latitude: 12345, longitude: -89.38 });
