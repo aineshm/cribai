@@ -3,14 +3,22 @@
  *
  * After a listing is saved, runs a PARALLEL FANOUT of 4 independent analyses:
  *   1. trueCost     — calculateTrueCost(@campusnest/utils) on the saved row
- *   2. redFlags     — Gemini Flash JSON-mode scan of description + amenities
+ *   2. redFlags     — LLM JSON-mode scan of description + amenities (AI SDK
+ *                     generateObject via the shared factory — OpenAI by default)
  *   3. placesSnapshot — Google Places nearbySearch → bucketed categories
  *   4. steeringQuestion — deterministic static question (Phase 1; contextual in Phase 2)
  *
  * Design goals:
- *   - Target <1.5s perceived via Promise.allSettled parallelism.
- *   - Per-branch soft timeout (default 1200ms) on I/O branches (redFlags, placesSnapshot).
- *     NOTE: the underlying Gemini/nearbySearch calls have no abort-signal support;
+ *   - Low perceived latency via Promise.allSettled parallelism — total ≈ the
+ *     slowest branch, which is the LLM red-flag scan.
+ *   - Per-branch soft timeout (default 5000ms) on I/O branches (redFlags, placesSnapshot).
+ *     This is a HANG-CAP, not the expected latency: the red-flag scan now runs on
+ *     the shared AI SDK factory (OpenAI gpt-5.4-mini by default), whose structured-
+ *     output latency is ~1.6–2.6s — well above the 1200ms cap this used to carry
+ *     when the scan was Gemini Flash. 1200ms silently timed the red-flag branch
+ *     out on every real OpenAI call; 5000ms admits normal completion while still
+ *     capping a genuine hang. (Tunable; lower it if/when a faster model is used.)
+ *     NOTE: the underlying LLM/nearbySearch calls have no abort-signal support;
  *     the timeout is a Promise.race soft-cap. The loser's result is discarded.
  *   - NEVER throws after the listing is loaded (step 1). Partial failures degrade
  *     to FanoutBranch<T> with status:'error' or 'skipped'. The overall promise
@@ -47,7 +55,7 @@ import type {
 // Constants
 // ---------------------------------------------------------------------------
 
-const DEFAULT_BRANCH_TIMEOUT_MS = 1200;
+const DEFAULT_BRANCH_TIMEOUT_MS = 5000;
 const RADIUS_METERS = 1000;
 
 /** Reason strings — exported as named consts so tests and impl stay in sync. */
