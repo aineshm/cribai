@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { cookies, headers } from 'next/headers';
 import { createServerComponentClient } from '@campusnest/supabase/server';
-import { Home, MessageSquare, Search, Sparkles } from 'lucide-react';
+import { Building2, Home, MessageSquare, Search, Sparkles } from 'lucide-react';
 import { ConciergeShell } from '@/components/concierge/ConciergeShell';
 import { MainLayoutClient } from '@/components/layout/MainLayoutClient';
 
@@ -112,6 +112,13 @@ export default async function MainLayout({
                     >
                       <MessageSquare className="size-4" />
                       Chat
+                    </Link>
+                    <Link
+                      href="/my-apartments"
+                      className="hidden md:flex items-center gap-1 text-sm font-medium text-[var(--surface-600)] transition-colors hover:text-red-800"
+                    >
+                      <Building2 className="size-4 text-slate-500" />
+                      My Apartments
                     </Link>
                     <Link
                       href="/profile"

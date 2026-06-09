@@ -80,6 +80,14 @@ describe('MainLayout', () => {
     expect(nav).not.toBeNull();
   });
 
+  it('renders a My Apartments nav link when authenticated', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
+    const layout = await MainLayout({ children: <></> });
+    render(layout);
+    const link = screen.getAllByRole('link').find((l) => l.getAttribute('href') === '/my-apartments');
+    expect(link).toBeDefined();
+  });
+
   it('renders children passed to it', async () => {
     mockGetUser.mockResolvedValue({ data: { user: null } });
     const layout = await MainLayout({ children: <>unique-child-content</> });

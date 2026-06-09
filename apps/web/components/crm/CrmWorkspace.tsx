@@ -3,8 +3,10 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Building2, Send } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-is-mobile';
 import { useCrmChat, type ChatMessage } from './useCrmChat';
 import { CrmCanvas } from './CrmCanvas';
+import { CanvasSheet } from './CanvasSheet';
 import { SavedUnitCard } from './SavedUnitCard';
 import { FirstSaveAnalysisCard } from './FirstSaveAnalysisCard';
 import { RankCompareTable } from './RankCompareTable';
@@ -30,6 +32,7 @@ export function CrmWorkspace() {
   const { messages, send } = useCrmChat();
   const [draft, setDraft] = useState('');
   const [canvasOpen, setCanvasOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   const submit = () => {
     const text = draft.trim();
@@ -70,11 +73,15 @@ export function CrmWorkspace() {
 
       {/* Split workspace */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        {/* Chat pane — full width when closed, ~40% when canvas is open */}
+        {/* Chat pane — full width when closed; on desktop it narrows to ~40%
+            when the canvas opens. On mobile the canvas is an overlay sheet, so
+            the chat pane keeps full width regardless. */}
         <section
           className={cn(
             'flex min-w-0 flex-col transition-[flex-basis] duration-300',
-            canvasOpen ? 'flex-[0_0_40%] border-r max-[980px]:hidden' : 'flex-[0_0_100%]',
+            canvasOpen && !isMobile
+              ? 'flex-[0_0_40%] border-r max-[980px]:hidden'
+              : 'flex-[0_0_100%]',
           )}
           style={{ borderColor: 'var(--surface-200)' }}
         >
@@ -129,13 +136,20 @@ export function CrmWorkspace() {
           </div>
         </section>
 
-        {/* Canvas pane — conditionally MOUNTED (absent from DOM when closed) */}
-        {canvasOpen ? (
-          <section className="flex min-w-0 flex-[0_0_60%] flex-col max-[980px]:flex-[1_1_100%]">
+        {/* Desktop canvas pane — conditionally MOUNTED (absent from DOM when
+            closed). Only one canvas instance ever mounts: the desktop pane OR
+            the mobile sheet, never both. */}
+        {canvasOpen && !isMobile ? (
+          <section className="flex min-w-0 flex-[0_0_60%] flex-col">
             <CrmCanvas onClose={() => setCanvasOpen(false)} />
           </section>
         ) : null}
       </div>
+
+      {/* Mobile canvas — a full-screen bottom sheet overlaying the chat. */}
+      {isMobile ? (
+        <CanvasSheet open={canvasOpen} onClose={() => setCanvasOpen(false)} />
+      ) : null}
     </div>
   );
 }
