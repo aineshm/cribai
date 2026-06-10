@@ -29,9 +29,14 @@ import type { AddListingMachineData } from './types';
 /**
  * Explicit crm_listings projection for the post-save read-back. Mirrors
  * `CrmListingRow` — `coordinates` (PostGIS geography) is deliberately omitted
- * because it round-trips as WKB (see ../types.ts).
+ * because it round-trips as WKB (see ../types.ts). `user_id` stays: it's the
+ * requester's own uid (no cross-tenant exposure) and dropping it would make
+ * the `CrmListingRow` cast a lie.
+ *
+ * `satisfies` ties every column name to `CrmListingRow` at compile time so a
+ * rename/typo fails tsc instead of rendering `undefined` in cards.
  */
-const CRM_LISTING_COLUMNS = [
+const CRM_LISTING_COLUMN_NAMES = [
   'id',
   'user_id',
   'source_url',
@@ -50,7 +55,9 @@ const CRM_LISTING_COLUMNS = [
   'status',
   'user_notes',
   'saved_at',
-].join(', ');
+] as const satisfies readonly (keyof CrmListingRow)[];
+
+const CRM_LISTING_COLUMNS = CRM_LISTING_COLUMN_NAMES.join(', ');
 
 /**
  * Read the saved crm_listings row back so the front end can render
@@ -189,9 +196,11 @@ export async function addListingHandler(
         clientBlock: { type: 'text' as const, content: err.userMessage },
       };
     }
-    // Unexpected error — don't leak internals
+    // Unexpected error — don't leak internals to the model either (it can
+    // echo modelContext into user-visible prose). Log raw server-side.
+    console.error(`[add_listing] unexpected error: ${String(err)}`);
     return {
-      modelContext: `Unexpected error saving listing: ${String(err)}`,
+      modelContext: 'Unexpected error saving listing: internal error.',
       clientBlock: {
         type: 'text' as const,
         content: "Something went wrong saving that listing. Please try again.",

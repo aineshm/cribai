@@ -638,7 +638,7 @@ describe('machineData emission (AIN-65)', () => {
 
   describe('addListingHandler', () => {
     it('new save: emits { kind: add_listing, result, listing } with the read-back crm_listings row', async () => {
-      const { db, from, eq } = makeListingFetchDb(SAVED_ROW);
+      const { db, from, select, eq } = makeListingFetchDb(SAVED_ROW);
       const ctx = makeContext({ supabase: db });
       const addResult: AddListingResult = { listingId: 'listing-uuid-1', alreadySaved: false, confidence: 0.9 };
       mockAddListing.mockResolvedValueOnce(addResult);
@@ -654,6 +654,11 @@ describe('machineData emission (AIN-65)', () => {
       expect(from).toHaveBeenCalledWith('crm_listings');
       expect(eq).toHaveBeenCalledWith('id', 'listing-uuid-1');
       expect(eq).toHaveBeenCalledWith('user_id', 'user-abc-123');
+      // The projection must stay explicit: never `*`, never the PostGIS WKB
+      // `coordinates` blob — this row ships to the browser via SSE machineData.
+      const projection = String(select.mock.calls[0]?.[0]);
+      expect(projection).not.toBe('*');
+      expect(projection).not.toContain('coordinates');
       // Text clientBlock is unchanged (legacy explore chat fallback).
       assertTextBlock(result);
     });
@@ -729,16 +734,19 @@ describe('machineData emission (AIN-65)', () => {
   // --- firstSaveAnalysisHandler ---
 
   describe('firstSaveAnalysisHandler', () => {
-    it('emits { kind: first_save_analysis, analysis } with the FULL fanout incl. skipped/error branches', async () => {
+    it('emits the FULL fanout with error branches SANITIZED to a stable code (security M1)', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
       const ctx = makeContext();
       const listingId = '00000000-0000-0000-0000-000000000002';
+      const rawProviderError =
+        'AI_APICallError: 403 from https://api.openai.com/v1 (request id req-123)';
       const fsaResult: FirstSaveAnalysis = {
         listingId,
         trueCost: {
           status: 'ok',
           data: { rent: 1200, utilities: 80, parking: 0, internet: 0, laundry: 0, renterInsurance: 0, moveInFees: 0, total: 1280 },
         },
-        redFlags: { status: 'error', error: 'generation timed out' },
+        redFlags: { status: 'error', error: rawProviderError },
         placesSnapshot: { status: 'skipped', reason: 'no coordinates' },
         steeringQuestion: { status: 'ok', data: { question: 'What matters most?' } },
       };
@@ -746,9 +754,19 @@ describe('machineData emission (AIN-65)', () => {
 
       const result = await firstSaveAnalysisHandler({ listing_id: listingId }, ctx);
 
-      // The UI renders skipped/error branches honestly — full object, untrimmed.
-      expect(result.machineData).toEqual({ kind: 'first_save_analysis', analysis: fsaResult });
+      // ok/skipped branches pass through untouched; error branches are mapped
+      // to the generic code — raw provider/DB strings never reach the browser
+      // (machineData) or the model (modelContext).
+      expect(result.machineData).toEqual({
+        kind: 'first_save_analysis',
+        analysis: { ...fsaResult, redFlags: { status: 'error', error: 'analysis_failed' } },
+      });
+      expect(result.modelContext).not.toContain(rawProviderError);
+      expect(JSON.stringify(result.machineData)).not.toContain('req-123');
+      // The raw string IS logged server-side for debugging.
+      expect(consoleError).toHaveBeenCalledWith(expect.stringContaining(rawProviderError));
       assertTextBlock(result);
+      consoleError.mockRestore();
     });
 
     it('core throw: no machineData', async () => {
