@@ -1,0 +1,19 @@
+<!-- FIXTURE: synthetic, modeled on apartments.com og-only (price + recoverable address/beds) 2026-05-27 -->
+<!doctype html>
+<html lang="en">
+<head>
+<title>512 W Dayton St - Madison, WI | Apartments.com</title>
+<!--
+  OG-only path: NO JSON-LD, NO DOM blob. OG carries the price (og:price:amount)
+  and a parseable street address + single bed count in og:title / og:description.
+  OG itself never yields address/bedrooms, so this escalates to the LLM rare
+  path, which honestly reads "512 W Dayton St" and "2 bedroom" from the OG copy.
+  Method becomes og_plus_llm. Yields price + (address|bedrooms).
+-->
+<meta property="og:title" content="512 W Dayton St, Madison, WI 53715" />
+<meta property="og:description" content="2 bedroom apartment for rent near the UW-Madison campus." />
+<meta property="og:image" content="https://images1.apartments.com/i2/dayton/lobby.jpg" />
+<meta property="og:price:amount" content="1600" />
+</head>
+<body><h1>512 W Dayton St</h1></body>
+</html>

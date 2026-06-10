@@ -148,7 +148,7 @@ describe('buildSystemPrompt — invariant prefix', () => {
     expect(cachedPrefix).toContain('UC Berkeley');
   });
 
-  it('cachedPrefix enumerates all 13 tools by name', () => {
+  it('cachedPrefix enumerates all 17 tools by name (13 legacy + 4 CRM)', () => {
     const { cachedPrefix } = buildSystemPrompt(baseState(), EMPTY_PROFILE_SNIPPET);
     const expectedTools = [
       'search_listings',
@@ -164,10 +164,26 @@ describe('buildSystemPrompt — invariant prefix', () => {
       'get_neighborhood_info',
       'create_sublease',
       'propose_mission',
+      // CRM tools (AIN-15 Phase 2) — the model cannot call a tool it isn't
+      // told about, so they MUST appear in the rendered prompt.
+      'add_listing',
+      'first_save_analysis',
+      'infer_profile',
+      'rank_compare',
     ];
     for (const name of expectedTools) {
       expect(cachedPrefix).toContain(`### ${name}`);
     }
+  });
+
+  it('cachedPrefix renders CRM tools UNCONDITIONALLY, identically for guest and signed-in (cache invariant)', () => {
+    const signedIn = buildSystemPrompt(baseState(), EMPTY_PROFILE_SNIPPET, { isGuest: false });
+    const guest = buildSystemPrompt(baseState(), EMPTY_PROFILE_SNIPPET, { isGuest: true });
+    // CRM tools appear for both (guest safety is the handler sign-in gate, not
+    // prompt hiding) and the prefix stays byte-identical (cacheable).
+    expect(signedIn.cachedPrefix).toContain('### add_listing');
+    expect(guest.cachedPrefix).toContain('### add_listing');
+    expect(signedIn.cachedPrefix).toBe(guest.cachedPrefix);
   });
 });
 

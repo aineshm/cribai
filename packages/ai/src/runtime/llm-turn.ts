@@ -49,8 +49,9 @@ import {
   buildToolRegistry,
   type ToolCallBudget,
   type ToolResultSink,
+  type RegistryToolName,
 } from './tool-registry';
-import type { ToolContext, ToolName, ToolResult } from '../tools/types';
+import type { ToolContext, ToolResult } from '../tools/types';
 import type { ChatEvent } from '../cribai';
 import {
   ExplicitCacheMemo,
@@ -370,7 +371,7 @@ export async function* runLlmTurn(
           break;
         }
         case 'tool-result': {
-          const toolName = part.toolName as ToolName;
+          const toolName = part.toolName as RegistryToolName;
           const full = resultsByCallId.get(part.toolCallId);
           if (full) {
             resultsByCallId.delete(part.toolCallId);

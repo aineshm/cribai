@@ -1,29 +1,34 @@
 /**
  * inferProfile — CRM workflow for preference inference (AIN-15, Track C Phase 1).
  *
- * Reads a user's saved crm_listings, calls Gemini Flash in JSON mode to derive
- * structured preference weights, then upserts `crm_inferred_profiles` via the
- * SERVICE-ROLE client (clients have no INSERT/UPDATE policy on that table per
- * migration 037).
+ * Reads a user's saved crm_listings, calls the shared LLM (Vercel AI SDK
+ * `generateObject` via the provider-neutral factory — OpenAI `gpt-5.4-mini` by
+ * default) to derive structured preference weights, then upserts
+ * `crm_inferred_profiles` via the SERVICE-ROLE client (clients have no
+ * INSERT/UPDATE policy on that table per migration 037).
  *
  * Degradation contract:
  *   - If savedCount < minSavesForInference → return needs_more_data, no LLM call, no DB write.
- *   - If Gemini throws, or JSON is unparseable, or Zod schema fails → return needs_more_data, no DB write.
+ *   - If the LLM call throws, OR model/provider construction throws (e.g. missing
+ *     OPENAI_API_KEY), OR `generateObject` fails schema validation (it throws
+ *     NoObjectGeneratedError) → return needs_more_data, no DB write.
  *   - If the upsert returns an error → log it but still return the inferred profile
  *     (the profile object is the source of truth for the caller; the DB failure is non-fatal).
  *
- * Gemini call pattern mirrors packages/ai/src/intent-classifier.ts lines 60-91 exactly.
- * Track C sprint decision: Gemini Flash for all LLM calls (not Claude).
+ * The LLM call goes through the injectable `deps.generate` seam (see ./generate),
+ * which defaults to the shared factory + Langfuse telemetry. `generateObject`
+ * validates against `GeminiProfileSchema` and throws on parse/validation failure,
+ * so there is no manual JSON.parse / safeParse here anymore.
  *
  * Import graph:
  *   ./types      ← InferProfileDeps, InferProfileResult, InferredProfile, CrmListingRow
  *   ./confidence ← inferenceConfidence
- *   ../gemini-client ← createGeminiClient
+ *   ./generate   ← defaultCrmGenerate (AI SDK generateObject seam)
  *   zod          ← z (for GeminiProfileSchema)
  */
 
 import { z } from 'zod';
-import { createGeminiClient } from '../gemini-client';
+import { defaultCrmGenerate } from './generate';
 import { inferenceConfidence } from './confidence';
 import { SCORING_FEATURES } from './scoring-features';
 import type {
@@ -197,7 +202,7 @@ function buildProfile(
  *
  * @param userId  - The authenticated user's ID. Used as the source of truth
  *                  (asserted against deps.userId implicitly — callers pass one value).
- * @param deps    - Dependency bundle (readDb, writeDb, gemini, etc.).
+ * @param deps    - Dependency bundle (readDb, writeDb, generate, etc.).
  * @returns       - `{status:'inferred', profile}` on success;
  *                  `{status:'needs_more_data', savedCount, steeringQuestion}` otherwise.
  *
@@ -240,56 +245,30 @@ export async function inferProfile(
   }
 
   // ---------------------------------------------------------------------------
-  // Step 3: Build prompt and call Gemini Flash (JSON mode).
-  //         Mirrors intent-classifier.ts lines 60-91 exactly.
+  // Step 3 & 4: Call the shared LLM via the `generateObject` seam.
+  //
+  //   - The seam is constructed/resolved INSIDE this guard so a missing
+  //     OPENAI_API_KEY (or any model-resolution throw) degrades to
+  //     needs_more_data (no write), exactly like the old createGeminiClient()
+  //     -inside-try contract — it must NOT reject out of the workflow.
+  //   - `generateObject` validates against GeminiProfileSchema and throws
+  //     NoObjectGeneratedError on parse/validation failure, so the prior manual
+  //     JSON.parse + safeParse is gone; any such throw lands in this catch and
+  //     degrades to needs_more_data with NO DB write.
   // ---------------------------------------------------------------------------
-  let geminiText: string;
+  const generate = deps.generate ?? defaultCrmGenerate;
+  let parsedData: GeminiProfile;
   try {
-    // Construct the client INSIDE the guard: createGeminiClient() throws when
-    // Gemini env/credentials are missing or invalid, and that must degrade to
-    // needs_more_data (no write) like any other LLM failure — not reject.
-    const ai = deps.gemini ?? createGeminiClient();
-    const result = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      config: {
-        responseMimeType: 'application/json',
-        // NOTE: NO tools config here — responseMimeType + tools are mutually exclusive in Gemini
-      },
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: buildInferProfilePrompt(serializeListingsForPrompt(rows)) }],
-        },
-      ],
+    parsedData = await generate<GeminiProfile>({
+      schema: GeminiProfileSchema,
+      prompt: buildInferProfilePrompt(serializeListingsForPrompt(rows)),
+      functionId: 'crm.infer_profile',
+      metadata: { savedCount },
     });
-    geminiText = result.text ?? '{}';
   } catch (err: unknown) {
-    // Gemini threw (network, quota, etc.) — degrade gracefully.
-    console.error('[inferProfile] Gemini call failed:', err);
-    return {
-      status: 'needs_more_data',
-      savedCount,
-      steeringQuestion: STEERING_QUESTION,
-    };
-  }
-
-  // ---------------------------------------------------------------------------
-  // Step 4: Parse defensively — wrap JSON.parse in try/catch; safeParse via Zod.
-  //         If either fails → needs_more_data, no DB write.
-  // ---------------------------------------------------------------------------
-  let parsedData: GeminiProfile | null = null;
-  try {
-    const raw = JSON.parse(geminiText) as unknown;
-    const safeResult = GeminiProfileSchema.safeParse(raw);
-    if (safeResult.success) {
-      parsedData = safeResult.data;
-    }
-  } catch {
-    // JSON.parse threw — malformed response, degrade.
-  }
-
-  if (parsedData === null) {
-    // Parse or validation failed — do NOT write the DB.
+    // LLM/model-resolution threw, or the response failed schema validation —
+    // degrade gracefully. Do NOT write the DB.
+    console.error('[inferProfile] profile generation failed:', err);
     return {
       status: 'needs_more_data',
       savedCount,
@@ -325,16 +304,25 @@ export async function inferProfile(
     // NOTE: last_updated_at is intentionally omitted — a DB trigger handles it.
   };
 
-  const upsertResult = await deps.writeDb
-    .from('crm_inferred_profiles')
-    .upsert(upsertRow, { onConflict: 'user_id' });
+  // Eval dry-run gate (mirrors create-sublease / schedule-tour). The eval
+  // runner drives the real registry with `dryRun: true` + a service-role
+  // client, so the inference's only side effect — this service-role upsert into
+  // crm_inferred_profiles — MUST be skipped. We keep the read + Gemini compute
+  // above (those are not writes) and return the already-computed profile, the
+  // authoritative result for the caller. Live traffic is always
+  // `dryRun=false` (default), so the prod write path below is unchanged.
+  if (!deps.dryRun) {
+    const upsertResult = await deps.writeDb
+      .from('crm_inferred_profiles')
+      .upsert(upsertRow, { onConflict: 'user_id' });
 
-  if (upsertResult && (upsertResult as { error?: unknown }).error) {
-    console.error(
-      '[inferProfile] Upsert to crm_inferred_profiles failed:',
-      (upsertResult as { error: unknown }).error,
-    );
-    // Non-fatal: profile is still valid, return it.
+    if (upsertResult && (upsertResult as { error?: unknown }).error) {
+      console.error(
+        '[inferProfile] Upsert to crm_inferred_profiles failed:',
+        (upsertResult as { error: unknown }).error,
+      );
+      // Non-fatal: profile is still valid, return it.
+    }
   }
 
   // ---------------------------------------------------------------------------
