@@ -135,10 +135,34 @@ describe('GET /api/crm/listings/[id]/analysis', () => {
 
     const res = await getAnalysis(LISTING_ID);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual(ERRORED_ANALYSIS);
+    // Error branches are sanitized to the stable code before serialization —
+    // raw exception text never reaches the browser (security M1, AIN-61).
+    expect(await res.json()).toEqual({
+      ...ERRORED_ANALYSIS,
+      redFlags: { status: 'error', error: 'analysis_failed' },
+    });
     // Only the initial read hit the db — no update call.
     expect(mockFrom).toHaveBeenCalledTimes(1);
     expect(selectBuilder.update).not.toHaveBeenCalled();
+  });
+
+  it('never serializes raw provider error strings in a fresh error-branch analysis', async () => {
+    const rawError = 'AI_APICallError: 403 https://api.openai.com/v1 (request id req-9)';
+    const selectBuilder = createQueryBuilder({
+      data: { id: LISTING_ID, analysis: null },
+      error: null,
+    });
+    mockFrom.mockReturnValue(selectBuilder);
+    mockFirstSaveAnalysis.mockResolvedValue({
+      ...ERRORED_ANALYSIS,
+      redFlags: { status: 'error', error: rawError },
+    });
+
+    const res = await getAnalysis(LISTING_ID);
+    const body = JSON.stringify(await res.json());
+    expect(body).toContain('analysis_failed');
+    expect(body).not.toContain('req-9');
+    expect(body).not.toContain('api.openai.com');
   });
 
   it('still returns the analysis when the write-through update fails', async () => {

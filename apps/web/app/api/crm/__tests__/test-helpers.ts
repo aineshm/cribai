@@ -29,6 +29,7 @@ export interface QueryBuilderMock {
 export function createQueryBuilder(result: {
   data: unknown;
   error: unknown;
+  count?: number | null;
 }): QueryBuilderMock {
   const builder = {} as QueryBuilderMock;
   const methods = [

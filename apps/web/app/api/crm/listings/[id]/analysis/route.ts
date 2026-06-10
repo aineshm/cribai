@@ -14,7 +14,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { firstSaveAnalysis, type FirstSaveAnalysis } from '@campusnest/ai';
+import { firstSaveAnalysis, type FirstSaveAnalysis, type FanoutBranch } from '@campusnest/ai';
 import { resolveCrmAuth, type CrmAuth } from '../../../_lib/auth';
 
 const idSchema = z.string().uuid();
@@ -28,6 +28,40 @@ function isPersistable(analysis: FirstSaveAnalysis): boolean {
     analysis.steeringQuestion,
   ];
   return branches.every((branch) => branch.status !== 'error');
+}
+
+/**
+ * Branch `error` strings carry raw exception text (AI SDK provider details,
+ * PostgREST messages) — they must never serialize to the browser. Map to the
+ * same stable code the chat handler uses; log raw server-side (security M1,
+ * AIN-61 review).
+ */
+const GENERIC_BRANCH_ERROR = 'analysis_failed';
+
+function sanitizeBranch<T>(
+  listingId: string,
+  name: string,
+  branch: FanoutBranch<T>,
+): FanoutBranch<T> {
+  if (branch.status !== 'error') return branch;
+  console.error(
+    `[crm/listings/:id/analysis] ${name} branch failed for ${listingId}: ${branch.error}`,
+  );
+  return { status: 'error', error: GENERIC_BRANCH_ERROR };
+}
+
+function sanitizeAnalysis(analysis: FirstSaveAnalysis): FirstSaveAnalysis {
+  return {
+    ...analysis,
+    trueCost: sanitizeBranch(analysis.listingId, 'trueCost', analysis.trueCost),
+    redFlags: sanitizeBranch(analysis.listingId, 'redFlags', analysis.redFlags),
+    placesSnapshot: sanitizeBranch(analysis.listingId, 'placesSnapshot', analysis.placesSnapshot),
+    steeringQuestion: sanitizeBranch(
+      analysis.listingId,
+      'steeringQuestion',
+      analysis.steeringQuestion,
+    ),
+  };
 }
 
 /** Write-through best-effort persist; a failure here must not fail the read. */
@@ -97,7 +131,9 @@ export async function GET(
       await persistAnalysis(auth, listingId, analysis);
     }
 
-    return NextResponse.json(analysis);
+    // Persisted analyses never contain error branches (isPersistable gate),
+    // so only the fresh path needs sanitizing.
+    return NextResponse.json(sanitizeAnalysis(analysis));
   } catch (err: unknown) {
     if (err instanceof Error && err.message === 'Listing not found') {
       return NextResponse.json({ error: 'Listing not found' }, { status: 404 });

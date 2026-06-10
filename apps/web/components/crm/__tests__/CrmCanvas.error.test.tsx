@@ -37,6 +37,27 @@ describe('CrmCanvas — loader error states (AIN-60)', () => {
     );
   });
 
+  it('a rank failure does NOT blank the listings — list tab still renders units (review M1)', async () => {
+    const { CRM_LIST, UNITS } = await import('@/lib/crm/fixtures');
+    mockClient.getList.mockResolvedValue(CRM_LIST);
+    mockClient.listUnits.mockResolvedValue(UNITS);
+    mockClient.rank.mockRejectedValue(new Error('profiles table hiccup'));
+
+    render(<CrmCanvas />);
+    // List tab (default) shows the units even though rank failed.
+    const firstUnit = UNITS[0]!;
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(new RegExp(firstUnit._proposed.unit.building, 'i')).length,
+      ).toBeGreaterThan(0),
+    );
+    // Rank tab shows its own error, not a blank/loading state.
+    fireEvent.click(screen.getByRole('tab', { name: /rank/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/couldn.t.*profiles table hiccup/i)).toBeInTheDocument(),
+    );
+  });
+
   it('shows an error state when the lazy compare load fails', async () => {
     mockClient.getList.mockResolvedValue({ id: 'l', name: 'My Apartments', ownerId: 'u-1', members: [] });
     mockClient.listUnits.mockResolvedValue([]);

@@ -47,6 +47,13 @@ const LISTING_COLUMNS = [
 
 const MAX_LISTINGS = 200;
 
+/**
+ * Per-user save cap (matches the MAX_LISTINGS read cap). Every save triggers a
+ * server-side fetch + possible LLM parse + geocode — the cap bounds the
+ * write-side cost a single account can generate (review HIGH, AIN-61).
+ */
+export const MAX_SAVED_LISTINGS = 200;
+
 const createBodySchema = z.object({
   sourceUrl: z
     .string()
@@ -120,6 +127,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: 'Invalid request body', details: parsed.error.flatten() },
       { status: 400 },
+    );
+  }
+
+  // Per-user row cap before any extraction work (429: the account is at its
+  // budget for saved listings; archiving frees slots).
+  const { count, error: countError } = await auth.db
+    .from('crm_listings')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', auth.userId)
+    .neq('status', 'archived');
+  if (countError) {
+    console.error('[crm/listings] Cap check error:', countError);
+    return NextResponse.json({ error: 'Failed to save listing' }, { status: 500 });
+  }
+  if ((count ?? 0) >= MAX_SAVED_LISTINGS) {
+    return NextResponse.json(
+      {
+        error: `You've reached the limit of ${MAX_SAVED_LISTINGS} saved listings. Archive some to make room.`,
+      },
+      { status: 429 },
     );
   }
 

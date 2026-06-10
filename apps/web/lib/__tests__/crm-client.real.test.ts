@@ -114,6 +114,17 @@ describe('crmClient (real mode)', () => {
     expect(() => client.firstUnitId()).toThrow();
   });
 
+  it('deleteUnit invalidates the snapshot so firstUnitId cannot return a stale id', async () => {
+    const client = await importRealClient();
+    mockFetch.mockResolvedValueOnce(jsonResponse({ listings: [ROW], viewer: VIEWER }));
+    await client.listUnits();
+    expect(client.firstUnitId()).toBe(ROW.id);
+
+    mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await client.deleteUnit(ROW.id);
+    expect(() => client.firstUnitId()).toThrow();
+  });
+
   it('throws the server error message on a non-ok response', async () => {
     mockFetch.mockResolvedValue(jsonResponse({ error: 'Authentication required' }, 401));
     const client = await importRealClient();

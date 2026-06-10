@@ -153,6 +153,33 @@ describe('GET /api/crm/listings', () => {
 describe('POST /api/crm/listings', () => {
   const SOURCE_URL = 'https://www.zillow.com/homedetails/123';
 
+  // The per-user row-cap check queries crm_listings before the save; default
+  // every POST test to an under-cap count.
+  beforeEach(() => {
+    mockFrom.mockReturnValue(createQueryBuilder({ data: null, error: null, count: 0 }));
+    mockSecretFrom.mockReturnValue(createQueryBuilder({ data: null, error: null, count: 0 }));
+  });
+
+  it('returns 429 when the user is at the saved-listings cap (no extraction work)', async () => {
+    const builder = createQueryBuilder({ data: null, error: null, count: 200 });
+    mockFrom.mockReturnValue(builder);
+
+    const res = await POST(postRequest({ sourceUrl: SOURCE_URL }));
+
+    expect(res.status).toBe(429);
+    expect(mockAddListing).not.toHaveBeenCalled();
+    // Cap query is user-scoped and excludes archived (archiving frees slots).
+    expect(builder.eq).toHaveBeenCalledWith('user_id', 'u-1');
+    expect(builder.neq).toHaveBeenCalledWith('status', 'archived');
+  });
+
+  it('returns 500 when the cap check itself fails (no extraction work)', async () => {
+    mockFrom.mockReturnValue(createQueryBuilder({ data: null, error: { message: 'boom' }, count: null }));
+    const res = await POST(postRequest({ sourceUrl: SOURCE_URL }));
+    expect(res.status).toBe(500);
+    expect(mockAddListing).not.toHaveBeenCalled();
+  });
+
   it('returns 401 when unauthenticated', async () => {
     mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
     const res = await POST(postRequest({ sourceUrl: SOURCE_URL }));

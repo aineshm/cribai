@@ -151,8 +151,12 @@ const realClient: CrmClient = {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ mode }),
     }),
-  deleteUnit: (id) =>
-    fetchJson<void>(`/api/crm/listings/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  deleteUnit: async (id) => {
+    await fetchJson<void>(`/api/crm/listings/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    // The snapshot may now lead with an archived row — invalidate so
+    // firstUnitId() can't return a stale id (review L1, AIN-61).
+    lastListingsSnapshot = null;
+  },
   firstUnitId: () => {
     const first = lastListingsSnapshot?.listings[0];
     if (!first) {

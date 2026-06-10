@@ -41,20 +41,32 @@ export function CrmCanvas({ onClose }: { onClose?: () => void }) {
   const [compare, setCompare] = useState<RankCompareResult | null>(null);
   const [view, setView] = useState<View>('list');
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [rankError, setRankError] = useState<string | null>(null);
   const [compareError, setCompareError] = useState<string | null>(null);
 
+  // list+units are the canvas's required data; rank is its own tab and must
+  // not blank the listings when only ranking fails (review M1, AIN-61).
   useEffect(() => {
     let alive = true;
-    Promise.all([crmClient.getList(), crmClient.listUnits(), crmClient.rank('rank')])
-      .then(([l, u, r]) => {
+    Promise.all([crmClient.getList(), crmClient.listUnits()])
+      .then(([l, u]) => {
         if (!alive) return;
         setList(l);
         setUnits(u);
-        setRank(r);
         setLoadError(null);
       })
       .catch((err: unknown) => {
         if (alive) setLoadError(errorMessage(err));
+      });
+    crmClient
+      .rank('rank')
+      .then((r) => {
+        if (!alive) return;
+        setRank(r);
+        setRankError(null);
+      })
+      .catch((err: unknown) => {
+        if (alive) setRankError(errorMessage(err));
       });
     return () => {
       alive = false;
@@ -195,8 +207,8 @@ export function CrmCanvas({ onClose }: { onClose?: () => void }) {
         ) : null}
 
         {view === 'rank' ? (
-          loadError ? (
-            <LoadError message={loadError} />
+          rankError ? (
+            <LoadError message={rankError} />
           ) : rank ? (
             <RankCompareTable result={rank} />
           ) : (
