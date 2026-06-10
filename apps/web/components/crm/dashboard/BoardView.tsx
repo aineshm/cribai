@@ -6,6 +6,8 @@ import { LayoutGrid, Columns3, KanbanSquare, Link2, ArrowRight, Share2 } from 'l
 import type { RankCompareResult } from '@campusnest/ai';
 import type { CrmList, CrmUnit } from '@/lib/crm/proposed-types';
 import { crmClient } from '@/lib/crm-client';
+import { errorMessage } from '@/lib/crm/error-message';
+import { BranchState } from '../ui/BranchState';
 import { MemberAvatars } from '../ui/MemberAvatars';
 import { ApplicationPipeline } from './ApplicationPipeline';
 import { UnitGrid } from './UnitGrid';
@@ -39,14 +41,22 @@ export function BoardView() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [url, setUrl] = useState('');
   const [adding, setAdding] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [compareError, setCompareError] = useState<string | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
-    void Promise.all([crmClient.getList(), crmClient.listUnits()]).then(([l, u]) => {
-      if (!alive) return;
-      setList(l);
-      setUnits(u);
-    });
+    Promise.all([crmClient.getList(), crmClient.listUnits()])
+      .then(([l, u]) => {
+        if (!alive) return;
+        setList(l);
+        setUnits(u);
+        setLoadError(null);
+      })
+      .catch((err: unknown) => {
+        if (alive) setLoadError(errorMessage(err));
+      });
     return () => {
       alive = false;
     };
@@ -56,9 +66,16 @@ export function BoardView() {
   useEffect(() => {
     if (view !== 'compare' || compare) return;
     let alive = true;
-    void crmClient.rank('compare').then((r) => {
-      if (alive) setCompare(r);
-    });
+    crmClient
+      .rank('compare')
+      .then((r) => {
+        if (!alive) return;
+        setCompare(r);
+        setCompareError(null);
+      })
+      .catch((err: unknown) => {
+        if (alive) setCompareError(errorMessage(err));
+      });
     return () => {
       alive = false;
     };
@@ -73,6 +90,9 @@ export function BoardView() {
     try {
       await crmClient.addListing(url.trim());
       setUrl('');
+      setAddError(null);
+    } catch (err: unknown) {
+      setAddError(errorMessage(err));
     } finally {
       setAdding(false);
     }
@@ -159,6 +179,11 @@ export function BoardView() {
           <ArrowRight className="h-[18px] w-[18px]" />
         </button>
       </form>
+      {addError ? (
+        <div className="-mt-5 mb-6">
+          <LoadError message={addError} />
+        </div>
+      ) : null}
 
       {/* View switcher */}
       <div className="mb-6">
@@ -195,13 +220,23 @@ export function BoardView() {
 
       {/* Active view */}
       {view === 'pipeline' ? (
-        <ApplicationPipeline units={units} members={list?.members ?? []} onOpen={setOpenId} />
+        loadError ? (
+          <LoadError message={loadError} />
+        ) : (
+          <ApplicationPipeline units={units} members={list?.members ?? []} onOpen={setOpenId} />
+        )
       ) : null}
       {view === 'grid' ? (
-        <UnitGrid units={units} members={list?.members ?? []} onOpen={setOpenId} />
+        loadError ? (
+          <LoadError message={loadError} />
+        ) : (
+          <UnitGrid units={units} members={list?.members ?? []} onOpen={setOpenId} />
+        )
       ) : null}
       {view === 'compare' ? (
-        compare ? (
+        compareError ? (
+          <LoadError message={compareError} />
+        ) : compare ? (
           <div>
             <RankCompareTable result={compare} />
             <p className="mt-4 text-[0.8125rem]" style={{ color: 'var(--surface-500)' }}>
@@ -218,4 +253,9 @@ export function BoardView() {
       <UnitDetailDrawer unit={openUnit} onClose={() => setOpenId(null)} />
     </main>
   );
+}
+
+/** AIN-60: crash-safe loader error rendered through the BranchState atom. */
+function LoadError({ message }: { message: string }) {
+  return <BranchState branch={{ status: 'error', error: message }}>{() => null}</BranchState>;
 }
