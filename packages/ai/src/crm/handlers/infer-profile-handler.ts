@@ -16,6 +16,7 @@ import { inferProfile } from '../infer-profile';
 import { getCrmServiceClient } from '../service-client';
 import { inferProfileInput } from '../schemas';
 import type { InferredProfile } from '../types';
+import type { InferProfileMachineData } from './types';
 
 // ---------------------------------------------------------------------------
 // Sign-in gate
@@ -124,9 +125,19 @@ export async function inferProfileHandler(
       dryRun: context.dryRun,
     });
 
+    // AIN-65: no front-end card consumes infer_profile yet — emitted for
+    // symmetry with the other CRM handlers. Carries the full discriminated
+    // result so both the `inferred` profile and the `needs_more_data`
+    // steering state are available when a consumer lands.
+    const machineData: InferProfileMachineData = {
+      kind: 'infer_profile',
+      result,
+    };
+
     if (result.status === 'needs_more_data') {
       const question = result.steeringQuestion;
       return {
+        machineData,
         modelContext: [
           `Not enough data to infer profile yet (${result.savedCount} listing(s) saved; need at least 3).`,
           `Steering: ${question}`,
@@ -138,6 +149,7 @@ export async function inferProfileHandler(
     // status === 'inferred'
     const { modelContext, content } = formatInferredProfile(result.profile);
     return {
+      machineData,
       modelContext,
       clientBlock: { type: 'text' as const, content },
     };

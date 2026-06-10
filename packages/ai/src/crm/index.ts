@@ -49,6 +49,18 @@ export {
 export type { CrmToolName } from './schemas';
 
 // ---------------------------------------------------------------------------
+// Handler machineData contracts (AIN-65)
+// ---------------------------------------------------------------------------
+
+export type {
+  CrmMachineData,
+  AddListingMachineData,
+  FirstSaveAnalysisMachineData,
+  RankCompareMachineData,
+  InferProfileMachineData,
+} from './handlers/types';
+
+// ---------------------------------------------------------------------------
 // Service client
 // ---------------------------------------------------------------------------
 

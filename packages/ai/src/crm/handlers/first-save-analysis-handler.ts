@@ -17,6 +17,7 @@ import { firstSaveAnalysisInput } from '../schemas';
 import type { FirstSaveAnalysis, FanoutBranch } from '../types';
 import type { TrueCost } from '../types';
 import type { RedFlagResult, PlacesSnapshot, SteeringQuestion } from '../types';
+import type { FirstSaveAnalysisMachineData } from './types';
 
 // ---------------------------------------------------------------------------
 // Sign-in gate
@@ -106,6 +107,44 @@ function buildClientContent(analysis: FirstSaveAnalysis): string {
 }
 
 // ---------------------------------------------------------------------------
+// Error sanitization (security M1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Branch `error` strings carry raw exception text (AI SDK provider details,
+ * PostgREST messages). machineData ships the full fanout to the browser and
+ * modelContext embeds branch errors for the LLM — neither may carry raw
+ * internals. Map to a stable code; log the raw string server-side.
+ */
+const GENERIC_BRANCH_ERROR = 'analysis_failed';
+
+function sanitizeBranch<T>(
+  listingId: string,
+  name: string,
+  branch: FanoutBranch<T>,
+): FanoutBranch<T> {
+  if (branch.status !== 'error') return branch;
+  console.error(
+    `[first_save_analysis] ${name} branch failed for listing ${listingId}: ${branch.error}`,
+  );
+  return { status: 'error', error: GENERIC_BRANCH_ERROR };
+}
+
+function sanitizeAnalysis(analysis: FirstSaveAnalysis): FirstSaveAnalysis {
+  return {
+    ...analysis,
+    trueCost: sanitizeBranch(analysis.listingId, 'trueCost', analysis.trueCost),
+    redFlags: sanitizeBranch(analysis.listingId, 'redFlags', analysis.redFlags),
+    placesSnapshot: sanitizeBranch(analysis.listingId, 'placesSnapshot', analysis.placesSnapshot),
+    steeringQuestion: sanitizeBranch(
+      analysis.listingId,
+      'steeringQuestion',
+      analysis.steeringQuestion,
+    ),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Handler
 // ---------------------------------------------------------------------------
 
@@ -138,13 +177,24 @@ export async function firstSaveAnalysisHandler(
   }
 
   try {
-    const analysis = await firstSaveAnalysis(parsed.data.listing_id, {
-      db: context.supabase,
-      userId: context.userId,
-      placesApiKey: process.env.GOOGLE_PLACES_API_KEY,
-    });
+    const analysis = sanitizeAnalysis(
+      await firstSaveAnalysis(parsed.data.listing_id, {
+        db: context.supabase,
+        userId: context.userId,
+        placesApiKey: process.env.GOOGLE_PLACES_API_KEY,
+      }),
+    );
+
+    // AIN-65: FirstSaveAnalysisCard renders the FULL fanout object — including
+    // skipped/error branches, which the UI surfaces honestly. The text
+    // clientBlock (ok-branches only) stays as the legacy chat fallback.
+    const machineData: FirstSaveAnalysisMachineData = {
+      kind: 'first_save_analysis',
+      analysis,
+    };
 
     return {
+      machineData,
       modelContext: buildModelContext(analysis),
       clientBlock: { type: 'text' as const, content: buildClientContent(analysis) },
     };
@@ -159,8 +209,11 @@ export async function firstSaveAnalysisHandler(
         },
       };
     }
+    // Security L3: raw exception text must not reach the model (it can echo it
+    // into user-visible prose). Log server-side, send a stable code.
+    console.error(`[first_save_analysis] analysis failed: ${msg}`);
     return {
-      modelContext: `Analysis failed: ${msg}`,
+      modelContext: 'Analysis failed: internal error.',
       clientBlock: {
         type: 'text' as const,
         content: "The analysis couldn't be completed. Please try again.",
