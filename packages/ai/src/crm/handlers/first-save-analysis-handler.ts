@@ -17,6 +17,7 @@ import { firstSaveAnalysisInput } from '../schemas';
 import type { FirstSaveAnalysis, FanoutBranch } from '../types';
 import type { TrueCost } from '../types';
 import type { RedFlagResult, PlacesSnapshot, SteeringQuestion } from '../types';
+import type { FirstSaveAnalysisMachineData } from './types';
 
 // ---------------------------------------------------------------------------
 // Sign-in gate
@@ -144,7 +145,16 @@ export async function firstSaveAnalysisHandler(
       placesApiKey: process.env.GOOGLE_PLACES_API_KEY,
     });
 
+    // AIN-65: FirstSaveAnalysisCard renders the FULL fanout object — including
+    // skipped/error branches, which the UI surfaces honestly. The text
+    // clientBlock (ok-branches only) stays as the legacy chat fallback.
+    const machineData: FirstSaveAnalysisMachineData = {
+      kind: 'first_save_analysis',
+      analysis,
+    };
+
     return {
+      machineData,
       modelContext: buildModelContext(analysis),
       clientBlock: { type: 'text' as const, content: buildClientContent(analysis) },
     };

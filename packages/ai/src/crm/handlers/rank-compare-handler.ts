@@ -12,6 +12,7 @@ import type { ToolContext, ToolResult } from '../../tools/types';
 import { rankCompare } from '../rank-compare';
 import { rankCompareInput } from '../schemas';
 import type { RankCompareResult, RankedListing, CompareRow } from '../types';
+import type { RankCompareMachineData } from './types';
 
 // ---------------------------------------------------------------------------
 // Sign-in gate
@@ -129,7 +130,15 @@ export async function rankCompareHandler(
       formatted = formatCompareResult(result.rows);
     }
 
+    // AIN-65: RankCompareTable renders the raw discriminated result —
+    // including empty rank/compare sets (the UI owns the empty state).
+    const machineData: RankCompareMachineData = {
+      kind: 'rank_compare',
+      result,
+    };
+
     return {
+      machineData,
       modelContext: formatted.modelContext,
       clientBlock: { type: 'text' as const, content: formatted.content },
     };

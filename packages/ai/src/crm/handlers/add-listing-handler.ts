@@ -13,11 +13,70 @@
  * turn loop's generic `tool_result` streaming path.
  */
 
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ToolContext, ToolResult } from '../../tools/types';
 import { addListing, AddListingError } from '../add-listing';
 import { extractListing } from '../../extraction';
 import { geocodeAddress } from '../../tools/lib/geocode-address';
 import { addListingInput } from '../schemas';
+import type { CrmListingRow } from '../types';
+import type { AddListingMachineData } from './types';
+
+// ---------------------------------------------------------------------------
+// Post-save read-back (AIN-65)
+// ---------------------------------------------------------------------------
+
+/**
+ * Explicit crm_listings projection for the post-save read-back. Mirrors
+ * `CrmListingRow` — `coordinates` (PostGIS geography) is deliberately omitted
+ * because it round-trips as WKB (see ../types.ts).
+ */
+const CRM_LISTING_COLUMNS = [
+  'id',
+  'user_id',
+  'source_url',
+  'source_site',
+  'title',
+  'address',
+  'rent',
+  'bedrooms',
+  'bathrooms',
+  'sqft',
+  'available_from',
+  'description',
+  'amenities',
+  'photo_urls',
+  'extraction_confidence',
+  'status',
+  'user_notes',
+  'saved_at',
+].join(', ');
+
+/**
+ * Read the saved crm_listings row back so the front end can render
+ * SavedUnitCard from `machineData` without a follow-up query.
+ *
+ * Best-effort: any error (RLS, transient DB failure, missing row) degrades to
+ * `null` — the save itself already succeeded and must still be reported.
+ */
+async function fetchSavedListing(
+  db: SupabaseClient,
+  userId: string,
+  listingId: string,
+): Promise<CrmListingRow | null> {
+  try {
+    const { data, error } = await db
+      .from('crm_listings')
+      .select(CRM_LISTING_COLUMNS)
+      .eq('id', listingId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error || !data) return null;
+    return data as unknown as CrmListingRow;
+  } catch {
+    return null;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Sign-in gate ToolResult
@@ -105,7 +164,21 @@ export async function addListingHandler(
       ? `This listing is already saved in your CRM (ID: \`${result.listingId}\`).`
       : `Listing saved to your CRM! Let me pull up the quick analysis — true cost, red flags, and nearby places.`;
 
+    // AIN-65: read the saved row back so SavedUnitCard can render straight
+    // from machineData. Skipped on dry-run (the id is synthetic — no row
+    // exists) and best-effort otherwise (null on any read-back failure).
+    const listing = context.dryRun
+      ? null
+      : await fetchSavedListing(context.supabase, userId, result.listingId);
+
+    const machineData: AddListingMachineData = {
+      kind: 'add_listing',
+      result,
+      listing,
+    };
+
     return {
+      machineData,
       modelContext,
       clientBlock: { type: 'text' as const, content: clientContent },
     };
