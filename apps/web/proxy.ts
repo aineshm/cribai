@@ -103,7 +103,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // Protect flat v1.1 routes
-  const protectedFlatRoutes = ['/post', '/profile'];
+  const protectedFlatRoutes = ['/post', '/profile', '/my-apartments'];
   if (protectedFlatRoutes.some((route) => pathname.startsWith(route)) && !user) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = '/login';

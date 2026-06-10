@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import { cookies, headers } from 'next/headers';
 import { createServerComponentClient } from '@campusnest/supabase/server';
-import { Home, MessageSquare, Search, Sparkles } from 'lucide-react';
+import { Building2, Home, MessageSquare, Search, Sparkles } from 'lucide-react';
 import { ConciergeShell } from '@/components/concierge/ConciergeShell';
 import { MainLayoutClient } from '@/components/layout/MainLayoutClient';
+import { isCrmEnabled } from '@/lib/crm/feature-flag';
 
 async function getDefaultCampusSlug(
   supabase: ReturnType<typeof createServerComponentClient>
@@ -113,6 +114,15 @@ export default async function MainLayout({
                       <MessageSquare className="size-4" />
                       Chat
                     </Link>
+                    {isCrmEnabled() && (
+                      <Link
+                        href="/my-apartments"
+                        className="hidden md:flex items-center gap-1 text-sm font-medium text-[var(--surface-600)] transition-colors hover:text-red-800"
+                      >
+                        <Building2 className="size-4 text-slate-500" />
+                        My Apartments
+                      </Link>
+                    )}
                     <Link
                       href="/profile"
                       className="flex h-9 w-9 items-center justify-center rounded-full bg-red-100 text-sm font-semibold text-red-800 shadow-sm transition-colors hover:bg-red-200"

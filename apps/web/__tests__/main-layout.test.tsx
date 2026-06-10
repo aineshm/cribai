@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
 // Mock ConciergeShell to render a testable wrapper
@@ -60,6 +60,12 @@ const { default: MainLayout } = await import('@/app/(main)/layout');
 describe('MainLayout', () => {
   beforeEach(() => {
     mockGet.mockReturnValue(null);
+    // Default the CRM visibility gate ON for the existing nav assertions; the
+    // dedicated test below toggles it off.
+    vi.stubEnv('NEXT_PUBLIC_CRM_ENABLED', 'true');
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it('renders ConciergeShell wrapper', async () => {
@@ -78,6 +84,23 @@ describe('MainLayout', () => {
     expect(chatLink).toHaveAttribute('href', '/messages');
     const nav = chatLink.closest('nav');
     expect(nav).not.toBeNull();
+  });
+
+  it('renders a My Apartments nav link when authenticated and the CRM gate is on', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
+    const layout = await MainLayout({ children: <></> });
+    render(layout);
+    const link = screen.getAllByRole('link').find((l) => l.getAttribute('href') === '/my-apartments');
+    expect(link).toBeDefined();
+  });
+
+  it('hides the My Apartments nav link when the CRM gate is off', async () => {
+    vi.stubEnv('NEXT_PUBLIC_CRM_ENABLED', 'false');
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
+    const layout = await MainLayout({ children: <></> });
+    render(layout);
+    const link = screen.getAllByRole('link').find((l) => l.getAttribute('href') === '/my-apartments');
+    expect(link).toBeUndefined();
   });
 
   it('renders children passed to it', async () => {
