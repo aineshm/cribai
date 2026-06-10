@@ -2,14 +2,23 @@
  * The single CRM data seam every "My Apartments" surface talks to.
  *
  * Mock mode (default) returns the local fixtures after a small delay so loading
- * states render honestly. Real mode calls /api/crm/* (stubbed until the Track C
- * Phase-2 endpoints land — see engineering/mockups/crm-frontend/WIRING-GUIDE.md).
+ * states render honestly. Real mode calls the /api/crm/* REST routes (AIN-61):
+ *
+ *   listUnits  → GET    /api/crm/listings  (rows adapted via toCrmUnit)
+ *   getList    → GET    /api/crm/listings  (single-member list synthesized from
+ *                                           the session viewer — collaboration
+ *                                           stays mock-only, no crm_lists table)
+ *   addListing → POST   /api/crm/listings
+ *   getAnalysis→ GET    /api/crm/listings/:id/analysis
+ *   rank       → POST   /api/crm/rank
+ *   deleteUnit → DELETE /api/crm/listings/:id
  *
  * Flip via NEXT_PUBLIC_CRM_MOCK: anything other than the literal 'false' keeps
  * the mock; 'false' points at the real backend.
  */
-import type { AddListingResult, FirstSaveAnalysis, RankCompareResult } from '@campusnest/ai';
+import type { AddListingResult, CrmListingRow, FirstSaveAnalysis, RankCompareResult } from '@campusnest/ai';
 import type { CrmList, CrmUnit } from './crm/proposed-types';
+import { toCrmUnit } from './crm/to-crm-unit';
 import {
   ADD_LISTING_RESULT,
   ANALYSIS_FULL,
@@ -48,42 +57,108 @@ const mockClient: CrmClient = {
   firstUnitId: () => FIRST_UNIT_ID,
 };
 
-// Real impl: calls /api/crm/* (see WIRING-GUIDE.md). Stubbed until the Phase-2
-// endpoints exist; methods that have no backend yet throw a clear error.
+// ---------------------------------------------------------------------------
+// Real client — /api/crm/* (AIN-61)
+// ---------------------------------------------------------------------------
+
+/** Envelope returned by GET /api/crm/listings. */
+interface ListingsPayload {
+  readonly listings: readonly CrmListingRow[];
+  readonly viewer: { readonly id: string; readonly name: string };
+}
+
+/** Fetch JSON, throwing the server's `error` message (or a status fallback) on non-2xx. */
+async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(input, init);
+  if (!response.ok) {
+    let message = `Request failed (${response.status})`;
+    try {
+      const body: unknown = await response.json();
+      if (
+        body !== null &&
+        typeof body === 'object' &&
+        typeof (body as { error?: unknown }).error === 'string'
+      ) {
+        message = (body as { error: string }).error;
+      }
+    } catch {
+      // Non-JSON error body — keep the status fallback message.
+    }
+    throw new Error(message);
+  }
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
+}
+
+/** First two initials of a display name (e.g. "Emma Chen" → "EC"). */
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const letters = parts.slice(0, 2).map((part) => part[0]!.toUpperCase());
+  return letters.join('') || '?';
+}
+
+// Concurrent listUnits + getList (every dashboard mount fires both) share one
+// request; the slot clears once settled so later calls always refetch fresh.
+let inFlightListings: Promise<ListingsPayload> | null = null;
+
+// Snapshot of the most recent listings payload — backs the synchronous
+// firstUnitId() handle. Replaced wholesale on each fetch (never mutated).
+let lastListingsSnapshot: ListingsPayload | null = null;
+
+function fetchListings(): Promise<ListingsPayload> {
+  if (!inFlightListings) {
+    inFlightListings = fetchJson<ListingsPayload>('/api/crm/listings')
+      .then((payload) => {
+        lastListingsSnapshot = payload;
+        return payload;
+      })
+      .finally(() => {
+        inFlightListings = null;
+      });
+  }
+  return inFlightListings;
+}
+
 const realClient: CrmClient = {
   listUnits: async () => {
-    // /api/crm/listings returns CrmListingRow[] with NO `_proposed` extensions.
-    // Casting to CrmUnit[] would plant runtime `undefined` on every
-    // `unit._proposed.*` read. Fail honestly (like getList) until PR3 returns
-    // CrmUnit-shaped rows incl. the contract extensions — see WIRING-GUIDE.md §4.
-    throw new Error('crm listings endpoint not implemented (Phase 2 / PR3)');
+    const { listings, viewer } = await fetchListings();
+    return listings.map((row) => toCrmUnit(row, viewer.id));
   },
+  // Collaboration is mock-only (no crm_lists backend) — synthesize the
+  // single-member list from the session viewer so the header renders honestly.
   getList: async () => {
-    throw new Error('crm list endpoint not implemented (Phase 2)');
+    const { viewer } = await fetchListings();
+    return {
+      id: `personal_${viewer.id}`,
+      name: 'My Apartments',
+      ownerId: viewer.id,
+      members: [
+        { id: viewer.id, name: viewer.name, initials: initialsOf(viewer.name), color: '#991b1b' },
+      ],
+    };
   },
-  addListing: async (sourceUrl) =>
-    (
-      await fetch('/api/crm/listings', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ sourceUrl }),
-      })
-    ).json() as Promise<AddListingResult>,
-  getAnalysis: async (id) =>
-    (await fetch(`/api/crm/listings/${id}/analysis`)).json() as Promise<FirstSaveAnalysis>,
-  rank: async (mode) =>
-    (
-      await fetch('/api/crm/rank', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ mode }),
-      })
-    ).json() as Promise<RankCompareResult>,
-  deleteUnit: async (id) => {
-    await fetch(`/api/crm/listings/${id}`, { method: 'DELETE' });
-  },
+  addListing: (sourceUrl) =>
+    fetchJson<AddListingResult>('/api/crm/listings', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sourceUrl }),
+    }),
+  getAnalysis: (id) =>
+    fetchJson<FirstSaveAnalysis>(`/api/crm/listings/${encodeURIComponent(id)}/analysis`),
+  rank: (mode) =>
+    fetchJson<RankCompareResult>('/api/crm/rank', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mode }),
+    }),
+  deleteUnit: (id) =>
+    fetchJson<void>(`/api/crm/listings/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   firstUnitId: () => {
-    throw new Error('firstUnitId is mock-only');
+    const first = lastListingsSnapshot?.listings[0];
+    if (!first) {
+      throw new Error('firstUnitId: no listings loaded yet — call listUnits() first');
+    }
+    return first.id;
   },
 };
 
