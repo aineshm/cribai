@@ -4,7 +4,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import type { CrmListingRow } from '@campusnest/ai';
-import { toCrmUnit } from '../to-crm-unit';
+import { toCrmUnit } from '../crm/to-crm-unit';
 
 const VIEWER_ID = 'u-1';
 
