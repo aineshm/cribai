@@ -205,6 +205,14 @@ function toNumber(value: unknown): number | undefined {
 /**
  * Extract price from any of the JSON-LD shapes seen in the wild.
  * `offers` and `priceSpecification` may be objects or arrays.
+ *
+ * Precedence (AIN-62): a concrete `price` (direct, per-offer, or inside a
+ * priceSpecification) always wins, preserving the original first-match
+ * semantics. Only when NO concrete price exists does the `AggregateOffer`
+ * range pass run — real Zillow /apartments/ building pages publish one
+ * AggregateOffer per floorplan carrying only `lowPrice`/`highPrice`, and the
+ * result collapses to the minimum low bound across offers (the "from" price
+ * students filter by; same range→low rule as og.ts / dom.ts).
  */
 function extractPrice(entity: Record<string, unknown>): number | undefined {
   // Direct price (uncommon but seen on Product variants)
@@ -237,7 +245,20 @@ function extractPrice(entity: Record<string, unknown>): number | undefined {
     if (specPrice !== undefined) return specPrice;
   }
 
-  return undefined;
+  // AggregateOffer range pass (AIN-62): minimum low bound across offers.
+  // Per-offer, `lowPrice` is preferred; `highPrice` is the fallback when a
+  // publisher only states the top of the range (a high bound is still more
+  // useful to the CRM than no price at all).
+  let rangeLow: number | undefined;
+  for (const offer of offersList) {
+    if (!offer || typeof offer !== 'object') continue;
+    const o = offer as Record<string, unknown>;
+    const low = toNumber(o.lowPrice) ?? toNumber(o.highPrice);
+    if (low !== undefined && (rangeLow === undefined || low < rangeLow)) {
+      rangeLow = low;
+    }
+  }
+  return rangeLow;
 }
 
 /**
@@ -500,10 +521,91 @@ export function projectJsonLdEntity(
 }
 
 /**
+ * Keys of the chosen ROOT entity under which the SAME listing may nest a
+ * deeper entity (AIN-62, Phase-0 finding 2). Real Zillow pages:
+ *
+ *   - /homedetails/ single-unit: `offers.itemOffered` is a
+ *     SingleFamilyResidence carrying address / geo / beds / floorSize.
+ *   - /apartments/ building: `about` is an ApartmentComplex carrying
+ *     address / geo / amenities / the hero image.
+ *
+ * Deliberately narrow: `containsPlace` (and anything else) stays untraversed
+ * — those children are sub-units / floorplans, and reading a specific unit's
+ * beds/price as the page-level listing's would mislabel it (pinned by
+ * extraction.test.ts "extracts a top-level Place listing even when nested
+ * Apartment children exist").
+ */
+const NESTED_LISTING_KEYS: readonly string[] = ['about', 'offers'];
+
+/**
+ * Defensive cap on how many nested entities are projected for gap-fill. A
+ * hostile page could nest thousands of listing-typed objects under `offers`;
+ * after this many, later entities could only re-fill fields the earlier ones
+ * already provided, so the cap loses nothing real.
+ */
+const MAX_NESTED_ENTITIES = 16;
+
+/**
+ * The listing fields a nested entity may gap-fill. Excludes the `raw_json_ld`
+ * debug blob — that always stays the ROOT entity.
+ */
+const GAP_FILL_KEYS: readonly (keyof ExtractedFields)[] = [
+  'title',
+  'description',
+  'price',
+  'bedrooms',
+  'bathrooms',
+  'square_feet',
+  'address',
+  'city',
+  'state',
+  'zip',
+  'latitude',
+  'longitude',
+  'photos',
+  'amenities',
+  'available_from',
+];
+
+/**
+ * Project the chosen root entity, then gap-fill missing fields from listing
+ * entities nested under `NESTED_LISTING_KEYS`. The root ALWAYS wins on
+ * conflicts; nested entities are visited breadth-first (shallowest first)
+ * and, per `findListingEntitiesBfs`, nothing below a yielded nested entity
+ * is read (its children are sub-units). Returns a new object — never
+ * mutates the root projection.
+ */
+function projectWithNestedEntities(
+  entity: Record<string, unknown>,
+  sourceUrl: string,
+): ReturnType<typeof projectJsonLdEntity> {
+  const out = { ...projectJsonLdEntity(entity, sourceUrl) };
+
+  const nestedRoots = NESTED_LISTING_KEYS.map((key) => entity[key]).filter(
+    (value) => value !== null && typeof value === 'object',
+  );
+  if (nestedRoots.length === 0) return out;
+
+  let visited = 0;
+  for (const nested of findListingEntitiesBfs(nestedRoots)) {
+    if (visited >= MAX_NESTED_ENTITIES) break;
+    visited += 1;
+    const sub = projectJsonLdEntity(nested, sourceUrl);
+    for (const key of GAP_FILL_KEYS) {
+      if (out[key] === undefined && sub[key] !== undefined) {
+        (out as Record<string, unknown>)[key] = sub[key];
+      }
+    }
+  }
+  return out;
+}
+
+/**
  * Top-level helper: parse the HTML, BFS-walk every parsed JSON-LD block,
- * and project the first (shallowest) listing entity. Returns `null` when
- * no listing-shaped JSON-LD is found, letting the caller fall through to
- * the OpenGraph extractor.
+ * and project the first (shallowest) listing entity — gap-filled from any
+ * same-listing entity nested under its `about` / `offers` keys (AIN-62).
+ * Returns `null` when no listing-shaped JSON-LD is found, letting the
+ * caller fall through to the OpenGraph extractor.
  *
  * Across blocks, blocks are processed in document order; within a block,
  * entities are visited breadth-first so the shallowest listing wins.
@@ -515,7 +617,7 @@ export function extractFromJsonLd(
   const blocks = parseAllJsonLdBlocks(html);
   for (const block of blocks) {
     for (const entity of findListingEntitiesBfs(block)) {
-      return projectJsonLdEntity(entity, sourceUrl);
+      return projectWithNestedEntities(entity, sourceUrl);
     }
   }
   return null;

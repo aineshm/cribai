@@ -90,7 +90,7 @@ describe('Real Zillow HTML (browser-captured) — offline layers 1-3', () => {
       expect(Buffer.byteLength(html, 'utf8')).toBeLessThan(MAX_BODY_BYTES);
     });
 
-    it('layer 1 (JSON-LD): extracts title + sane price from the root entity', async () => {
+    it('layer 1 (JSON-LD): extracts title + price from the root AND address/beds/geo from offers.itemOffered', async () => {
       const html = await loadFixture(SINGLE_UNIT.fixture);
       const jsonLd = extractFromJsonLd(html, SINGLE_UNIT.url);
 
@@ -98,15 +98,15 @@ describe('Real Zillow HTML (browser-captured) — offline layers 1-3', () => {
       expect(jsonLd!.title).toBe('2306 Kendall Ave, Madison, WI 53726');
       expect(jsonLd!.price).toBe(3180);
 
-      // Phase-0 gap: address / beds / geo live in `offers.itemOffered`
-      // (a SingleFamilyResidence — itself a recognized listing type), one
-      // BFS level below the yielded root. The projection never descends
-      // into a yielded entity, so these come back undefined today. If this
-      // starts failing, the extractor learned to merge deeper entities —
-      // flip these to the real values (2306 Kendall Ave / 3 / 43.0717).
-      expect(jsonLd!.address).toBeUndefined();
-      expect(jsonLd!.bedrooms).toBeUndefined();
-      expect(jsonLd!.latitude).toBeUndefined();
+      // Phase-0 gap CLOSED (AIN-62): the SingleFamilyResidence nested in
+      // `offers.itemOffered` now gap-fills address / beds / geo / sqft.
+      expect(jsonLd!.address).toBe('2306 Kendall Ave');
+      expect(jsonLd!.city).toBe('Madison');
+      expect(jsonLd!.state).toBe('WI');
+      expect(jsonLd!.zip).toBe('53726');
+      expect(jsonLd!.bedrooms).toBe(3);
+      expect(jsonLd!.square_feet).toBe(1733);
+      expect(jsonLd!.latitude).toBe(43.071693);
     });
 
     it('layer 2 (OpenGraph): fills description + photo', async () => {
@@ -154,13 +154,13 @@ describe('Real Zillow HTML (browser-captured) — offline layers 1-3', () => {
       // as the orchestrator's fillGaps).
       const merged = { ...dom, ...jsonLd };
 
-      // Critical trio: price + bedrooms present and sane. Address is the
-      // known Phase-0 gap (asserted undefined above) — the gate passes via
-      // bedrooms instead.
+      // Critical trio: price + bedrooms + address all present and sane
+      // (address gap closed by the AIN-62 itemOffered traversal).
       expect(merged.price).toBe(3180);
       expect(merged.price).toBeGreaterThan(200);
       expect(merged.price).toBeLessThan(20_000);
       expect(merged.bedrooms).toBe(3);
+      expect(merged.address).toBe('2306 Kendall Ave');
 
       // The escalation gate is satisfied by layers 1+3 → the LLM rare path
       // is NOT required for single-unit pages.
@@ -174,7 +174,7 @@ describe('Real Zillow HTML (browser-captured) — offline layers 1-3', () => {
       expect(Buffer.byteLength(html, 'utf8')).toBeLessThan(MAX_BODY_BYTES);
     });
 
-    it('layer 1 (JSON-LD): title + description only — AggregateOffer prices and `about` address are missed', async () => {
+    it('layer 1 (JSON-LD): AggregateOffer price range + `about` ApartmentComplex address/geo/amenities', async () => {
       const html = await loadFixture(BUILDING.fixture);
       const jsonLd = extractFromJsonLd(html, BUILDING.url);
 
@@ -182,15 +182,22 @@ describe('Real Zillow HTML (browser-captured) — offline layers 1-3', () => {
       expect(jsonLd!.title).toBe('EO Madison Yards');
       expect(jsonLd!.description).toContain('Madison');
 
-      // Phase-0 gaps:
-      //  - prices are `offers[].lowPrice`/`highPrice` (AggregateOffer per
-      //    floorplan, $1,819-$2,308 at capture time); extractPrice reads
-      //    only `price` / `priceSpecification.price` → undefined.
-      //  - address/geo/amenities live on `about` (an ApartmentComplex —
-      //    a recognized listing type) inside the yielded root → unreached.
-      expect(jsonLd!.price).toBeUndefined();
-      expect(jsonLd!.address).toBeUndefined();
-      expect(jsonLd!.amenities).toBeUndefined();
+      // Phase-0 gaps CLOSED (AIN-62):
+      //  - `offers[]` are per-floorplan AggregateOffers; the price collapses
+      //    to the minimum lowPrice ($1,819-$2,308 range at capture time).
+      //  - `about` (ApartmentComplex) gap-fills address / geo / amenities /
+      //    the hero photo.
+      expect(jsonLd!.price).toBe(1819);
+      expect(jsonLd!.address).toBe('4702 Madison Yards Way');
+      expect(jsonLd!.city).toBe('Madison');
+      expect(jsonLd!.state).toBe('WI');
+      expect(jsonLd!.zip).toBe('53705');
+      expect(jsonLd!.latitude).toBe(43.074676);
+      expect(jsonLd!.amenities).toBeDefined();
+      expect(jsonLd!.amenities).toContain('24-Hour Package Room & Amazon Lockers');
+      expect(jsonLd!.photos).toEqual([
+        'https://photos.zillowstatic.com/fp/92d902147d2346834e859a44e34b6995-p_d.jpg',
+      ]);
     });
 
     it('layer 2 (OpenGraph): fills photo; address only inside the og:title string', async () => {
@@ -204,7 +211,7 @@ describe('Real Zillow HTML (browser-captured) — offline layers 1-3', () => {
       expect(og.fields.address).toBeUndefined();
     });
 
-    it('layer 3 (DOM): partial labeled-DOM only — building pages would escalate to the LLM rare path', async () => {
+    it('layer 3 (DOM): key fields satisfied without it — no LLM escalation for building pages', async () => {
       const html = await loadFixture(BUILDING.fixture);
       const jsonLd = extractFromJsonLd(html, BUILDING.url);
       const dom = extractFromDom(html, BUILDING.url, 'zillow.com');
@@ -214,15 +221,11 @@ describe('Real Zillow HTML (browser-captured) — offline layers 1-3', () => {
       expect(typeof dom.bedrooms).toBe('number');
       expect(typeof dom.square_feet).toBe('number');
 
-      // Phase-0 gap: no "$N/mo" matching `data-testid="price"` on building
-      // pages, and `initialReduxState.gdp.building` (fullAddress, lat/lng,
-      // 24 floorPlans with minPrice/beds/baths/sqft, galleryPhotos) is not
-      // read by fromNextData(). Without a price the key-fields gate fails
-      // → in production this page type escalates to the LLM rare path.
-      expect(dom.price).toBeUndefined();
-      expect(dom.address).toBeUndefined();
+      // Phase-0 gap CLOSED (AIN-62): with JSON-LD now carrying the
+      // AggregateOffer price + `about` address, the key-fields gate passes
+      // at Pass 1 — building pages no longer escalate to the LLM rare path.
       const merged = { ...dom, ...jsonLd };
-      expect(satisfiesKeyFieldsGate(merged)).toBe(false);
+      expect(satisfiesKeyFieldsGate(merged)).toBe(true);
     });
   });
 
