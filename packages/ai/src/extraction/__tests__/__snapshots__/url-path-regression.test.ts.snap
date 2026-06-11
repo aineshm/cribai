@@ -1,0 +1,747 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for apartments-com.html 1`] = `
+{
+  "address": "437 N Frances St",
+  "amenities": [
+    "Fitness Center",
+    "Rooftop Pool",
+  ],
+  "bathrooms": 2,
+  "bedrooms": 3,
+  "city": "Madison",
+  "description": "Modern student housing across from the UW-Madison campus.",
+  "extraction_confidence": "high",
+  "extraction_method": "json_ld",
+  "latitude": 43.0738,
+  "longitude": -89.3992,
+  "photos": [
+    "https://www.apartments.com/images/hub/exterior.jpg",
+  ],
+  "price": 2150,
+  "raw_json_ld": {
+    "@type": "ApartmentComplex",
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": "Madison",
+      "addressRegion": "WI",
+      "postalCode": "53703",
+      "streetAddress": "437 N Frances St",
+    },
+    "amenityFeature": [
+      {
+        "@type": "LocationFeatureSpecification",
+        "name": "Fitness Center",
+        "value": true,
+      },
+      {
+        "@type": "LocationFeatureSpecification",
+        "name": "Rooftop Pool",
+      },
+    ],
+    "description": "Modern student housing across from the UW-Madison campus.",
+    "floorSize": {
+      "@type": "QuantitativeValue",
+      "unitText": "sqft",
+      "value": 1100,
+    },
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": "43.0738",
+      "longitude": "-89.3992",
+    },
+    "image": "/images/hub/exterior.jpg",
+    "name": "The Hub at Madison",
+    "numberOfBathrooms": 2,
+    "numberOfBedrooms": 3,
+    "offers": [
+      {
+        "@type": "Offer",
+        "priceSpecification": {
+          "@type": "PriceSpecification",
+          "price": "2150",
+          "priceCurrency": "USD",
+        },
+      },
+    ],
+    "url": "https://www.apartments.com/the-hub-at-madison-madison-wi/abc123/",
+  },
+  "raw_og": {
+    "og:description": "See all available apartments for rent at The Hub at Madison.",
+    "og:image": "/images/hub/exterior.jpg",
+    "og:title": "The Hub at Madison Apartments - Madison, WI 53703",
+  },
+  "source_domain": "apartments.com",
+  "source_url": "https://www.apartments.com/test-listing/",
+  "square_feet": 1100,
+  "state": "WI",
+  "title": "The Hub at Madison",
+  "zip": "53703",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for apartments-com-dom.html 1`] = `
+{
+  "address": "315 N Frances St",
+  "bathrooms": 1,
+  "bedrooms": 2,
+  "city": "Madison",
+  "extraction_confidence": "high",
+  "extraction_method": "dom",
+  "photos": [
+    "https://images1.apartments.com/i2/lucky/exterior.jpg",
+  ],
+  "price": 1895,
+  "raw_og": {
+    "og:type": "website",
+  },
+  "source_domain": "apartments.com",
+  "source_url": "https://www.apartments.com/dom-listing/",
+  "square_feet": 720,
+  "state": "WI",
+  "zip": "53703",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for apartments-com-llm.html 1`] = `
+{
+  "code": "no_listing_data",
+  "message": "No extraction layer (JSON-LD, OpenGraph, DOM, or LLM) produced any usable fields for https://www.apartments.com/llm-listing/",
+  "thrown": "ExtractionError",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for apartments-com-og.html 1`] = `
+{
+  "description": "2 bedroom apartment for rent near the UW-Madison campus.",
+  "extraction_confidence": "medium",
+  "extraction_method": "og",
+  "photos": [
+    "https://images1.apartments.com/i2/dayton/lobby.jpg",
+  ],
+  "price": 1600,
+  "raw_og": {
+    "og:description": "2 bedroom apartment for rent near the UW-Madison campus.",
+    "og:image": "https://images1.apartments.com/i2/dayton/lobby.jpg",
+    "og:price:amount": "1600",
+    "og:title": "512 W Dayton St, Madison, WI 53715",
+  },
+  "source_domain": "apartments.com",
+  "source_url": "https://www.apartments.com/og-listing/",
+  "title": "512 W Dayton St, Madison, WI 53715",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for apartments-com-sparse.html 1`] = `
+{
+  "bedrooms": 2,
+  "extraction_confidence": "medium",
+  "extraction_method": "dom",
+  "price": 1650,
+  "source_domain": "apartments.com",
+  "source_url": "https://www.apartments.com/sparse-listing/",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for facebook-blocked.html 1`] = `
+{
+  "code": "fetch_blocked",
+  "message": "Page body contains a block / captcha signal (https://www.facebook.com/marketplace/item/4/)",
+  "thrown": "ExtractionError",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for facebook-jsonld.html 1`] = `
+{
+  "description": "One bedroom sublease two blocks from Bascom Hill.",
+  "extraction_confidence": "medium",
+  "extraction_method": "json_ld",
+  "photos": [
+    "https://scontent.fbcdn.net/v/fb-1br.jpg",
+  ],
+  "price": 1200,
+  "raw_json_ld": {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "description": "One bedroom sublease two blocks from Bascom Hill.",
+    "image": "https://scontent.fbcdn.net/v/fb-1br.jpg",
+    "name": "1BR near campus",
+    "offers": {
+      "@type": "Offer",
+      "price": 1200,
+      "priceCurrency": "USD",
+    },
+  },
+  "raw_og": {
+    "og:title": "1BR near campus",
+  },
+  "source_domain": "facebook.com",
+  "source_url": "https://www.facebook.com/marketplace/item/1/",
+  "title": "1BR near campus",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for facebook-llm.html 1`] = `
+{
+  "extraction_confidence": "low",
+  "extraction_method": "dom",
+  "photos": [
+    "https://scontent.fbcdn.net/v/fb-room-1.jpg",
+  ],
+  "raw_og": {
+    "og:type": "product",
+  },
+  "source_domain": "facebook.com",
+  "source_url": "https://www.facebook.com/marketplace/item/5/",
+  "title": "Room available - message for details",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for facebook-nextdata.html 1`] = `
+{
+  "description": "Subleasing a 2 bed near Camp Randall from June to August. Utilities included.",
+  "extraction_confidence": "medium",
+  "extraction_method": "dom",
+  "photos": [
+    "https://scontent.fbcdn.net/v/fb-sublease-1.jpg",
+    "https://scontent.fbcdn.net/v/fb-sublease-2.jpg",
+  ],
+  "price": 1500,
+  "raw_og": {
+    "og:type": "product",
+  },
+  "source_domain": "facebook.com",
+  "source_url": "https://www.facebook.com/marketplace/item/3/",
+  "title": "2BR Sublease near Camp Randall",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for facebook-og.html 1`] = `
+{
+  "description": "Subleasing a 2 bed apartment on Langdon Street for the summer.",
+  "extraction_confidence": "medium",
+  "extraction_method": "og",
+  "photos": [
+    "https://scontent.fbcdn.net/v/fb-sublease-1.jpg",
+  ],
+  "price": 1400,
+  "raw_og": {
+    "og:description": "Subleasing a 2 bed apartment on Langdon Street for the summer.",
+    "og:image": "https://scontent.fbcdn.net/v/fb-sublease-1.jpg",
+    "og:title": "2 bed sublease on Langdon St",
+    "og:type": "product",
+    "product:price:amount": "1400",
+    "product:price:currency": "USD",
+  },
+  "source_domain": "facebook.com",
+  "source_url": "https://www.facebook.com/marketplace/item/2/",
+  "title": "2 bed sublease on Langdon St",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for malformed-jsonld.html 1`] = `
+{
+  "description": "A bright studio in downtown Madison.",
+  "extraction_confidence": "medium",
+  "extraction_method": "og",
+  "photos": [
+    "https://example.com/studio-1.jpg",
+  ],
+  "price": 1250,
+  "raw_og": {
+    "og:description": "A bright studio in downtown Madison.",
+    "og:image": "https://example.com/studio-1.jpg",
+    "og:price:amount": "1250",
+    "og:title": "Cozy Studio Apartment in Madison",
+  },
+  "source_domain": "listings.example.com",
+  "source_url": "https://listings.example.com/unit-13",
+  "title": "Cozy Studio Apartment in Madison",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for no-structured-data.html 1`] = `
+{
+  "code": "no_listing_data",
+  "message": "No extraction layer (JSON-LD, OpenGraph, DOM, or LLM) produced any usable fields for https://listings.example.com/unit-14",
+  "thrown": "ExtractionError",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for og-only.html 1`] = `
+{
+  "description": "Subleasing my 2 bedroom on State Street, June through August. Heat & water included.",
+  "extraction_confidence": "low",
+  "extraction_method": "og",
+  "photos": [
+    "https://listings.example.com/images/sublease/photo1.jpg",
+    "https://listings.example.com/images/sublease/photo2.jpg",
+  ],
+  "raw_og": {
+    "og:description": "Subleasing my 2 bedroom on State Street, June through August. Heat & water included.",
+    "og:image": "/images/sublease/photo1.jpg",
+    "og:title": "2BR Sublease near UW Campus",
+    "og:type": "product",
+    "og:url": "https://www.facebook.com/marketplace/item/abc123/",
+  },
+  "source_domain": "listings.example.com",
+  "source_url": "https://listings.example.com/unit-12",
+  "title": "2BR Sublease near UW Campus",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for realtor.html 1`] = `
+{
+  "address": "522 State St",
+  "amenities": [
+    "Garage",
+    "Hardwood Floors",
+    "Central Air",
+  ],
+  "bathrooms": 2.5,
+  "bedrooms": 4,
+  "city": "Madison",
+  "description": "Charming 4-bed home steps from State Street shops &amp; cafes.",
+  "extraction_confidence": "high",
+  "extraction_method": "json_ld",
+  "latitude": 43.0761,
+  "longitude": -89.3902,
+  "photos": [
+    "https://ap.rdcpix.com/aaa/exterior.jpg",
+    "https://ap.rdcpix.com/aaa/living.jpg",
+  ],
+  "price": 3200,
+  "raw_json_ld": {
+    "@context": "https://schema.org",
+    "@type": "SingleFamilyResidence",
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": "Madison",
+      "addressRegion": "WI",
+      "postalCode": "53703",
+      "streetAddress": "522 State St",
+    },
+    "amenityFeature": [
+      {
+        "@type": "LocationFeatureSpecification",
+        "name": "Garage",
+        "value": true,
+      },
+      {
+        "@type": "LocationFeatureSpecification",
+        "name": "Hardwood Floors",
+        "value": true,
+      },
+      {
+        "@type": "LocationFeatureSpecification",
+        "name": "Central Air",
+        "value": true,
+      },
+    ],
+    "description": "Charming 4-bed home steps from State Street shops &amp; cafes.",
+    "floorSize": {
+      "@type": "QuantitativeValue",
+      "unitCode": "FTK",
+      "value": 1850,
+    },
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": 43.0761,
+      "longitude": -89.3902,
+    },
+    "image": [
+      {
+        "@type": "ImageObject",
+        "url": "https://ap.rdcpix.com/aaa/exterior.jpg",
+      },
+      {
+        "@type": "ImageObject",
+        "url": "https://ap.rdcpix.com/aaa/living.jpg",
+      },
+    ],
+    "name": "522 State St",
+    "numberOfBathroomsTotal": 2.5,
+    "numberOfBedrooms": 4,
+    "offers": {
+      "@type": "Offer",
+      "price": "3200",
+      "priceCurrency": "USD",
+    },
+    "url": "https://www.realtor.com/realestateandhomes-detail/522-State-St_Madison_WI_53703_M12345",
+  },
+  "raw_og": {
+    "og:description": "View 1 photo for 522 State St, Madison, WI 53703.",
+    "og:image": "https://ap.rdcpix.com/aaa/exterior.jpg",
+    "og:title": "522 State St, Madison, WI 53703",
+  },
+  "source_domain": "realtor.com",
+  "source_url": "https://www.realtor.com/rentals/details/test",
+  "square_feet": 1850,
+  "state": "WI",
+  "title": "522 State St",
+  "zip": "53703",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for realtor-llm.html 1`] = `
+{
+  "code": "no_listing_data",
+  "message": "No extraction layer (JSON-LD, OpenGraph, DOM, or LLM) produced any usable fields for https://www.realtor.com/rentals/details/llm",
+  "thrown": "ExtractionError",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for realtor-nextdata.html 1`] = `
+{
+  "address": "14 N Carroll St",
+  "bathrooms": 3,
+  "bedrooms": 4,
+  "city": "Madison",
+  "description": "Spacious 4-bed townhouse one block off the Capitol Square.",
+  "extraction_confidence": "high",
+  "extraction_method": "dom",
+  "latitude": 43.0759,
+  "longitude": -89.3845,
+  "photos": [
+    "https://ap.rdcpix.com/bbb/carroll-1.jpg",
+    "https://ap.rdcpix.com/bbb/carroll-2.jpg",
+  ],
+  "price": 2850,
+  "raw_og": {
+    "og:type": "product",
+  },
+  "source_domain": "realtor.com",
+  "source_url": "https://www.realtor.com/rentals/details/next",
+  "square_feet": 1600,
+  "state": "WI",
+  "zip": "53703",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for realtor-og.html 1`] = `
+{
+  "description": "2-bed condo a short walk from the Capitol.",
+  "extraction_confidence": "medium",
+  "extraction_method": "og",
+  "photos": [
+    "https://ap.rdcpix.com/ccc/hancock-1.jpg",
+  ],
+  "price": 1900,
+  "raw_og": {
+    "og:description": "2-bed condo a short walk from the Capitol.",
+    "og:image": "https://ap.rdcpix.com/ccc/hancock-1.jpg",
+    "og:title": "9 S Hancock St, Madison, WI 53703",
+    "product:price:amount": "1900",
+  },
+  "source_domain": "realtor.com",
+  "source_url": "https://www.realtor.com/rentals/details/og",
+  "title": "9 S Hancock St, Madison, WI 53703",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for realtor-sparse.html 1`] = `
+{
+  "bathrooms": 1,
+  "bedrooms": 2,
+  "extraction_confidence": "medium",
+  "extraction_method": "dom",
+  "price": 1900,
+  "source_domain": "realtor.com",
+  "source_url": "https://www.realtor.com/rentals/details/sparse",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for trulia-jsonld.html 1`] = `
+{
+  "address": "30 N Bassett St",
+  "bathrooms": 2,
+  "bedrooms": 3,
+  "city": "Madison",
+  "description": "Updated 3-bed near the Kohl Center.",
+  "extraction_confidence": "high",
+  "extraction_method": "json_ld",
+  "latitude": 43.0721,
+  "longitude": -89.3923,
+  "photos": [
+    "https://www.trulia.com/pictures/thumbs/bassett-1.jpg",
+  ],
+  "price": 2400,
+  "raw_json_ld": {
+    "@context": "https://schema.org",
+    "@type": "SingleFamilyResidence",
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": "Madison",
+      "addressRegion": "WI",
+      "postalCode": "53703",
+      "streetAddress": "30 N Bassett St",
+    },
+    "description": "Updated 3-bed near the Kohl Center.",
+    "floorSize": {
+      "@type": "QuantitativeValue",
+      "unitCode": "FTK",
+      "value": 1300,
+    },
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": 43.0721,
+      "longitude": -89.3923,
+    },
+    "image": [
+      "https://www.trulia.com/pictures/thumbs/bassett-1.jpg",
+    ],
+    "name": "30 N Bassett St",
+    "numberOfBathroomsTotal": 2,
+    "numberOfBedrooms": 3,
+    "offers": {
+      "@type": "Offer",
+      "price": 2400,
+      "priceCurrency": "USD",
+    },
+    "url": "https://www.trulia.com/p/wi/madison/30-n-bassett-st-madison-wi-53703",
+  },
+  "raw_og": {
+    "og:title": "30 N Bassett St, Madison, WI 53703",
+  },
+  "source_domain": "trulia.com",
+  "source_url": "https://www.trulia.com/p/test",
+  "square_feet": 1300,
+  "state": "WI",
+  "title": "30 N Bassett St",
+  "zip": "53703",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for trulia-llm.html 1`] = `
+{
+  "address": "2210 University Ave, Madison, WI 53726",
+  "extraction_confidence": "medium",
+  "extraction_method": "dom",
+  "source_domain": "trulia.com",
+  "source_url": "https://www.trulia.com/p/llm",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for trulia-nextdata.html 1`] = `
+{
+  "address": "1418 Regent St",
+  "bathrooms": 1,
+  "bedrooms": 2,
+  "city": "Madison",
+  "description": "Charming 2 bedroom flat on Regent Street near Camp Randall.",
+  "extraction_confidence": "high",
+  "extraction_method": "dom",
+  "latitude": 43.0688,
+  "longitude": -89.4127,
+  "photos": [
+    "https://www.trulia.com/pictures/thumbs/regent-1.jpg",
+    "https://www.trulia.com/pictures/thumbs/regent-2.jpg",
+  ],
+  "price": 1650,
+  "raw_og": {
+    "og:type": "product",
+  },
+  "source_domain": "trulia.com",
+  "source_url": "https://www.trulia.com/p/next",
+  "square_feet": 780,
+  "state": "WI",
+  "zip": "53711",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for trulia-og.html 1`] = `
+{
+  "description": "One bedroom condo near Monona Bay.",
+  "extraction_confidence": "medium",
+  "extraction_method": "og",
+  "photos": [
+    "https://www.trulia.com/pictures/thumbs/doty-1.jpg",
+  ],
+  "price": 1400,
+  "raw_og": {
+    "og:description": "One bedroom condo near Monona Bay.",
+    "og:image": "https://www.trulia.com/pictures/thumbs/doty-1.jpg",
+    "og:price:amount": "1400",
+    "og:price:currency": "USD",
+    "og:title": "505 W Doty St, Madison, WI 53703",
+    "og:type": "product",
+  },
+  "source_domain": "trulia.com",
+  "source_url": "https://www.trulia.com/p/og",
+  "title": "505 W Doty St, Madison, WI 53703",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for trulia-sparse.html 1`] = `
+{
+  "address": "30 N Bassett St, Madison, WI 53703",
+  "extraction_confidence": "medium",
+  "extraction_method": "dom",
+  "price": 1800,
+  "source_domain": "trulia.com",
+  "source_url": "https://www.trulia.com/p/sparse",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for zillow.html 1`] = `
+{
+  "address": "123 W Gorham St APT 3",
+  "amenities": [
+    "In-unit laundry",
+    "Dishwasher",
+  ],
+  "available_from": "2026-08-15",
+  "bathrooms": 1,
+  "bedrooms": 2,
+  "city": "Madison",
+  "description": "Cozy 2BR apartment 5 minutes from UW-Madison campus. Heat &amp; water included.",
+  "extraction_confidence": "high",
+  "extraction_method": "json_ld",
+  "latitude": 43.0747,
+  "longitude": -89.3839,
+  "photos": [
+    "https://photos.zillowstatic.com/fp/abc-uncropped_scaled.jpg",
+    "https://photos.zillowstatic.com/fp/abc-2.jpg",
+  ],
+  "price": 1950,
+  "raw_json_ld": {
+    "@context": "http://schema.org",
+    "@type": "Apartment",
+    "address": {
+      "@type": "PostalAddress",
+      "addressCountry": "US",
+      "addressLocality": "Madison",
+      "addressRegion": "WI",
+      "postalCode": "53703",
+      "streetAddress": "123 W Gorham St APT 3",
+    },
+    "amenityFeature": [
+      {
+        "@type": "LocationFeatureSpecification",
+        "name": "In-unit laundry",
+        "value": true,
+      },
+      {
+        "@type": "LocationFeatureSpecification",
+        "name": "Dishwasher",
+        "value": true,
+      },
+      {
+        "@type": "LocationFeatureSpecification",
+        "name": "Pool",
+        "value": false,
+      },
+    ],
+    "availabilityStarts": "2026-08-15",
+    "description": "Cozy 2BR apartment 5 minutes from UW-Madison campus. Heat &amp; water included.",
+    "floorSize": {
+      "@type": "QuantitativeValue",
+      "unitCode": "FTK",
+      "value": 850,
+    },
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": 43.0747,
+      "longitude": -89.3839,
+    },
+    "image": [
+      "https://photos.zillowstatic.com/fp/abc-uncropped_scaled.jpg",
+      "https://photos.zillowstatic.com/fp/abc-2.jpg",
+    ],
+    "name": "123 W Gorham St APT 3",
+    "numberOfBathroomsTotal": 1,
+    "numberOfBedrooms": 2,
+    "offers": {
+      "@type": "Offer",
+      "availability": "https://schema.org/InStock",
+      "price": 1950,
+      "priceCurrency": "USD",
+    },
+    "url": "https://www.zillow.com/homedetails/123-W-Gorham-St-APT-3-Madison-WI-53703/12345_zpid/",
+  },
+  "raw_og": {
+    "og:description": "2 bed, 1 bath apartment for rent in downtown Madison.",
+    "og:image": "https://photos.zillowstatic.com/fp/abc-uncropped_scaled.jpg",
+    "og:title": "123 W Gorham St APT 3, Madison, WI 53703",
+    "og:type": "product",
+    "og:url": "https://www.zillow.com/homedetails/123-W-Gorham-St-APT-3-Madison-WI-53703/12345_zpid/",
+    "product:price:amount": "1950",
+    "product:price:currency": "USD",
+  },
+  "source_domain": "zillow.com",
+  "source_url": "https://www.zillow.com/homedetails/123_zpid/",
+  "square_feet": 850,
+  "state": "WI",
+  "title": "123 W Gorham St APT 3",
+  "zip": "53703",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for zillow-llm.html 1`] = `
+{
+  "code": "no_listing_data",
+  "message": "No extraction layer (JSON-LD, OpenGraph, DOM, or LLM) produced any usable fields for https://www.zillow.com/homedetails/llm_zpid/",
+  "thrown": "ExtractionError",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for zillow-nextdata.html 1`] = `
+{
+  "address": "410 W Dayton St",
+  "bathrooms": 2,
+  "bedrooms": 3,
+  "city": "Madison",
+  "description": "Bright 3 bedroom apartment two blocks from the UW-Madison engineering campus.",
+  "extraction_confidence": "high",
+  "extraction_method": "dom",
+  "latitude": 43.0705,
+  "longitude": -89.3958,
+  "photos": [
+    "https://photos.zillowstatic.com/fp/dayton-1.jpg",
+    "https://photos.zillowstatic.com/fp/dayton-2.jpg",
+  ],
+  "price": 2100,
+  "raw_og": {
+    "og:type": "product",
+  },
+  "source_domain": "zillow.com",
+  "source_url": "https://www.zillow.com/homedetails/next_zpid/",
+  "square_feet": 1200,
+  "state": "WI",
+  "zip": "53703",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for zillow-og.html 1`] = `
+{
+  "description": "Studio apartment for rent near the UW-Madison hospital.",
+  "extraction_confidence": "medium",
+  "extraction_method": "og",
+  "photos": [
+    "https://photos.zillowstatic.com/fp/mills-1.jpg",
+  ],
+  "price": 1100,
+  "raw_og": {
+    "og:description": "Studio apartment for rent near the UW-Madison hospital.",
+    "og:image": "https://photos.zillowstatic.com/fp/mills-1.jpg",
+    "og:title": "225 N Mills St, Madison, WI 53715",
+    "og:type": "product",
+    "product:price:amount": "1100",
+    "product:price:currency": "USD",
+  },
+  "source_domain": "zillow.com",
+  "source_url": "https://www.zillow.com/homedetails/og_zpid/",
+  "title": "225 N Mills St, Madison, WI 53715",
+}
+`;
+
+exports[`extractListing URL-path regression lock (offline fixtures) > pins extractListing output for zillow-sparse.html 1`] = `
+{
+  "bedrooms": 2,
+  "extraction_confidence": "medium",
+  "extraction_method": "dom",
+  "price": 1750,
+  "source_domain": "zillow.com",
+  "source_url": "https://www.zillow.com/homedetails/sparse_zpid/",
+}
+`;
