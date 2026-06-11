@@ -20,10 +20,10 @@
           │               └──────────────────────┘
           ▼
 ┌────────────────────┐    ┌──────────────────────┐
-│ Mission worker      │    │ GitHub Actions        │
-│ local / GH / VM     │    │ nightly-scrape        │
-│ queue polling       │    │ optional worker tick  │
-└────────────────────┘    └──────────────────────┘
+│ Mission worker      │    │ GitHub Actions                │
+│ local / GH / VM     │    │ nightly-scrape (maintenance)  │
+│ queue polling       │    │ optional worker tick          │
+└────────────────────┘    └──────────────────────────────┘
 ```
 
 ## Monorepo Layout (pnpm 9 + Turborepo)
@@ -41,9 +41,11 @@ services/scraper/   Crawlee + Playwright (Apartments.com)
 ## Data Flow
 
 ```
-Nightly cron → scraper → normalize → listings table
-                                    → recalculate-fairness → fairness_score
-                                    → rebuild-pageindex → pageindex_trees
+Nightly cron → recalculate-fairness → fairness_score (sublease listings)
+             → embed changed listings → pgvector embeddings
+             → rebuild-pageindex → pageindex_trees
+(Aggregator scraper dormant — scraped rows are a frozen read-only comp corpus;
+ new listing inventory comes from user sublease posts via the create-sublease tool)
 Chat query → /api/ai/cribai → load conversation_state
                               → deterministic runtime for search/detail/compare/tour
                               → typed ToolResult.machineData + statePatch

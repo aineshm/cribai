@@ -82,19 +82,22 @@ curl https://your-project.vercel.app/api/supabase-test
 vercel logs --prod
 ```
 
-### Scraper Deployment (GitHub Actions)
+### Nightly Maintenance (GitHub Actions)
 
-The scraper runs on schedule via GitHub Actions:
+The nightly workflow handles fairness recalculation, embeddings for changed listings, and PageIndex rebuild. The aggregator scraper is dormant (PDR-003: paused, not cancelled — code remains in `services/scraper`).
 
-**Trigger**: Daily at 2:00 AM CT (8:00 AM UTC)
+**Trigger**: Daily at 0 8 * * * UTC (2:00 AM CT)
 **Manual trigger**: Available via workflow_dispatch
+**Workflow file**: `.github/workflows/nightly-scrape.yml` (filename unchanged)
+
+Steps in order:
+1. **Trigger fairness recalculation** — POST to `recalculate-fairness` edge function
+2. **Generate embeddings** — runs `packages/ai/src/cli/embed.ts` for changed listings
+3. **Rebuild PageIndex** — POST to `rebuild-pageindex` edge function (runs only if embed succeeds)
 
 ```bash
-# View workflow
-cat .github/workflows/nightly-scrape.yml
-
 # Manual trigger (via GitHub web UI)
-# Go to Actions → Nightly Scrape → Run workflow
+# Go to Actions → Nightly sublease maintenance → Run workflow
 
 # View run history
 gh run list --workflow nightly-scrape.yml --limit 10
@@ -103,7 +106,7 @@ gh run list --workflow nightly-scrape.yml --limit 10
 gh run view --log
 ```
 
-#### Scraper Prerequisites
+#### Nightly Maintenance Prerequisites
 
 Set GitHub Action secrets:
 - `SUPABASE_URL` - Project URL
@@ -198,7 +201,7 @@ psql $SUPABASE_CONNECTION_STRING \
 | Page Load Time | <3s | Vercel Analytics |
 | API Response Time | <200ms | Vercel Logs |
 | Database Connections | <20 | Supabase Dashboard |
-| Scraper Success Rate | >95% | GitHub Actions logs |
+| Nightly Maintenance Success | >95% | GitHub Actions logs (`nightly-scrape` workflow) |
 | API Error Rate | <0.1% | Vercel Logs |
 | Gemini API Quota | <80% | Google Cloud Console |
 
@@ -429,27 +432,29 @@ psql $SUPABASE_CONNECTION_STRING \
 # All connections should go through pooler, not direct
 ```
 
-### Scraper Failing
+### Nightly Maintenance Failing
 
-**Symptoms**: GitHub Actions workflow shows red X
+**Symptoms**: GitHub Actions `nightly-scrape` workflow shows red X
 
 ```bash
 # 1. View workflow run logs
 gh run view --log
 
-# 2. Check Supabase connection in Actions
-# Verify secrets are set: SUPABASE_URL, SUPABASE_SECRET_KEY
+# 2. Fairness recalc step failed
+# Check edge-function logs in Supabase Dashboard → Edge Functions → recalculate-fairness
+# Verify secrets: SUPABASE_URL, SUPABASE_SECRET_KEY
 
-# 3. Check rate limits
-# Apartments.com may be blocking requests
-# Check logs for 429 (Too Many Requests)
+# 3. Embed step failed
+# Entry point: packages/ai/src/cli/embed.ts
+# Requires: SUPABASE_SECRET_KEY + Google credentials (GOOGLE_CLOUD_PROJECT /
+#   GOOGLE_APPLICATION_CREDENTIALS_JSON or GEMINI_API_KEY)
+# Check logs for quota errors or missing env vars
 
-# 4. Manual test
-# Run locally: pnpm --filter @campusnest/scraper start
-# Check NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY
-
-# 5. Update Playwright browser (may be outdated)
-# In scraper package: npm install --save-dev playwright@latest
+# 4. PageIndex rebuild step failed
+# Runs only if embed step succeeds
+# Check edge-function logs: Supabase Dashboard → Edge Functions → rebuild-pageindex
+# Manual retry: curl -s -X POST "${SUPABASE_URL}/functions/v1/rebuild-pageindex" \
+#   -H "Authorization: Bearer ${SUPABASE_KEY}"
 ```
 
 ### Memory Issues
