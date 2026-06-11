@@ -112,6 +112,52 @@ describe('AggregateOffer price ranges (AIN-62)', () => {
     );
     expect(result?.price).toBe(1819);
   });
+
+  // Review fix M1: a `lowPrice: 0` placeholder floorplan must not poison the
+  // building min to 0 — 0 passes `inRange` and the key-fields gate, which
+  // would suppress the DOM/LLM rescue. Mirrors `minFloorPlanPrice` (`n > 0`).
+  it('skips a 0-lowPrice placeholder offer and takes the min of the POSITIVE bounds', () => {
+    const result = extractFromJsonLd(
+      htmlWithJsonLd({
+        '@type': 'RealEstateListing',
+        name: 'Placeholder floorplan',
+        offers: [
+          { '@type': 'AggregateOffer', lowPrice: 0 },
+          { '@type': 'AggregateOffer', lowPrice: 1825, highPrice: 1990 },
+          { '@type': 'AggregateOffer', lowPrice: 1819, highPrice: 2308 },
+        ],
+      }),
+      URL,
+    );
+    expect(result?.price).toBe(1819);
+  });
+
+  it('falls back to a positive highPrice when lowPrice is non-positive', () => {
+    const result = extractFromJsonLd(
+      htmlWithJsonLd({
+        '@type': 'RealEstateListing',
+        name: 'Negative low',
+        offers: { '@type': 'AggregateOffer', lowPrice: -5, highPrice: 900 },
+      }),
+      URL,
+    );
+    expect(result?.price).toBe(900);
+  });
+
+  it('yields no price when every AggregateOffer bound is non-positive', () => {
+    const result = extractFromJsonLd(
+      htmlWithJsonLd({
+        '@type': 'RealEstateListing',
+        name: 'All zero',
+        offers: [
+          { '@type': 'AggregateOffer', lowPrice: 0, highPrice: 0 },
+          { '@type': 'AggregateOffer', lowPrice: 0 },
+        ],
+      }),
+      URL,
+    );
+    expect(result?.price).toBeUndefined();
+  });
 });
 
 describe('nested listing entity traversal (AIN-62)', () => {
@@ -213,6 +259,82 @@ describe('nested listing entity traversal (AIN-62)', () => {
     expect(result?.title).toBe('Main Property');
     expect(result?.bedrooms).toBeUndefined();
     expect(result?.price).toBeUndefined();
+  });
+
+  // Review fix M2: gap-fill is designed to read `about` and
+  // `offers[].itemOffered` ONLY. Other entities under `offers` (seller,
+  // offeredBy, …) are NOT the listing — a listing-typed object there must
+  // not gap-fill fields onto the root.
+  it('does NOT gap-fill from a listing-typed entity under offers.seller', () => {
+    const result = extractFromJsonLd(
+      htmlWithJsonLd({
+        '@type': 'RealEstateListing',
+        name: 'Root building',
+        offers: {
+          '@type': 'Offer',
+          price: 1500,
+          seller: {
+            '@type': 'Apartment',
+            name: 'Seller office unit',
+            numberOfBedrooms: 2,
+            address: { '@type': 'PostalAddress', streetAddress: '99 Seller St' },
+          },
+        },
+      }),
+      URL,
+    );
+    expect(result?.price).toBe(1500);
+    expect(result?.bedrooms).toBeUndefined();
+    expect(result?.address).toBeUndefined();
+  });
+
+  it('does NOT gap-fill from a listing-typed entity under offers.offeredBy on an array offer', () => {
+    const result = extractFromJsonLd(
+      htmlWithJsonLd({
+        '@type': 'RealEstateListing',
+        name: 'Root building',
+        offers: [
+          {
+            '@type': 'AggregateOffer',
+            lowPrice: 1819,
+            offeredBy: {
+              '@type': 'ApartmentComplex',
+              name: 'Management entity',
+              numberOfBedrooms: 1,
+              geo: { '@type': 'GeoCoordinates', latitude: 1, longitude: 2 },
+            },
+          },
+        ],
+      }),
+      URL,
+    );
+    expect(result?.price).toBe(1819);
+    expect(result?.bedrooms).toBeUndefined();
+    expect(result?.latitude).toBeUndefined();
+  });
+
+  it('still gap-fills from offers[].itemOffered when offers is an ARRAY', () => {
+    const result = extractFromJsonLd(
+      htmlWithJsonLd({
+        '@type': 'RealEstateListing',
+        name: 'Array offer root',
+        offers: [
+          {
+            '@type': 'Offer',
+            price: 2100,
+            itemOffered: {
+              '@type': 'Apartment',
+              numberOfBedrooms: 2,
+              address: { '@type': 'PostalAddress', streetAddress: '12 Array Way' },
+            },
+          },
+        ],
+      }),
+      URL,
+    );
+    expect(result?.price).toBe(2100);
+    expect(result?.bedrooms).toBe(2);
+    expect(result?.address).toBe('12 Array Way');
   });
 
   it('does not descend below a yielded nested entity (sub-sub-units stay unread)', () => {

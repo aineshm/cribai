@@ -52,14 +52,18 @@ export type { LlmExtractor, ExtractionMethod } from './types';
 // escalation wiring in Task 3 can call `extractFromDom`; `extractNextData` is
 // surfaced for callers that want the raw Next.js blob without per-site logic.
 export { extractFromDom, extractNextData, type SiteExtractor } from './dom';
-// AIN-62: the shared pure pipeline + the Chrome-extension ingest seam.
+// AIN-62: the Chrome-extension ingest seam. The unvalidated internal
+// pipeline (`extractFromHtml`) is deliberately NOT re-exported (review fix
+// L1) — external callers must come through `extractListingFromHtml`, which
+// owns the boundary validation; this module imports the pipeline directly.
 export {
-  extractFromHtml,
   extractListingFromHtml,
   deriveSourceDomain,
   deriveExtractionMethod,
   computeConfidence,
   MAX_HTML_BYTES,
+  MAX_SEAM_HTML_BYTES,
+  MAX_SOURCE_URL_CHARS,
   type ExtractListingFromHtmlOptions,
 } from './extract-from-html';
 

@@ -46,6 +46,7 @@ import {
   extractFromJsonLd,
   extractFromOg,
   extractFromDom,
+  MAX_SEAM_HTML_BYTES,
 } from '../index';
 import type { DnsLookupOption } from '../types';
 
@@ -60,8 +61,6 @@ const BUILDING = {
   url: 'https://www.zillow.com/apartments/madison-wi/eo-madison-yards/ChRJJw/',
 };
 
-/** Mirrors MAX_BODY_BYTES in ../index.ts (not exported). */
-const MAX_BODY_BYTES = 5 * 1024 * 1024;
 
 /**
  * Mirrors the orchestrator's `hasKeyFields` escalation gate (../index.ts):
@@ -86,9 +85,9 @@ async function loadFixture(name: string): Promise<string> {
 
 describe('Real Zillow HTML (browser-captured) — offline layers 1-3', () => {
   describe('single-unit /homedetails/ page (2306 Kendall Ave)', () => {
-    it('stays under the 5MB ingest cap', async () => {
+    it('stays under the seam ingest cap (MAX_SEAM_HTML_BYTES)', async () => {
       const html = await loadFixture(SINGLE_UNIT.fixture);
-      expect(Buffer.byteLength(html, 'utf8')).toBeLessThan(MAX_BODY_BYTES);
+      expect(Buffer.byteLength(html, 'utf8')).toBeLessThan(MAX_SEAM_HTML_BYTES);
     });
 
     it('layer 1 (JSON-LD): extracts title + price from the root AND address/beds/geo from offers.itemOffered', async () => {
@@ -168,9 +167,11 @@ describe('Real Zillow HTML (browser-captured) — offline layers 1-3', () => {
   });
 
   describe('multi-unit /apartments/ building page (EO Madison Yards)', () => {
-    it('stays under the 5MB ingest cap', async () => {
+    it('stays under the seam ingest cap (MAX_SEAM_HTML_BYTES)', async () => {
+      // 3.47MB — the size that forced the seam cap to 4MB instead of the
+      // 2MB the module comment once suggested listing pages fit inside.
       const html = await loadFixture(BUILDING.fixture);
-      expect(Buffer.byteLength(html, 'utf8')).toBeLessThan(MAX_BODY_BYTES);
+      expect(Buffer.byteLength(html, 'utf8')).toBeLessThan(MAX_SEAM_HTML_BYTES);
     });
 
     it('layer 1 (JSON-LD): AggregateOffer price range + `about` ApartmentComplex address/geo/amenities', async () => {

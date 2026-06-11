@@ -155,12 +155,19 @@ export function parseLabeledNumber(raw: string | undefined): number | undefined 
 // OPTIONAL, so single-value pages still match unchanged.
 // ---------------------------------------------------------------------------
 
+// Regex-DoS hardening (review fix, security HIGH): every token length below
+// is BOUNDED. With unbounded `[\d,]+` / `\d+` / `\s*`, a crafted 100KB digit
+// wall drove super-linear backtracking through the site extractors' labeled
+// regexes (~15-38s per regex, measured). Bounds are far above any legitimate
+// value — `[\d,]{1,12}` covers "999,999,999"; `\d{1,9}` covers any bed/bath
+// count; `\s{0,4}` covers spaced range separators (" - ").
+
 /** A money/sqft token: optional `$`, digits with optional thousands commas, optional decimal. */
-const MONEY_TOKEN = String.raw`\$?[\d,]+(?:\.\d+)?`;
+const MONEY_TOKEN = String.raw`\$?[\d,]{1,12}(?:\.\d{1,4})?`;
 /** A bed/bath count token: digits with optional decimal (fractional baths). */
-const COUNT_TOKEN = String.raw`\d+(?:\.\d+)?`;
+const COUNT_TOKEN = String.raw`\d{1,9}(?:\.\d{1,4})?`;
 /** Range separator: hyphen or en/em dash, optionally spaced (`-`, ` - `, `–`). */
-const RANGE_SEP = String.raw`\s*[-–—]\s*`;
+const RANGE_SEP = String.raw`\s{0,4}[-–—]\s{0,4}`;
 
 /** Capture a money/sqft value or range: "$1,200" or "$1,200 - $1,800" → group 1. */
 export const MONEY_RANGE = `(${MONEY_TOKEN}(?:${RANGE_SEP}${MONEY_TOKEN})?)`;

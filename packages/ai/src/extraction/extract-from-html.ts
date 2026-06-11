@@ -39,14 +39,33 @@ import {
 } from './types';
 
 /**
- * Hard cap on the HTML byte size this pipeline accepts. Shared by both entry
- * points: `index.ts` enforces it while streaming the fetch response body
- * (as `MAX_BODY_BYTES`), and `extractListingFromHtml` enforces it on the
- * caller-supplied string. Listing pages are typically <2MB even with inline
- * SVGs and base64-encoded hero images; 5MB is a generous budget that still
- * defends against memory blow-up.
+ * Hard cap on the HTML byte size the FETCH path accepts. `index.ts` enforces
+ * it while streaming the fetch response body (as `MAX_BODY_BYTES`). 5MB is a
+ * generous budget that still defends against memory blow-up.
+ *
+ * The HTML seam (`extractListingFromHtml`) has its OWN, tighter cap —
+ * `MAX_SEAM_HTML_BYTES` below — so the two entry points can be tuned
+ * independently.
  */
 export const MAX_HTML_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Hard cap on caller-supplied HTML at the `extractListingFromHtml` seam
+ * (review fix, security LOW). Listing pages are typically <2MB even with
+ * inline SVGs and base64-encoded hero images, but the largest real
+ * browser-captured fixture (zillow-madison-building.html, a /apartments/
+ * page) is 3.47MB — 4MB is the smallest power-of-two bound that fits real
+ * captures comfortably while shaving 20% off the fetch path's budget.
+ */
+export const MAX_SEAM_HTML_BYTES = 4 * 1024 * 1024;
+
+/**
+ * Cap on the `sourceUrl` string accepted by `extractListingFromHtml`
+ * (review fix, security LOW). Browsers and CDNs conventionally cap URLs
+ * around 2KB; anything longer is not a real listing URL and only bloats
+ * stored `source_url` values and error context.
+ */
+export const MAX_SOURCE_URL_CHARS = 2048;
 
 /**
  * Options accepted by the pure pipeline. Only the LLM rare path is
@@ -462,10 +481,11 @@ export async function extractFromHtml(
  * pages embed the substring "captcha" in script config).
  *
  * Validation at the boundary:
- *   - `html` must be a non-empty string no larger than `MAX_HTML_BYTES`
- *     (the same 5MB cap the fetch path enforces while streaming).
- *   - `sourceUrl` must be a valid absolute http(s) URL; `source_domain`
- *     derives from it.
+ *   - `html` must be a non-empty string no larger than `MAX_SEAM_HTML_BYTES`
+ *     (4MB — tighter than the fetch path's 5MB streaming cap).
+ *   - `sourceUrl` must be a valid absolute http(s) URL of at most
+ *     `MAX_SOURCE_URL_CHARS` (2048) characters; `source_domain` derives
+ *     from it.
  *
  * Throws `ExtractionError` with `parse_failed` on invalid input or
  * `no_listing_data` when no extraction layer produced any usable field.
@@ -475,6 +495,16 @@ export async function extractListingFromHtml(
   sourceUrl: string,
   opts: ExtractListingFromHtmlOptions = {},
 ): Promise<ExtractedListing> {
+  // Length-cap the URL before parsing it — keeps a multi-megabyte "URL" out
+  // of `new URL` and out of the error-context field (truncated for safety).
+  if (typeof sourceUrl === 'string' && sourceUrl.length > MAX_SOURCE_URL_CHARS) {
+    throw new ExtractionError(
+      'parse_failed',
+      `sourceUrl exceeds ${MAX_SOURCE_URL_CHARS} characters (got ${sourceUrl.length})`,
+      sourceUrl.slice(0, 256),
+    );
+  }
+
   // Validate the URL first — it doubles as the error-context `url` field.
   let parsedUrl: URL;
   try {
@@ -498,10 +528,10 @@ export async function extractListingFromHtml(
     );
   }
   const bytes = Buffer.byteLength(html, 'utf8');
-  if (bytes > MAX_HTML_BYTES) {
+  if (bytes > MAX_SEAM_HTML_BYTES) {
     throw new ExtractionError(
       'parse_failed',
-      `HTML exceeds ${MAX_HTML_BYTES} bytes (got ${bytes}) for ${sourceUrl}`,
+      `HTML exceeds ${MAX_SEAM_HTML_BYTES} bytes (got ${bytes}) for ${sourceUrl}`,
       sourceUrl,
     );
   }

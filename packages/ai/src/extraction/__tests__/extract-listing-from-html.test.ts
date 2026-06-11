@@ -15,7 +15,9 @@
  *      HTML is a guaranteed false positive. HTML from the user's browser is
  *      trusted-as-data.
  *   3. Validates inputs at the boundary: html must be a non-empty string
- *      under the 5MB cap; sourceUrl must be a valid http(s) URL.
+ *      under the seam's 4MB cap (`MAX_SEAM_HTML_BYTES`, tighter than the
+ *      fetch path's 5MB); sourceUrl must be a valid http(s) URL of at most
+ *      2048 characters.
  *   4. `source_domain` derives from the supplied sourceUrl.
  */
 
@@ -24,7 +26,12 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-import { extractListing, extractListingFromHtml } from '../index';
+import {
+  extractListing,
+  extractListingFromHtml,
+  MAX_SEAM_HTML_BYTES,
+  MAX_SOURCE_URL_CHARS,
+} from '../index';
 import type { DnsLookupOption, LlmExtractor } from '../types';
 
 const FIXTURES_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '__fixtures__');
@@ -73,12 +80,38 @@ describe('extractListingFromHtml', () => {
       ).rejects.toMatchObject({ name: 'ExtractionError', code: 'parse_failed' });
     });
 
-    it('rejects html over the 5MB byte cap with parse_failed', async () => {
-      // 5MB + 1 of multi-byte text would also trip it; plain ASCII is enough.
-      const oversized = 'x'.repeat(5 * 1024 * 1024 + 1);
+    it('rejects html over the seam byte cap (4MB) with parse_failed', async () => {
+      // The seam cap is TIGHTER than the fetch path's 5MB MAX_BODY_BYTES —
+      // 4MB is the smallest power-of-two bound that comfortably fits the
+      // largest real browser capture (zillow-madison-building, 3.47MB).
+      // Cap + 1 of multi-byte text would also trip it; plain ASCII is enough.
+      expect(MAX_SEAM_HTML_BYTES).toBe(4 * 1024 * 1024);
+      const oversized = 'x'.repeat(MAX_SEAM_HTML_BYTES + 1);
       await expect(
         extractListingFromHtml(oversized, ZILLOW_FIXTURE_URL),
       ).rejects.toMatchObject({ name: 'ExtractionError', code: 'parse_failed' });
+    });
+
+    it('rejects a sourceUrl longer than 2048 characters with parse_failed', async () => {
+      expect(MAX_SOURCE_URL_CHARS).toBe(2048);
+      const longUrl = `https://www.zillow.com/homedetails/${'a'.repeat(MAX_SOURCE_URL_CHARS)}/`;
+      await expect(
+        extractListingFromHtml('<html></html>', longUrl),
+      ).rejects.toMatchObject({ name: 'ExtractionError', code: 'parse_failed' });
+    });
+
+    it('accepts a sourceUrl of exactly 2048 characters', async () => {
+      const prefix = 'https://listings.example.com/';
+      const url = prefix + 'a'.repeat(MAX_SOURCE_URL_CHARS - prefix.length);
+      expect(url).toHaveLength(MAX_SOURCE_URL_CHARS);
+      const html = `<html><head><script type="application/ld+json">{
+        "@type": "Apartment", "name": "Cap boundary",
+        "offers": {"@type": "Offer", "price": 1100},
+        "address": {"@type": "PostalAddress", "streetAddress": "1 Cap St"}
+      }</script></head><body></body></html>`;
+      const result = await extractListingFromHtml(html, url);
+      expect(result.source_url).toBe(url);
+      expect(result.price).toBe(1100);
     });
 
     it('rejects an unparseable sourceUrl with parse_failed', async () => {
