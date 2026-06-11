@@ -81,6 +81,52 @@ describe('toCrmUnit', () => {
     expect(toCrmUnit({ ...BASE_ROW, bedrooms: null }, VIEWER_ID)._proposed.unit.unitLabel).toBe('Unit');
   });
 
+  // AIN-65 fold-in — photo_urls render straight into <img src>; only https:
+  // URLs may survive the adapter (mixed-content / tracking vector otherwise).
+  describe('photo_urls https-only filter', () => {
+    it('keeps https URLs and drops http ones, preserving order', () => {
+      const unit = toCrmUnit(
+        {
+          ...BASE_ROW,
+          photo_urls: [
+            'http://example.com/a.jpg',
+            'https://example.com/b.jpg',
+            'https://example.com/c.jpg',
+          ],
+        },
+        VIEWER_ID,
+      );
+      expect(unit.photo_urls).toEqual([
+        'https://example.com/b.jpg',
+        'https://example.com/c.jpg',
+      ]);
+    });
+
+    it('drops non-http(s) schemes and unparseable values', () => {
+      const unit = toCrmUnit(
+        {
+          ...BASE_ROW,
+          photo_urls: [
+            'javascript:alert(1)',
+            'data:image/png;base64,xyz',
+            '//example.com/protocol-relative.jpg',
+            'not a url',
+            'HTTPS://EXAMPLE.COM/UPPER.JPG',
+          ],
+        },
+        VIEWER_ID,
+      );
+      // Scheme matching is case-insensitive per URL spec — the uppercase
+      // https URL survives; everything else is dropped.
+      expect(unit.photo_urls).toEqual(['HTTPS://EXAMPLE.COM/UPPER.JPG']);
+    });
+
+    it('preserves null photo_urls as null and empty arrays as empty', () => {
+      expect(toCrmUnit({ ...BASE_ROW, photo_urls: null }, VIEWER_ID).photo_urls).toBeNull();
+      expect(toCrmUnit({ ...BASE_ROW, photo_urls: [] }, VIEWER_ID).photo_urls).toEqual([]);
+    });
+  });
+
   it('falls back through title → address → generic for the building name', () => {
     expect(toCrmUnit(BASE_ROW, VIEWER_ID)._proposed.unit.building).toBe(BASE_ROW.title);
     expect(
