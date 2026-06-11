@@ -29,10 +29,32 @@ function deriveUnitLabel(bedrooms: number | null): string {
   return `${bedrooms} bed`;
 }
 
+/** True only for absolute https: URLs (URL parsing lowercases the scheme). */
+function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * AIN-65 fold-in — photo_urls render straight into `<img src>` downstream
+ * (SavedUnitCard, ApplicationPipeline, UnitDetailDrawer) with no scheme
+ * filter, so this adapter is the single chokepoint that drops anything that
+ * isn't an absolute https: URL (mixed-content / tracking vector otherwise).
+ * `null` stays `null` — "no photos" is honest, not coerced to `[]`.
+ */
+function httpsPhotoUrls(urls: readonly string[] | null): readonly string[] | null {
+  if (urls === null) return null;
+  return urls.filter(isHttpsUrl);
+}
+
 /** Build a CrmUnit from a contract row + the viewing user's id. Pure — never mutates the row. */
 export function toCrmUnit(row: CrmListingRow, viewerId: string): CrmUnit {
   return {
     ...row,
+    photo_urls: httpsPhotoUrls(row.photo_urls),
     _proposed: {
       unit: {
         building: row.title ?? row.address ?? 'Saved listing',

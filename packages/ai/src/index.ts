@@ -37,7 +37,7 @@ export type {
 // PDR-004 Track A Days 3-4 (AIN-8) — LLM-first turn handler + supporting bits.
 export { runLlmTurn } from './runtime/llm-turn';
 export type { RunLlmTurnInput } from './runtime/llm-turn';
-export { selectRuntime, LLM_FIRST_FLAG } from './runtime/runtime-select';
+export { selectRuntime, LLM_FIRST_FLAG, CRM_SURFACE_FLAG } from './runtime/runtime-select';
 export type { SelectRuntimeInput } from './runtime/runtime-select';
 export {
   createAiSdkModel,
@@ -165,4 +165,13 @@ export type {
   CompareRow,
   CrmListingRow,
   TrueCostInput,
+} from './crm';
+// AIN-65 — handler machineData contracts, consumed by the CRM front end to
+// render structured cards straight from `tool_result` SSE events.
+export type {
+  CrmMachineData,
+  AddListingMachineData,
+  FirstSaveAnalysisMachineData,
+  RankCompareMachineData,
+  InferProfileMachineData,
 } from './crm';
