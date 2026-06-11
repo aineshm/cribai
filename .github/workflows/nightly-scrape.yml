@@ -1,18 +1,9 @@
-name: Nightly Scrape
+name: Nightly sublease maintenance
 
 on:
   schedule:
     - cron: '0 8 * * *'  # 2am CT = 8am UTC
   workflow_dispatch:
-    inputs:
-      skip_scrape:
-        description: 'Skip Apify scrape and go straight to embeddings (use when data is already fresh)'
-        required: false
-        default: 'false'
-        type: choice
-        options:
-          - 'false'
-          - 'true'
 
 jobs:
   scrape:
@@ -32,106 +23,8 @@ jobs:
       - name: Build workspace packages
         run: pnpm --filter @campusnest/types --filter @campusnest/utils build
 
-      - name: Check last Zillow scrape age
-        id: check_scrape_age
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-          MANUAL_SKIP: ${{ github.event.inputs.skip_scrape }}
-        run: |
-          if [ "$MANUAL_SKIP" = "true" ]; then
-            echo "Manual override — skipping Apify scrape"
-            echo "skip_scrape=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          LAST_SEEN=$(curl -sf \
-            "${SUPABASE_URL}/rest/v1/listings?source=eq.zillow&select=last_seen_at&order=last_seen_at.desc&limit=1" \
-            -H "apikey: ${SUPABASE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_KEY}" | jq -r '.[0].last_seen_at // empty')
-          if [ -z "$LAST_SEEN" ]; then
-            echo "No Zillow listings found — will run scraper"
-            echo "skip_scrape=false" >> "$GITHUB_OUTPUT"
-          else
-            NOW=$(date -u +%s)
-            LAST_SEEN_S=$(date -u -d "$LAST_SEEN" +%s)
-            AGE=$(( NOW - LAST_SEEN_S ))
-            echo "Last Zillow scrape: $LAST_SEEN (${AGE}s ago)"
-            if [ "$AGE" -lt 86400 ]; then
-              echo "Data is fresh (< 24h) — skipping Apify scrape, proceeding to embeddings"
-              echo "skip_scrape=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "Data is stale (>= 24h) — will run scraper"
-              echo "skip_scrape=false" >> "$GITHUB_OUTPUT"
-            fi
-          fi
-
-      - name: Install Playwright browsers
-        if: env.ENABLE_APARTMENTS_COM == 'true'
-        run: pnpm --filter @campusnest/scraper exec playwright install chromium --with-deps
-
-      - name: Run scraper
-        id: scrape
-        if: steps.check_scrape_age.outputs.skip_scrape != 'true'
-        run: |
-          OUTPUT=$(pnpm --filter @campusnest/scraper start -- --limit 500 2>&1) || EXIT_CODE=$?
-          echo "$OUTPUT"
-          METRICS=$(echo "$OUTPUT" | grep "^::metrics::" | sed 's/^::metrics:://')
-          if [ -n "$METRICS" ]; then
-            echo "metrics=$METRICS" >> "$GITHUB_OUTPUT"
-          fi
-          DIAGNOSTIC=$(echo "$OUTPUT" | grep "^::diagnostic::" | sed 's/^::diagnostic:://')
-          if [ -n "$DIAGNOSTIC" ]; then
-            {
-              echo "diagnostic<<DIAG_EOF"
-              echo "$DIAGNOSTIC"
-              echo "DIAG_EOF"
-            } >> "$GITHUB_OUTPUT"
-          fi
-          exit ${EXIT_CODE:-0}
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
-          APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
-          ENABLE_APARTMENTS_COM: 'false'
-
-      - name: Write job summary
-        if: always()
-        env:
-          SCRAPE_OUTCOME: ${{ steps.scrape.outcome }}
-          SCRAPE_METRICS: ${{ steps.scrape.outputs.metrics }}
-          SCRAPE_DIAGNOSTIC: ${{ steps.scrape.outputs.diagnostic }}
-        run: |
-          echo "## Nightly Scrape Report" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          if [ "$SCRAPE_OUTCOME" = "failure" ]; then
-            echo "> **FAILED** -- Check logs for details" >> "$GITHUB_STEP_SUMMARY"
-          elif [ "$SCRAPE_OUTCOME" = "skipped" ]; then
-            echo "> **SKIPPED** (Zillow data is fresh, < 24h old — proceeding to embeddings)" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "> **SUCCESS**" >> "$GITHUB_STEP_SUMMARY"
-          fi
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          if [ -n "$SCRAPE_METRICS" ]; then
-            echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
-            echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
-            echo "| Listings Upserted | $(echo "$SCRAPE_METRICS" | jq -r '.upserted') |" >> "$GITHUB_STEP_SUMMARY"
-            echo "| Stale Marked | $(echo "$SCRAPE_METRICS" | jq -r '.staleMarked') |" >> "$GITHUB_STEP_SUMMARY"
-            echo "| Archived | $(echo "$SCRAPE_METRICS" | jq -r '.archived') |" >> "$GITHUB_STEP_SUMMARY"
-            echo "| Deleted | $(echo "$SCRAPE_METRICS" | jq -r '.deleted') |" >> "$GITHUB_STEP_SUMMARY"
-            echo "| Errors | $(echo "$SCRAPE_METRICS" | jq -r '.errors') |" >> "$GITHUB_STEP_SUMMARY"
-            echo "| Notifications | $(echo "$SCRAPE_METRICS" | jq -r '.notifications') |" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "*No metrics available -- scraper may have crashed before reporting.*" >> "$GITHUB_STEP_SUMMARY"
-          fi
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          # Per-source diagnostic table from scraper output
-          if [ -n "$SCRAPE_DIAGNOSTIC" ]; then
-            echo "$SCRAPE_DIAGNOSTIC" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
       - name: Trigger fairness recalculation
-        if: success() && steps.scrape.outcome == 'success'
+        if: success()
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
@@ -167,6 +60,7 @@ jobs:
           EMBED_OUTCOME: ${{ steps.embed.outcome }}
           EMBED_METRICS: ${{ steps.embed.outputs.metrics }}
         run: |
+          echo "## Nightly Sublease Maintenance Report" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "## Embedding Generation" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"

@@ -94,7 +94,7 @@ The scraper runs on schedule via GitHub Actions:
 cat .github/workflows/nightly-scrape.yml
 
 # Manual trigger (via GitHub web UI)
-# Go to Actions → Nightly Scrape → Run workflow
+# Go to Actions → Nightly sublease maintenance → Run workflow
 
 # View run history
 gh run list --workflow nightly-scrape.yml --limit 10
