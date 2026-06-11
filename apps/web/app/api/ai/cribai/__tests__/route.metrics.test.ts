@@ -251,6 +251,7 @@ describe('POST /api/ai/cribai — AIN-19 latency instrumentation', () => {
     llmChatChunks = [];
     llmTurnChunks = [];
     delete process.env.CRIBAI_RUNTIME_LLM_FIRST;
+    delete process.env.CRIBAI_RUNTIME_CRM;
     // AIN-8 — clear call history (NOT implementation) so per-test
     // "was/wasn't called" assertions don't see cumulative counts.
     vi.mocked(maybeHandleDeterministicTurn).mockClear();
@@ -724,6 +725,69 @@ describe('POST /api/ai/cribai — AIN-19 latency instrumentation', () => {
     expect(row.tools_called).toEqual(['search_listings']);
     expect(row.tool_step_count).toBe(1);
     expect(row.error_kind).toBeNull();
+  });
+
+  // ----------------------------------------------------------------------
+  // AIN-65 / WS6 — surface-scoped runtime escalation. body.surface === 'crm'
+  // (the only accepted literal) + CRIBAI_RUNTIME_CRM='1' routes the turn to
+  // the LLM-first runtime even with the global flag off. Any other surface
+  // value is ignored. (A client CAN spoof surface:'crm' — accepted risk: CRM
+  // tools are sign-in-gated, rate-limited, and cost-cap observed.)
+  // ----------------------------------------------------------------------
+
+  it("escalates surface:'crm' turns to llm_first when CRIBAI_RUNTIME_CRM='1'", async () => {
+    process.env.CRIBAI_RUNTIME_CRM = '1';
+    llmTurnChunks = [
+      { type: 'text', content: 'Saved and analyzed.' },
+      { type: 'done' },
+    ];
+
+    const req = buildRequest(
+      {
+        query: 'https://www.zillow.com/some-listing',
+        campusSlug: 'uw-madison',
+        history: [],
+        surface: 'crm',
+      },
+      { 'x-request-id': 'trace-crm-surface-1' },
+    );
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    await drainStream(res);
+    await new Promise((r) => setTimeout(r, 5));
+
+    expect(maybeHandleDeterministicTurn).not.toHaveBeenCalled();
+    expect(runLlmTurn).toHaveBeenCalledTimes(1);
+
+    const metricsInserts = recordedInserts.filter((i) => i.table === 'ai_request_metrics');
+    expect(metricsInserts).toHaveLength(1);
+    expect(metricsInserts[0]!.row.runtime).toBe('llm_first');
+  });
+
+  it('ignores non-crm surface values — stays deterministic even with the CRM flag on', async () => {
+    process.env.CRIBAI_RUNTIME_CRM = '1';
+
+    const req = buildRequest(
+      {
+        query: 'show me subleases near campus',
+        campusSlug: 'uw-madison',
+        history: [],
+        surface: 'explore',
+      },
+      { 'x-request-id': 'trace-crm-surface-2' },
+    );
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    await drainStream(res);
+    await new Promise((r) => setTimeout(r, 5));
+
+    expect(runLlmTurn).not.toHaveBeenCalled();
+
+    const metricsInserts = recordedInserts.filter((i) => i.table === 'ai_request_metrics');
+    expect(metricsInserts).toHaveLength(1);
+    expect(metricsInserts[0]!.row.runtime).toBe('deterministic');
   });
 
   it("classifies an LLM-first quota error as gemini_quota with runtime='llm_first'", async () => {
