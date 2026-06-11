@@ -82,7 +82,9 @@ function buildSearchStatePatch(
       amenities: parsed.amenities ?? [],
       address: parsed.address ?? null,
       semanticQuery: parsed.semantic_query ?? null,
-      source: null,
+      // AIN-63: discovery queries always pin source='sublease'; reflect that in state
+      // (not a user-toggleable filter — there is no UI chip for source).
+      source: 'sublease',
     },
   };
 }
@@ -177,18 +179,10 @@ async function semanticSearch(
       landmarkName: landmark?.name ?? null,
       hasGeoParams: 'p_latitude' in rpcParams,
     });
-    return {
-      machineData: {
-        normalizedArgs: buildNormalizedArgs(parsed, limit),
-        resultListingIds: [],
-        resultCount: 0,
-        uniquePropertyCount: 0,
-        center: null,
-        sourceBreakdown: {},
-      },
-      modelContext: 'Search is temporarily unavailable. Try rephrasing your request or I can search by specific filters instead.',
-      clientBlock: { type: 'listing_card' as const, listings: [] },
-    };
+    // Degrade to the SQL path (already sublease-filtered) instead of an outage message —
+    // covers the deploy-before-migration-040 window where the p_source named-arg
+    // doesn't match any function signature (PGRST202).
+    return sqlSearch(parsed, limit, context);
   }
 
   let rows = (data ?? []) as readonly SemanticRpcRow[];

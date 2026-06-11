@@ -154,7 +154,7 @@ export function ExploreClient({ featuredListings }: ExploreClientProps) {
     }
   }, []);
 
-  /** Reset AI-filtered map results back to showing all listings from the full corpus */
+  /** Reset AI-filtered map results back to the viewport's sublease inventory (AIN-63: discovery is sublease-only) */
   const resetAiResults = useCallback(() => {
     setAiMapListings(null);
     setMapFlyTo(null);

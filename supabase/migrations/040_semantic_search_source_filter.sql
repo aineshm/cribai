@@ -32,7 +32,7 @@ DROP FUNCTION IF EXISTS public.match_listings_semantic(
   double precision, double precision, double precision
 );
 
-CREATE FUNCTION match_listings_semantic(
+CREATE FUNCTION public.match_listings_semantic(
   query_embedding extensions.vector(768),
   p_campus_id uuid,
   p_bedrooms smallint DEFAULT NULL,
@@ -127,3 +127,14 @@ ALTER FUNCTION public.match_listings_semantic(
   double precision, double precision, double precision, text
 )
   SET search_path = public, extensions, pg_temp;
+
+-- Pin grants explicitly (034 pattern): the DROP/CREATE would otherwise silently
+-- restore default privileges, undoing any out-of-band tightening in prod.
+REVOKE ALL ON FUNCTION public.match_listings_semantic(
+  extensions.vector, uuid, smallint, numeric, numeric, numeric, integer,
+  double precision, double precision, double precision, text
+) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.match_listings_semantic(
+  extensions.vector, uuid, smallint, numeric, numeric, numeric, integer,
+  double precision, double precision, double precision, text
+) TO anon, authenticated, service_role;

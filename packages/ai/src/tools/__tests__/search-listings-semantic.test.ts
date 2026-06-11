@@ -308,6 +308,27 @@ describe('searchListings semantic search', () => {
     }));
   });
 
+  it('falls back to the SQL path when the semantic RPC errors (e.g. pre-040 schema, PGRST202)', async () => {
+    const builder = createMockQueryBuilder([SAMPLE_LISTING_ROW]);
+    const context = createMockContext();
+    vi.mocked(context.supabase.from).mockReturnValue(builder as never);
+    const rpcMock = vi.fn().mockResolvedValue({
+      data: null,
+      error: { message: 'Could not find the function', code: 'PGRST202', details: null, hint: null },
+    });
+    (context.supabase as unknown as { rpc: typeof rpcMock }).rpc = rpcMock;
+
+    const result = await searchListings({ semantic_query: 'cozy apartment' }, context);
+
+    // Falls back to the (sublease-filtered) SQL builder instead of "temporarily unavailable"
+    expect(context.supabase.from).toHaveBeenCalledWith('listings');
+    expect(builder.eq).toHaveBeenCalledWith('source', 'sublease');
+    expect(result.modelContext).not.toContain('temporarily unavailable');
+    if (result.clientBlock.type === 'listing_card') {
+      expect(result.clientBlock.listings).toHaveLength(1);
+    }
+  });
+
   it('describes semantic results as student subleases, not scraped sources (AIN-63)', async () => {
     const context = createMockContext();
     const rpcMock = vi.fn().mockResolvedValue({
