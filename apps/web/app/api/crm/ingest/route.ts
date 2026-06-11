@@ -4,8 +4,8 @@
  * The Chrome extension captures `document.documentElement.outerHTML` from the
  * user's real browser session and POSTs it here. This route:
  *   1. Authenticates via Bearer token (extension cannot use cookies).
- *   2. Validates the request body: sourceUrl (http(s) only), html (non-empty,
- *      ≤ 4 MiB), capturedAt (ISO string).
+ *   2. Validates the request body: sourceUrl (http(s) only, trimmed),
+ *      html (non-empty, ≤ 4 MiB), capturedAt (ISO-8601 datetime with offset).
  *   3. Enforces three hard-gate security controls (AIN-62 spec):
  *      a. Per-user ingest rate limit (5 calls / hr — see ingest-rate-limiter.ts).
  *      b. Per-user 200-row save cap (same guard as POST /api/crm/listings).
@@ -18,6 +18,8 @@
  *      same pattern as GET /api/crm/listings/[id]/analysis).
  *   6. Responds with the AddListingResult + a short summary string for the
  *      extension popup. 201 for a new save, 200 for an already-saved URL.
+ *      201 responses include `analysisPending: true` so the popup can signal
+ *      that analysis is computing asynchronously.
  *
  * CORS: OPTIONS preflight is answered for the single configured extension
  * origin (CRM_EXTENSION_ORIGIN env var). Unknown or missing origins are denied.
@@ -27,12 +29,22 @@
  * the HTML as data only. Public-host / DNS checks are omitted because there
  * is no outbound request to guard against.
  *
- * LLM-ESCALATION COST CAP: the extraction pipeline's LLM rare-path is the
- * only paid LLM call this route can trigger. The per-user ingest rate limit
- * (5/hr) directly bounds the worst-case LLM escalation rate to 5 LLM calls
- * per user per hour — tighter than the 10/hr chat limit because an ingest
- * call costs MORE (extraction LLM + 4-branch firstSaveAnalysis fanout).
- * No separate counter is needed; the rate limit IS the cost cap.
+ * LLM-ESCALATION COST CAP: worst case is up to 2 LLM calls per ingest —
+ * extraction rare-path (Gemini) and the redFlags branch of firstSaveAnalysis
+ * (OpenAI, default maxRetries noted). At 5 ingest saves/hr that is up to
+ * 10 LLM calls per user per hour across both providers — matching, not
+ * beating, the 10/hr chat class limit. No separate counter is needed; the
+ * rate limit IS the cost cap.
+ *
+ * MULTI-INSTANCE CAVEAT: the in-memory rate limiter is per-lambda-instance;
+ * a determined attacker could exceed the per-user quota by hitting multiple
+ * cold-start Vercel instances. This is an accepted risk at current scale.
+ * A DB-backed upgrade is tracked in Linear: "DB-backed ingest rate limiter
+ * before growth ramp".
+ *
+ * PLATFORM ASSUMPTION: Vercel rejects request bodies > 4.5 MB at the
+ * infrastructure layer. Self-hosted deploys rely on the content-length
+ * precheck below as their first line of defence before any body buffering.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -62,6 +74,17 @@ import { MAX_SAVED_LISTINGS } from '../listings/route';
 const MAX_HTML_BYTES = 4 * 1024 * 1024;
 
 /**
+ * Content-length precheck limit (~4.5 MiB): the JSON envelope adds up to
+ * ~512 KiB of overhead above the 4 MiB html cap. Any Content-Length header
+ * reporting >= this value is rejected immediately, before the body is buffered.
+ *
+ * Platform assumption: Vercel rejects bodies > 4.5 MB at the infrastructure
+ * layer. Self-hosted deploys rely on this precheck. The byte-accurate
+ * Buffer.byteLength check below remains as the second layer.
+ */
+const MAX_CONTENT_LENGTH_BYTES = MAX_HTML_BYTES + 512 * 1024; // 4.5 MiB
+
+/**
  * Wall-clock budget for the entire request (extraction + addListing + analysis
  * fire). Overridable via INGEST_BUDGET_MS env var for tests. Default 30 s is
  * generous for a local extension call but tight enough to prevent hanging.
@@ -73,6 +96,7 @@ const DEFAULT_BUDGET_MS = 30_000;
 const ingestBodySchema = z.object({
   sourceUrl: z
     .string()
+    .trim() // match listings-route schema; prevents whitespace-variant dedup misses
     .min(1)
     .max(2048)
     .refine(
@@ -90,7 +114,12 @@ const ingestBodySchema = z.object({
     .string()
     .min(1, { message: 'html must be a non-empty string' })
     .refine((v) => v.trim().length > 0, { message: 'html must be a non-empty string' }),
-  capturedAt: z.string().min(1),
+  /**
+   * ISO-8601 datetime string with timezone offset.
+   * Reserved for future audit logging — intentionally not yet persisted.
+   * Using z.string().datetime({ offset: true }) for strict schema validation.
+   */
+  capturedAt: z.string().datetime({ offset: true }),
 });
 
 // ── Error status map ──────────────────────────────────────────────────────────
@@ -148,6 +177,13 @@ function buildCorsHeaders(requestOrigin: string | null): Headers {
 /**
  * Wrap a promise with a wall-clock timeout. Resolves with the value or rejects
  * with a typed `BudgetExceededError` when the deadline fires first.
+ *
+ * NOTE: the losing addListing call may continue running after a 504 response.
+ * If it completes successfully and inserts the row, the user's retry will see
+ * `alreadySaved: true` — dedup ensures the retry converges to the correct state.
+ * This is accepted behaviour: the alternative (aborting the insert) would
+ * require AbortController propagation through addListing, and the dedup guard
+ * already makes the outcome safe.
  */
 class BudgetExceededError extends Error {
   constructor() {
@@ -231,6 +267,22 @@ export async function OPTIONS(request: NextRequest): Promise<NextResponse> {
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const origin = request.headers.get('origin');
   const corsHeaders = buildCorsHeaders(origin);
+
+  // ── 0. Content-length precheck (SEC HIGH) ────────────────────────────────
+  // Reject oversized requests before buffering the body. This fires before
+  // any auth or JSON parsing so we don't waste lambda memory on huge payloads.
+  // Vercel enforces a 4.5 MB hard limit at the infra layer; this precheck is
+  // the equivalent gate for self-hosted deployments.
+  const contentLengthHeader = request.headers.get('content-length');
+  if (contentLengthHeader !== null) {
+    const contentLength = parseInt(contentLengthHeader, 10);
+    if (!isNaN(contentLength) && contentLength > MAX_CONTENT_LENGTH_BYTES) {
+      return NextResponse.json(
+        { error: `Request too large (${contentLength} bytes; max ${MAX_CONTENT_LENGTH_BYTES})` },
+        { status: 413, headers: corsHeaders },
+      );
+    }
+  }
 
   // ── 1. Auth — Bearer token only (no cookies) ─────────────────────────────
   const auth = await resolveCrmAuthFromBearer(request);
@@ -319,6 +371,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const capturedHtml = html;
     const capturedSourceUrl = sourceUrl;
 
+    // withBudget race: the losing addListing may continue running after the
+    // 504 response is sent. If it completes and inserts the row, the user's
+    // retry will see alreadySaved: true — dedup makes the retry converge safely.
     const result = await withBudget(
       addListing(sourceUrl, {
         extract: (_url: string) =>
@@ -338,7 +393,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const status = result.alreadySaved ? 200 : 201;
     return NextResponse.json(
-      { ...result, summary: buildSummary(result.listingId, result.alreadySaved) },
+      {
+        ...result,
+        summary: buildSummary(result.listingId, result.alreadySaved),
+        // Inform the extension popup that analysis is computing asynchronously.
+        // Only set on 201 (new saves); already-saved rows were analyzed at first save.
+        ...(result.alreadySaved ? {} : { analysisPending: true }),
+      },
       { status, headers: corsHeaders },
     );
   } catch (err: unknown) {

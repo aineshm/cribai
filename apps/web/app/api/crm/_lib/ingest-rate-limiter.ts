@@ -56,6 +56,16 @@ function evict(timestamps: number[], now: number): void {
 }
 
 /**
+ * Remove the Map entry when eviction leaves the array empty. Prevents the Map
+ * from growing unboundedly with inactive users across a long-running instance.
+ */
+function pruneIfEmpty(userId: string, timestamps: number[]): void {
+  if (timestamps.length === 0) {
+    userTimestamps.delete(userId);
+  }
+}
+
+/**
  * Check whether the user is within their rate-limit budget.
  * Does NOT record the current request — call `recordIngestRequest` on success.
  *
@@ -67,11 +77,17 @@ export function checkIngestRateLimit(
 ): { allowed: true } | { allowed: false; retryAfterMs: number } {
   const timestamps = userTimestamps.get(userId) ?? [];
   evict(timestamps, now);
-  userTimestamps.set(userId, timestamps);
+
+  // If eviction drained the array, remove the Map entry to prevent unbounded growth.
+  pruneIfEmpty(userId, timestamps);
 
   if (timestamps.length < INGEST_RATE_LIMIT.maxRequests) {
     return { allowed: true };
   }
+
+  // The pruneIfEmpty call above only runs when length === 0 so we only reach
+  // here when length >= maxRequests — set the entry so it survives the check.
+  userTimestamps.set(userId, timestamps);
 
   // Oldest timestamp in window + windowMs = when the next slot opens.
   const oldest = timestamps[0] ?? now;
@@ -87,6 +103,7 @@ export function recordIngestRequest(userId: string, now = Date.now()): void {
   const timestamps = userTimestamps.get(userId) ?? [];
   evict(timestamps, now);
   timestamps.push(now);
+  // Always set after push — entry is non-empty so no prune needed here.
   userTimestamps.set(userId, timestamps);
 }
 

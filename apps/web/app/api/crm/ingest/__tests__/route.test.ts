@@ -5,13 +5,23 @@
  *   - 401 on missing / malformed / invalid Bearer token
  *   - 400 on invalid JSON or bad body (wrong types, missing fields)
  *   - 400 on a sourceUrl with a disallowed scheme (javascript:, file:, ftp:)
- *   - 413 when html exceeds 4 MiB
+ *   - 400 on a capturedAt value that is not a valid ISO-8601 datetime
+ *   - 400 on a sourceUrl with leading/trailing whitespace (trim rejects pre-trim dedup misses)
+ *   - 413 via content-length precheck before body buffering (happy-dom strips
+ *     content-length on bodied requests; boundary tested in AIN-66 integration smoke)
+ *   - 413 via post-parse byte-accurate html check (belt-and-suspenders, fully testable)
+ *   - 413 when html exceeds 4 MiB (byte-accurate post-parse check)
  *   - 429 when the user exceeds the ingest rate limit (5/hr)
  *   - 429 when the user exceeds the 200-row save cap
  *   - 504 when the overall wall-clock budget is exceeded
  *   - 200/201 happy path: addListing called with extractListingFromHtml as the
  *     extract dep, analysis fired and persisted write-through, result returned
- *   - NO-FETCH invariant: global fetch is never called with the sourceUrl
+ *   - 201 response includes analysisPending: true so the extension popup knows
+ *     analysis is computing asynchronously
+ *   - The trimmed sourceUrl (not the raw whitespace-padded one) reaches addListing
+ *   - NO-FETCH invariant: the route's closure wiring causes extractListingFromHtml
+ *     to be called with the captured (html, sourceUrl) — the real no-fetch contract
+ *     lives in extractListingFromHtml's own unit tests
  *   - CORS: OPTIONS preflight returns the correct headers for the configured
  *     extension origin
  */
@@ -177,6 +187,49 @@ describe('POST /api/crm/ingest — auth', () => {
   });
 });
 
+// ── Content-length precheck (SEC HIGH) ───────────────────────────────────────
+
+describe('POST /api/crm/ingest — content-length precheck', () => {
+  /**
+   * Platform assumption: Vercel rejects bodies > 4.5 MB at the infrastructure
+   * layer. Self-hosted deploys rely on this content-length precheck as the
+   * first line of defence — it fires before any body buffering occurs.
+   *
+   * The byte-accurate post-parse check (Buffer.byteLength on html) remains as
+   * a second layer to catch multi-byte chars and partial-content-length misreports.
+   *
+   * Boundary: ~4.5 MiB = MAX_HTML_BYTES (4 MiB) + 512 KiB envelope overhead.
+   * We reject anything > MAX_CONTENT_LENGTH_BYTES without buffering the body.
+   *
+   * HAPPY-DOM LIMITATION: NextRequest in the vitest/happy-dom environment
+   * strips the `content-length` header when a body is provided (same Fetch API
+   * spec strictness noted in the CORS tests above — the browser controls
+   * content-length for bodied requests and treats it as a forbidden header).
+   * The route implementation IS correct for real HTTP traffic (verified by
+   * code inspection of the precheck guard). The full boundary test (just-over
+   * → 413 before body read) is exercised by the integration smoke test for
+   * AIN-66, not by this unit suite. What we CAN assert here:
+   *   - When no content-length header is present the route falls through to
+   *     body processing (no phantom 413).
+   *   - The post-parse byte-accurate html check still fires for oversized html.
+   */
+
+  it('skips the precheck when content-length header is absent (falls through to body validation)', async () => {
+    // No content-length header: should reach validation and succeed normally.
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+  });
+
+  it('still returns 413 via the post-parse byte-accurate check for oversized html (belt-and-suspenders)', async () => {
+    // Even without content-length, an html string > 4 MiB triggers the
+    // byte-accurate Buffer.byteLength check after body parse.
+    const bigHtml = 'a'.repeat(4 * 1024 * 1024 + 1);
+    const res = await POST(makeRequest(validBody({ html: bigHtml })));
+    expect(res.status).toBe(413);
+    expect(mockAddListing).not.toHaveBeenCalled();
+  });
+});
+
 // ── Request validation ────────────────────────────────────────────────────────
 
 describe('POST /api/crm/ingest — request validation', () => {
@@ -204,6 +257,18 @@ describe('POST /api/crm/ingest — request validation', () => {
   it('returns 400 when capturedAt is missing', async () => {
     const res = await POST(makeRequest({ sourceUrl: SOURCE_URL, html: VALID_HTML }));
     expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when capturedAt is not a valid ISO-8601 datetime (e.g. "x")', async () => {
+    const res = await POST(makeRequest(validBody({ capturedAt: 'x' })));
+    expect(res.status).toBe(400);
+    expect(mockAddListing).not.toHaveBeenCalled();
+  });
+
+  it('accepts capturedAt with timezone offset (e.g. +05:30)', async () => {
+    const res = await POST(makeRequest(validBody({ capturedAt: '2026-06-11T17:30:00+05:30' })));
+    // Should proceed past validation — expect 201 (happy path default mock)
+    expect(res.status).toBe(201);
   });
 
   it('returns 400 on a javascript: sourceUrl (scheme rejected)', async () => {
@@ -242,7 +307,7 @@ describe('POST /api/crm/ingest — request validation', () => {
     expect(mockAddListing).not.toHaveBeenCalled();
   });
 
-  it('returns 413 when html exceeds 4 MiB', async () => {
+  it('returns 413 when html exceeds 4 MiB (byte-accurate post-parse check)', async () => {
     // Build a string that exceeds 4 MiB in UTF-8.
     const bigHtml = 'a'.repeat(4 * 1024 * 1024 + 1);
     const res = await POST(makeRequest(validBody({ html: bigHtml })));
@@ -254,6 +319,18 @@ describe('POST /api/crm/ingest — request validation', () => {
     const res = await POST(makeRequest(validBody({ sourceUrl: 'not a url' })));
     expect(res.status).toBe(400);
     expect(mockAddListing).not.toHaveBeenCalled();
+  });
+
+  it('accepts and trims sourceUrl with leading/trailing whitespace', async () => {
+    const paddedUrl = `  ${SOURCE_URL}  `;
+    const res = await POST(makeRequest(validBody({ sourceUrl: paddedUrl })));
+    // Should succeed — whitespace is trimmed before validation and processing.
+    expect(res.status).toBe(201);
+    // addListing must receive the trimmed URL, not the padded one.
+    expect(mockAddListing).toHaveBeenCalledWith(
+      SOURCE_URL, // trimmed
+      expect.anything(),
+    );
   });
 });
 
@@ -341,13 +418,28 @@ describe('POST /api/crm/ingest — happy path', () => {
     expect(depsArg.geocode).toBe(mockGeocode);
   });
 
+  it('returns 201 with analysisPending: true so the popup knows analysis is computing', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'lnew', alreadySaved: false, confidence: 0.9 });
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.analysisPending).toBe(true);
+  });
+
   it('returns 200 (not 201) when the listing was already saved', async () => {
     mockAddListing.mockResolvedValue({ listingId: 'l1', alreadySaved: true, confidence: 0.9 });
     const res = await POST(makeRequest(validBody()));
     expect(res.status).toBe(200);
   });
 
-  it('the extract dep closure calls extractListingFromHtml with (html, sourceUrl) — never fetches sourceUrl', async () => {
+  it('route closure wiring: extract dep calls extractListingFromHtml with (html, sourceUrl)', async () => {
+    /**
+     * This test proves the route's closure correctly wires extractListingFromHtml
+     * as the extract dep — i.e. when addListing calls deps.extract(url), the route
+     * closure invokes extractListingFromHtml(html, sourceUrl) with the captured
+     * request-scoped values. The real no-fetch contract (no outbound request to
+     * sourceUrl) lives in extractListingFromHtml's own unit tests.
+     */
     mockAddListing.mockImplementation(async (_url: string, deps: { extract: (url: string) => unknown }) => {
       // Simulate addListing calling the injected extract function.
       await deps.extract(SOURCE_URL);
@@ -358,10 +450,10 @@ describe('POST /api/crm/ingest — happy path', () => {
 
     await POST(makeRequest(validBody()));
 
-    // extractListingFromHtml must have been called.
+    // extractListingFromHtml must have been called with the captured values.
     expect(mockExtractListingFromHtml).toHaveBeenCalledWith(VALID_HTML, SOURCE_URL);
 
-    // fetch must NOT have been called with the sourceUrl.
+    // fetch must NOT have been called with the sourceUrl (belt-and-suspenders check).
     for (const call of fetchSpy.mock.calls) {
       const urlArg = String(call[0]);
       expect(urlArg).not.toContain(SOURCE_URL);
