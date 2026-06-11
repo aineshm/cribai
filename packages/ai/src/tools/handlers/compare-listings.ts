@@ -12,6 +12,7 @@ export async function compareListings(
 ): Promise<ToolResult> {
   const { listing_ids } = inputSchema.parse(args);
 
+  // AIN-63: intentionally unfiltered by source — comparisons read the full corpus (incl. scraped Zillow/CL comps), not just discoverable subleases
   const { data, error } = await context.supabase
     .from('listings')
     .select(

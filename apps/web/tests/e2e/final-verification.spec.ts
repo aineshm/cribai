@@ -115,7 +115,7 @@ test.describe('SUITE 1 — Core Page Smoke Tests', () => {
     await expect(page.getByText('Live map', { exact: false })).toBeVisible();
 
     // "N listing(s) on map" overlay count (post-rebrand from "N geocoded matches")
-    await expect(page.getByText(/\d[\d,]*\s+listings?\s+on\s+map/i).first()).toBeVisible();
+    await expect(page.getByText(/\d[\d,]*\s+(?:subleases?|listings?)\s+on\s+map/i).first()).toBeVisible();
 
     // Nav brand
     await expect(page.getByRole('navigation').first().getByText('CribAI')).toBeVisible();
@@ -123,7 +123,7 @@ test.describe('SUITE 1 — Core Page Smoke Tests', () => {
     // Prompt chips
     await expect(page.getByText('Find me a 2-bedroom under $1200')).toBeVisible();
 
-    const overlayText = await page.getByText(/\d[\d,]*\s+listings?\s+on\s+map/i).first().innerText().catch(() => '');
+    const overlayText = await page.getByText(/\d[\d,]*\s+(?:subleases?|listings?)\s+on\s+map/i).first().innerText().catch(() => '');
     info.annotations.push({ type: 'listings on map count', description: overlayText });
   });
 
@@ -245,7 +245,7 @@ test.describe('SUITE 3 — AI Search Flow', () => {
     await page.waitForLoadState('networkidle');
 
     // Capture initial state (post-rebrand overlay copy: "N listing(s) on map")
-    const initialGeoText = await page.getByText(/\d[\d,]*\s+listings?\s+on\s+map/i).first().innerText().catch(() => 'not found');
+    const initialGeoText = await page.getByText(/\d[\d,]*\s+(?:subleases?|listings?)\s+on\s+map/i).first().innerText().catch(() => 'not found');
     info.annotations.push({ type: 'initial listings-on-map count', description: initialGeoText });
 
     const beforeScreenshot = await screenshot(page, '20-ai-search-before');

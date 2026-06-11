@@ -59,7 +59,7 @@ test.describe('Explore page (replaced listings UI)', () => {
 
     // MapPanel overlay copy (post-rebrand): "Live map" + "N listing(s) on map"
     await expect(page.getByText('Live map', { exact: false })).toBeVisible();
-    await expect(page.getByText(/\d[\d,]*\s+listings?\s+on\s+map/i)).toBeVisible();
+    await expect(page.getByText(/\d[\d,]*\s+(?:subleases?|listings?)\s+on\s+map/i)).toBeVisible();
   });
 
   test('renders Send button', async ({ page }) => {

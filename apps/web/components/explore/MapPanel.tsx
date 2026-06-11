@@ -115,7 +115,7 @@ export function MapPanel({ listings, onBoundsChange, showSearchButton, onSearchA
           Live map
         </p>
         <p className="mt-1 text-sm text-[var(--surface-700)]">
-          {geoListings.length} listing{geoListings.length !== 1 ? 's' : ''} on map
+          {geoListings.length} sublease{geoListings.length !== 1 ? 's' : ''} on map
         </p>
       </div>
 

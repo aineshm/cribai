@@ -144,6 +144,7 @@ async function semanticSearch(
     p_min_rent: parsed.min_rent ?? null,
     p_max_rent: parsed.max_rent ?? null,
     p_min_fairness: parsed.min_fairness ?? null,
+    p_source: 'sublease', // AIN-63: discovery is sublease-only (filtered inside the RPC, migration 040)
     match_count: limit,
   };
 
@@ -250,7 +251,7 @@ async function semanticSearch(
           (l, i) =>
             `${i + 1}. ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10 [listing_id:${l.id}]${l.source && l.source !== 'unknown' ? ` (source: ${l.source})` : ''}`,
         )
-        .join('\n')}\n\n[Prefer Zillow-sourced and student sublease listings when recommending — they have richer data. Craigslist listings may have sparse details.]` + uniqueHint + deepSearchCta;
+        .join('\n')}\n\n[All results are student-posted subleases from verified .edu students. Scraped market listings are excluded from discovery and used only as a pricing comp corpus.]` + uniqueHint + deepSearchCta;
 
   // Build map block for 3+ results with lat/lng
   const filteredRows = parsed.amenities?.length
@@ -344,6 +345,7 @@ async function sqlSearch(
       'id, address, rent_monthly, bedrooms, bathrooms, sqft, fairness_score, true_cost_total, amenities, source, latitude, longitude, photo_urls',
     )
     .eq('campus_id', context.campusId)
+    .eq('source', 'sublease')  // AIN-63: discovery surfaces show student subleases only
     .eq('is_active', true)
     .gte('rent_monthly', 200);  // Filter spam listings
 
@@ -448,7 +450,7 @@ async function sqlSearch(
           (l, i) =>
             `${i + 1}. ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10 [listing_id:${l.id}]${l.source && l.source !== 'unknown' ? ` (source: ${l.source})` : ''}`,
         )
-        .join('\n')}\n\n[Prefer Zillow-sourced and student sublease listings when recommending — they have richer data. Craigslist listings may have sparse details.]` + sqlUniqueHint + sqlDeepSearchCta;
+        .join('\n')}\n\n[All results are student-posted subleases from verified .edu students. Scraped market listings are excluded from discovery and used only as a pricing comp corpus.]` + sqlUniqueHint + sqlDeepSearchCta;
 
   const rowsWithCoords = (data ?? []).filter(
     row => row.latitude != null && row.longitude != null && (row.latitude !== 0 || row.longitude !== 0),

@@ -192,7 +192,7 @@ test.describe('Explore page — Chat UX verification', () => {
     await page.screenshot({ path: testInfo.outputPath('06-map-panel.png') });
 
     // Record the full map panel description for the report
-    const mapSubtext = await page.locator('text=/listings?\\s+on\\s+map/i').first().innerText().catch(() => '');
+    const mapSubtext = await page.locator('text=/(?:subleases?|listings?)\\s+on\\s+map/i').first().innerText().catch(() => '');
 
     testInfo.annotations.push({
       type: 'CRITERION 2 — Map panel',

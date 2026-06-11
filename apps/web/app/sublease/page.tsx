@@ -25,21 +25,13 @@ export const dynamic = 'force-dynamic';
 export default async function SubleasePage() {
   const supabase = createSecretClient();
 
+  // AIN-63: discovery is sublease-only; the full-corpus "Total Listings" stat
+  // (scraped Zillow/CL comp corpus) is no longer surfaced anywhere.
   const { count: subleaseCount } = await supabase
     .from('listings')
     .select('id', { count: 'exact', head: true })
     .eq('source', 'sublease')
     .eq('is_active', true);
 
-  const { count: totalCount } = await supabase
-    .from('listings')
-    .select('id', { count: 'exact', head: true })
-    .eq('is_active', true);
-
-  return (
-    <SubleaseClient
-      subleaseCount={subleaseCount ?? 0}
-      totalCount={totalCount ?? 0}
-    />
-  );
+  return <SubleaseClient subleaseCount={subleaseCount ?? 0} />;
 }

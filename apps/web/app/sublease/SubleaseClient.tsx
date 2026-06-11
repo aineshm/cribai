@@ -7,10 +7,9 @@ import { cn } from '@/lib/utils';
 
 interface SubleaseClientProps {
   readonly subleaseCount: number;
-  readonly totalCount: number;
 }
 
-export function SubleaseClient({ subleaseCount, totalCount }: SubleaseClientProps) {
+export function SubleaseClient({ subleaseCount }: SubleaseClientProps) {
   return (
     <div className="flex min-h-screen flex-col bg-[var(--surface-50)]">
       {/* Nav header */}
@@ -62,10 +61,8 @@ export function SubleaseClient({ subleaseCount, totalCount }: SubleaseClientProp
           </div>
           <div className="h-10 w-px bg-[var(--surface-200)]" />
           <div className="text-center">
-            <p className="text-3xl font-bold text-[var(--primary-600)]">
-              {totalCount.toLocaleString()}
-            </p>
-            <p className="text-sm text-[var(--surface-400)]">Total Listings</p>
+            <p className="text-3xl font-bold text-[var(--primary-600)]">.edu</p>
+            <p className="text-sm text-[var(--surface-400)]">Verified Students</p>
           </div>
           <div className="h-10 w-px bg-[var(--surface-200)]" />
           <div className="text-center">

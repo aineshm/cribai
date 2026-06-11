@@ -9,7 +9,7 @@ test('smoke: explore page map overlay count changes after chat query', async ({ 
   await page.goto('http://localhost:3000/explore');
 
   // Wait for the Live map overlay card (contains "N listing(s) on map" text)
-  const mapOverlay = page.getByText(/\d[\d,]*\s+listings?\s+on\s+map/i).first();
+  const mapOverlay = page.getByText(/\d[\d,]*\s+(?:subleases?|listings?)\s+on\s+map/i).first();
   await mapOverlay.waitFor({ state: 'visible', timeout: 15000 });
 
   const beforeText = (await mapOverlay.textContent({ timeout: 5000 }))?.trim() ?? '(not found)';
@@ -21,9 +21,11 @@ test('smoke: explore page map overlay count changes after chat query', async ({ 
   });
 
   // The chat input has aria-label "Chat message input — press Enter to send"
+  // AIN-63: discovery is sublease-only, so query broadly to maximize the odds
+  // of hits in the (small) sublease inventory.
   const chatInput = page.getByRole('textbox', { name: /chat message input/i });
   await chatInput.waitFor({ state: 'visible', timeout: 10000 });
-  await chatInput.fill('find me 1 bedroom apartments');
+  await chatInput.fill('find me subleases near campus');
 
   // Intercept the AI API response so we can wait for it to finish
   const aiResponsePromise = page.waitForResponse(
@@ -50,15 +52,17 @@ test('smoke: explore page map overlay count changes after chat query', async ({ 
   console.log(`\nSMOKE RESULT — Before: "${beforeText}" | After: "${afterText}"`);
 
   // Sanity: the overlay rendered before the search
-  expect(beforeText).toMatch(/\d[\d,]*\s+listings?\s+on\s+map/i);
+  expect(beforeText).toMatch(/\d[\d,]*\s+(?:subleases?|listings?)\s+on\s+map/i);
 
   // Real regression guard: after the AI search the overlay must still show a
   // listings-on-map count, AND the "Showing N AI results" badge must appear
   // (proves the AI search results actually drove the map state, not just that
   // the overlay continues to render its initial value).
-  const afterMatch = afterText.match(/(\d[\d,]*)\s+listings?\s+on\s+map/i);
+  const afterMatch = afterText.match(/(\d[\d,]*)\s+(?:subleases?|listings?)\s+on\s+map/i);
   expect(afterMatch, `Map overlay missing after search. Got: "${afterText}"`).not.toBeNull();
-  expect(Number((afterMatch![1] ?? '0').replace(/,/g, ''))).toBeGreaterThan(0);
+  // AIN-63: inventory is sublease-only and may be sparse, so a zero count is
+  // legitimate — the AI-results badge below is the regression guard that the
+  // search actually drove the map state.
 
   await expect(page.getByText(/Showing\s+\d+\s+AI\s+results?/i)).toBeVisible({ timeout: 5000 });
 });

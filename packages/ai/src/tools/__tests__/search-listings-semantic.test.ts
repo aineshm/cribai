@@ -293,6 +293,35 @@ describe('searchListings semantic search', () => {
     expect(rpcArgs).not.toHaveProperty('p_radius_m');
   });
 
+  it('passes p_source=sublease to the semantic RPC (AIN-63 sublease-only discovery)', async () => {
+    const context = createMockContext();
+    const rpcMock = vi.fn().mockResolvedValue({
+      data: [SAMPLE_RPC_RESULT_1],
+      error: null,
+    });
+    (context.supabase as unknown as { rpc: typeof rpcMock }).rpc = rpcMock;
+
+    await searchListings({ semantic_query: 'cozy apartment' }, context);
+
+    expect(rpcMock).toHaveBeenCalledWith('match_listings_semantic', expect.objectContaining({
+      p_source: 'sublease',
+    }));
+  });
+
+  it('describes semantic results as student subleases, not scraped sources (AIN-63)', async () => {
+    const context = createMockContext();
+    const rpcMock = vi.fn().mockResolvedValue({
+      data: [SAMPLE_RPC_RESULT_1],
+      error: null,
+    });
+    (context.supabase as unknown as { rpc: typeof rpcMock }).rpc = rpcMock;
+
+    const result = await searchListings({ semantic_query: 'cozy apartment' }, context);
+
+    expect(result.modelContext).not.toContain('Prefer Zillow-sourced');
+    expect(result.modelContext).toContain('student-posted subleases');
+  });
+
   it('centers map on landmark when detected', async () => {
     const landmark = {
       name: 'Engineering Hall',

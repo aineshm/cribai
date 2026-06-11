@@ -26,6 +26,7 @@ Deno.serve(async (req) => {
         .from('listings')
         .select('id, address, rent_monthly, bedrooms, bathrooms, sqft, amenities, fairness_score')
         .eq('campus_id', campus.id)
+        .eq('source', 'sublease') // AIN-63: CribAI context tree covers discoverable (sublease) inventory only
         .eq('is_active', true);
 
       if (!listings || listings.length === 0) continue;
@@ -86,7 +87,7 @@ Deno.serve(async (req) => {
 
       const tree = {
         label: campus.name,
-        summary: `${listings.length} active listings near ${campus.name}, avg rent $${overallAvg}/mo across ${Object.keys(groups).length} categories`,
+        summary: `${listings.length} active student subleases near ${campus.name}, avg rent $${overallAvg}/mo across ${Object.keys(groups).length} categories`,
         contentRef: null,
         children,
       };
