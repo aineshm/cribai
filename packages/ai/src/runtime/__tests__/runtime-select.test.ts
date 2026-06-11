@@ -33,29 +33,38 @@ describe('selectRuntime', () => {
 // own env kill-switch (CRIBAI_RUNTIME_CRM='1'), independent of the global
 // flag. Full surface × env matrix:
 describe('selectRuntime — CRM surface escalation (AIN-65)', () => {
-  it("returns llm_first for surface 'crm' when CRIBAI_RUNTIME_CRM='1'", () => {
+  it("returns llm_first for an AUTHENTICATED surface 'crm' turn when CRIBAI_RUNTIME_CRM='1'", () => {
     expect(
-      selectRuntime({ env: { [CRM_SURFACE_FLAG]: '1' }, surface: 'crm' }),
+      selectRuntime({ env: { [CRM_SURFACE_FLAG]: '1' }, surface: 'crm', userId: 'user-1' }),
     ).toBe('llm_first');
   });
 
+  it('never escalates guests — the rate limiter only covers authenticated users (security HIGH-1)', () => {
+    expect(
+      selectRuntime({ env: { [CRM_SURFACE_FLAG]: '1' }, surface: 'crm' }),
+    ).toBe('deterministic');
+    expect(
+      selectRuntime({ env: { [CRM_SURFACE_FLAG]: '1' }, surface: 'crm', userId: null }),
+    ).toBe('deterministic');
+  });
+
   it("stays deterministic for surface 'crm' when the CRM flag is not exactly '1'", () => {
-    expect(selectRuntime({ env: {}, surface: 'crm' })).toBe('deterministic');
+    expect(selectRuntime({ env: {}, surface: 'crm', userId: 'user-1' })).toBe('deterministic');
     expect(
-      selectRuntime({ env: { [CRM_SURFACE_FLAG]: '0' }, surface: 'crm' }),
+      selectRuntime({ env: { [CRM_SURFACE_FLAG]: '0' }, surface: 'crm', userId: 'user-1' }),
     ).toBe('deterministic');
     expect(
-      selectRuntime({ env: { [CRM_SURFACE_FLAG]: 'true' }, surface: 'crm' }),
+      selectRuntime({ env: { [CRM_SURFACE_FLAG]: 'true' }, surface: 'crm', userId: 'user-1' }),
     ).toBe('deterministic');
     expect(
-      selectRuntime({ env: { [CRM_SURFACE_FLAG]: '' }, surface: 'crm' }),
+      selectRuntime({ env: { [CRM_SURFACE_FLAG]: '' }, surface: 'crm', userId: 'user-1' }),
     ).toBe('deterministic');
   });
 
   it('the CRM flag alone never escalates non-crm surfaces', () => {
-    expect(selectRuntime({ env: { [CRM_SURFACE_FLAG]: '1' } })).toBe('deterministic');
+    expect(selectRuntime({ env: { [CRM_SURFACE_FLAG]: '1' }, userId: 'user-1' })).toBe('deterministic');
     expect(
-      selectRuntime({ env: { [CRM_SURFACE_FLAG]: '1' }, surface: null }),
+      selectRuntime({ env: { [CRM_SURFACE_FLAG]: '1' }, surface: null, userId: 'user-1' }),
     ).toBe('deterministic');
   });
 

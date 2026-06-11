@@ -790,6 +790,31 @@ describe('POST /api/ai/cribai — AIN-19 latency instrumentation', () => {
     expect(metricsInserts[0]!.row.runtime).toBe('deterministic');
   });
 
+  it("GUEST turns never escalate via surface:'crm' — the rate limiter only covers authed users (security HIGH-1)", async () => {
+    process.env.CRIBAI_RUNTIME_CRM = '1';
+
+    const req = buildGuestRequest(
+      {
+        query: 'https://www.zillow.com/some-listing',
+        campusSlug: 'uw-madison',
+        history: [],
+        surface: 'crm',
+      },
+      { 'x-request-id': 'trace-crm-surface-guest' },
+    );
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    await drainStream(res);
+    await new Promise((r) => setTimeout(r, 5));
+
+    expect(runLlmTurn).not.toHaveBeenCalled();
+
+    const metricsInserts = recordedInserts.filter((i) => i.table === 'ai_request_metrics');
+    expect(metricsInserts).toHaveLength(1);
+    expect(metricsInserts[0]!.row.runtime).toBe('deterministic');
+  });
+
   it("classifies an LLM-first quota error as gemini_quota with runtime='llm_first'", async () => {
     process.env.CRIBAI_RUNTIME_LLM_FIRST = '1';
     vi.mocked(runLlmTurn).mockImplementationOnce(

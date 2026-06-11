@@ -29,14 +29,14 @@ import { RankCompareTable } from './RankCompareTable';
 const PLACEHOLDER = 'Paste a listing link, or ask…';
 
 export function CrmWorkspace() {
-  const { messages, send } = useCrmChat();
+  const { messages, send, pending } = useCrmChat();
   const [draft, setDraft] = useState('');
   const [canvasOpen, setCanvasOpen] = useState(false);
   const isMobile = useIsMobile();
 
   const submit = () => {
     const text = draft.trim();
-    if (!text) return;
+    if (!text || pending) return;
     send(text);
     setDraft('');
   };
@@ -124,7 +124,8 @@ export function CrmWorkspace() {
               <button
                 type="submit"
                 aria-label="Send"
-                className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-white"
+                disabled={pending}
+                className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-white disabled:cursor-not-allowed disabled:opacity-50"
                 style={{
                   background: 'linear-gradient(135deg, var(--primary-700), var(--primary-900))',
                   boxShadow: '0 4px 12px rgba(127,29,29,0.28)',

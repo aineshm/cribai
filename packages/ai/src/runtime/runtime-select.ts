@@ -27,13 +27,20 @@ import type { RuntimeKind } from './metrics';
 export interface SelectRuntimeInput {
   /** Env bag (defaults to `process.env`). Injectable for tests. */
   readonly env?: Record<string, string | undefined>;
-  /** Authenticated user id, or null for guests. Unused in v1 (AIN-10). */
+  /**
+   * Authenticated user id, or null for guests. Percentage bucketing is still
+   * deferred to AIN-10, but the CRM surface escalation requires a signed-in
+   * user (see below).
+   */
   readonly userId?: string | null;
   /**
    * Request surface, pre-validated by the route (only the literal 'crm' is
-   * ever passed; anything else arrives as undefined). NOTE: clients CAN spoof
-   * `surface:'crm'` to opt into LLM-first early — accepted risk: CRM tools
-   * are sign-in-gated, rate limits apply, and the per-turn cost cap observes.
+   * ever passed; anything else arrives as undefined). NOTE: a signed-in
+   * client CAN spoof `surface:'crm'` to opt into LLM-first early — accepted
+   * risk: CRM tools are sign-in-gated, the per-user 10/hr rate limit applies,
+   * and the per-turn cost cap observes. GUESTS never escalate: the route's
+   * rate limiter only covers authenticated users, so an anonymous spoof would
+   * otherwise be unlimited-rate (security review HIGH-1, 2026-06-10).
    */
   readonly surface?: 'crm' | null;
 }
@@ -47,6 +54,10 @@ export const CRM_SURFACE_FLAG = 'CRIBAI_RUNTIME_CRM';
 export function selectRuntime(input: SelectRuntimeInput = {}): RuntimeKind {
   const env = input.env ?? process.env;
   if (env[LLM_FIRST_FLAG] === '1') return 'llm_first';
-  if (input.surface === 'crm' && env[CRM_SURFACE_FLAG] === '1') return 'llm_first';
+  // CRM escalation requires a signed-in user: guests bypass the per-user rate
+  // limiter, so an anonymous surface spoof must stay on the deterministic path.
+  if (input.surface === 'crm' && input.userId && env[CRM_SURFACE_FLAG] === '1') {
+    return 'llm_first';
+  }
   return 'deterministic';
 }

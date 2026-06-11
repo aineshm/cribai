@@ -113,6 +113,16 @@ describe('readCrmSseEvents', () => {
     );
     expect(events).toEqual([{ type: 'done' }]);
   });
+
+  it('flushes a trailing event the server sent without a final newline (tail-flush branch)', async () => {
+    const events = await collect(
+      sseBody(['data: {"type":"text","content":"Hi"}\n\n', 'data: {"type":"done"}']),
+    );
+    expect(events).toEqual([
+      { type: 'text', content: 'Hi' },
+      { type: 'done' },
+    ]);
+  });
 });
 
 describe('messagesFromToolResult', () => {
@@ -262,13 +272,49 @@ describe('messagesFromToolResult', () => {
     expect(
       messagesFromToolResult({ type: 'tool_result', name: 'search_listings' }, VIEWER_ID, nextId),
     ).toEqual([]);
+    // EMPTY result blocks still render nothing — the model's prose covers no-results.
     expect(
       messagesFromToolResult(
-        { type: 'tool_result', name: 'search_listings', block: { type: 'map' } },
+        { type: 'tool_result', name: 'search_listings', block: { type: 'map', listings: [] } },
         VIEWER_ID,
         nextId,
       ),
     ).toEqual([]);
+  });
+
+  it('legacy listing_card/map blocks with results → honest text stub, not silence (review M2)', () => {
+    const cardMessages = messagesFromToolResult(
+      {
+        type: 'tool_result',
+        name: 'search_listings',
+        block: { type: 'listing_card', listings: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] },
+      },
+      VIEWER_ID,
+      nextId,
+    );
+    expect(cardMessages).toEqual([
+      expect.objectContaining({
+        kind: 'text',
+        role: 'assistant',
+        text: 'Found 3 listings — open the Explore page to view them on the map.',
+      }),
+    ]);
+
+    const mapMessages = messagesFromToolResult(
+      {
+        type: 'tool_result',
+        name: 'search_listings',
+        block: { type: 'map', listings: [{ id: 'a' }] },
+      },
+      VIEWER_ID,
+      nextId,
+    );
+    expect(mapMessages).toEqual([
+      expect.objectContaining({
+        kind: 'text',
+        text: 'Found 1 listing — open the Explore page to view it on the map.',
+      }),
+    ]);
   });
 });
 

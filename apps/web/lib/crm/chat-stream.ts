@@ -28,7 +28,12 @@ export interface CrmSseEvent {
   readonly content?: string;
   readonly text?: string;
   readonly name?: string;
-  readonly block?: { readonly type?: string; readonly content?: string };
+  readonly block?: {
+    readonly type?: string;
+    readonly content?: string;
+    /** listing_card / map blocks carry a listings array (legacy explore tools). */
+    readonly listings?: readonly unknown[];
+  };
   readonly machineData?: unknown;
   readonly message?: string;
 }
@@ -89,6 +94,9 @@ export async function* readCrmSseEvents(
       if (event) yield event;
     }
   } finally {
+    // Early generator exit (error event, consumer break) must cancel the body,
+    // not just release the lock — releaseLock alone leaves the stream open.
+    await reader.cancel().catch(() => {});
     reader.releaseLock();
   }
 }
@@ -128,13 +136,34 @@ function steeringQuestionOf(analysis: FirstSaveAnalysis): string | null {
     : null;
 }
 
-/** Fall back to the tool's plain-text client block (or nothing). */
+/**
+ * Fall back to the tool's plain-text client block. Non-text blocks (the
+ * legacy explore tools' listing_card/map cards have no CRM renderer) degrade
+ * to an honest text stub instead of vanishing — "find me apartments" in CRM
+ * chat must not execute a search and render nothing (review M2). An EMPTY
+ * result block still renders nothing: the model's prose covers no-results.
+ */
 function textFallback(event: CrmSseEvent, nextId: () => string): readonly ChatMessage[] {
   const block = event.block;
-  if (block?.type !== 'text' || typeof block.content !== 'string' || !block.content.trim()) {
-    return [];
+  if (block?.type === 'text' && typeof block.content === 'string' && block.content.trim()) {
+    return [{ id: nextId(), kind: 'text', role: 'assistant', text: block.content }];
   }
-  return [{ id: nextId(), kind: 'text', role: 'assistant', text: block.content }];
+  if (
+    (block?.type === 'listing_card' || block?.type === 'map') &&
+    Array.isArray(block.listings) &&
+    block.listings.length > 0
+  ) {
+    const n = block.listings.length;
+    return [
+      {
+        id: nextId(),
+        kind: 'text',
+        role: 'assistant',
+        text: `Found ${n} listing${n === 1 ? '' : 's'} — open the Explore page to view ${n === 1 ? 'it' : 'them'} on the map.`,
+      },
+    ];
+  }
+  return [];
 }
 
 /**

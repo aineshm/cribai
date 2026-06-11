@@ -383,9 +383,12 @@ export async function POST(request: NextRequest) {
 
     // AIN-65 / WS6 — surface-scoped runtime escalation. ONLY the literal
     // 'crm' is accepted; any other value is ignored (undefined). NOTE: a
-    // client CAN spoof surface:'crm' to opt into the LLM-first runtime while
-    // it's CRM-only — accepted risk: CRM tools are sign-in-gated, rate limits
-    // apply (free tier), and the per-turn cost cap observes every turn.
+    // SIGNED-IN client CAN spoof surface:'crm' to opt into the LLM-first
+    // runtime while it's CRM-only — accepted risk: CRM tools are
+    // sign-in-gated, the per-user 10/hr rate limit applies, and the per-turn
+    // cost cap observes. Guests never escalate — selectRuntime requires a
+    // userId for the CRM path because the rate limiter only covers
+    // authenticated users (security review HIGH-1).
     const validSurface = surface === 'crm' ? ('crm' as const) : undefined;
 
     const validConversationId =

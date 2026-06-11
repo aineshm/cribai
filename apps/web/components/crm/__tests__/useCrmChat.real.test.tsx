@@ -359,4 +359,66 @@ describe('useCrmChat — real runtime wiring', () => {
       { role: 'assistant', content: 'Answer one.' },
     ]);
   });
+
+  it('a second send while a turn is pending is a no-op (in-flight guard, review H1)', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const fn = vi.fn(async () => {
+      await gate;
+      return sseResponse([{ type: 'text', content: 'Hi' }]);
+    });
+    vi.stubGlobal('fetch', fn);
+    const { result } = renderHook(() => useCrmChat());
+
+    act(() => {
+      result.current.send('first');
+    });
+    await waitFor(() => expect(result.current.pending).toBe(true));
+    act(() => {
+      result.current.send('second'); // mid-stream double-Enter
+    });
+
+    release();
+    await waitFor(() => expect(result.current.pending).toBe(false));
+
+    expect(fn).toHaveBeenCalledTimes(1);
+    // The second send never entered the thread — exactly one user echo.
+    expect(result.current.messages.filter((m) => m.role === 'user')).toHaveLength(1);
+  });
+
+  it('aborts the in-flight fetch on unmount and appends nothing after (review H1)', async () => {
+    let captured: AbortSignal | undefined;
+    const fn = vi.fn(
+      (_url: unknown, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          captured = init?.signal ?? undefined;
+          init?.signal?.addEventListener('abort', () =>
+            reject(new DOMException('Aborted', 'AbortError')),
+          );
+        }),
+    );
+    vi.stubGlobal('fetch', fn);
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { result, unmount } = renderHook(() => useCrmChat());
+
+    act(() => {
+      result.current.send('hello');
+    });
+    await waitFor(() => expect(fn).toHaveBeenCalledTimes(1));
+    expect(captured?.aborted).toBe(false);
+
+    unmount();
+    expect(captured?.aborted).toBe(true);
+
+    // Let the rejected fetch settle: the abort is swallowed silently — no
+    // error bubble, no console noise, no unhandled rejection.
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.messages.map((m) => m.role)).toEqual(['user']);
+    expect(consoleError).not.toHaveBeenCalledWith('[crm-chat] turn failed:', expect.anything());
+    consoleError.mockRestore();
+  });
 });

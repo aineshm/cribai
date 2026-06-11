@@ -82,6 +82,18 @@ export function useCrmChat(): UseCrmChat {
     messagesRef.current = messages;
   }, [messages]);
 
+  // Synchronous in-flight guard (state `pending` lags a render) + per-turn
+  // abort. Mirrors cribai-chat.tsx: one turn at a time, abort on unmount so a
+  // mid-stream navigation doesn't leave the fetch streaming into a dead hook.
+  const pendingRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(
+    () => () => {
+      abortRef.current?.abort();
+    },
+    [],
+  );
+
   const push = useCallback((msg: ChatMessage) => {
     setMessages((prev) => [...prev, msg]);
   }, []);
@@ -123,7 +135,7 @@ export function useCrmChat(): UseCrmChat {
 
   /** Real mode — one LLM-first runtime turn over SSE. */
   const runRealTurn = useCallback(
-    async (query: string, thread: readonly ChatMessage[]) => {
+    async (query: string, thread: readonly ChatMessage[], signal: AbortSignal) => {
       const supabase = createClient();
       const {
         data: { session },
@@ -140,6 +152,7 @@ export function useCrmChat(): UseCrmChat {
       const response = await fetch('/api/ai/cribai', {
         method: 'POST',
         headers,
+        signal,
         body: JSON.stringify({
           query,
           campusSlug: CAMPUS_SLUG,
@@ -223,8 +236,14 @@ export function useCrmChat(): UseCrmChat {
     (raw: string) => {
       const text = raw.trim();
       if (!text) return;
+      // One turn at a time — a second Enter mid-stream is a no-op (the
+      // composer is also disabled on `pending`, this is the belt to its braces).
+      if (pendingRef.current) return;
+      pendingRef.current = true;
 
       const thread = messagesRef.current;
+      const controller = new AbortController();
+      abortRef.current = controller;
 
       // Echo the user's message immediately.
       push({ id: nextId(), kind: 'text', role: 'user', text });
@@ -235,14 +254,22 @@ export function useCrmChat(): UseCrmChat {
           if (isMockMode()) {
             await runMockTurn(text);
           } else {
-            await runRealTurn(text, thread);
+            await runRealTurn(text, thread, controller.signal);
           }
         } catch (error) {
-          const message = error instanceof Error && error.message ? error.message : GENERIC_ERROR;
-          push({ id: nextId(), kind: 'text', role: 'assistant', text: `⚠ ${message}` });
+          // Unmount/abort is not an error — swallow silently (no state writes
+          // either; the hook may already be gone).
+          if (controller.signal.aborted) return;
+          // Log the real error for diagnosis; show users a generic message
+          // (raw Error.message can carry internals — review L2).
+          console.error('[crm-chat] turn failed:', error);
+          push({ id: nextId(), kind: 'text', role: 'assistant', text: `⚠ ${GENERIC_ERROR}` });
         } finally {
-          setPending(false);
-          setPendingTool(null);
+          pendingRef.current = false;
+          if (!controller.signal.aborted) {
+            setPending(false);
+            setPendingTool(null);
+          }
         }
       })();
     },
