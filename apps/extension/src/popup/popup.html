@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CribAI</title>
+    <style>
+      :root {
+        --primary: #4f46e5;
+        --primary-hover: #4338ca;
+        --surface-50: #f8fafc;
+        --surface-100: #f1f5f9;
+        --surface-300: #cbd5e1;
+        --surface-500: #64748b;
+        --surface-700: #334155;
+        --surface-900: #0f172a;
+        --success-bg: #f0fdf4;
+        --success: #15803d;
+        --error-bg: #fef2f2;
+        --error: #b91c1c;
+        --warning-bg: #fffbeb;
+        --warning: #b45309;
+        --radius: 8px;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-size: 14px;
+        color: var(--surface-900);
+        background: white;
+        width: 320px;
+        min-height: 200px;
+      }
+
+      .header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 16px 16px 12px;
+        border-bottom: 1px solid var(--surface-100);
+      }
+
+      .logo {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        background: var(--primary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 700;
+        font-size: 13px;
+        flex-shrink: 0;
+      }
+
+      .header-title {
+        font-weight: 600;
+        font-size: 15px;
+      }
+
+      .header-subtitle {
+        font-size: 12px;
+        color: var(--surface-500);
+      }
+
+      .content {
+        padding: 16px;
+      }
+
+      /* Views */
+      .view {
+        display: none;
+      }
+      .view.active {
+        display: block;
+      }
+
+      /* Form elements */
+      label {
+        display: block;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--surface-700);
+        margin-bottom: 4px;
+      }
+
+      input {
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid var(--surface-300);
+        border-radius: var(--radius);
+        font-size: 14px;
+        outline: none;
+        transition: border-color 0.15s;
+        color: var(--surface-900);
+      }
+
+      input:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+      }
+
+      .form-group {
+        margin-bottom: 12px;
+      }
+
+      /* Buttons */
+      button {
+        cursor: pointer;
+        border: none;
+        border-radius: var(--radius);
+        font-size: 14px;
+        font-weight: 500;
+        transition: background 0.15s, opacity 0.15s;
+      }
+
+      .btn-primary {
+        width: 100%;
+        padding: 9px 16px;
+        background: var(--primary);
+        color: white;
+        margin-top: 4px;
+      }
+
+      .btn-primary:hover:not(:disabled) {
+        background: var(--primary-hover);
+      }
+
+      .btn-primary:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .btn-link {
+        background: none;
+        color: var(--primary);
+        padding: 4px 0;
+        font-size: 12px;
+        text-decoration: underline;
+      }
+
+      .btn-link:hover {
+        opacity: 0.8;
+      }
+
+      /* Status messages */
+      .alert {
+        padding: 10px 12px;
+        border-radius: var(--radius);
+        font-size: 13px;
+        line-height: 1.4;
+        margin-bottom: 12px;
+      }
+
+      .alert-error {
+        background: var(--error-bg);
+        color: var(--error);
+      }
+
+      .alert-success {
+        background: var(--success-bg);
+        color: var(--success);
+      }
+
+      .alert-warning {
+        background: var(--warning-bg);
+        color: var(--warning);
+      }
+
+      .alert:empty {
+        display: none;
+      }
+
+      /* Auth info bar */
+      .auth-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 12px;
+        background: var(--surface-50);
+        border-radius: var(--radius);
+        margin-bottom: 12px;
+        font-size: 12px;
+        color: var(--surface-700);
+      }
+
+      /* Save button (main CTA) */
+      .save-btn {
+        width: 100%;
+        padding: 11px 16px;
+        background: var(--primary);
+        color: white;
+        font-size: 15px;
+        font-weight: 600;
+        border-radius: var(--radius);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+
+      .save-btn:hover:not(:disabled) {
+        background: var(--primary-hover);
+      }
+
+      .save-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      /* Success result */
+      .result-card {
+        text-align: center;
+        padding: 8px 0;
+      }
+
+      .result-card .result-icon {
+        font-size: 32px;
+        margin-bottom: 8px;
+      }
+
+      .result-card h3 {
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 4px;
+        color: var(--success);
+      }
+
+      .result-card p {
+        font-size: 13px;
+        color: var(--surface-500);
+        margin-bottom: 12px;
+      }
+
+      .deep-link {
+        display: inline-block;
+        padding: 8px 16px;
+        background: var(--primary);
+        color: white;
+        border-radius: var(--radius);
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 500;
+      }
+
+      .deep-link:hover {
+        background: var(--primary-hover);
+      }
+
+      /* OTP hint */
+      .otp-hint {
+        font-size: 12px;
+        color: var(--surface-500);
+        margin-top: 4px;
+        margin-bottom: 0;
+      }
+
+      /* Spinner */
+      .spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(255,255,255,0.4);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+      }
+
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+
+      .back-btn {
+        background: none;
+        color: var(--surface-500);
+        padding: 0;
+        font-size: 12px;
+        margin-bottom: 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .back-btn:hover {
+        color: var(--surface-700);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div class="logo">C</div>
+      <div>
+        <div class="header-title">CribAI</div>
+        <div class="header-subtitle">Save listing to My Apartments</div>
+      </div>
+    </div>
+
+    <div class="content">
+      <!-- View: Loading -->
+      <div class="view active" id="view-loading">
+        <p style="color: var(--surface-500); font-size: 13px; text-align: center; padding: 20px 0;">
+          Loading...
+        </p>
+      </div>
+
+      <!-- View: Sign In (email step) -->
+      <div class="view" id="view-email">
+        <div class="form-group">
+          <label for="input-email">Email address</label>
+          <input
+            id="input-email"
+            type="email"
+            placeholder="you@university.edu"
+            autocomplete="email"
+          />
+        </div>
+        <div id="email-error" class="alert alert-error"></div>
+        <button class="btn-primary" id="btn-send-otp">Send code</button>
+      </div>
+
+      <!-- View: OTP verification -->
+      <div class="view" id="view-otp">
+        <button class="back-btn" id="btn-back-to-email">&#8592; Back</button>
+        <div class="form-group">
+          <label for="input-otp">6-digit verification code</label>
+          <input
+            id="input-otp"
+            type="text"
+            inputmode="numeric"
+            pattern="[0-9]{6}"
+            maxlength="6"
+            placeholder="123456"
+            autocomplete="one-time-code"
+          />
+          <p class="otp-hint">Check your email for the code.</p>
+        </div>
+        <div id="otp-error" class="alert alert-error"></div>
+        <button class="btn-primary" id="btn-verify-otp">Verify</button>
+        <div style="margin-top: 8px; text-align: center;">
+          <button class="btn-link" id="btn-resend-otp">Resend code</button>
+        </div>
+      </div>
+
+      <!-- View: Signed in / Save -->
+      <div class="view" id="view-save">
+        <div class="auth-bar">
+          <span id="auth-email-display"></span>
+          <button class="btn-link" id="btn-sign-out">Sign out</button>
+        </div>
+        <div id="save-error" class="alert alert-error"></div>
+        <div id="save-warning" class="alert alert-warning"></div>
+        <button class="save-btn" id="btn-save">
+          Save to CribAI
+        </button>
+      </div>
+
+      <!-- View: Success result -->
+      <div class="view" id="view-success">
+        <div class="result-card">
+          <div class="result-icon">&#10003;</div>
+          <h3>Saved!</h3>
+          <p>Listing added to your CribAI apartment list.</p>
+          <a id="deep-link" class="deep-link" href="#" target="_blank">
+            View My Apartments
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

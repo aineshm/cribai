@@ -45,3 +45,31 @@ export function createSecretClient() {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 }
+
+/**
+ * Create an anon-key Supabase client pre-seeded with a caller-supplied access
+ * token. This is the seam for routes that receive a Bearer token from a
+ * non-browser caller (e.g. the Chrome extension). The JWT is forwarded as-is;
+ * RLS evaluates `auth.uid()` from the token just as it would from a session
+ * cookie, so tenant isolation is preserved without any service-role escalation.
+ *
+ * NOTE: `getUser()` on the returned client will make a round-trip to the
+ * Supabase auth server to validate the token. Callers that want both
+ * validation and an RLS-scoped client should call this function once and
+ * then call `.auth.getUser()` on the returned client.
+ */
+export function createBearerClient(accessToken: string) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Missing Supabase environment variables');
+  }
+
+  return createSupabaseClient(supabaseUrl, supabaseAnonKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+    global: {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    },
+  });
+}

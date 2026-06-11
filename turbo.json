@@ -17,7 +17,11 @@
         "WALKSCORE_API_KEY",
         "NEXT_PUBLIC_MAPBOX_TOKEN",
         "APIFY_API_TOKEN",
-        "GOOGLE_APPLICATION_CREDENTIALS_JSON"
+        "GOOGLE_APPLICATION_CREDENTIALS_JSON",
+        "VITE_CRIBAI_APP_DOMAIN",
+        "VITE_CRIBAI_API_BASE",
+        "VITE_SUPABASE_URL",
+        "VITE_SUPABASE_ANON_KEY"
       ],
       "outputs": [".next/**", "dist/**"]
     },
