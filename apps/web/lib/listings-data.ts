@@ -386,6 +386,7 @@ export async function fetchExploreListings(): Promise<readonly ExploreListing[]>
   const { data, error } = await supabase
     .from('listings')
     .select(EXPLORE_SELECT)
+    .eq('source', 'sublease')  // AIN-63: discovery surfaces show student subleases only
     .eq('is_active', true)
     .gte('rent_monthly', 200)  // Filter out spam listings ($0, $1, $100 Craigslist junk)
     .not('location', 'is', null)  // Only listings with coordinates (map + grid need them)
@@ -414,6 +415,7 @@ export async function fetchFeaturedExploreListings(limit = 12): Promise<readonly
   const { data, error } = await supabase
     .from('listings')
     .select(EXPLORE_SELECT)
+    .eq('source', 'sublease')  // AIN-63: featured grid shows student subleases only
     .eq('is_active', true)
     .gte('rent_monthly', 200)
     .order('fairness_score', { ascending: false, nullsFirst: false })
@@ -439,6 +441,7 @@ export async function fetchViewportExploreListings(args: {
   let query = supabase
     .from('listings')
     .select(EXPLORE_SELECT)
+    .eq('source', 'sublease')  // AIN-63: map viewport shows student subleases only
     .eq('is_active', true)
     .gte('rent_monthly', 200)
     .gte('latitude', args.bounds.minLat)
@@ -463,7 +466,11 @@ export async function fetchViewportExploreListings(args: {
   return (data as unknown as readonly ListingRow[]).map(toExploreListing);
 }
 
-/** Fetch a single listing by ID for the detail page (public, bypasses RLS) */
+/**
+ * Fetch a single listing by ID for the detail page (public, bypasses RLS).
+ * Intentionally NOT filtered to source='sublease' (AIN-63): scraped listings are
+ * demoted from discovery, not reachability — old links/conversations must not 404.
+ */
 export async function fetchListingById(
   id: string
 ): Promise<ListingDetail | null> {

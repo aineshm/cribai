@@ -154,7 +154,7 @@ export function ExploreClient({ featuredListings }: ExploreClientProps) {
     }
   }, []);
 
-  /** Reset AI-filtered map results back to showing all listings from the full corpus */
+  /** Reset AI-filtered map results back to the viewport's sublease inventory (AIN-63: discovery is sublease-only) */
   const resetAiResults = useCallback(() => {
     setAiMapListings(null);
     setMapFlyTo(null);
@@ -312,8 +312,10 @@ export function ExploreClient({ featuredListings }: ExploreClientProps) {
             <div className="flex items-center justify-between border-b border-gray-100 bg-white/80 px-4 py-2 text-xs text-gray-500">
               <span>
                 {isViewportLoading
-                  ? 'Loading listings in this area...'
-                  : `Showing ${viewportListings.length} listing${viewportListings.length !== 1 ? 's' : ''} in view`}
+                  ? 'Loading subleases in this area...'
+                  : viewportListings.length === 0
+                    ? 'No subleases in view yet — zoom out or be the first to post one'
+                    : `Showing ${viewportListings.length} sublease${viewportListings.length !== 1 ? 's' : ''} in view`}
               </span>
               {lockedBounds && (
                 <button

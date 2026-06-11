@@ -293,6 +293,56 @@ describe('searchListings semantic search', () => {
     expect(rpcArgs).not.toHaveProperty('p_radius_m');
   });
 
+  it('passes p_source=sublease to the semantic RPC (AIN-63 sublease-only discovery)', async () => {
+    const context = createMockContext();
+    const rpcMock = vi.fn().mockResolvedValue({
+      data: [SAMPLE_RPC_RESULT_1],
+      error: null,
+    });
+    (context.supabase as unknown as { rpc: typeof rpcMock }).rpc = rpcMock;
+
+    await searchListings({ semantic_query: 'cozy apartment' }, context);
+
+    expect(rpcMock).toHaveBeenCalledWith('match_listings_semantic', expect.objectContaining({
+      p_source: 'sublease',
+    }));
+  });
+
+  it('falls back to the SQL path when the semantic RPC errors (e.g. pre-040 schema, PGRST202)', async () => {
+    const builder = createMockQueryBuilder([SAMPLE_LISTING_ROW]);
+    const context = createMockContext();
+    vi.mocked(context.supabase.from).mockReturnValue(builder as never);
+    const rpcMock = vi.fn().mockResolvedValue({
+      data: null,
+      error: { message: 'Could not find the function', code: 'PGRST202', details: null, hint: null },
+    });
+    (context.supabase as unknown as { rpc: typeof rpcMock }).rpc = rpcMock;
+
+    const result = await searchListings({ semantic_query: 'cozy apartment' }, context);
+
+    // Falls back to the (sublease-filtered) SQL builder instead of "temporarily unavailable"
+    expect(context.supabase.from).toHaveBeenCalledWith('listings');
+    expect(builder.eq).toHaveBeenCalledWith('source', 'sublease');
+    expect(result.modelContext).not.toContain('temporarily unavailable');
+    if (result.clientBlock.type === 'listing_card') {
+      expect(result.clientBlock.listings).toHaveLength(1);
+    }
+  });
+
+  it('describes semantic results as student subleases, not scraped sources (AIN-63)', async () => {
+    const context = createMockContext();
+    const rpcMock = vi.fn().mockResolvedValue({
+      data: [SAMPLE_RPC_RESULT_1],
+      error: null,
+    });
+    (context.supabase as unknown as { rpc: typeof rpcMock }).rpc = rpcMock;
+
+    const result = await searchListings({ semantic_query: 'cozy apartment' }, context);
+
+    expect(result.modelContext).not.toContain('Prefer Zillow-sourced');
+    expect(result.modelContext).toContain('student-posted subleases');
+  });
+
   it('centers map on landmark when detected', async () => {
     const landmark = {
       name: 'Engineering Hall',

@@ -34,11 +34,11 @@ const QUERY = 'find me 2 bedroom apartments under $2000';
  * Returns null if the text is not found.
  */
 async function getGeocodedCount(page: Page): Promise<number | null> {
-  const overlayLocator = page.locator('text=/\\d[\\d,]*\\s+listings?\\s+on\\s+map/i').first();
+  const overlayLocator = page.locator('text=/\\d[\\d,]*\\s+(?:subleases?|listings?)\\s+on\\s+map/i').first();
   const exists = await overlayLocator.count();
   if (!exists) return null;
   const text = await overlayLocator.innerText();
-  const match = text.match(/(\d[\d,]*)\s+listings?\s+on\s+map/i);
+  const match = text.match(/(\d[\d,]*)\s+(?:subleases?|listings?)\s+on\s+map/i);
   if (!match) return null;
   return parseInt(match[1].replace(/,/g, ''), 10);
 }
@@ -73,7 +73,7 @@ test.describe('Explore page — map pin update after AI search', () => {
     await page.waitForLoadState('networkidle');
 
     // Wait for the map panel overlay to appear (it renders once MapPanel mounts)
-    await expect(page.locator('text=/\\d[\\d,]*\\s+listings?\\s+on\\s+map/i').first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('text=/\\d[\\d,]*\\s+(?:subleases?|listings?)\\s+on\\s+map/i').first()).toBeVisible({ timeout: 15_000 });
 
     // ------------------------------------------------------------------
     // STEP 2: Capture initial state — geocoded count + screenshot

@@ -24,12 +24,12 @@ const RESULTS_DIR = '/Users/aineshmohan/Developer/ai-real-estate-agent/apps/web/
 /** Parse the listings-on-map count from the map panel overlay. Returns null if not found. */
 async function readGeocodedCount(page: Page): Promise<number | null> {
   // MapPanel renders: "{count} listing(s) on map" (rebrand from "geocoded matches")
-  const locator = page.locator('text=/\\d[\\d,]*\\s+listings?\\s+on\\s+map/i').first();
+  const locator = page.locator('text=/\\d[\\d,]*\\s+(?:subleases?|listings?)\\s+on\\s+map/i').first();
   const count = await locator.count();
   if (!count) return null;
   const text = await locator.innerText().catch(() => null);
   if (!text) return null;
-  const match = text.match(/(\d[\d,]*)\s+listings?\s+on\s+map/i);
+  const match = text.match(/(\d[\d,]*)\s+(?:subleases?|listings?)\s+on\s+map/i);
   if (!match) return null;
   return parseInt(match[1].replace(/,/g, ''), 10);
 }
@@ -54,7 +54,7 @@ test.describe('Map pin count narrows after AI search', () => {
     await page.waitForLoadState('networkidle');
 
     // Wait up to 15s for the map overlay badge (post-rebrand text)
-    const overlayLocator = page.locator('text=/\\d[\\d,]*\\s+listings?\\s+on\\s+map/i').first();
+    const overlayLocator = page.locator('text=/\\d[\\d,]*\\s+(?:subleases?|listings?)\\s+on\\s+map/i').first();
     await expect(overlayLocator).toBeVisible({ timeout: 15_000 });
 
     // ----------------------------------------------------------------

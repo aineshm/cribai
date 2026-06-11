@@ -82,7 +82,9 @@ function buildSearchStatePatch(
       amenities: parsed.amenities ?? [],
       address: parsed.address ?? null,
       semanticQuery: parsed.semantic_query ?? null,
-      source: null,
+      // AIN-63: discovery queries always pin source='sublease'; reflect that in state
+      // (not a user-toggleable filter — there is no UI chip for source).
+      source: 'sublease',
     },
   };
 }
@@ -144,6 +146,7 @@ async function semanticSearch(
     p_min_rent: parsed.min_rent ?? null,
     p_max_rent: parsed.max_rent ?? null,
     p_min_fairness: parsed.min_fairness ?? null,
+    p_source: 'sublease', // AIN-63: discovery is sublease-only (filtered inside the RPC, migration 040)
     match_count: limit,
   };
 
@@ -176,18 +179,10 @@ async function semanticSearch(
       landmarkName: landmark?.name ?? null,
       hasGeoParams: 'p_latitude' in rpcParams,
     });
-    return {
-      machineData: {
-        normalizedArgs: buildNormalizedArgs(parsed, limit),
-        resultListingIds: [],
-        resultCount: 0,
-        uniquePropertyCount: 0,
-        center: null,
-        sourceBreakdown: {},
-      },
-      modelContext: 'Search is temporarily unavailable. Try rephrasing your request or I can search by specific filters instead.',
-      clientBlock: { type: 'listing_card' as const, listings: [] },
-    };
+    // Degrade to the SQL path (already sublease-filtered) instead of an outage message —
+    // covers the deploy-before-migration-040 window where the p_source named-arg
+    // doesn't match any function signature (PGRST202).
+    return sqlSearch(parsed, limit, context);
   }
 
   let rows = (data ?? []) as readonly SemanticRpcRow[];
@@ -250,7 +245,7 @@ async function semanticSearch(
           (l, i) =>
             `${i + 1}. ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10 [listing_id:${l.id}]${l.source && l.source !== 'unknown' ? ` (source: ${l.source})` : ''}`,
         )
-        .join('\n')}\n\n[Prefer Zillow-sourced and student sublease listings when recommending — they have richer data. Craigslist listings may have sparse details.]` + uniqueHint + deepSearchCta;
+        .join('\n')}\n\n[All results are student-posted subleases from verified .edu students. Scraped market listings are excluded from discovery and used only as a pricing comp corpus.]` + uniqueHint + deepSearchCta;
 
   // Build map block for 3+ results with lat/lng
   const filteredRows = parsed.amenities?.length
@@ -344,6 +339,7 @@ async function sqlSearch(
       'id, address, rent_monthly, bedrooms, bathrooms, sqft, fairness_score, true_cost_total, amenities, source, latitude, longitude, photo_urls',
     )
     .eq('campus_id', context.campusId)
+    .eq('source', 'sublease')  // AIN-63: discovery surfaces show student subleases only
     .eq('is_active', true)
     .gte('rent_monthly', 200);  // Filter spam listings
 
@@ -448,7 +444,7 @@ async function sqlSearch(
           (l, i) =>
             `${i + 1}. ${l.address} — $${l.rentMonthly}/mo, ${l.bedrooms ?? '?'} bed, fairness: ${l.fairnessScore ?? 'N/A'}/10 [listing_id:${l.id}]${l.source && l.source !== 'unknown' ? ` (source: ${l.source})` : ''}`,
         )
-        .join('\n')}\n\n[Prefer Zillow-sourced and student sublease listings when recommending — they have richer data. Craigslist listings may have sparse details.]` + sqlUniqueHint + sqlDeepSearchCta;
+        .join('\n')}\n\n[All results are student-posted subleases from verified .edu students. Scraped market listings are excluded from discovery and used only as a pricing comp corpus.]` + sqlUniqueHint + sqlDeepSearchCta;
 
   const rowsWithCoords = (data ?? []).filter(
     row => row.latitude != null && row.longitude != null && (row.latitude !== 0 || row.longitude !== 0),

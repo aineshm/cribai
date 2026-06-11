@@ -16,6 +16,7 @@ async function resolveAddress(
   listingId: string,
   context: ToolContext,
 ): Promise<string> {
+  // AIN-63: intentionally unfiltered by source — reviews resolve any listing in the full corpus, incl. scraped properties
   const { data, error } = await context.supabase
     .from('listings')
     .select('address')

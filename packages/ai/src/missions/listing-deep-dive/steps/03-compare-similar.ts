@@ -28,6 +28,7 @@ export const compareSimilarStep: MissionStep = {
     const rentMax = rent * 1.3;
 
     // Filter by same campus to avoid cross-market comparisons
+    // AIN-63: intentionally unfiltered by source — comps come from the full corpus (incl. scraped Zillow/CL), not just discoverable subleases
     let query = ctx.supabase
       .from('listings')
       .select('id, address, rent_monthly, bedrooms, bathrooms, sqft, fairness_score, true_cost_total, amenities, source')

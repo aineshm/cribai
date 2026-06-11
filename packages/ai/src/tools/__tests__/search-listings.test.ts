@@ -104,4 +104,25 @@ describe('searchListings', () => {
     const context = createMockContext();
     await expect(searchListings({ bedrooms: 'invalid' }, context)).rejects.toThrow();
   });
+
+  it('restricts SQL discovery to sublease inventory (AIN-63)', async () => {
+    const builder = createMockQueryBuilder([SAMPLE_LISTING_ROW]);
+    const context = createMockContext();
+    vi.mocked(context.supabase.from).mockReturnValue(builder as never);
+
+    await searchListings({}, context);
+
+    expect(builder.eq).toHaveBeenCalledWith('source', 'sublease');
+  });
+
+  it('describes results as student subleases, not scraped sources (AIN-63)', async () => {
+    const builder = createMockQueryBuilder([SAMPLE_LISTING_ROW]);
+    const context = createMockContext();
+    vi.mocked(context.supabase.from).mockReturnValue(builder as never);
+
+    const result = await searchListings({}, context);
+
+    expect(result.modelContext).not.toContain('Prefer Zillow-sourced');
+    expect(result.modelContext).toContain('student-posted subleases');
+  });
 });

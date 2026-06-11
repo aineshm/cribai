@@ -12,6 +12,7 @@ export async function getListingDetail(
 ): Promise<ToolResult> {
   const { listing_id } = inputSchema.parse(args);
 
+  // AIN-63: intentionally unfiltered by source — by-id detail must keep scraped listings reachable (comp corpus, old conversations)
   const { data, error } = await context.supabase
     .from('listings')
     .select(

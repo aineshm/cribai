@@ -42,6 +42,7 @@ async function resolveListingLocation(
   listingId: string,
   context: ToolContext,
 ): Promise<ListingLocation> {
+  // AIN-63: intentionally unfiltered by source — neighborhood info resolves any listing in the full corpus, incl. scraped properties
   const { data, error } = await context.supabase
     .from('listings')
     .select('address, lat, lng')

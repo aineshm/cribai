@@ -23,11 +23,11 @@ const FOLLOWUP = 'yes go ahead and search now';
  * Returns null when the overlay is absent.
  */
 async function readGeoCount(page: Page): Promise<number | null> {
-  const el = page.locator('text=/\\d[\\d,]*\\s+listings?\\s+on\\s+map/i').first();
+  const el = page.locator('text=/\\d[\\d,]*\\s+(?:subleases?|listings?)\\s+on\\s+map/i').first();
   const count = await el.count();
   if (!count) return null;
   const text = await el.innerText().catch(() => '');
-  const m = text.match(/(\d[\d,]*)\s+listings?\s+on\s+map/i);
+  const m = text.match(/(\d[\d,]*)\s+(?:subleases?|listings?)\s+on\s+map/i);
   if (!m) return null;
   return parseInt(m[1].replace(/,/g, ''), 10);
 }
@@ -66,7 +66,7 @@ test.describe('Map overlay count — AI chat search narrows listings', () => {
     await page.waitForLoadState('networkidle');
 
     // Wait for the map overlay to appear — it mounts after MapPanel renders
-    const overlayLocator = page.locator('text=/\\d[\\d,]*\\s+listings?\\s+on\\s+map/i').first();
+    const overlayLocator = page.locator('text=/\\d[\\d,]*\\s+(?:subleases?|listings?)\\s+on\\s+map/i').first();
     await expect(overlayLocator).toBeVisible({ timeout: 20_000 });
 
     // ------------------------------------------------------------------ 2  Read initial count
