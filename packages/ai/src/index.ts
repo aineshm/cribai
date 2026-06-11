@@ -14,10 +14,11 @@ export { executeMission, runMissionQueueOnce, registerMission, getMissionDefinit
 export type { MissionStep, StepContext, StepResult, MissionDefinition, ExecuteOptions } from './missions';
 export { classifyIntent, shouldClassify } from './intent-classifier';
 export type { IntentResult } from './intent-classifier';
-export { extractListing, ExtractionError } from './extraction';
+export { extractListing, extractListingFromHtml, ExtractionError } from './extraction';
 export type {
   ExtractedListing,
   ExtractListingOptions,
+  ExtractListingFromHtmlOptions,
   ExtractionErrorCode,
 } from './extraction';
 // AIN-61: exported so the /api/crm/listings route can inject the same geocoder

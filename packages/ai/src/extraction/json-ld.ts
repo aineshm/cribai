@@ -52,8 +52,16 @@ const LISTING_TYPES: ReadonlySet<string> = new Set([
 // quote. Real-world Next.js / Gatsby / many CMS templates emit the full
 // `application/ld+json; charset=utf-8`; a strict-equality match would skip
 // those blocks and silently degrade to OG-only (codex round 5 P1).
-const SCRIPT_TAG_REGEX =
-  /<script[^>]*type\s*=\s*["']application\/ld\+json\s*(?:;[^"']*)?["'][^>]*>([\s\S]*?)<\/script>/gi;
+//
+// Regex-DoS hardening (review fix, security HIGH): this is anchored (`^…$`)
+// and only ever applied to a SINGLE already-delimited open tag — the slice
+// from `<script` to the first `>` — found via linear `indexOf` scanning in
+// `parseAllJsonLdBlocks`. The previous whole-document
+// `<script[^>]*type…([\s\S]*?)<\/script>` form rescanned O(n) from every
+// `<script ` start position when the tag never terminated (256KB of repeated
+// `<script ` took ~12s; ~80min extrapolated at the 5MB cap).
+const SCRIPT_OPEN_TAG_REGEX =
+  /^<script[^>]*type\s*=\s*["']application\/ld\+json\s*(?:;[^"']*)?["'][^>]*>$/i;
 
 /**
  * JSON.parse reviver that drops `__proto__` and `constructor` keys at parse
@@ -78,12 +86,39 @@ function safeReviver(key: string, value: unknown): unknown {
  * not to validate the whole page.
  *
  * Uses `safeReviver` to scrub `__proto__` / `constructor` keys.
+ *
+ * Scanning is linear (review fix, security HIGH): candidate `<script` open
+ * tags are located with `indexOf`, the open tag is delimited at its first
+ * `>`, and only that bounded slice is regex-tested. Every `indexOf` scan
+ * resumes past the previous one, so hostile input (e.g. megabytes of
+ * repeated `<script ` with no `>`) is walked once instead of O(n²).
  */
 export function parseAllJsonLdBlocks(html: string): unknown[] {
   const blocks: unknown[] = [];
-  const matches = html.matchAll(SCRIPT_TAG_REGEX);
-  for (const match of matches) {
-    const body = (match[1] ?? '').trim();
+  const lower = html.toLowerCase();
+  const OPEN = '<script';
+  const CLOSE = '</script>';
+  let cursor = 0;
+  while (cursor < html.length) {
+    const start = lower.indexOf(OPEN, cursor);
+    if (start === -1) break;
+    const tagEnd = lower.indexOf('>', start + OPEN.length);
+    // Unterminated open tag: no later candidate can terminate either — done.
+    if (tagEnd === -1) break;
+    if (!SCRIPT_OPEN_TAG_REGEX.test(html.slice(start, tagEnd + 1))) {
+      // Not a JSON-LD script tag. Any overlapping `<script` candidate inside
+      // [start, tagEnd] shares this same first `>` with strictly less
+      // attribute text in front of it, so it cannot match where this one
+      // failed — safe to skip past the `>`.
+      cursor = tagEnd + 1;
+      continue;
+    }
+    const close = lower.indexOf(CLOSE, tagEnd + 1);
+    // Unclosed block: the lazy `</script>` search can never succeed for any
+    // later open tag either (closers are shared) — done.
+    if (close === -1) break;
+    const body = html.slice(tagEnd + 1, close).trim();
+    cursor = close + CLOSE.length;
     if (!body) continue;
     try {
       blocks.push(JSON.parse(body, safeReviver));
@@ -205,6 +240,14 @@ function toNumber(value: unknown): number | undefined {
 /**
  * Extract price from any of the JSON-LD shapes seen in the wild.
  * `offers` and `priceSpecification` may be objects or arrays.
+ *
+ * Precedence (AIN-62): a concrete `price` (direct, per-offer, or inside a
+ * priceSpecification) always wins, preserving the original first-match
+ * semantics. Only when NO concrete price exists does the `AggregateOffer`
+ * range pass run — real Zillow /apartments/ building pages publish one
+ * AggregateOffer per floorplan carrying only `lowPrice`/`highPrice`, and the
+ * result collapses to the minimum low bound across offers (the "from" price
+ * students filter by; same range→low rule as og.ts / dom.ts).
  */
 function extractPrice(entity: Record<string, unknown>): number | undefined {
   // Direct price (uncommon but seen on Product variants)
@@ -237,7 +280,31 @@ function extractPrice(entity: Record<string, unknown>): number | undefined {
     if (specPrice !== undefined) return specPrice;
   }
 
-  return undefined;
+  // AggregateOffer range pass (AIN-62): minimum low bound across offers.
+  // Per-offer, `lowPrice` is preferred; `highPrice` is the fallback when a
+  // publisher only states the top of the range (a high bound is still more
+  // useful to the CRM than no price at all).
+  //
+  // Non-positive bounds are SKIPPED (review fix M1, mirrors `minFloorPlanPrice`
+  // in sites/zillow.ts): a `lowPrice: 0` placeholder floorplan would otherwise
+  // collapse the building min to 0 — which passes `inRange` and the key-fields
+  // gate, suppressing the DOM/LLM rescue.
+  let rangeLow: number | undefined;
+  for (const offer of offersList) {
+    if (!offer || typeof offer !== 'object') continue;
+    const o = offer as Record<string, unknown>;
+    let low: number | undefined;
+    for (const bound of [toNumber(o.lowPrice), toNumber(o.highPrice)]) {
+      if (bound !== undefined && bound > 0) {
+        low = bound;
+        break;
+      }
+    }
+    if (low !== undefined && (rangeLow === undefined || low < rangeLow)) {
+      rangeLow = low;
+    }
+  }
+  return rangeLow;
 }
 
 /**
@@ -500,10 +567,112 @@ export function projectJsonLdEntity(
 }
 
 /**
+ * Collect the sub-trees of the chosen ROOT entity under which the SAME
+ * listing may nest a deeper entity (AIN-62, Phase-0 finding 2). Real Zillow
+ * pages:
+ *
+ *   - /homedetails/ single-unit: `offers.itemOffered` is a
+ *     SingleFamilyResidence carrying address / geo / beds / floorSize.
+ *   - /apartments/ building: `about` is an ApartmentComplex carrying
+ *     address / geo / amenities / the hero image.
+ *
+ * Deliberately narrow: `containsPlace` (and anything else) stays untraversed
+ * — those children are sub-units / floorplans, and reading a specific unit's
+ * beds/price as the page-level listing's would mislabel it (pinned by
+ * extraction.test.ts "extracts a top-level Place listing even when nested
+ * Apartment children exist").
+ *
+ * Review fix M2: under `offers`, ONLY `itemOffered` is collected (handling
+ * both the single-object and array `offers` shapes). Feeding the whole
+ * `offers` value to the BFS would pick up entities that are NOT the listing
+ * — e.g. an Apartment-typed `offers.seller` / `offers.offeredBy` — and
+ * mislabel the root with their bedrooms/address.
+ */
+function collectNestedRoots(entity: Record<string, unknown>): unknown[] {
+  const roots: unknown[] = [];
+
+  const about = entity.about;
+  if (about !== null && typeof about === 'object') roots.push(about);
+
+  const offers = entity.offers;
+  const offersList: unknown[] = Array.isArray(offers) ? offers : offers ? [offers] : [];
+  for (const offer of offersList) {
+    if (!offer || typeof offer !== 'object' || Array.isArray(offer)) continue;
+    const itemOffered = (offer as Record<string, unknown>).itemOffered;
+    if (itemOffered !== null && typeof itemOffered === 'object') roots.push(itemOffered);
+  }
+
+  return roots;
+}
+
+/**
+ * Defensive cap on how many nested entities are projected for gap-fill. A
+ * hostile page could nest thousands of listing-typed objects under `offers`;
+ * after this many, later entities could only re-fill fields the earlier ones
+ * already provided, so the cap loses nothing real.
+ */
+const MAX_NESTED_ENTITIES = 16;
+
+/**
+ * The listing fields a nested entity may gap-fill. Excludes the `raw_json_ld`
+ * debug blob — that always stays the ROOT entity.
+ */
+const GAP_FILL_KEYS: readonly (keyof ExtractedFields)[] = [
+  'title',
+  'description',
+  'price',
+  'bedrooms',
+  'bathrooms',
+  'square_feet',
+  'address',
+  'city',
+  'state',
+  'zip',
+  'latitude',
+  'longitude',
+  'photos',
+  'amenities',
+  'available_from',
+];
+
+/**
+ * Project the chosen root entity, then gap-fill missing fields from listing
+ * entities nested under `about` / `offers[].itemOffered` (see
+ * `collectNestedRoots`). The root ALWAYS wins on conflicts; nested entities
+ * are visited breadth-first (shallowest first) and, per
+ * `findListingEntitiesBfs`, nothing below a yielded nested entity is read
+ * (its children are sub-units). Returns a new object — never mutates the
+ * root projection.
+ */
+function projectWithNestedEntities(
+  entity: Record<string, unknown>,
+  sourceUrl: string,
+): ReturnType<typeof projectJsonLdEntity> {
+  const out = { ...projectJsonLdEntity(entity, sourceUrl) };
+
+  const nestedRoots = collectNestedRoots(entity);
+  if (nestedRoots.length === 0) return out;
+
+  let visited = 0;
+  for (const nested of findListingEntitiesBfs(nestedRoots)) {
+    if (visited >= MAX_NESTED_ENTITIES) break;
+    visited += 1;
+    const sub = projectJsonLdEntity(nested, sourceUrl);
+    for (const key of GAP_FILL_KEYS) {
+      if (out[key] === undefined && sub[key] !== undefined) {
+        (out as Record<string, unknown>)[key] = sub[key];
+      }
+    }
+  }
+  return out;
+}
+
+/**
  * Top-level helper: parse the HTML, BFS-walk every parsed JSON-LD block,
- * and project the first (shallowest) listing entity. Returns `null` when
- * no listing-shaped JSON-LD is found, letting the caller fall through to
- * the OpenGraph extractor.
+ * and project the first (shallowest) listing entity — gap-filled from any
+ * same-listing entity nested under its `about` / `offers` keys (AIN-62).
+ * Returns `null` when no listing-shaped JSON-LD is found, letting the
+ * caller fall through to the OpenGraph extractor.
  *
  * Across blocks, blocks are processed in document order; within a block,
  * entities are visited breadth-first so the shallowest listing wins.
@@ -515,7 +684,7 @@ export function extractFromJsonLd(
   const blocks = parseAllJsonLdBlocks(html);
   for (const block of blocks) {
     for (const entity of findListingEntitiesBfs(block)) {
-      return projectJsonLdEntity(entity, sourceUrl);
+      return projectWithNestedEntities(entity, sourceUrl);
     }
   }
   return null;
