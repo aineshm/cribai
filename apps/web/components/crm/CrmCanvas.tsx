@@ -6,6 +6,8 @@ import { List, BarChart3, Columns3, PanelLeftClose, Share2 } from 'lucide-react'
 import type { RankCompareResult } from '@campusnest/ai';
 import type { CrmList, CrmListMember, CrmUnit } from '@/lib/crm/proposed-types';
 import { crmClient } from '@/lib/crm-client';
+import { errorMessage } from '@/lib/crm/error-message';
+import { BranchState } from './ui/BranchState';
 import { MemberAvatars } from './ui/MemberAvatars';
 import { SavedUnitCard } from './SavedUnitCard';
 import { RankCompareTable } from './RankCompareTable';
@@ -38,17 +40,34 @@ export function CrmCanvas({ onClose }: { onClose?: () => void }) {
   const [rank, setRank] = useState<RankCompareResult | null>(null);
   const [compare, setCompare] = useState<RankCompareResult | null>(null);
   const [view, setView] = useState<View>('list');
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [rankError, setRankError] = useState<string | null>(null);
+  const [compareError, setCompareError] = useState<string | null>(null);
 
+  // list+units are the canvas's required data; rank is its own tab and must
+  // not blank the listings when only ranking fails (review M1, AIN-61).
   useEffect(() => {
     let alive = true;
-    void Promise.all([crmClient.getList(), crmClient.listUnits(), crmClient.rank('rank')]).then(
-      ([l, u, r]) => {
+    Promise.all([crmClient.getList(), crmClient.listUnits()])
+      .then(([l, u]) => {
         if (!alive) return;
         setList(l);
         setUnits(u);
+        setLoadError(null);
+      })
+      .catch((err: unknown) => {
+        if (alive) setLoadError(errorMessage(err));
+      });
+    crmClient
+      .rank('rank')
+      .then((r) => {
+        if (!alive) return;
         setRank(r);
-      },
-    );
+        setRankError(null);
+      })
+      .catch((err: unknown) => {
+        if (alive) setRankError(errorMessage(err));
+      });
     return () => {
       alive = false;
     };
@@ -58,9 +77,16 @@ export function CrmCanvas({ onClose }: { onClose?: () => void }) {
   useEffect(() => {
     if (view !== 'compare' || compare) return;
     let alive = true;
-    void crmClient.rank('compare').then((r) => {
-      if (alive) setCompare(r);
-    });
+    crmClient
+      .rank('compare')
+      .then((r) => {
+        if (!alive) return;
+        setCompare(r);
+        setCompareError(null);
+      })
+      .catch((err: unknown) => {
+        if (alive) setCompareError(errorMessage(err));
+      });
     return () => {
       alive = false;
     };
@@ -169,15 +195,21 @@ export function CrmCanvas({ onClose }: { onClose?: () => void }) {
       {/* Body — only the active tab's panel mounts */}
       <div className="flex-1 overflow-y-auto p-6">
         {view === 'list' ? (
-          <div className="grid grid-cols-1 gap-[1.1rem] min-[1180px]:grid-cols-2">
-            {units.map((u) => (
-              <SavedUnitCard key={u.id} unit={u} addedByMember={memberById(u._proposed.addedBy)} />
-            ))}
-          </div>
+          loadError ? (
+            <LoadError message={loadError} />
+          ) : (
+            <div className="grid grid-cols-1 gap-[1.1rem] min-[1180px]:grid-cols-2">
+              {units.map((u) => (
+                <SavedUnitCard key={u.id} unit={u} addedByMember={memberById(u._proposed.addedBy)} />
+              ))}
+            </div>
+          )
         ) : null}
 
         {view === 'rank' ? (
-          rank ? (
+          rankError ? (
+            <LoadError message={rankError} />
+          ) : rank ? (
             <RankCompareTable result={rank} />
           ) : (
             <LoadingHint />
@@ -185,7 +217,9 @@ export function CrmCanvas({ onClose }: { onClose?: () => void }) {
         ) : null}
 
         {view === 'compare' ? (
-          compare ? (
+          compareError ? (
+            <LoadError message={compareError} />
+          ) : compare ? (
             <RankCompareTable result={compare} />
           ) : (
             <LoadingHint />
@@ -202,4 +236,9 @@ function LoadingHint() {
       Loading…
     </p>
   );
+}
+
+/** AIN-60: crash-safe loader error rendered through the BranchState atom. */
+function LoadError({ message }: { message: string }) {
+  return <BranchState branch={{ status: 'error', error: message }}>{() => null}</BranchState>;
 }

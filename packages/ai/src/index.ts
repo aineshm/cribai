@@ -20,6 +20,9 @@ export type {
   ExtractListingOptions,
   ExtractionErrorCode,
 } from './extraction';
+// AIN-61: exported so the /api/crm/listings route can inject the same geocoder
+// the add_listing tool handler uses into the addListing core.
+export { geocodeAddress } from './tools/lib/geocode-address';
 export { createRequestMetricsRecorder, resolveRequestId } from './runtime/metrics';
 export type {
   RequestMetricsRecorder,

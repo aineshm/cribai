@@ -122,8 +122,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Rate limit /api/ai/* routes
-  if (pathname.startsWith('/api/ai/') && user) {
+  // Rate limit /api/ai/* and /api/crm/* routes (CRM saves/analyses trigger
+  // server-side fetches + paid LLM/Places calls — same per-user budget).
+  if ((pathname.startsWith('/api/ai/') || pathname.startsWith('/api/crm/')) && user) {
     const rateLimitRes = await fetch(
       `${supabaseUrl}/functions/v1/rate-limiter`,
       {
