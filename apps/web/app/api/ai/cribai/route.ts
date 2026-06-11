@@ -379,7 +379,17 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = (await request.json()) as Record<string, unknown>;
-    const { query, campusSlug, history, bounds, listingId, conversationId } = body;
+    const { query, campusSlug, history, bounds, listingId, conversationId, surface } = body;
+
+    // AIN-65 / WS6 — surface-scoped runtime escalation. ONLY the literal
+    // 'crm' is accepted; any other value is ignored (undefined). NOTE: a
+    // SIGNED-IN client CAN spoof surface:'crm' to opt into the LLM-first
+    // runtime while it's CRM-only — accepted risk: CRM tools are
+    // sign-in-gated, the per-user 10/hr rate limit applies, and the per-turn
+    // cost cap observes. Guests never escalate — selectRuntime requires a
+    // userId for the CRM path because the rate limiter only covers
+    // authenticated users (security review HIGH-1).
+    const validSurface = surface === 'crm' ? ('crm' as const) : undefined;
 
     const validConversationId =
       typeof conversationId === 'string' && /^[0-9a-f-]{36}$/i.test(conversationId)
@@ -459,7 +469,9 @@ export async function POST(request: NextRequest) {
     // only on env + userId, both available here. v1 is a binary dark flag
     // (CRIBAI_RUNTIME_LLM_FIRST='1'); default is 'deterministic' and the
     // entire current code path below is unchanged on that default.
-    const runtime = selectRuntime({ userId });
+    // AIN-65 — the validated surface lets CRM turns escalate to llm_first
+    // behind CRIBAI_RUNTIME_CRM='1' while explore stays deterministic.
+    const runtime = selectRuntime({ userId, surface: validSurface });
 
     metricsRecorder = createRequestMetricsRecorder(
       {

@@ -14,10 +14,11 @@ export { executeMission, runMissionQueueOnce, registerMission, getMissionDefinit
 export type { MissionStep, StepContext, StepResult, MissionDefinition, ExecuteOptions } from './missions';
 export { classifyIntent, shouldClassify } from './intent-classifier';
 export type { IntentResult } from './intent-classifier';
-export { extractListing, ExtractionError } from './extraction';
+export { extractListing, extractListingFromHtml, ExtractionError } from './extraction';
 export type {
   ExtractedListing,
   ExtractListingOptions,
+  ExtractListingFromHtmlOptions,
   ExtractionErrorCode,
 } from './extraction';
 // AIN-61: exported so the /api/crm/listings route can inject the same geocoder
@@ -36,7 +37,7 @@ export type {
 // PDR-004 Track A Days 3-4 (AIN-8) — LLM-first turn handler + supporting bits.
 export { runLlmTurn } from './runtime/llm-turn';
 export type { RunLlmTurnInput } from './runtime/llm-turn';
-export { selectRuntime, LLM_FIRST_FLAG } from './runtime/runtime-select';
+export { selectRuntime, LLM_FIRST_FLAG, CRM_SURFACE_FLAG } from './runtime/runtime-select';
 export type { SelectRuntimeInput } from './runtime/runtime-select';
 export {
   createAiSdkModel,
@@ -164,4 +165,13 @@ export type {
   CompareRow,
   CrmListingRow,
   TrueCostInput,
+} from './crm';
+// AIN-65 — handler machineData contracts, consumed by the CRM front end to
+// render structured cards straight from `tool_result` SSE events.
+export type {
+  CrmMachineData,
+  AddListingMachineData,
+  FirstSaveAnalysisMachineData,
+  RankCompareMachineData,
+  InferProfileMachineData,
 } from './crm';
