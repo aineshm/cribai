@@ -69,6 +69,47 @@ function makeMockDb(): SupabaseClient {
   return {} as unknown as SupabaseClient;
 }
 
+/**
+ * Chainable mock Supabase client for the post-save crm_listings read-back in
+ * addListingHandler: .from().select().eq().eq().maybeSingle().
+ */
+function makeListingFetchDb(
+  row: Record<string, unknown> | null,
+  error: { message: string } | null = null,
+): { db: SupabaseClient; from: ReturnType<typeof vi.fn>; select: ReturnType<typeof vi.fn>; eq: ReturnType<typeof vi.fn> } {
+  const builder: Record<string, unknown> = {};
+  const select = vi.fn().mockReturnValue(builder);
+  const eq = vi.fn().mockReturnValue(builder);
+  const maybeSingle = vi.fn().mockResolvedValue({ data: row, error });
+  builder['select'] = select;
+  builder['eq'] = eq;
+  builder['maybeSingle'] = maybeSingle;
+  const from = vi.fn().mockReturnValue(builder);
+  return { db: { from } as unknown as SupabaseClient, from, select, eq };
+}
+
+/** A full crm_listings row as the read-back select projects it. */
+const SAVED_ROW = {
+  id: 'listing-uuid-1',
+  user_id: 'user-abc-123',
+  source_url: 'https://zillow.com/foo',
+  source_site: 'zillow',
+  title: 'Test Apt',
+  address: '123 W Main St',
+  rent: 1200,
+  bedrooms: 2,
+  bathrooms: 1,
+  sqft: 800,
+  available_from: '2026-08-15',
+  description: 'Nice place',
+  amenities: ['gym'],
+  photo_urls: [],
+  extraction_confidence: 0.9,
+  status: 'active',
+  user_notes: null,
+  saved_at: '2026-06-01T00:00:00Z',
+};
+
 function makeContext(overrides: Partial<ToolContext> = {}): ToolContext {
   return {
     supabase: makeMockDb(),
@@ -569,5 +610,293 @@ describe('rankCompareHandler', () => {
 
     expect(result.modelContext).toBeTruthy();
     assertTextBlock(result);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// machineData emission (AIN-65)
+// ---------------------------------------------------------------------------
+//
+// The merged CRM front end renders typed cards (SavedUnitCard,
+// FirstSaveAnalysisCard, RankCompareTable) from `ToolResult.machineData`.
+// These tests pin the discriminated payload each handler must emit alongside
+// the unchanged text clientBlock.
+
+describe('machineData emission (AIN-65)', () => {
+  const mockAddListing = vi.mocked(addListing);
+  const mockFsa = vi.mocked(firstSaveAnalysis);
+  const mockInferProfile = vi.mocked(inferProfile);
+  const mockRankCompare = vi.mocked(rankCompare);
+  const mockGetCrmServiceClient = vi.mocked(getCrmServiceClient);
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockGetCrmServiceClient.mockReturnValue(makeMockDb());
+  });
+
+  // --- addListingHandler ---
+
+  describe('addListingHandler', () => {
+    it('new save: emits { kind: add_listing, result, listing } with the read-back crm_listings row', async () => {
+      const { db, from, select, eq } = makeListingFetchDb(SAVED_ROW);
+      const ctx = makeContext({ supabase: db });
+      const addResult: AddListingResult = { listingId: 'listing-uuid-1', alreadySaved: false, confidence: 0.9 };
+      mockAddListing.mockResolvedValueOnce(addResult);
+
+      const result = await addListingHandler({ url: 'https://zillow.com/foo' }, ctx);
+
+      expect(result.machineData).toEqual({
+        kind: 'add_listing',
+        result: addResult,
+        listing: SAVED_ROW,
+      });
+      // Read-back is scoped to the saved row AND the signed-in user.
+      expect(from).toHaveBeenCalledWith('crm_listings');
+      expect(eq).toHaveBeenCalledWith('id', 'listing-uuid-1');
+      expect(eq).toHaveBeenCalledWith('user_id', 'user-abc-123');
+      // The projection must stay explicit: never `*`, never the PostGIS WKB
+      // `coordinates` blob — this row ships to the browser via SSE machineData.
+      const projection = String(select.mock.calls[0]?.[0]);
+      expect(projection).not.toBe('*');
+      expect(projection).not.toContain('coordinates');
+      // Text clientBlock is unchanged (legacy explore chat fallback).
+      assertTextBlock(result);
+    });
+
+    it('dedup (alreadySaved): still emits machineData with the existing row', async () => {
+      const { db } = makeListingFetchDb({ ...SAVED_ROW, id: 'listing-uuid-2' });
+      const ctx = makeContext({ supabase: db });
+      const addResult: AddListingResult = { listingId: 'listing-uuid-2', alreadySaved: true, confidence: 0.8 };
+      mockAddListing.mockResolvedValueOnce(addResult);
+
+      const result = await addListingHandler({ url: 'https://zillow.com/foo' }, ctx);
+
+      expect(result.machineData).toEqual({
+        kind: 'add_listing',
+        result: addResult,
+        listing: { ...SAVED_ROW, id: 'listing-uuid-2' },
+      });
+    });
+
+    it('degraded: read-back select errors → machineData still emitted with listing: null', async () => {
+      const { db } = makeListingFetchDb(null, { message: 'permission denied' });
+      const ctx = makeContext({ supabase: db });
+      const addResult: AddListingResult = { listingId: 'listing-uuid-3', alreadySaved: false, confidence: 0.9 };
+      mockAddListing.mockResolvedValueOnce(addResult);
+
+      const result = await addListingHandler({ url: 'https://zillow.com/foo' }, ctx);
+
+      expect(result.machineData).toEqual({ kind: 'add_listing', result: addResult, listing: null });
+      assertTextBlock(result);
+    });
+
+    it('degraded: read-back throws synchronously (no .from on db) → listing: null, save still reported', async () => {
+      const ctx = makeContext(); // makeMockDb() has no .from
+      const addResult: AddListingResult = { listingId: 'listing-uuid-4', alreadySaved: false, confidence: 0.9 };
+      mockAddListing.mockResolvedValueOnce(addResult);
+
+      const result = await addListingHandler({ url: 'https://zillow.com/foo' }, ctx);
+
+      expect(result.machineData).toEqual({ kind: 'add_listing', result: addResult, listing: null });
+      expect(result.modelContext).toContain('listing-uuid-4');
+    });
+
+    it('dryRun: skips the read-back query entirely; listing: null', async () => {
+      const { db, from } = makeListingFetchDb(SAVED_ROW);
+      const ctx = makeContext({ supabase: db, dryRun: true });
+      const addResult: AddListingResult = { listingId: 'listing-uuid-5', alreadySaved: false, confidence: 0.5 };
+      mockAddListing.mockResolvedValueOnce(addResult);
+
+      const result = await addListingHandler({ url: 'https://zillow.com/foo' }, ctx);
+
+      expect(from).not.toHaveBeenCalled();
+      expect(result.machineData).toEqual({ kind: 'add_listing', result: addResult, listing: null });
+    });
+
+    it('error path (AddListingError): no machineData', async () => {
+      const ctx = makeContext();
+      mockAddListing.mockRejectedValueOnce(new AddListingError('fetch_failed', 'I could not reach that page.'));
+
+      const result = await addListingHandler({ url: 'https://zillow.com/bad' }, ctx);
+
+      expect(result.machineData).toBeUndefined();
+    });
+
+    it('sign-in gate and invalid input: no machineData', async () => {
+      const signedOut = await addListingHandler({ url: 'https://zillow.com/foo' }, makeContext({ userId: undefined }));
+      expect(signedOut.machineData).toBeUndefined();
+
+      const invalid = await addListingHandler({ url: 'not-a-url' }, makeContext());
+      expect(invalid.machineData).toBeUndefined();
+    });
+  });
+
+  // --- firstSaveAnalysisHandler ---
+
+  describe('firstSaveAnalysisHandler', () => {
+    it('emits the FULL fanout with error branches SANITIZED to a stable code (security M1)', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const ctx = makeContext();
+      const listingId = '00000000-0000-0000-0000-000000000002';
+      const rawProviderError =
+        'AI_APICallError: 403 from https://api.openai.com/v1 (request id req-123)';
+      const fsaResult: FirstSaveAnalysis = {
+        listingId,
+        trueCost: {
+          status: 'ok',
+          data: { rent: 1200, utilities: 80, parking: 0, internet: 0, laundry: 0, renterInsurance: 0, moveInFees: 0, total: 1280 },
+        },
+        redFlags: { status: 'error', error: rawProviderError },
+        placesSnapshot: { status: 'skipped', reason: 'no coordinates' },
+        steeringQuestion: { status: 'ok', data: { question: 'What matters most?' } },
+      };
+      mockFsa.mockResolvedValueOnce(fsaResult);
+
+      const result = await firstSaveAnalysisHandler({ listing_id: listingId }, ctx);
+
+      // ok/skipped branches pass through untouched; error branches are mapped
+      // to the generic code — raw provider/DB strings never reach the browser
+      // (machineData) or the model (modelContext).
+      expect(result.machineData).toEqual({
+        kind: 'first_save_analysis',
+        analysis: { ...fsaResult, redFlags: { status: 'error', error: 'analysis_failed' } },
+      });
+      expect(result.modelContext).not.toContain(rawProviderError);
+      expect(JSON.stringify(result.machineData)).not.toContain('req-123');
+      // The raw string IS logged server-side for debugging.
+      expect(consoleError).toHaveBeenCalledWith(expect.stringContaining(rawProviderError));
+      assertTextBlock(result);
+      consoleError.mockRestore();
+    });
+
+    it('core throw: no machineData', async () => {
+      const ctx = makeContext();
+      mockFsa.mockRejectedValueOnce(new Error('Listing not found'));
+
+      const result = await firstSaveAnalysisHandler({ listing_id: '00000000-0000-0000-0000-000000000003' }, ctx);
+
+      expect(result.machineData).toBeUndefined();
+    });
+
+    it('sign-in gate and invalid input: no machineData', async () => {
+      const signedOut = await firstSaveAnalysisHandler(
+        { listing_id: '00000000-0000-0000-0000-000000000001' },
+        makeContext({ userId: undefined }),
+      );
+      expect(signedOut.machineData).toBeUndefined();
+
+      const invalid = await firstSaveAnalysisHandler({ listing_id: 'nope' }, makeContext());
+      expect(invalid.machineData).toBeUndefined();
+    });
+  });
+
+  // --- rankCompareHandler ---
+
+  describe('rankCompareHandler', () => {
+    it('rank mode: emits { kind: rank_compare, result }', async () => {
+      const ctx = makeContext();
+      const rcResult: RankCompareResult = {
+        mode: 'rank',
+        ranked: [{ listingId: 'id1', title: 'Best Apt', score: 0.88, breakdown: { rent: 0.9 } }],
+      };
+      mockRankCompare.mockResolvedValueOnce(rcResult);
+
+      const result = await rankCompareHandler({ mode: 'rank' }, ctx);
+
+      expect(result.machineData).toEqual({ kind: 'rank_compare', result: rcResult });
+      assertTextBlock(result);
+    });
+
+    it('compare mode: emits { kind: rank_compare, result }', async () => {
+      const ctx = makeContext();
+      const rcResult: RankCompareResult = {
+        mode: 'compare',
+        rows: [{ listingId: 'id1', title: 'Place A', rent: 1100, bedrooms: 2, bathrooms: 1, sqft: 750, amenities: [] }],
+      };
+      mockRankCompare.mockResolvedValueOnce(rcResult);
+
+      const result = await rankCompareHandler({ mode: 'compare' }, ctx);
+
+      expect(result.machineData).toEqual({ kind: 'rank_compare', result: rcResult });
+    });
+
+    it('empty result set: machineData still emitted (UI renders the empty state)', async () => {
+      const ctx = makeContext();
+      const rcResult: RankCompareResult = { mode: 'rank', ranked: [] };
+      mockRankCompare.mockResolvedValueOnce(rcResult);
+
+      const result = await rankCompareHandler({ mode: 'rank' }, ctx);
+
+      expect(result.machineData).toEqual({ kind: 'rank_compare', result: rcResult });
+    });
+
+    it('core throw / sign-in gate / invalid input: no machineData', async () => {
+      mockRankCompare.mockRejectedValueOnce(new Error('boom'));
+      const threw = await rankCompareHandler({}, makeContext());
+      expect(threw.machineData).toBeUndefined();
+
+      const signedOut = await rankCompareHandler({}, makeContext({ userId: undefined }));
+      expect(signedOut.machineData).toBeUndefined();
+
+      const invalid = await rankCompareHandler({ mode: 'invalid-mode' }, makeContext());
+      expect(invalid.machineData).toBeUndefined();
+    });
+  });
+
+  // --- inferProfileHandler ---
+
+  describe('inferProfileHandler', () => {
+    it('inferred: emits { kind: infer_profile, result } carrying the profile', async () => {
+      const ctx = makeContext();
+      const inferResult: InferProfileResult = {
+        status: 'inferred',
+        profile: {
+          rent_min: 900,
+          rent_max: 1400,
+          bedrooms_target: 2,
+          must_have_amenities: ['gym'],
+          nice_to_have_amenities: [],
+          home_base_address: null,
+          commute_max_minutes: null,
+          weights: { rent: 0.5 },
+          confidence: 0.7,
+        },
+      };
+      mockInferProfile.mockResolvedValueOnce(inferResult);
+
+      const result = await inferProfileHandler({}, ctx);
+
+      expect(result.machineData).toEqual({ kind: 'infer_profile', result: inferResult });
+      assertTextBlock(result);
+    });
+
+    it('needs_more_data: emits machineData with the discriminated result too', async () => {
+      const ctx = makeContext();
+      const inferResult: InferProfileResult = {
+        status: 'needs_more_data',
+        savedCount: 1,
+        steeringQuestion: 'What matters most in your next place?',
+      };
+      mockInferProfile.mockResolvedValueOnce(inferResult);
+
+      const result = await inferProfileHandler({}, ctx);
+
+      expect(result.machineData).toEqual({ kind: 'infer_profile', result: inferResult });
+    });
+
+    it('core throw / service-client throw / sign-in gate: no machineData', async () => {
+      mockInferProfile.mockRejectedValueOnce(new Error('boom'));
+      const threw = await inferProfileHandler({}, makeContext());
+      expect(threw.machineData).toBeUndefined();
+
+      mockGetCrmServiceClient.mockImplementationOnce(() => {
+        throw new Error('missing env');
+      });
+      const noClient = await inferProfileHandler({}, makeContext());
+      expect(noClient.machineData).toBeUndefined();
+
+      const signedOut = await inferProfileHandler({}, makeContext({ userId: undefined }));
+      expect(signedOut.machineData).toBeUndefined();
+    });
   });
 });
