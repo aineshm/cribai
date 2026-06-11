@@ -26,11 +26,13 @@ import type {
 // ---------------------------------------------------------------------------
 // Pending capture: the popup triggers a save, the service worker injects the
 // content script, and awaits the PAGE_CAPTURED message. We store the resolve
-// callback so the message listener can fulfill it.
+// callback and the tab id so the message listener can verify origin + fulfill.
 // ---------------------------------------------------------------------------
 
 type CaptureResolve = (msg: ContentToSwMessage) => void;
 let pendingCapture: CaptureResolve | null = null;
+/** Tab id that initiated the current capture — used for content-sender validation. */
+let pendingCaptureTabId: number | null = null;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -48,6 +50,30 @@ async function getAuthState(): Promise<AuthState> {
   return { status: 'signed_in', email: session.user.email };
 }
 
+/**
+ * Validates the email against the web app's server-side gate before calling
+ * signInWithOtp. Matches the request/response contract of
+ * apps/web/app/api/auth/validate-email/route.ts and AuthForm.tsx.
+ *
+ * Returns undefined on success; an error string on failure; null on network error.
+ */
+async function validateEmailWithServer(email: string): Promise<string | null | undefined> {
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/validate-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const body = (await res.json()) as { valid?: boolean; error?: string };
+    if (!body.valid) {
+      return body.error ?? 'Email not allowed.';
+    }
+    return undefined; // success
+  } catch {
+    return null; // network error — null distinguishes from rejection string
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Message handler
 // ---------------------------------------------------------------------------
@@ -55,18 +81,34 @@ async function getAuthState(): Promise<AuthState> {
 chrome.runtime.onMessage.addListener(
   (
     rawMessage: unknown,
-    _sender: chrome.runtime.MessageSender,
+    sender: chrome.runtime.MessageSender,
     sendResponse: (response: SwResponse) => void,
   ): boolean => {
+    // Security: reject messages from outside this extension entirely.
+    if (sender.id !== chrome.runtime.id) {
+      sendResponse({
+        type: 'ERROR',
+        code: 'invalid',
+        message: 'Untrusted sender.',
+      });
+      return false;
+    }
+
     // Fan-out: content-script capture result
     const contentMsg = rawMessage as ContentToSwMessage;
     if (
       contentMsg.type === 'PAGE_CAPTURED' ||
       contentMsg.type === 'CAPTURE_ERROR'
     ) {
+      // Security: verify that the message comes from the tab that initiated capture.
+      if (pendingCaptureTabId === null || sender.tab?.id !== pendingCaptureTabId) {
+        // Discard messages from unexpected tabs silently — do not close the channel.
+        return false;
+      }
       if (pendingCapture) {
         pendingCapture(contentMsg);
         pendingCapture = null;
+        pendingCaptureTabId = null;
       }
       return false;
     }
@@ -98,6 +140,22 @@ async function handlePopupMessage(msg: PopupToSwMessage): Promise<SwResponse> {
     }
 
     case 'SIGN_IN': {
+      // Security: validate email against the web app's server-side gate before
+      // calling signInWithOtp, matching the AuthForm.tsx flow exactly.
+      const validationError = await validateEmailWithServer(msg.email);
+      if (validationError === null) {
+        // Network error during validation — surface a user-friendly message.
+        return {
+          type: 'ERROR',
+          code: 'auth',
+          message: 'Unable to validate email. Please check your connection and try again.',
+        };
+      }
+      if (validationError !== undefined) {
+        // Server rejected the email.
+        return { type: 'ERROR', code: 'auth', message: validationError };
+      }
+
       const { error } = await supabase.auth.signInWithOtp({
         email: msg.email,
         options: { shouldCreateUser: true },
@@ -150,22 +208,39 @@ async function handlePopupMessage(msg: PopupToSwMessage): Promise<SwResponse> {
         };
       }
 
-      // 3. Inject content script and await capture
+      // 3. Inject content script and await capture (with 15s timeout so the
+      //    popup never freezes if the injected function's sendMessage is lost).
+      const captureTabId = tab.id;
       const captureResult = await new Promise<ContentToSwMessage>((resolve) => {
         pendingCapture = resolve;
+        pendingCaptureTabId = captureTabId;
+
+        // Timeout: if the content-script message never arrives, resolve as error.
+        const timeoutId = setTimeout(() => {
+          if (pendingCapture) {
+            pendingCapture({
+              type: 'CAPTURE_ERROR',
+              message: 'Capture timed out',
+            });
+            pendingCapture = null;
+            pendingCaptureTabId = null;
+          }
+        }, 15_000);
 
         chrome.scripting
           .executeScript({
-            target: { tabId: tab.id as number },
+            target: { tabId: captureTabId },
             func: captureAndSendInline,
           })
           .catch((err: unknown) => {
+            clearTimeout(timeoutId);
             if (pendingCapture) {
               pendingCapture({
                 type: 'CAPTURE_ERROR',
                 message: err instanceof Error ? err.message : 'Script injection failed',
               });
               pendingCapture = null;
+              pendingCaptureTabId = null;
             }
           });
       });

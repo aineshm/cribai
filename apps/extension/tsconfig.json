@@ -13,9 +13,7 @@
     "isolatedModules": true,
     "noUncheckedIndexedAccess": true,
     "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "jsx": "react-jsx",
-    "jsxImportSource": "react"
+    "noUnusedParameters": true
   },
   "include": ["src/**/*", "vitest.config.ts"],
   "exclude": ["node_modules", "dist"]

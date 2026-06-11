@@ -88,7 +88,9 @@ function sendToSw(message: PopupToSwMessage): Promise<SwResponse> {
 function setButtonLoading(btn: HTMLButtonElement, loading: boolean, defaultText: string): void {
   if (loading) {
     btn.disabled = true;
-    btn.innerHTML = '<div class="spinner"></div>';
+    const spinner = document.createElement('div');
+    spinner.className = 'spinner';
+    btn.replaceChildren(spinner);
   } else {
     btn.disabled = false;
     btn.textContent = defaultText;
@@ -189,9 +191,9 @@ inputOtp.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') handleVerifyOtp();
 });
 
-// Auto-submit when 8 digits entered
+// Auto-submit when 6 digits entered
 inputOtp.addEventListener('input', () => {
-  if (inputOtp.value.length === 8) {
+  if (inputOtp.value.length === 6) {
     handleVerifyOtp();
   }
 });
@@ -288,7 +290,9 @@ async function handleSave(): Promise<void> {
     const response = await sendToSw({ type: 'SAVE_LISTING' });
 
     if (response.type === 'SAVE_OK') {
-      deepLink.href = response.deepLinkUrl;
+      deepLink.href = response.deepLinkUrl.startsWith('https://')
+        ? response.deepLinkUrl
+        : '#';
       showView('success');
     } else if (response.type === 'ERROR') {
       if (response.code === 'auth') {

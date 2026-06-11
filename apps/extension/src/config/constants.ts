@@ -5,7 +5,7 @@
  * .env file at the extension root (apps/extension/.env):
  *
  *   VITE_CRIBAI_APP_DOMAIN=https://cribai.app
- *   VITE_SUPABASE_URL=https://yzplusypxgvqkrmejcuf.supabase.co
+ *   VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
  *   VITE_SUPABASE_ANON_KEY=<publishable anon key — safe to embed>
  *
  * The service-role key (SUPABASE_SECRET_KEY) MUST NEVER appear here.
