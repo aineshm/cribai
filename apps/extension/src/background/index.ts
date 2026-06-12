@@ -341,21 +341,29 @@ async function handlePopupMessage(msg: PopupToSwMessage): Promise<SwResponse> {
  * Inline capture function — injected into the page via executeScript.
  *
  * MUST be a self-contained function with no closure references.
- * Caps are inlined as literals (cannot reference module-scope imports).
+ * Caps are inlined as literals because an injected function cannot import
+ * from module scope. Each literal MUST stay in sync with its constants.ts name:
+ *
+ *   200_000  → MAX_INNER_TEXT_CHARS  (constants.ts)
+ *   10       → MAX_IFRAMES           (constants.ts)
+ *   524_288  → MAX_IFRAME_HTML_CHARS (constants.ts)
+ *
+ * If you change a constant, update BOTH constants.ts AND the literal here.
+ *
  * chrome.runtime IS available in injected scripts (MV3).
  */
 function captureAndSendInline(): void {
   try {
     const html = document.documentElement.outerHTML;
-    const innerText = (document.body ? document.body.innerText : '').slice(0, 200_000);
+    const innerText = (document.body ? document.body.innerText : '').slice(0, 200_000); // MAX_INNER_TEXT_CHARS
     const iframes: Array<{ src: string; html: string }> = [];
     const frames = document.querySelectorAll('iframe');
-    for (let i = 0; i < frames.length && iframes.length < 10; i++) {
+    for (let i = 0; i < frames.length && iframes.length < 10; i++) { // 10 = MAX_IFRAMES
       try {
         const doc = frames[i]!.contentDocument; // throws/null when cross-origin
         const root = doc && doc.documentElement;
         if (root) {
-          iframes.push({ src: frames[i]!.src || '', html: root.outerHTML.slice(0, 524_288) });
+          iframes.push({ src: frames[i]!.src || '', html: root.outerHTML.slice(0, 524_288) }); // 524_288 = MAX_IFRAME_HTML_CHARS
         }
       } catch {
         // cross-origin iframe — invisible to us by design; the deep-extract mission covers it

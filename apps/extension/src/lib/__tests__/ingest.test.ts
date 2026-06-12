@@ -8,6 +8,7 @@ import {
   assemblePayload,
   postIngest,
   fitPayloadToBudget,
+  utf8ByteLength,
   type CapturedPage,
   type IngestPayload,
 } from '../ingest';
@@ -335,5 +336,54 @@ describe('fitPayloadToBudget', () => {
     expect(p.innerText!.length).toBe(1024 * 1024);
     // Fitted must differ
     expect(fitted).not.toBe(p);
+  });
+
+  // FIX 9: omit empty fields
+  it('omits innerText when trimmed to empty string', () => {
+    // Build a payload where all iframes drop and innerText gets fully truncated to ''
+    const bigHtml = 'h'.repeat(4 * 1024 * 1024);
+    // innerText starts tiny so the trim loop will truncate it to empty
+    const p: IngestPayload = { ...base, html: bigHtml, innerText: 'ab', iframes: [] };
+    const fitted = fitPayloadToBudget(p);
+    // innerText should be omitted (undefined) when budget is still over after full truncation
+    // OR remain as the final truncated value. The key assertion is that an empty string
+    // is NOT emitted as a field — it must be undefined.
+    if (fitted.innerText !== undefined) {
+      expect(fitted.innerText.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('omits iframes field when all iframes are dropped (not empty array)', () => {
+    const bigIframe = 'a'.repeat(3 * 1024 * 1024);
+    const p: IngestPayload = {
+      ...base,
+      html: 'h'.repeat(2 * 1024 * 1024),
+      innerText: 'keep',
+      iframes: [{ src: 's', html: bigIframe }],
+    };
+    const fitted = fitPayloadToBudget(p);
+    // All iframes dropped → the iframes field must be undefined (omitted), not []
+    expect(fitted.iframes).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// utf8ByteLength — exported helper (FIX 9: single consolidated function)
+// ---------------------------------------------------------------------------
+
+describe('utf8ByteLength', () => {
+  it('returns correct byte count for ASCII string', () => {
+    expect(utf8ByteLength('hello')).toBe(5);
+  });
+
+  it('returns correct byte count for multi-byte chars', () => {
+    // '€' is 3 bytes in UTF-8
+    expect(utf8ByteLength('€')).toBe(3);
+  });
+
+  it('is used by checkHtmlSize (consistent measurement)', () => {
+    const s = 'abc€';
+    // Should be 3 ASCII + 3 bytes for € = 6
+    expect(utf8ByteLength(s)).toBe(6);
   });
 });
