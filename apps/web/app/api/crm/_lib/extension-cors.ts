@@ -23,7 +23,8 @@ export function buildExtensionCorsHeaders(requestOrigin: string | null): Headers
   const headers = new Headers();
   if (allowedOrigin && requestOrigin === allowedOrigin) {
     headers.set('access-control-allow-origin', allowedOrigin);
-    headers.set('access-control-allow-methods', 'POST, OPTIONS');
+    // GET added for /api/crm/saved (AIN-72); POST for /api/crm/ingest.
+    headers.set('access-control-allow-methods', 'GET, POST, OPTIONS');
     headers.set('access-control-allow-headers', 'content-type, authorization');
     headers.set('access-control-max-age', '86400');
   }
