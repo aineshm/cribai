@@ -274,3 +274,90 @@ describe('capture timeout', () => {
     expect(onTimeout).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Fix AIN-62 — GET_AUTH_STATE includes pendingOtp when fresh, omits when stale/absent/signed-in
+// ---------------------------------------------------------------------------
+
+/**
+ * Extracted buildAuthStateResponse logic — mirrors what we add to handlePopupMessage
+ * GET_AUTH_STATE branch. Accepts injected deps so we can test without chrome APIs.
+ */
+
+interface AuthStateResponse {
+  type: 'AUTH_STATE';
+  state:
+    | { status: 'signed_in'; email: string }
+    | { status: 'signed_out' }
+    | { status: 'pending_otp'; email: string };
+}
+
+async function buildAuthStateResponse(
+  sessionEmail: string | null,
+  readPendingAuth: () => Promise<string | null>,
+): Promise<AuthStateResponse> {
+  if (sessionEmail !== null) {
+    // User is fully signed in — no need to check pendingAuth
+    return { type: 'AUTH_STATE', state: { status: 'signed_in', email: sessionEmail } };
+  }
+
+  const pendingEmail = await readPendingAuth();
+  if (pendingEmail !== null) {
+    return { type: 'AUTH_STATE', state: { status: 'pending_otp', email: pendingEmail } };
+  }
+
+  return { type: 'AUTH_STATE', state: { status: 'signed_out' } };
+}
+
+describe('GET_AUTH_STATE with pendingAuth (AIN-62)', () => {
+  it('returns signed_in when a session exists (ignores pendingAuth)', async () => {
+    const readPendingAuth = vi.fn().mockResolvedValue('ignored@wisc.edu');
+    const response = await buildAuthStateResponse('real@wisc.edu', readPendingAuth);
+
+    expect(response).toEqual({
+      type: 'AUTH_STATE',
+      state: { status: 'signed_in', email: 'real@wisc.edu' },
+    });
+    // pendingAuth is never consulted when the user is already signed in
+    expect(readPendingAuth).not.toHaveBeenCalled();
+  });
+
+  it('returns pending_otp with email when no session but pendingAuth is fresh', async () => {
+    const readPendingAuth = vi.fn().mockResolvedValue('waiting@wisc.edu');
+    const response = await buildAuthStateResponse(null, readPendingAuth);
+
+    expect(response).toEqual({
+      type: 'AUTH_STATE',
+      state: { status: 'pending_otp', email: 'waiting@wisc.edu' },
+    });
+  });
+
+  it('returns signed_out when no session and no pendingAuth record', async () => {
+    const readPendingAuth = vi.fn().mockResolvedValue(null);
+    const response = await buildAuthStateResponse(null, readPendingAuth);
+
+    expect(response).toEqual({
+      type: 'AUTH_STATE',
+      state: { status: 'signed_out' },
+    });
+  });
+
+  it('returns signed_out when pendingAuth is stale (read() returns null after expiry)', async () => {
+    // The pending-auth-store's read() already handles expiry internally;
+    // from this layer's perspective it just receives null.
+    const readPendingAuth = vi.fn().mockResolvedValue(null);
+    const response = await buildAuthStateResponse(null, readPendingAuth);
+
+    expect(response).toEqual({
+      type: 'AUTH_STATE',
+      state: { status: 'signed_out' },
+    });
+  });
+
+  it('consults pendingAuth exactly once per GET_AUTH_STATE call', async () => {
+    const readPendingAuth = vi.fn().mockResolvedValue('once@wisc.edu');
+    await buildAuthStateResponse(null, readPendingAuth);
+
+    expect(readPendingAuth).toHaveBeenCalledOnce();
+  });
+});
