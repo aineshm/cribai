@@ -153,6 +153,9 @@ These require a real browser (cannot be automated in unit tests):
   - Expected: Success view with "View My Apartments" link
 - [ ] **Deep link**: Click "View My Apartments" → opens `<APP_DOMAIN>/my-apartments` in new tab
 - [ ] **Non-listing page**: Try saving google.com → ingest API may return 400 → error shown
+- [ ] **Non-capturable page (chrome://)**: Open `chrome://newtab` or `chrome://extensions` → open popup → click "Save to CribAI"
+  - Expected: Error box shows "This page can't be saved. Open an apartment listing page and try again." (no raw Chrome error)
+- [ ] **Non-capturable page (chrome-extension://)**: Open any extension settings page → same as above
 - [ ] **Large page guard**: Test with a very large HTML page (>4MB) → size warning before sending
 - [ ] **Rate limit UX**: If 429 received → friendly "wait a moment" message (not a crash)
 - [ ] **Session expired mid-session**: Manually clear chrome.storage.local session → click Save → auth error, transitions to sign-in

@@ -15,6 +15,7 @@
 
 import { getSupabaseClient } from './supabase-client';
 import { checkHtmlSize, assemblePayload, postIngest } from '../lib/ingest';
+import { isCapturableUrl, NON_CAPTURABLE_MESSAGE } from '../lib/capturable-url';
 import { API_BASE, APP_DOMAIN, MY_APARTMENTS_PATH } from '../config/constants';
 import { createPendingAuthStore } from '../lib/pending-auth-store';
 import type {
@@ -225,6 +226,18 @@ async function handlePopupMessage(msg: PopupToSwMessage): Promise<SwResponse> {
           type: 'ERROR',
           code: 'invalid',
           message: 'No active tab found.',
+        };
+      }
+
+      // 2a. Preflight: only http/https pages accept content-script injection.
+      //     chrome://, about:, file://, chrome-extension://, edge://, etc. all
+      //     throw a raw Chrome error from executeScript. Short-circuit here with
+      //     a friendly message instead of leaking "Cannot access a chrome:// URL".
+      if (!isCapturableUrl(tab.url)) {
+        return {
+          type: 'ERROR',
+          code: 'invalid',
+          message: NON_CAPTURABLE_MESSAGE,
         };
       }
 
