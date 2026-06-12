@@ -346,24 +346,6 @@ async function fetchHtml(
 }
 
 /**
- * Fetch public HTML with SSRF protection, redirect resolution, block-signal
- * checking, and a 5MB body cap. Exported for the `crm_deep_extract` mission
- * step that needs to crawl the source site server-side.
- *
- * Throws `ExtractionError` with `fetch_failed` or `fetch_blocked` on failure.
- */
-export async function fetchPublicHtml(
-  url: string,
-  opts: { fetcher?: typeof fetch; timeoutMs?: number; userAgent?: string } = {},
-): Promise<string> {
-  const fetcher = opts.fetcher ?? fetch;
-  const userAgent = opts.userAgent ?? DEFAULT_USER_AGENT;
-  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const { body } = await fetchHtml(url, fetcher, userAgent, timeoutMs);
-  return body;
-}
-
-/**
  * Extract a normalized `ExtractedListing` from a listing URL.
  *
  * Fetches the page once (SSRF-guarded, redirect-resolved, block-signal
