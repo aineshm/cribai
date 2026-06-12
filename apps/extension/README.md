@@ -51,7 +51,7 @@ Using `chrome.scripting.executeScript` from the service worker rather than a man
 The web app already uses `signInWithOtp` + `verifyOtp`. Reusing this flow means:
 - No separate password storage in the extension
 - Same Supabase project, same session JWT, same RLS policies
-- Supabase's 6-digit OTP code is simple to type into the popup
+- Supabase's 8-digit OTP code (project auth setting — matches the web AuthForm) is simple to type into the popup
 
 **Session in chrome.storage.local**
 
@@ -130,7 +130,7 @@ These require a real browser (cannot be automated in unit tests):
 
 - [ ] **Sign-in (cold start)**: Open popup → email step appears → enter email → "Send code"
   - Expected: OTP step appears with "Check your email for the code"
-- [ ] **OTP verification**: Enter 6-digit code from email
+- [ ] **OTP verification**: Enter 8-digit code from email
   - Expected: Transitions to save view, showing signed-in email
 - [ ] **Auto-verify on 6 digits**: Type all 6 digits → should auto-submit
 - [ ] **Invalid OTP**: Enter wrong code → click Verify

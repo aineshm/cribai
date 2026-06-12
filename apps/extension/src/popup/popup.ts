@@ -193,7 +193,8 @@ inputOtp.addEventListener('keydown', (e) => {
 
 // Auto-submit when 6 digits entered
 inputOtp.addEventListener('input', () => {
-  if (inputOtp.value.length === 6) {
+  // 8 digits — Supabase project setting (match apps/web AuthForm.tsx)
+  if (inputOtp.value.length === 8) {
     handleVerifyOtp();
   }
 });
@@ -202,7 +203,7 @@ async function handleVerifyOtp(): Promise<void> {
   clearErrors();
   const token = inputOtp.value.trim();
 
-  if (token.length < 6) {
+  if (token.length < 8) {
     otpError.textContent = 'Please enter the full code from your email.';
     return;
   }
