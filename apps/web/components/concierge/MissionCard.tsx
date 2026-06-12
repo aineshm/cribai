@@ -50,6 +50,7 @@ const TYPE_ICONS: Record<MissionType, React.ComponentType<{ className?: string }
   tour_outreach: Mail,
   listing_deep_dive: FileText,
   sublease_post: MessageSquare,
+  crm_deep_extract: Search,
 };
 
 /**
