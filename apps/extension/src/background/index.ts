@@ -18,12 +18,38 @@ import { checkHtmlSize, assemblePayload, fitPayloadToBudget, postIngest } from '
 import { isCapturableUrl, NON_CAPTURABLE_MESSAGE } from '../lib/capturable-url';
 import { API_BASE, APP_DOMAIN, MY_APARTMENTS_PATH } from '../config/constants';
 import { createPendingAuthStore } from '../lib/pending-auth-store';
+import { findCuratedDomain, isDetailPage } from '../config/curated-domains';
 import type {
   PopupToSwMessage,
   SwResponse,
   AuthState,
   ContentToSwMessage,
+  ContentSaveMessage,
 } from '../lib/messages';
+
+// ---------------------------------------------------------------------------
+// Curated-URL guard (AIN-72) — used to validate CONTENT_SAVE_LISTING and
+// CHECK_SAVED senders. Defense-in-depth: the manifest content_scripts.matches
+// already limits injection to curated domains; this guard re-validates the
+// sender URL in the SW so a compromised or mis-declared page can't abuse the
+// ingest endpoint.
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns true when the given URL belongs to a curated listing domain AND
+ * is an http(s) page (i.e. capturable). Non-curated URLs are rejected so
+ * the ingest path is never called from an unexpected origin.
+ */
+export function isCuratedUrl(url: string): boolean {
+  if (!isCapturableUrl(url)) return false;
+  try {
+    const parsed = new URL(url);
+    const domain = findCuratedDomain(parsed.hostname);
+    return domain !== undefined && isDetailPage(domain, parsed);
+  } catch {
+    return false;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // PendingAuth store — persists mid-OTP state across popup close/reopen
@@ -109,7 +135,7 @@ chrome.runtime.onMessage.addListener(
       return false;
     }
 
-    // Fan-out: content-script capture result
+    // Fan-out: content-script capture result (popup-triggered executeScript path)
     const contentMsg = rawMessage as ContentToSwMessage;
     if (
       contentMsg.type === 'PAGE_CAPTURED' ||
@@ -126,6 +152,41 @@ chrome.runtime.onMessage.addListener(
         pendingCaptureTabId = null;
       }
       return false;
+    }
+
+    // Fan-out: in-page save button messages (AIN-72 declared content scripts)
+    const contentSaveMsg = rawMessage as ContentSaveMessage;
+    if (
+      contentSaveMsg.type === 'CONTENT_SAVE_LISTING' ||
+      contentSaveMsg.type === 'CHECK_SAVED'
+    ) {
+      // Security: sender must be from this extension, have a tab, and come
+      // from a curated listing URL. Defense-in-depth on top of the manifest
+      // content_scripts.matches restriction.
+      const senderUrl = sender.url ?? '';
+      if (
+        sender.id !== chrome.runtime.id ||
+        sender.tab?.id == null ||
+        !isCuratedUrl(senderUrl)
+      ) {
+        sendResponse({
+          type: 'ERROR',
+          code: 'invalid',
+          message: 'Untrusted sender.',
+        });
+        return false;
+      }
+
+      handleContentSaveMessage(contentSaveMsg)
+        .then(sendResponse)
+        .catch((err: unknown) => {
+          sendResponse({
+            type: 'ERROR',
+            code: 'unexpected',
+            message: err instanceof Error ? err.message : 'Unexpected error',
+          });
+        });
+      return true; // keep channel open for async response
     }
 
     // Popup messages
@@ -335,6 +396,87 @@ async function handlePopupMessage(msg: PopupToSwMessage): Promise<SwResponse> {
       };
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Content-save handlers (AIN-72 in-page button)
+// ---------------------------------------------------------------------------
+
+/**
+ * Handle CONTENT_SAVE_LISTING and CHECK_SAVED messages from the declared
+ * content script. Called after sender validation in the message listener.
+ */
+async function handleContentSaveMessage(msg: ContentSaveMessage): Promise<SwResponse> {
+  const supabase = getSupabaseClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.access_token) {
+    return { type: 'AUTH_REQUIRED' };
+  }
+
+  if (msg.type === 'CHECK_SAVED') {
+    // Fail-open: network errors degrade to idle (never block the button).
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/crm/saved?sourceUrl=${encodeURIComponent(msg.sourceUrl)}`,
+        { headers: { authorization: `Bearer ${session.access_token}` } },
+      );
+      if (!res.ok) {
+        return { type: 'SAVED_STATE', saved: false };
+      }
+      const body = (await res.json()) as { saved?: boolean; listingId?: string };
+      const deepLinkUrl = body.saved ? `${APP_DOMAIN}${MY_APARTMENTS_PATH}` : undefined;
+      return {
+        type: 'SAVED_STATE',
+        saved: Boolean(body.saved),
+        listingId: body.listingId,
+        deepLinkUrl,
+      };
+    } catch {
+      // Fail open — degrade to idle so the button is still usable
+      return { type: 'SAVED_STATE', saved: false };
+    }
+  }
+
+  // CONTENT_SAVE_LISTING
+  const sizeCheck = checkHtmlSize(msg.html);
+  if (!sizeCheck.ok) {
+    const mb = (sizeCheck.byteLength / 1024 / 1024).toFixed(1);
+    return {
+      type: 'ERROR',
+      code: 'too_large',
+      message: `This page is too large to save (${mb} MB). Try a simpler listing page.`,
+    };
+  }
+
+  const rawPayload = assemblePayload({
+    html: msg.html,
+    sourceUrl: msg.sourceUrl,
+    title: msg.title,
+    innerText: msg.innerText,
+    iframes: msg.iframes,
+  });
+  const payload = fitPayloadToBudget(rawPayload);
+
+  const result = await postIngest(API_BASE, session.access_token, payload);
+
+  if (!result.ok) {
+    if (result.code === 'auth') {
+      await supabase.auth.signOut();
+      return { type: 'AUTH_REQUIRED' };
+    }
+    return { type: 'ERROR', code: result.code, message: result.message };
+  }
+
+  const deepLinkUrl = `${APP_DOMAIN}${MY_APARTMENTS_PATH}`;
+  return {
+    type: 'SAVE_OK',
+    listingId: result.listingId,
+    deepLinkUrl,
+    deepScanQueued: result.deepScanQueued,
+  };
 }
 
 /**

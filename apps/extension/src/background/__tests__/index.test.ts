@@ -361,3 +361,77 @@ describe('GET_AUTH_STATE with pendingAuth (AIN-62)', () => {
     expect(readPendingAuth).toHaveBeenCalledOnce();
   });
 });
+
+// ---------------------------------------------------------------------------
+// AIN-72 — isCuratedUrl: in-page save button sender validation
+// ---------------------------------------------------------------------------
+
+/**
+ * Extracted isCuratedUrl predicate (mirrors background/index.ts export).
+ * We re-implement the logic here to test it without importing the SW module
+ * (which has chrome.runtime side-effects).
+ */
+import { findCuratedDomain, isDetailPage } from '../../config/curated-domains';
+import { isCapturableUrl } from '../../lib/capturable-url';
+
+function isCuratedUrl(url: string): boolean {
+  if (!isCapturableUrl(url)) return false;
+  try {
+    const parsed = new URL(url);
+    const domain = findCuratedDomain(parsed.hostname);
+    return domain !== undefined && isDetailPage(domain, parsed);
+  } catch {
+    return false;
+  }
+}
+
+describe('isCuratedUrl (AIN-72 sender validation)', () => {
+  it('accepts a Zillow detail page URL', () => {
+    expect(
+      isCuratedUrl(
+        'https://www.zillow.com/homedetails/123-W-Main-St-Madison-WI-53703/12345678_zpid/',
+      ),
+    ).toBe(true);
+  });
+
+  it('accepts an apartments.com detail page URL', () => {
+    expect(isCuratedUrl('https://www.apartments.com/the-james-madison-wi/abc1234/')).toBe(true);
+  });
+
+  it('rejects a Zillow search page (not a detail page)', () => {
+    expect(isCuratedUrl('https://www.zillow.com/madison-wi/rentals/')).toBe(false);
+  });
+
+  it('rejects a non-curated domain', () => {
+    expect(isCuratedUrl('https://example.com/homedetails/foo')).toBe(false);
+  });
+
+  it('rejects a chrome:// URL (not capturable)', () => {
+    expect(isCuratedUrl('chrome://extensions/')).toBe(false);
+  });
+
+  it('rejects an empty string', () => {
+    expect(isCuratedUrl('')).toBe(false);
+  });
+
+  it('rejects a malformed URL', () => {
+    expect(isCuratedUrl('not a url')).toBe(false);
+  });
+
+  it('accepts a Craigslist apartment detail URL', () => {
+    expect(
+      isCuratedUrl(
+        'https://madison.craigslist.org/apa/d/madison-2br-near-campus/7712345678.html',
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects a Craigslist search URL', () => {
+    expect(isCuratedUrl('https://madison.craigslist.org/search/apa')).toBe(false);
+  });
+
+  it('accepts x01oncampus.com (marketing-site class — all pages are detail)', () => {
+    expect(isCuratedUrl('https://x01oncampus.com/floor-plans/')).toBe(true);
+    expect(isCuratedUrl('https://x01oncampus.com/')).toBe(true);
+  });
+});
