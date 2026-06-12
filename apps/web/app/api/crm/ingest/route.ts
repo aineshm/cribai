@@ -238,20 +238,31 @@ async function fireAnalysis(auth: CrmAuth, listingId: string): Promise<void> {
 const DEEP_EXTRACT_CONFIDENCE_THRESHOLD = 0.5;
 
 /**
+ * Enqueue result discriminant:
+ *   'inserted'      — genuine new insert (poke the worker)
+ *   'already_queued' — unique-violation 23505 (mission already in queue; idempotent success)
+ *   'failed'        — any other error (mission not enqueued)
+ */
+type EnqueueResult = 'inserted' | 'already_queued' | 'failed';
+
+/**
  * Enqueue a crm_deep_extract mission for listings where the initial extraction
- * confidence is too low. Returns true when the insert succeeded, false otherwise.
- * Never rejects — errors are swallowed so the 201 response is never affected.
+ * confidence is too low.
+ *
+ * Returns 'inserted' on a genuine new insert, 'already_queued' on a 23505
+ * unique-violation (the mission is already in the queue — idempotent success),
+ * or 'failed' for any other error. Never rejects — errors are swallowed so the
+ * 201 response is never affected.
  *
  * NOTE: Migration 041 must be applied before this code is live. If it hasn't been
  * applied yet, the missions_type_check constraint will reject the insert with a
- * constraint violation. We log and swallow that error gracefully so the 201
- * response is always returned.
+ * constraint violation (not 23505). We log and swallow that gracefully.
  */
 async function enqueueDeepExtract(
   auth: CrmAuth,
   listingId: string,
   sourceUrl: string,
-): Promise<boolean> {
+): Promise<EnqueueResult> {
   try {
     const { error } = await auth.db
       .from('missions')
@@ -264,20 +275,24 @@ async function enqueueDeepExtract(
         input: { listingId, sourceUrl },
         status: 'queued',
         listing_id: null,
-        idempotency_key: null,
+        idempotency_key: `crm_deep_extract:${listingId}`,
       })
       .select('id')
       .single();
 
     if (error) {
-      // Constraint violation = migration 041 not yet applied. Log + continue.
+      // 23505 = unique_violation on idempotency_key → mission already in queue
+      if ((error as { code?: string }).code === '23505') {
+        return 'already_queued';
+      }
+      // Other errors (e.g. migration 041 not yet applied) — log + continue
       console.warn('[crm/ingest] crm_deep_extract enqueue failed (swallowed):', error.message);
-      return false;
+      return 'failed';
     }
-    return true;
+    return 'inserted';
   } catch (err) {
     console.warn('[crm/ingest] crm_deep_extract enqueue threw (swallowed):', err instanceof Error ? err.message : String(err));
-    return false;
+    return 'failed';
   }
 }
 
@@ -290,11 +305,31 @@ async function enqueueDeepExtract(
  * never affects the caller's response.
  *
  * No-op when CRON_SECRET is not set (dev/preview without a worker).
+ *
+ * SECURITY: the base URL is NEVER derived from the request Host header or
+ * request.url — a client-supplied Host could redirect the POST (carrying
+ * CRON_SECRET) to an attacker host. Resolution order:
+ *   1. MISSION_WORKER_BASE_URL (explicit override)
+ *   2. VERCEL_PROJECT_PRODUCTION_URL (canonical prod URL on Vercel)
+ *   3. VERCEL_URL (preview/branch deploy on Vercel)
+ *   4. SKIP the poke entirely (GH cron remains the sweeper)
  */
-function pokeMissionWorker(requestUrl: string): void {
+function pokeMissionWorker(): void {
   const secret = process.env['CRON_SECRET'];
   if (!secret) return;
-  const url = new URL('/api/missions/run-next', requestUrl);
+
+  const base =
+    process.env['MISSION_WORKER_BASE_URL'] ??
+    (process.env['VERCEL_PROJECT_PRODUCTION_URL']
+      ? `https://${process.env['VERCEL_PROJECT_PRODUCTION_URL']}`
+      : undefined) ??
+    (process.env['VERCEL_URL']
+      ? `https://${process.env['VERCEL_URL']}`
+      : undefined);
+
+  if (!base) return; // no resolvable base — GH cron is the sweeper
+
+  const url = `${base}/api/missions/run-next`;
   void fetch(url, {
     method: 'POST',
     headers: { authorization: `Bearer ${secret}` },
@@ -362,9 +397,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // ── 3. Body validation ────────────────────────────────────────────────────
+  // Read the body ONCE as text so we can check total size BEFORE JSON.parse.
+  // This closes the gap where the Content-Length precheck can be skipped by
+  // simply omitting the header — on self-hosted Node nothing else bounds body size.
+  let rawText: string;
   let rawBody: unknown;
   try {
-    rawBody = await request.json();
+    rawText = await request.text();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400, headers: corsHeaders });
+  }
+
+  // FIX 8: total raw-body size check — fires BEFORE JSON.parse
+  const rawBodyBytes = Buffer.byteLength(rawText, 'utf8');
+  if (rawBodyBytes > MAX_CONTENT_LENGTH_BYTES) {
+    return NextResponse.json(
+      { error: `Request too large (${rawBodyBytes} bytes; max ${MAX_CONTENT_LENGTH_BYTES})` },
+      { status: 413, headers: corsHeaders },
+    );
+  }
+
+  try {
+    rawBody = JSON.parse(rawText);
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400, headers: corsHeaders });
   }
@@ -452,19 +506,34 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
 
     const isNewSave = !result.alreadySaved;
-    const deepScanQueued =
+    const needsDeepScan =
       isNewSave && result.confidence < DEEP_EXTRACT_CONFIDENCE_THRESHOLD;
 
-    // Fire deep-extract mission enqueue when confidence is low (fire-and-forget,
-    // never blocks the response). Migration 041 must be applied first; insert
-    // failures are swallowed gracefully (see enqueueDeepExtract).
-    // On successful enqueue, best-effort poke the worker so it runs immediately
-    // instead of waiting for the next GitHub Actions cron cycle (~3–4h in practice).
-    if (deepScanQueued) {
-      void enqueueDeepExtract(auth, result.listingId, sourceUrl).then((enqueued) => {
-        if (enqueued) pokeMissionWorker(request.url);
-      });
+    // Await enqueue OUTSIDE withBudget so a slow DB insert can't trigger a 504
+    // after the listing was already saved. A 3s timeout races the insert and
+    // resolves to 'failed' on timeout — keeps the request fast.
+    // deepScanQueued is truthful: only true when the insert actually succeeded
+    // (or was already-queued via 23505). Never set based on confidence alone.
+    let enqueueResult: EnqueueResult = 'failed';
+    if (needsDeepScan) {
+      try {
+        enqueueResult = await Promise.race([
+          enqueueDeepExtract(auth, result.listingId, sourceUrl),
+          new Promise<EnqueueResult>((resolve) =>
+            setTimeout(() => resolve('failed'), 3_000),
+          ),
+        ]);
+      } catch {
+        enqueueResult = 'failed';
+      }
+      // Poke the worker only on a genuine new insert (nothing new to process on 23505)
+      if (enqueueResult === 'inserted') {
+        pokeMissionWorker();
+      }
     }
+
+    const deepScanQueued =
+      enqueueResult === 'inserted' || enqueueResult === 'already_queued';
 
     const status = result.alreadySaved ? 200 : 201;
     return NextResponse.json(
