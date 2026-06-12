@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "minimum_chrome_version": "102",
   "name": "CribAI — Save to My Apartments",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Save any rental listing page to your CribAI apartment CRM with one click.",
   "icons": {
     "16": "icons/icon16.png",
@@ -21,6 +21,21 @@
     "service_worker": "background.js",
     "type": "module"
   },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.zillow.com/*",
+        "*://*.apartments.com/*",
+        "*://*.trulia.com/*",
+        "*://*.realtor.com/*",
+        "*://*.craigslist.org/*",
+        "*://x01oncampus.com/*",
+        "*://www.x01oncampus.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "permissions": ["activeTab", "storage", "scripting"],
   "host_permissions": [],
   "content_security_policy": {

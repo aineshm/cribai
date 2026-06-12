@@ -41,7 +41,15 @@ export type SwResponse =
       readonly deepLinkUrl: string;
       readonly deepScanQueued?: boolean;
     }
-  | { readonly type: 'ERROR'; readonly code: string; readonly message: string };
+  | { readonly type: 'ERROR'; readonly code: string; readonly message: string }
+  // Content-script responses (AIN-72):
+  | {
+      readonly type: 'SAVED_STATE';
+      readonly saved: boolean;
+      readonly listingId?: string;
+      readonly deepLinkUrl?: string;
+    }
+  | { readonly type: 'AUTH_REQUIRED' };
 
 // ---------------------------------------------------------------------------
 // Service Worker → Content Script (inject command)
@@ -69,3 +77,18 @@ export type ContentToSwMessage =
       readonly iframes?: readonly CapturedIframe[];
     }
   | { readonly type: 'CAPTURE_ERROR'; readonly message: string };
+
+// ---------------------------------------------------------------------------
+// Content Script → Service Worker (in-page save — AIN-72)
+// ---------------------------------------------------------------------------
+
+export type ContentSaveMessage =
+  | {
+      readonly type: 'CONTENT_SAVE_LISTING';
+      readonly html: string;
+      readonly sourceUrl: string;
+      readonly title: string;
+      readonly innerText?: string;
+      readonly iframes?: readonly CapturedIframe[];
+    }
+  | { readonly type: 'CHECK_SAVED'; readonly sourceUrl: string };
