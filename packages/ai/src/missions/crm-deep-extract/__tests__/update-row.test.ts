@@ -134,6 +134,49 @@ describe('update_row step', () => {
     expect(result.output.floorPlanCount).toBe(2);
   });
 
+  // FIX 5: DB write error → throws (retryable by executor)
+  it('throws when the DB update returns an error', async () => {
+    const updateMock = makeUpdateMock({ error: { message: 'foreign key violation' } });
+    const supabase = makeSupabase(updateMock);
+    const { updateRowStep } = await import('../steps/04-update-row');
+
+    const ctx = makeCtx(
+      {
+        pages: [],
+        discarded: [],
+        latitude: null,
+        longitude: null,
+        fields: { rent: 1200 },
+      },
+      supabase,
+    );
+
+    await expect(updateRowStep.run(ctx)).rejects.toThrow('update_row: DB write failed');
+  });
+
+  // FIX 6: row_gone must end the mission (done: true)
+  it('returns done:true when the row is gone', async () => {
+    const supabase = {
+      from: vi.fn(() => ({
+        update: vi.fn(),
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+            })),
+          })),
+        })),
+      })),
+    };
+    const { updateRowStep } = await import('../steps/04-update-row');
+
+    const ctx = makeCtx({}, supabase as unknown as ReturnType<typeof makeSupabase>);
+    const result = await updateRowStep.run(ctx);
+
+    expect(result.output.skipped).toBe('row_gone');
+    expect(result.done).toBe(true);
+  });
+
   it('never overwrites non-null existing values (fill-gaps)', async () => {
     // Supabase returns a row with existing rent = 1350
     const updateMock = makeUpdateMock();

@@ -109,6 +109,17 @@ export const crawlSourceStep: MissionStep = {
       return { output: { skipped: 'missing_input' }, done: true };
     }
 
+    // FIX 7: re-validate JSONB sourceUrl — early exit on non-absolute http(s) URL
+    // Prevents the step from fetching attacker-supplied file://, javascript:, etc.
+    try {
+      const proto = new URL(sourceUrl).protocol;
+      if (proto !== 'http:' && proto !== 'https:') {
+        return { output: { skipped: 'invalid_input' }, done: true };
+      }
+    } catch {
+      return { output: { skipped: 'invalid_input' }, done: true };
+    }
+
     // -------------------------------------------------------------------------
     // 1. Load row — verify ownership + not-archived
     // -------------------------------------------------------------------------

@@ -99,7 +99,8 @@ export const updateRowStep: MissionStep = {
       .maybeSingle()) as { data: CrmRow | null; error: unknown };
 
     if (rowError || !row) {
-      return { output: { skipped: 'row_gone', updatedFields: [], confidenceBefore: null, confidenceAfter: null, floorPlanCount: 0 } };
+      // FIX 6: done:true prevents the reanalyze step running an LLM call against a gone row
+      return { output: { skipped: 'row_gone', updatedFields: [], confidenceBefore: null, confidenceAfter: null, floorPlanCount: 0 }, done: true };
     }
 
     const confidenceBefore = row.extraction_confidence ?? 0;
@@ -210,11 +211,16 @@ export const updateRowStep: MissionStep = {
     // -------------------------------------------------------------------------
     // 5. Persist
     // -------------------------------------------------------------------------
-    await ctx.supabase
+    const { error: updateError } = await ctx.supabase
       .from('crm_listings')
       .update(update)
       .eq('id', listingId)
       .eq('user_id', ctx.userId);
+
+    // FIX 5: surface DB write errors — executor treats throws as retryable
+    if (updateError) {
+      throw new Error(`update_row: DB write failed: ${(updateError as { message: string }).message}`);
+    }
 
     return {
       output: {

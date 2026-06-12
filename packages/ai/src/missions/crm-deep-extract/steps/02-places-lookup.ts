@@ -59,7 +59,11 @@ export const placesLookupStep: MissionStep = {
     const pages = ((ctx.state as Record<string, unknown>).pages ?? []) as readonly PageRecord[];
     const rowAddress = (ctx.input as Record<string, unknown>).rowAddress as string | undefined;
     const rowTitle = (ctx.input as Record<string, unknown>).rowTitle as string | undefined;
-    const placesApiKey = (ctx.input as Record<string, unknown>).placesApiKey as string | undefined;
+    // FIX 4: fall back to env var — do NOT put the key into mission input JSONB
+    // (user-readable). Mirrors the pattern in 05-reanalyze.ts:58.
+    const placesApiKey =
+      ((ctx.input as Record<string, unknown>).placesApiKey as string | undefined) ??
+      process.env['GOOGLE_PLACES_API_KEY'];
 
     const candidate = pickAddressCandidate(pages, rowAddress, rowTitle);
 

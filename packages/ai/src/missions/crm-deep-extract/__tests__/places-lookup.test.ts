@@ -93,4 +93,29 @@ describe('places_lookup step', () => {
     expect(stubGeocode).not.toHaveBeenCalled();
     expect(result.output.latitude).toBeUndefined();
   });
+
+  // FIX 4: fall back to process.env when input.placesApiKey is absent
+  it('geocodes using GOOGLE_PLACES_API_KEY env var when input key is absent', async () => {
+    vi.stubEnv('GOOGLE_PLACES_API_KEY', 'env-places-key');
+    const stubGeocode = vi.fn().mockResolvedValue(GEOCODE_RESULT);
+    // Re-import after env change to pick up new module state
+    vi.resetModules();
+    const { placesLookupStep } = await import('../steps/02-places-lookup');
+
+    const ctx = makeCtx({
+      pages: [
+        { url: 'https://x01oncampus.com/', fields: { address: '640 W Dayton St, Madison, WI' }, textExcerpt: '' },
+      ],
+      discarded: [],
+    });
+    (ctx.input as Record<string, unknown>).geocode = stubGeocode;
+    // Deliberately omit placesApiKey from input
+
+    const result = await placesLookupStep.run(ctx);
+
+    expect(stubGeocode).toHaveBeenCalledWith('640 W Dayton St, Madison, WI', 'env-places-key');
+    expect(result.output.latitude).toBe(43.071);
+
+    vi.unstubAllEnvs();
+  });
 });

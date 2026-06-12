@@ -135,6 +135,31 @@ describe('crawl_source step', () => {
     expect(jobsDiscarded).toBeDefined();
   });
 
+  // FIX 7: invalid sourceUrl in JSONB → early exit
+  it('returns skipped:invalid_input with done:true when sourceUrl is not an absolute http(s) URL', async () => {
+    const { crawlSourceStep } = await import('../steps/01-crawl-source');
+    const ctx = makeCtx({
+      input: { listingId: 'listing-1', sourceUrl: 'javascript:alert(1)' },
+    } as Partial<StepContext>);
+
+    const result = await crawlSourceStep.run(ctx);
+
+    expect(result.output.skipped).toBe('invalid_input');
+    expect(result.done).toBe(true);
+  });
+
+  it('returns skipped:invalid_input with done:true when sourceUrl is relative', async () => {
+    const { crawlSourceStep } = await import('../steps/01-crawl-source');
+    const ctx = makeCtx({
+      input: { listingId: 'listing-1', sourceUrl: '/relative/path' },
+    } as Partial<StepContext>);
+
+    const result = await crawlSourceStep.run(ctx);
+
+    expect(result.output.skipped).toBe('invalid_input');
+    expect(result.done).toBe(true);
+  });
+
   it('never stores raw HTML in output (JSONB-safe)', async () => {
     const { crawlSourceStep } = await import('../steps/01-crawl-source');
     const stubFetch = vi.fn().mockResolvedValue({
