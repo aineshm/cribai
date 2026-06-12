@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { isEduEmail } from '@/lib/edu-validation';
+import { buildExtensionCorsHeaders } from '../../crm/_lib/extension-cors';
 
 /**
  * POST /api/auth/validate-email
@@ -20,15 +21,30 @@ import { isEduEmail } from '@/lib/edu-validation';
  *   - `{ valid: false, error: '...' }`                            for malformed
  *
  * No auth required (this is pre-auth).
+ *
+ * CORS: the Chrome extension calls this route cross-origin before
+ * `signInWithOtp` (its sign-up parity gate). The single configured extension
+ * origin gets CORS headers (see `_lib/extension-cors.ts`); same-origin web
+ * callers are unaffected. CORS is not a security boundary here — the route is
+ * pre-auth validation only.
  */
+
+/** OPTIONS — CORS preflight for the Chrome extension. */
+export async function OPTIONS(request: Request) {
+  const corsHeaders = buildExtensionCorsHeaders(request.headers.get('origin'));
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
+}
+
 export async function POST(request: Request) {
+  const corsHeaders = buildExtensionCorsHeaders(request.headers.get('origin'));
+
   let body: unknown;
   try {
     body = await request.json();
   } catch {
     return NextResponse.json(
       { valid: false, error: 'Invalid request body' },
-      { status: 400 },
+      { status: 400, headers: corsHeaders },
     );
   }
 
@@ -40,7 +56,7 @@ export async function POST(request: Request) {
   ) {
     return NextResponse.json(
       { valid: false, error: 'Missing or invalid email field' },
-      { status: 400 },
+      { status: 400, headers: corsHeaders },
     );
   }
 
@@ -49,7 +65,7 @@ export async function POST(request: Request) {
   if (!email) {
     return NextResponse.json(
       { valid: false, error: 'Email is required' },
-      { status: 400 },
+      { status: 400, headers: corsHeaders },
     );
   }
 
@@ -57,19 +73,22 @@ export async function POST(request: Request) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json(
       { valid: false, error: 'Please enter a valid email address.' },
-      { status: 400 },
+      { status: 400, headers: corsHeaders },
     );
   }
 
   const isEdu = isEduEmail(email);
 
   if (isEdu) {
-    return NextResponse.json({
-      valid: true,
-      isEdu: true,
-      badge: 'verified_student' as const,
-    });
+    return NextResponse.json(
+      {
+        valid: true,
+        isEdu: true,
+        badge: 'verified_student' as const,
+      },
+      { headers: corsHeaders },
+    );
   }
 
-  return NextResponse.json({ valid: true, isEdu: false });
+  return NextResponse.json({ valid: true, isEdu: false }, { headers: corsHeaders });
 }

@@ -58,6 +58,7 @@ import {
   type AddListingErrorCode,
 } from '@campusnest/ai';
 import { resolveCrmAuthFromBearer, type CrmAuth } from '../_lib/auth';
+import { buildExtensionCorsHeaders as buildCorsHeaders } from '../_lib/extension-cors';
 import {
   checkIngestRateLimit,
   recordIngestRequest,
@@ -145,32 +146,8 @@ const SAFE_USER_MESSAGE_CODES = new Set<AddListingErrorCode>([
 ]);
 
 // ── CORS helpers ──────────────────────────────────────────────────────────────
-
-/**
- * The single trusted extension origin. Populated from the CRM_EXTENSION_ORIGIN
- * env var. Unset = deny all origins (safe default until the Web Store assigns
- * a real extension ID).
- *
- * Example: `chrome-extension://abcdefghijklmnopqrstuvwxyzabcdef`
- */
-function getConfiguredExtensionOrigin(): string | null {
-  const raw = process.env['CRM_EXTENSION_ORIGIN'];
-  return typeof raw === 'string' && raw.trim().length > 0 ? raw.trim() : null;
-}
-
-function buildCorsHeaders(requestOrigin: string | null): Headers {
-  const allowedOrigin = getConfiguredExtensionOrigin();
-  const headers = new Headers();
-  if (allowedOrigin && requestOrigin === allowedOrigin) {
-    headers.set('access-control-allow-origin', allowedOrigin);
-    headers.set('access-control-allow-methods', 'POST, OPTIONS');
-    headers.set('access-control-allow-headers', 'content-type, authorization');
-    headers.set('access-control-max-age', '86400');
-  }
-  // Vary so caches don't serve the wrong ACAO to a different origin.
-  headers.set('vary', 'Origin');
-  return headers;
-}
+// Shared with /api/auth/validate-email (the extension's other cross-origin
+// call) — implementation in `../_lib/extension-cors.ts`.
 
 // ── Budget wrapper ────────────────────────────────────────────────────────────
 
