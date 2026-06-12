@@ -121,6 +121,12 @@ const ingestBodySchema = z.object({
    * Using z.string().datetime({ offset: true }) for strict schema validation.
    */
   capturedAt: z.string().datetime({ offset: true }),
+  /** Richer capture fields (AIN-71) — optional, used by the extraction pipeline. */
+  innerText: z.string().max(200_000).optional(),
+  iframes: z.array(z.object({
+    src: z.string().max(2048),
+    html: z.string().max(524_288),
+  })).max(10).optional(),
 });
 
 // ── Error status map ──────────────────────────────────────────────────────────
@@ -299,7 +305,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const { sourceUrl, html } = parsed.data;
+  const { sourceUrl, html, innerText, iframes } = parsed.data;
 
   // HTML size cap — byte-accurate check (multi-byte chars count).
   const htmlBytes = Buffer.byteLength(html, 'utf8');
@@ -347,6 +353,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // The closure signature matches AddListingDeps.extract: (url: string) => Promise<ExtractedListing>.
     const capturedHtml = html;
     const capturedSourceUrl = sourceUrl;
+    const capturedInnerText = innerText;
+    const capturedIframes = iframes;
 
     // withBudget race: the losing addListing may continue running after the
     // 504 response is sent. If it completes and inserts the row, the user's
@@ -354,7 +362,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const result = await withBudget(
       addListing(sourceUrl, {
         extract: (_url: string) =>
-          extractListingFromHtml(capturedHtml, capturedSourceUrl),
+          extractListingFromHtml(capturedHtml, capturedSourceUrl, {
+            innerText: capturedInnerText,
+            iframes: capturedIframes,
+          }),
         geocode: geocodeAddress,
         db: auth.db,
         userId: auth.userId,

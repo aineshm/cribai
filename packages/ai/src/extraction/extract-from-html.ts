@@ -79,6 +79,20 @@ export interface ExtractListingFromHtmlOptions {
    * when escalation is warranted and credentials exist.
    */
   llmExtractor?: LlmExtractor;
+  /**
+   * Full page visible text (document.body.innerText from the browser).
+   * Appended to the LLM rare-path context when structured passes miss key fields.
+   * Cap: 200k chars (enforced at the route boundary; silently truncated here).
+   */
+  innerText?: string;
+  /**
+   * Same-origin iframe HTML fragments captured by the extension.
+   * Each is run through extractFromJsonLd + extractFromOg and the results
+   * are fill-gap merged after the main page's Pass 1. Cross-origin iframes
+   * are unreadable from the page — the deep-extract mission covers those.
+   * Cap: 10 iframes, 524288 chars each (enforced at the route boundary).
+   */
+  iframes?: ReadonlyArray<{ readonly src: string; readonly html: string }>;
 }
 
 /**
@@ -90,6 +104,11 @@ interface PipelineOptions extends ExtractListingFromHtmlOptions {
   /** URL reported as `source_url` and in error messages. Defaults to `finalUrl`. */
   sourceUrl?: string;
 }
+
+/** Cap on innerText chars sent to the LLM context. */
+const MAX_INNER_TEXT_LLM_CHARS = 30_000;
+/** Cap on per-iframe HTML (chars) for pruneHtml processing in LLM context. */
+const MAX_IFRAME_LLM_CHARS = 8_000;
 
 /**
  * Common subdomain prefixes that publishers use to serve the same listings
@@ -405,6 +424,29 @@ export async function extractFromHtml(
   if (jsonLd !== null) contributors.add('json_ld');
   if (ogContributed) contributors.add('og');
 
+  // ── Pass 1b: Same-origin iframe HTML (AIN-71 richer capture) ───────────
+  // Run the same JSON-LD + OG pipeline on each captured iframe and fill-gaps
+  // into the main merged result. Iframe data NEVER overwrites main-page data
+  // (fill-gaps semantics). Iframe hits count as the existing json_ld/og layers.
+  if (opts.iframes && opts.iframes.length > 0) {
+    const capped = opts.iframes.slice(0, 10); // belt-and-braces: route already validates
+    for (const iframe of capped) {
+      // Silently truncate oversized iframe HTML — route already capped at 524288
+      const iframeHtml = iframe.html.slice(0, 524_288);
+      try {
+        const iframeJsonLd = extractFromJsonLd(iframeHtml, iframe.src || finalUrl);
+        if (iframeJsonLd !== null) {
+          const iframeScrubbed = dropInvalidNumerics({ ...iframeJsonLd });
+          if (fillGaps(merged, iframeScrubbed)) contributors.add('json_ld');
+        }
+        const iframeOg = extractFromOg(iframeHtml, iframe.src || finalUrl);
+        if (fillGaps(merged, dropInvalidNumerics({ ...iframeOg.fields }))) contributors.add('og');
+      } catch {
+        // Malformed iframe HTML — skip silently
+      }
+    }
+  }
+
   // ── Escalation: only when the structured pass missed the key fields. ────
   // Each later layer is more expensive (DOM regex, then a model call), so we
   // stop the moment the key-fields gate is satisfied. DOM/LLM fill GAPS only —
@@ -423,7 +465,21 @@ export async function extractFromHtml(
     if (!hasKeyFields(merged) && llmPathAvailable(opts)) {
       try {
         const llm = opts.llmExtractor ?? createLlmExtractor();
-        const llmFields = await llm(pruneHtml(html), finalUrl);
+        // Build enriched context: pruned main HTML + innerText + iframe excerpts
+        let llmContext = pruneHtml(html);
+        if (opts.innerText) {
+          const innerTextExcerpt = opts.innerText.slice(0, MAX_INNER_TEXT_LLM_CHARS);
+          llmContext = `${llmContext}\n\nVISIBLE PAGE TEXT:\n${innerTextExcerpt}`;
+        }
+        if (opts.iframes && opts.iframes.length > 0) {
+          const iframeExcerpts = opts.iframes.slice(0, 10)
+            .map((f) => pruneHtml(f.html.slice(0, 524_288)).slice(0, MAX_IFRAME_LLM_CHARS))
+            .filter((e) => e.trim().length > 0);
+          if (iframeExcerpts.length > 0) {
+            llmContext = `${llmContext}\n\nFRAME CONTENT:\n${iframeExcerpts.join('\n---\n')}`;
+          }
+        }
+        const llmFields = await llm(llmContext, finalUrl);
         if (fillGaps(merged, dropInvalidNumerics(llmFields))) contributors.add('llm');
       } catch {
         // The LLM extractor is contracted never to throw, but a custom
@@ -536,5 +592,21 @@ export async function extractListingFromHtml(
     );
   }
 
-  return extractFromHtml(html, sourceUrl, { llmExtractor: opts.llmExtractor });
+  // Silently truncate richer fields if they somehow exceed the caps
+  // (route already validates, but defensive truncation is cheap)
+  const innerText = opts.innerText !== undefined
+    ? opts.innerText.slice(0, 200_000)
+    : undefined;
+  const iframes = opts.iframes !== undefined
+    ? opts.iframes.slice(0, 10).map((f) => ({
+        src: f.src.slice(0, 2048),
+        html: f.html.slice(0, 524_288),
+      }))
+    : undefined;
+
+  return extractFromHtml(html, sourceUrl, {
+    llmExtractor: opts.llmExtractor,
+    innerText,
+    iframes,
+  });
 }

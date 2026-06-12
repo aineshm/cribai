@@ -451,7 +451,8 @@ describe('POST /api/crm/ingest — happy path', () => {
     await POST(makeRequest(validBody()));
 
     // extractListingFromHtml must have been called with the captured values.
-    expect(mockExtractListingFromHtml).toHaveBeenCalledWith(VALID_HTML, SOURCE_URL);
+    // The third arg is the richer options object (may include innerText/iframes from the request).
+    expect(mockExtractListingFromHtml).toHaveBeenCalledWith(VALID_HTML, SOURCE_URL, expect.any(Object));
 
     // fetch must NOT have been called with the sourceUrl (belt-and-suspenders check).
     for (const call of fetchSpy.mock.calls) {
@@ -538,6 +539,45 @@ describe('POST /api/crm/ingest — happy path', () => {
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error).not.toMatch(/secret db detail/);
+  });
+});
+
+// ── Richer inputs (innerText + iframes) ──────────────────────────────────────
+
+describe('POST /api/crm/ingest — richer inputs', () => {
+  it('accepts and forwards innerText and iframes to extraction', async () => {
+    mockAddListing.mockImplementation(async (_url: string, deps: { extract: (url: string) => unknown }) => {
+      await deps.extract(SOURCE_URL);
+      return { listingId: 'l1', alreadySaved: false, confidence: 0.8 };
+    });
+
+    const body = validBody({ innerText: 'Rent from $899', iframes: [{ src: 'https://w.test', html: '<div>2BR $1200</div>' }] });
+    const res = await POST(makeRequest(body));
+    expect(res.status).toBe(201);
+    expect(mockExtractListingFromHtml).toHaveBeenCalledWith(
+      VALID_HTML,
+      SOURCE_URL,
+      expect.objectContaining({ innerText: 'Rent from $899', iframes: [expect.objectContaining({ src: 'https://w.test' })] }),
+    );
+  });
+
+  it('rejects more than 10 iframes with 400', async () => {
+    const body = validBody({ iframes: Array.from({ length: 11 }, (_, i) => ({ src: `https://s${i}.test`, html: 'x' })) });
+    const res = await POST(makeRequest(body));
+    expect(res.status).toBe(400);
+    expect(mockAddListing).not.toHaveBeenCalled();
+  });
+
+  it('rejects innerText longer than 200k chars with 400', async () => {
+    const body = validBody({ innerText: 'x'.repeat(200_001) });
+    const res = await POST(makeRequest(body));
+    expect(res.status).toBe(400);
+    expect(mockAddListing).not.toHaveBeenCalled();
+  });
+
+  it('accepts request without innerText or iframes (backwards compat)', async () => {
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
   });
 });
 
