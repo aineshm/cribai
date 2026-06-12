@@ -132,7 +132,7 @@ These require a real browser (cannot be automated in unit tests):
   - Expected: OTP step appears with "Check your email for the code"
 - [ ] **OTP verification**: Enter 8-digit code from email
   - Expected: Transitions to save view, showing signed-in email
-- [ ] **Auto-verify on 6 digits**: Type all 6 digits → should auto-submit
+- [ ] **Auto-verify on 8 digits**: Type all 8 digits → should auto-submit
 - [ ] **Invalid OTP**: Enter wrong code → click Verify
   - Expected: Error message from Supabase (e.g. "Token has expired or is invalid")
 - [ ] **Resend code**: Click "Resend code" → should show "Sent!" briefly

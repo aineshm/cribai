@@ -191,7 +191,7 @@ inputOtp.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') handleVerifyOtp();
 });
 
-// Auto-submit when 6 digits entered
+// Auto-submit when 8 digits entered (Supabase project setting)
 inputOtp.addEventListener('input', () => {
   // 8 digits — Supabase project setting (match apps/web AuthForm.tsx)
   if (inputOtp.value.length === 8) {
