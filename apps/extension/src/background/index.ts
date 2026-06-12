@@ -16,12 +16,19 @@
 import { getSupabaseClient } from './supabase-client';
 import { checkHtmlSize, assemblePayload, postIngest } from '../lib/ingest';
 import { API_BASE, APP_DOMAIN, MY_APARTMENTS_PATH } from '../config/constants';
+import { createPendingAuthStore } from '../lib/pending-auth-store';
 import type {
   PopupToSwMessage,
   SwResponse,
   AuthState,
   ContentToSwMessage,
 } from '../lib/messages';
+
+// ---------------------------------------------------------------------------
+// PendingAuth store — persists mid-OTP state across popup close/reopen
+// ---------------------------------------------------------------------------
+
+const pendingAuthStore = createPendingAuthStore();
 
 // ---------------------------------------------------------------------------
 // Pending capture: the popup triggers a save, the service worker injects the
@@ -44,10 +51,17 @@ async function getAuthState(): Promise<AuthState> {
     data: { session },
   } = await supabase.auth.getSession();
 
-  if (!session?.user?.email) {
-    return { status: 'signed_out' };
+  if (session?.user?.email) {
+    return { status: 'signed_in', email: session.user.email };
   }
-  return { status: 'signed_in', email: session.user.email };
+
+  // Not signed in — check whether an OTP is in-flight from a previous popup open.
+  const pendingEmail = await pendingAuthStore.read();
+  if (pendingEmail !== null) {
+    return { status: 'pending_otp', email: pendingEmail };
+  }
+
+  return { status: 'signed_out' };
 }
 
 /**
@@ -163,6 +177,8 @@ async function handlePopupMessage(msg: PopupToSwMessage): Promise<SwResponse> {
       if (error) {
         return { type: 'ERROR', code: 'auth', message: error.message };
       }
+      // OTP sent — persist so the popup can resume at the OTP step after close/reopen.
+      await pendingAuthStore.persist(msg.email);
       return { type: 'OTP_SENT' };
     }
 
@@ -175,12 +191,16 @@ async function handlePopupMessage(msg: PopupToSwMessage): Promise<SwResponse> {
       if (error) {
         return { type: 'ERROR', code: 'auth', message: error.message };
       }
+      // Verification succeeded — pendingAuth is no longer needed.
+      await pendingAuthStore.clear();
       const email = data.user?.email ?? msg.email;
       return { type: 'SIGN_IN_OK', email };
     }
 
     case 'SIGN_OUT': {
       await supabase.auth.signOut();
+      // Clear any in-flight OTP state on explicit sign-out.
+      await pendingAuthStore.clear();
       return { type: 'SIGN_OUT_OK' };
     }
 

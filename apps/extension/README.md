@@ -139,6 +139,13 @@ These require a real browser (cannot be automated in unit tests):
 - [ ] **Back navigation**: OTP step → click Back → email step, input cleared
 - [ ] **Sign out**: Signed-in view → "Sign out" → email step
 - [ ] **Persist across popup open/close**: Sign in, close popup, reopen → should be on save view
+- [ ] **Resume OTP step after popup close**: Enter email, click "Send code" (OTP email sent), close popup without entering code, reopen popup
+  - Expected: OTP view shown immediately with "Code sent to \<email\>" hint; `currentEmail` pre-filled so Verify works
+  - Expected: Entering the correct code signs in normally
+- [ ] **Resume window expiry (15 min)**: Same as above but wait >15 minutes before reopening
+  - Expected: Email step shown (stale record silently discarded)
+- [ ] **"Use a different email" from resumed OTP view**: After resuming at OTP step, click "Use a different email"
+  - Expected: Returns to email view; `pendingAuth` cleared in storage.session; reopening popup again shows email step (not OTP)
 
 ### Save flow
 

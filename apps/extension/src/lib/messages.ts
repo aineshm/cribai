@@ -23,7 +23,12 @@ export type PopupToSwMessage =
 export type AuthState =
   | { readonly status: 'signed_in'; readonly email: string }
   | { readonly status: 'signed_out' }
-  | { readonly status: 'loading' };
+  | { readonly status: 'loading' }
+  /**
+   * OTP was sent in a previous popup open; user closed before entering the code.
+   * The popup should resume at the OTP view pre-filled with this email.
+   */
+  | { readonly status: 'pending_otp'; readonly email: string };
 
 export type SwResponse =
   | { readonly type: 'AUTH_STATE'; readonly state: AuthState }

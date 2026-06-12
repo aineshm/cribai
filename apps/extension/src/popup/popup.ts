@@ -107,6 +107,8 @@ let currentEmail = '';
 // Initialisation: check auth on open
 // ---------------------------------------------------------------------------
 
+const otpResumeHint = el('otp-resume-hint');
+
 async function init(): Promise<void> {
   showView('loading');
   clearErrors();
@@ -118,15 +120,24 @@ async function init(): Promise<void> {
       if (response.state.status === 'signed_in') {
         authEmailDisplay.textContent = response.state.email;
         showView('save');
+      } else if (response.state.status === 'pending_otp') {
+        // OTP was sent in a previous popup open — resume at OTP step.
+        currentEmail = response.state.email;
+        otpResumeHint.textContent = `Code sent to ${response.state.email}`;
+        showView('otp');
+        inputOtp.focus();
       } else {
+        otpResumeHint.textContent = '';
         showView('email');
         inputEmail.focus();
       }
     } else {
+      otpResumeHint.textContent = '';
       showView('email');
       inputEmail.focus();
     }
   } catch {
+    otpResumeHint.textContent = '';
     showView('email');
     inputEmail.focus();
   }
@@ -182,7 +193,25 @@ const btnBackToEmail = el<HTMLButtonElement>('btn-back-to-email');
 btnBackToEmail.addEventListener('click', () => {
   clearErrors();
   inputOtp.value = '';
+  currentEmail = '';
   showView('email');
+  inputEmail.focus();
+});
+
+const btnUseDifferentEmail = el<HTMLButtonElement>('btn-use-different-email');
+btnUseDifferentEmail.addEventListener('click', async () => {
+  clearErrors();
+  inputOtp.value = '';
+  currentEmail = '';
+  // Tell the service worker to clear the persisted pendingAuth record so
+  // reopening the popup starts fresh at the email step.
+  try {
+    await sendToSw({ type: 'SIGN_OUT' });
+  } catch {
+    // ignore — still navigate to email view
+  }
+  showView('email');
+  inputEmail.focus();
 });
 
 const btnVerifyOtp = el<HTMLButtonElement>('btn-verify-otp');
@@ -270,6 +299,7 @@ btnSignOut.addEventListener('click', async () => {
     // ignore — still show sign-in form
   }
   currentEmail = '';
+  otpResumeHint.textContent = '';
   clearErrors();
   inputEmail.value = '';
   showView('email');
