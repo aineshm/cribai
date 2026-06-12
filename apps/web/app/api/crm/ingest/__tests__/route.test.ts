@@ -663,3 +663,121 @@ describe('OPTIONS /api/crm/ingest — CORS preflight', () => {
     }
   });
 });
+
+// ── Deep-extract mission enqueue (AIN-71) ────────────────────────────────────
+
+describe('POST /api/crm/ingest — deep-extract enqueue (AIN-71)', () => {
+  it('enqueues crm_deep_extract mission on new save with confidence < 0.5', async () => {
+    const lowConfidenceResult = { listingId: 'l-low', alreadySaved: false, confidence: 0.3 };
+    mockAddListing.mockResolvedValue(lowConfidenceResult);
+
+    // Track insert calls on the missions table
+    let deepExtractInserted = false;
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockImplementation((row: Record<string, unknown>) => {
+            if (row.type === 'crm_deep_extract') deepExtractInserted = true;
+            return { select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'mission-1' }, error: null }) }) };
+          }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }),
+        };
+      }
+      // Default: row cap check
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+
+    // The enqueue fires after the result is received — wait a tick for async work
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(deepExtractInserted).toBe(true);
+  });
+
+  it('does NOT enqueue crm_deep_extract on new save with confidence >= 0.5', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-hi', alreadySaved: false, confidence: 0.7 });
+
+    let deepExtractInserted = false;
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockImplementation((row: Record<string, unknown>) => {
+            if (row.type === 'crm_deep_extract') deepExtractInserted = true;
+            return { select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'mission-1' }, error: null }) }) };
+          }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }),
+        };
+      }
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(deepExtractInserted).toBe(false);
+  });
+
+  it('does NOT enqueue crm_deep_extract when listing was already saved', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-dup', alreadySaved: true, confidence: 0.3 });
+
+    let deepExtractInserted = false;
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockImplementation((row: Record<string, unknown>) => {
+            if (row.type === 'crm_deep_extract') deepExtractInserted = true;
+            return { select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'mission-1' }, error: null }) }) };
+          }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }),
+        };
+      }
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(200);
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(deepExtractInserted).toBe(false);
+  });
+
+  it('responds 201 even if deep-extract mission insert fails (best-effort)', async () => {
+    const lowConfidenceResult = { listingId: 'l-low-fail', alreadySaved: false, confidence: 0.2 };
+    mockAddListing.mockResolvedValue(lowConfidenceResult);
+
+    // Simulate missions insert failing (constraint violation)
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: null, error: { message: 'constraint violation' } }) }),
+          }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }),
+        };
+      }
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Still 201 — enqueue failure is swallowed
+    expect(res.status).toBe(201);
+  });
+
+  it('includes deepScanQueued: true in response when deep-extract is enqueued', async () => {
+    const lowConfidenceResult = { listingId: 'l-low-dq', alreadySaved: false, confidence: 0.3 };
+    mockAddListing.mockResolvedValue(lowConfidenceResult);
+
+    const res = await POST(makeRequest(validBody()));
+    const body = await res.json();
+
+    // deepScanQueued: true when confidence < 0.5 on a new save
+    expect(body.deepScanQueued).toBe(true);
+  });
+});

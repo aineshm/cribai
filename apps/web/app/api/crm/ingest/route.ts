@@ -229,6 +229,54 @@ async function fireAnalysis(auth: CrmAuth, listingId: string): Promise<void> {
   }
 }
 
+// ── Deep-extract mission enqueue (AIN-71) ────────────────────────────────────
+
+/**
+ * Confidence threshold below which we queue a crm_deep_extract mission.
+ * Matches the 'low' confidence class (0.3) from the extraction confidence mapping.
+ */
+const DEEP_EXTRACT_CONFIDENCE_THRESHOLD = 0.5;
+
+/**
+ * Enqueue a crm_deep_extract mission for listings where the initial extraction
+ * confidence is too low. Fire-and-forget — never rejects, errors are swallowed.
+ *
+ * NOTE: Migration 041 must be applied before this code is live. If it hasn't been
+ * applied yet, the missions_type_check constraint will reject the insert with a
+ * constraint violation. We log and swallow that error gracefully so the 201
+ * response is always returned.
+ */
+async function enqueueDeepExtract(
+  auth: CrmAuth,
+  listingId: string,
+  sourceUrl: string,
+): Promise<void> {
+  try {
+    const { error } = await auth.db
+      .from('missions')
+      .insert({
+        user_id: auth.userId,
+        type: 'crm_deep_extract',
+        title: 'Deep extraction scan',
+        goal: 'Enrich low-confidence CRM listing by crawling source site',
+        campus_id: null, // crm missions are not campus-scoped
+        input: { listingId, sourceUrl },
+        status: 'queued',
+        listing_id: null,
+        idempotency_key: null,
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      // Constraint violation = migration 041 not yet applied. Log + continue.
+      console.warn('[crm/ingest] crm_deep_extract enqueue failed (swallowed):', error.message);
+    }
+  } catch (err) {
+    console.warn('[crm/ingest] crm_deep_extract enqueue threw (swallowed):', err instanceof Error ? err.message : String(err));
+  }
+}
+
 // ── Build a short popup summary ───────────────────────────────────────────────
 
 function buildSummary(listingId: string, alreadySaved: boolean): string {
@@ -379,6 +427,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       budgetMs,
     );
 
+    const isNewSave = !result.alreadySaved;
+    const deepScanQueued =
+      isNewSave && result.confidence < DEEP_EXTRACT_CONFIDENCE_THRESHOLD;
+
+    // Fire deep-extract mission enqueue when confidence is low (fire-and-forget,
+    // never blocks the response). Migration 041 must be applied first; insert
+    // failures are swallowed gracefully (see enqueueDeepExtract).
+    if (deepScanQueued) {
+      void enqueueDeepExtract(auth, result.listingId, sourceUrl);
+    }
+
     const status = result.alreadySaved ? 200 : 201;
     return NextResponse.json(
       {
@@ -386,7 +445,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         summary: buildSummary(result.listingId, result.alreadySaved),
         // Inform the extension popup that analysis is computing asynchronously.
         // Only set on 201 (new saves); already-saved rows were analyzed at first save.
-        ...(result.alreadySaved ? {} : { analysisPending: true }),
+        ...(isNewSave ? { analysisPending: true } : {}),
+        ...(deepScanQueued ? { deepScanQueued: true } : {}),
       },
       { status, headers: corsHeaders },
     );
