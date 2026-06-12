@@ -239,7 +239,8 @@ const DEEP_EXTRACT_CONFIDENCE_THRESHOLD = 0.5;
 
 /**
  * Enqueue a crm_deep_extract mission for listings where the initial extraction
- * confidence is too low. Fire-and-forget — never rejects, errors are swallowed.
+ * confidence is too low. Returns true when the insert succeeded, false otherwise.
+ * Never rejects — errors are swallowed so the 201 response is never affected.
  *
  * NOTE: Migration 041 must be applied before this code is live. If it hasn't been
  * applied yet, the missions_type_check constraint will reject the insert with a
@@ -250,7 +251,7 @@ async function enqueueDeepExtract(
   auth: CrmAuth,
   listingId: string,
   sourceUrl: string,
-): Promise<void> {
+): Promise<boolean> {
   try {
     const { error } = await auth.db
       .from('missions')
@@ -271,10 +272,33 @@ async function enqueueDeepExtract(
     if (error) {
       // Constraint violation = migration 041 not yet applied. Log + continue.
       console.warn('[crm/ingest] crm_deep_extract enqueue failed (swallowed):', error.message);
+      return false;
     }
+    return true;
   } catch (err) {
     console.warn('[crm/ingest] crm_deep_extract enqueue threw (swallowed):', err instanceof Error ? err.message : String(err));
+    return false;
   }
+}
+
+/**
+ * Best-effort POST to /api/missions/run-next to wake the mission worker immediately.
+ *
+ * The GitHub Actions cron nominally runs every 5 min but in practice fires every
+ * ~3–4h due to GitHub throttling. Without this poke, every deep-extract mission
+ * waits hours. Fire-and-forget — a rejected fetch is caught and discarded so it
+ * never affects the caller's response.
+ *
+ * No-op when CRON_SECRET is not set (dev/preview without a worker).
+ */
+function pokeMissionWorker(requestUrl: string): void {
+  const secret = process.env['CRON_SECRET'];
+  if (!secret) return;
+  const url = new URL('/api/missions/run-next', requestUrl);
+  void fetch(url, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${secret}` },
+  }).catch(() => undefined);
 }
 
 // ── Build a short popup summary ───────────────────────────────────────────────
@@ -434,8 +458,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Fire deep-extract mission enqueue when confidence is low (fire-and-forget,
     // never blocks the response). Migration 041 must be applied first; insert
     // failures are swallowed gracefully (see enqueueDeepExtract).
+    // On successful enqueue, best-effort poke the worker so it runs immediately
+    // instead of waiting for the next GitHub Actions cron cycle (~3–4h in practice).
     if (deepScanQueued) {
-      void enqueueDeepExtract(auth, result.listingId, sourceUrl);
+      void enqueueDeepExtract(auth, result.listingId, sourceUrl).then((enqueued) => {
+        if (enqueued) pokeMissionWorker(request.url);
+      });
     }
 
     const status = result.alreadySaved ? 200 : 201;

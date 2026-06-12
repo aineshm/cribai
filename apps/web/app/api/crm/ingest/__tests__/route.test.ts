@@ -781,3 +781,149 @@ describe('POST /api/crm/ingest — deep-extract enqueue (AIN-71)', () => {
     expect(body.deepScanQueued).toBe(true);
   });
 });
+
+// ── Worker poke after deep-extract enqueue (AIN-71 step 5.3) ─────────────────
+
+describe('POST /api/crm/ingest — worker poke (AIN-71 step 5.3)', () => {
+  function setupMissionsInsertSuccess() {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: { id: 'mission-poke' }, error: null }),
+            }),
+          }),
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }),
+          }),
+        };
+      }
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+  }
+
+  it('pokes /api/missions/run-next via POST with Bearer CRON_SECRET after successful enqueue', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-poke', alreadySaved: false, confidence: 0.3 });
+    setupMissionsInsertSuccess();
+    vi.stubEnv('CRON_SECRET', 'test-cron-secret');
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(null, { status: 200 }),
+    );
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+    await new Promise((r) => setTimeout(r, 20));
+
+    const pokeCalls = fetchSpy.mock.calls.filter(([url]) =>
+      String(url).includes('/api/missions/run-next'),
+    );
+    expect(pokeCalls.length).toBe(1);
+    const [pokeUrl, pokeInit] = pokeCalls[0]!;
+    expect(String(pokeUrl)).toContain('/api/missions/run-next');
+    expect((pokeInit as RequestInit)?.method?.toUpperCase()).toBe('POST');
+    expect((pokeInit as RequestInit)?.headers).toMatchObject({
+      authorization: 'Bearer test-cron-secret',
+    });
+
+    fetchSpy.mockRestore();
+  });
+
+  it('does NOT poke when CRON_SECRET is unset', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-nopoke', alreadySaved: false, confidence: 0.3 });
+    setupMissionsInsertSuccess();
+    // Ensure CRON_SECRET is absent
+    delete process.env['CRON_SECRET'];
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(null, { status: 200 }),
+    );
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+    await new Promise((r) => setTimeout(r, 20));
+
+    const pokeCalls = fetchSpy.mock.calls.filter(([url]) =>
+      String(url).includes('/api/missions/run-next'),
+    );
+    expect(pokeCalls.length).toBe(0);
+
+    fetchSpy.mockRestore();
+  });
+
+  it('does NOT poke when enqueue was skipped (confidence >= 0.5)', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-hipoke', alreadySaved: false, confidence: 0.7 });
+    vi.stubEnv('CRON_SECRET', 'test-cron-secret');
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(null, { status: 200 }),
+    );
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+    await new Promise((r) => setTimeout(r, 20));
+
+    const pokeCalls = fetchSpy.mock.calls.filter(([url]) =>
+      String(url).includes('/api/missions/run-next'),
+    );
+    expect(pokeCalls.length).toBe(0);
+
+    fetchSpy.mockRestore();
+  });
+
+  it('does NOT poke when enqueue failed (insert error) — save still 201', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-failpoke', alreadySaved: false, confidence: 0.3 });
+    vi.stubEnv('CRON_SECRET', 'test-cron-secret');
+
+    // missions insert returns an error
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: null, error: { message: 'constraint violation', code: '23514' } }),
+            }),
+          }),
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }),
+          }),
+        };
+      }
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(null, { status: 200 }),
+    );
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+    await new Promise((r) => setTimeout(r, 20));
+
+    const pokeCalls = fetchSpy.mock.calls.filter(([url]) =>
+      String(url).includes('/api/missions/run-next'),
+    );
+    expect(pokeCalls.length).toBe(0);
+
+    fetchSpy.mockRestore();
+  });
+
+  it('a rejected poke fetch does not affect the 201 response', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-rejpoke', alreadySaved: false, confidence: 0.3 });
+    setupMissionsInsertSuccess();
+    vi.stubEnv('CRON_SECRET', 'test-cron-secret');
+
+    // Poke fetch rejects (network error)
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network error'));
+
+    const res = await POST(makeRequest(validBody()));
+    // Response must not be affected by the rejected fetch
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.deepScanQueued).toBe(true);
+
+    await new Promise((r) => setTimeout(r, 20));
+    fetchSpy.mockRestore();
+  });
+});
