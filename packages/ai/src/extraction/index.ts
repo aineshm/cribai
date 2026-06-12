@@ -423,3 +423,24 @@ export async function extractListing(
     sourceUrl: url,
   });
 }
+
+/**
+ * Fetch an SSRF-guarded, block-signal-checked HTML page by URL.
+ * Returns only the response body text (the full `{body, finalUrl}` tuple is
+ * available internally; this surface is kept narrow for callers that only
+ * need the HTML — e.g. the crm_deep_extract mission crawl step).
+ *
+ * Throws `ExtractionError` on network failure, SSRF block, redirect overflow,
+ * or a captcha/block signal in the response body.
+ */
+export async function fetchPublicHtml(
+  url: string,
+  opts: Pick<ExtractListingOptions, 'fetcher' | 'userAgent' | 'timeoutMs' | 'lookup'> = {},
+): Promise<string> {
+  const fetcher = opts.fetcher ?? fetch;
+  const userAgent = opts.userAgent ?? DEFAULT_USER_AGENT;
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const lookup = opts.lookup as DnsLookupFn | undefined;
+  const { body } = await fetchHtml(url, fetcher, userAgent, timeoutMs, lookup);
+  return body;
+}
