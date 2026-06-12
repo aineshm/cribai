@@ -200,8 +200,11 @@ export function createSaveButton(
   doc.documentElement.appendChild(host);
 
   let currentHref: string | null = null;
+  /** Last fully-rendered view — used by setHref so it doesn't infer state from classList. */
+  let lastView: ButtonView = viewFor('idle');
 
   function render(view: ButtonView, href: string | null): void {
+    lastView = view;
     const inner = `<${href ? 'a' : 'button'} class="${buttonClasses(view)}"${
       href ? ` href="${escapeHtml(href)}" target="_blank" rel="noopener"` : ''
     }${view.disabled && !href ? ' disabled' : ''}>${buttonInnerHtml(view)}</${href ? 'a' : 'button'}>`;
@@ -230,10 +233,11 @@ export function createSaveButton(
 
     // For re-entering `saved`, toggle animate off then on so the animation
     // replays on each successive save (requestAnimationFrame trick).
+    // Fix 10: render the full target view with animate:false first, then rAF
+    // the same view with animate restored — avoids rebuilding flags with
+    // deepScanQueued:false which flickered the sublabel.
     if (state === 'saved' && view.animate) {
-      const noAnimView = viewFor(state, detail, { ...flags, deepScanQueued: false });
-      const tempView: ButtonView = { ...noAnimView, animate: false };
-      render(tempView, currentHref);
+      render({ ...view, animate: false }, currentHref);
       requestAnimationFrame(() => {
         render(view, currentHref);
       });
@@ -244,19 +248,10 @@ export function createSaveButton(
 
   function setHref(url: string | null): void {
     currentHref = url;
-    // Re-render with the current view + new href
-    const el = container.firstElementChild;
-    if (el) {
-      // Re-render using the existing class state
-      const isSuccess = el.classList.contains('success');
-      const isAnimate = el.classList.contains('animate');
-      const state: SaveButtonState = isSuccess
-        ? isAnimate
-          ? 'saved'
-          : 'already_saved'
-        : 'idle';
-      render(viewFor(state), currentHref);
-    }
+    // Re-render using the last rendered view rather than inferring state from
+    // classList (Fix 9, AIN-72 review). animate:false so we don't replay the
+    // entry animation when only the href changes.
+    render({ ...lastView, animate: false }, currentHref);
   }
 
   function unmount(): void {

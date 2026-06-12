@@ -28,7 +28,7 @@ CribAI is an AI-powered student housing platform that helps you search, compare,
 Compare saved listings side-by-side with AI-generated summaries.
 
 **What gets sent:**
-The HTML of the listing page you are viewing is sent to CribAI's servers ONLY when you explicitly click "Save to CribAI." Nothing is captured in the background. No browsing history. No tracking.
+The HTML of the listing page you are viewing is sent to CribAI's servers ONLY when you explicitly click "Save to CribAI." When you are signed in, visiting a supported listing site automatically sends that page's URL (never its HTML or other content) to check whether you have already saved it — this is used only to show the correct button state. No browsing history beyond supported listing sites. No tracking.
 
 **Requirements:**
 - A free CribAI account (sign up at cribai.app)
@@ -47,7 +47,7 @@ This extension has a single purpose: capture the HTML of a rental listing page t
 1. Via the in-page "Save to CribAI" button (content script on curated listing domains only), which the user must click explicitly.
 2. Via the popup "Save to CribAI" button (activeTab + scripting, on any page), which the user must click explicitly.
 
-No background data collection occurs. The content script only displays a button and reads the page when the button is clicked. Captured HTML is sent only to CribAI servers and only upon explicit user action.
+When the user is signed in, the content script also automatically sends the current page's URL (not its HTML or any other content) to CribAI servers upon visiting a supported listing page, solely to determine whether the listing has already been saved and display the correct button state. No HTML is captured or transmitted without explicit user action. No data from any non-listing site is ever sent.
 
 ## Category
 

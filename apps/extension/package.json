@@ -5,6 +5,7 @@
   "description": "CribAI Chrome Extension MV3 — save listing pages to your apartment CRM",
   "scripts": {
     "dev": "vite build --watch",
+    "dev:content": "vite build --watch --config vite.content.config.ts",
     "build": "vite build && vite build --config vite.content.config.ts",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -18,7 +18,7 @@ import { checkHtmlSize, assemblePayload, fitPayloadToBudget, postIngest } from '
 import { isCapturableUrl, NON_CAPTURABLE_MESSAGE } from '../lib/capturable-url';
 import { API_BASE, APP_DOMAIN, MY_APARTMENTS_PATH } from '../config/constants';
 import { createPendingAuthStore } from '../lib/pending-auth-store';
-import { findCuratedDomain, isDetailPage } from '../config/curated-domains';
+import { isCuratedDetailUrl } from '../lib/curated-url';
 import type {
   PopupToSwMessage,
   SwResponse,
@@ -33,23 +33,14 @@ import type {
 // already limits injection to curated domains; this guard re-validates the
 // sender URL in the SW so a compromised or mis-declared page can't abuse the
 // ingest endpoint.
+//
+// Implementation lives in lib/curated-url.ts (chrome-free) so unit tests can
+// import the real function without triggering chrome.runtime side-effects.
 // ---------------------------------------------------------------------------
 
-/**
- * Returns true when the given URL belongs to a curated listing domain AND
- * is an http(s) page (i.e. capturable). Non-curated URLs are rejected so
- * the ingest path is never called from an unexpected origin.
- */
-export function isCuratedUrl(url: string): boolean {
-  if (!isCapturableUrl(url)) return false;
-  try {
-    const parsed = new URL(url);
-    const domain = findCuratedDomain(parsed.hostname);
-    return domain !== undefined && isDetailPage(domain, parsed);
-  } catch {
-    return false;
-  }
-}
+// Re-export so the background module's public surface is unchanged for tests
+// that imported the old `isCuratedUrl` name from this module.
+export { isCuratedDetailUrl as isCuratedUrl } from '../lib/curated-url';
 
 // ---------------------------------------------------------------------------
 // PendingAuth store — persists mid-OTP state across popup close/reopen
@@ -167,7 +158,7 @@ chrome.runtime.onMessage.addListener(
       if (
         sender.id !== chrome.runtime.id ||
         sender.tab?.id == null ||
-        !isCuratedUrl(senderUrl)
+        !isCuratedDetailUrl(senderUrl)
       ) {
         sendResponse({
           type: 'ERROR',
@@ -177,7 +168,7 @@ chrome.runtime.onMessage.addListener(
         return false;
       }
 
-      handleContentSaveMessage(contentSaveMsg)
+      handleContentSaveMessage(contentSaveMsg, senderUrl)
         .then(sendResponse)
         .catch((err: unknown) => {
           sendResponse({
@@ -406,7 +397,10 @@ async function handlePopupMessage(msg: PopupToSwMessage): Promise<SwResponse> {
  * Handle CONTENT_SAVE_LISTING and CHECK_SAVED messages from the declared
  * content script. Called after sender validation in the message listener.
  */
-async function handleContentSaveMessage(msg: ContentSaveMessage): Promise<SwResponse> {
+async function handleContentSaveMessage(
+  msg: ContentSaveMessage,
+  senderUrl: string,
+): Promise<SwResponse> {
   const supabase = getSupabaseClient();
   const {
     data: { session },
@@ -417,10 +411,13 @@ async function handleContentSaveMessage(msg: ContentSaveMessage): Promise<SwResp
   }
 
   if (msg.type === 'CHECK_SAVED') {
+    // Use the Chrome-set sender.url (unspoofable) rather than msg.sourceUrl
+    // (page-controlled). The senderUrl has already been validated by isCuratedUrl.
+    const checkedUrl = senderUrl;
     // Fail-open: network errors degrade to idle (never block the button).
     try {
       const res = await fetch(
-        `${API_BASE}/api/crm/saved?sourceUrl=${encodeURIComponent(msg.sourceUrl)}`,
+        `${API_BASE}/api/crm/saved?sourceUrl=${encodeURIComponent(checkedUrl)}`,
         { headers: { authorization: `Bearer ${session.access_token}` } },
       );
       if (!res.ok) {
@@ -441,6 +438,8 @@ async function handleContentSaveMessage(msg: ContentSaveMessage): Promise<SwResp
   }
 
   // CONTENT_SAVE_LISTING
+  // Use the Chrome-set sender.url (unspoofable) for sourceUrl — msg.sourceUrl
+  // is page-controlled and must not reach the ingest endpoint.
   const sizeCheck = checkHtmlSize(msg.html);
   if (!sizeCheck.ok) {
     const mb = (sizeCheck.byteLength / 1024 / 1024).toFixed(1);
@@ -453,7 +452,7 @@ async function handleContentSaveMessage(msg: ContentSaveMessage): Promise<SwResp
 
   const rawPayload = assemblePayload({
     html: msg.html,
-    sourceUrl: msg.sourceUrl,
+    sourceUrl: senderUrl,
     title: msg.title,
     innerText: msg.innerText,
     iframes: msg.iframes,

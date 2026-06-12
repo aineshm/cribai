@@ -14,9 +14,13 @@ const CASES: Array<[string, boolean]> = [
   ['https://www.zillow.com/b/the-hub-madison-madison-wi-5XjKpF/', true],
   // Zillow search / non-detail
   ['https://www.zillow.com/madison-wi/rentals/', false],
-  // Apartments.com detail
+  // Apartments.com detail — token contains a digit (Fix 4, AIN-72 review)
   ['https://www.apartments.com/the-james-madison-wi/abc1234/', true],
-  // Apartments.com search
+  // Apartments.com category pages — second segment is all-alpha → must be rejected (Fix 4)
+  ['https://www.apartments.com/madison-wi/rentals/', false],
+  ['https://www.apartments.com/madison-wi/apartments/', false],
+  ['https://www.apartments.com/madison-wi/houses/', false],
+  // Apartments.com search (one segment)
   ['https://www.apartments.com/madison-wi/', false],
   // Trulia detail
   [

@@ -26,9 +26,11 @@ export const CURATED_DOMAINS: readonly CuratedDomain[] = [
   },
   {
     hostSuffix: 'apartments.com',
-    // Detail pages: /<slug>/<token>/ where token is ≥4 alphanumeric chars.
-    // Search pages: /<city-state>/ (no second path segment with a token).
-    isDetail: (u) => /^\/[a-z0-9-]+\/[a-z0-9]{4,}\/?$/i.test(u.pathname),
+    // Detail pages: /<slug>/<token>/ where token is ≥4 alphanumeric chars AND
+    // contains at least one digit (e.g. 'abc1234'). This rejects category pages
+    // like /madison-wi/rentals/, /madison-wi/apartments/, /madison-wi/houses/
+    // whose second segments are all-alpha slugs.
+    isDetail: (u) => /^\/[a-z0-9-]+\/[a-z0-9]*\d[a-z0-9]*\/?$/i.test(u.pathname),
   },
   {
     hostSuffix: 'trulia.com',

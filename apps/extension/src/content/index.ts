@@ -17,12 +17,23 @@ import type { SaveButtonState } from './state-machine';
 import type { SwResponse } from '../lib/messages';
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Guard: only allow https:// deep-link URLs through to setHref. */
+function isHttpsUrl(url: string): boolean {
+  return url.startsWith('https://');
+}
+
+// ---------------------------------------------------------------------------
 // SPA navigation — poll location.href every 1500ms
 // ---------------------------------------------------------------------------
 
 /** Track mounted state so we don't double-mount on SPA navigations. */
 let currentHref = location.href;
 let unmountFn: (() => void) | null = null;
+/** Elevated so unmount() can cancel the in-flight analyzing timer on SPA nav. */
+let analyzingTimer: ReturnType<typeof setTimeout> | null = null;
 
 function mount(): void {
   const domain = findCuratedDomain(location.hostname);
@@ -36,7 +47,14 @@ function mount(): void {
   let deepLinkUrl: string | undefined;
 
   const handle = createSaveButton(document, handleClick);
-  unmountFn = handle.unmount;
+  unmountFn = () => {
+    // Cancel any pending analyzing timer so it doesn't fire after we unmount.
+    if (analyzingTimer !== null) {
+      clearTimeout(analyzingTimer);
+      analyzingTimer = null;
+    }
+    handle.unmount();
+  };
 
   // Check if already saved
   chrome.runtime.sendMessage(
@@ -50,9 +68,13 @@ function mount(): void {
       }
       if (response.type === 'SAVED_STATE' && response.saved) {
         state = 'already_saved';
-        deepLinkUrl = response.deepLinkUrl;
+        deepLinkUrl =
+          response.deepLinkUrl && isHttpsUrl(response.deepLinkUrl)
+            ? response.deepLinkUrl
+            : undefined;
         handle.setView(state, undefined, undefined);
         if (deepLinkUrl) handle.setHref(deepLinkUrl);
+        else handle.setHref(null);
       }
     },
   );
@@ -68,8 +90,10 @@ function mount(): void {
     state = 'saving';
     handle.setView(state, undefined, undefined);
 
-    // After 3s, show analyzing to indicate progress
-    const analyzingTimer = setTimeout(() => {
+    // After 3s, show analyzing to indicate progress.
+    // Timer is elevated to mount() scope so unmount() can cancel it.
+    analyzingTimer = setTimeout(() => {
+      analyzingTimer = null;
       if (state === 'saving') {
         state = 'analyzing';
         handle.setView(state, undefined, undefined);
@@ -87,7 +111,10 @@ function mount(): void {
         iframes: capture.iframes,
       },
       (response: SwResponse | undefined) => {
-        clearTimeout(analyzingTimer);
+        if (analyzingTimer !== null) {
+          clearTimeout(analyzingTimer);
+          analyzingTimer = null;
+        }
 
         if (!response) {
           state = 'error';
@@ -107,9 +134,13 @@ function mount(): void {
 
         if (response.type === 'SAVE_OK') {
           state = 'saved';
-          deepLinkUrl = response.deepLinkUrl;
+          deepLinkUrl =
+            response.deepLinkUrl && isHttpsUrl(response.deepLinkUrl)
+              ? response.deepLinkUrl
+              : undefined;
           handle.setView(state, undefined, { deepScanQueued: response.deepScanQueued });
           if (deepLinkUrl) handle.setHref(deepLinkUrl);
+          else handle.setHref(null);
           return;
         }
 
@@ -149,4 +180,6 @@ function checkNavigation(): void {
 
 // Bootstrap
 mount();
-setInterval(checkNavigation, 1_500);
+const navIntervalId = setInterval(checkNavigation, 1_500);
+// Clear the polling interval when the page is unloaded to avoid a leak.
+window.addEventListener('pagehide', () => clearInterval(navIntervalId), { once: true });
