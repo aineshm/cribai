@@ -173,6 +173,7 @@ async function handleSendOtp(): Promise<void> {
 
     if (response.type === 'OTP_SENT') {
       currentEmail = email;
+      otpResumeHint.textContent = '';
       showView('otp');
       inputOtp.focus();
     } else if (response.type === 'ERROR') {
@@ -190,10 +191,17 @@ async function handleSendOtp(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 const btnBackToEmail = el<HTMLButtonElement>('btn-back-to-email');
-btnBackToEmail.addEventListener('click', () => {
+btnBackToEmail.addEventListener('click', async () => {
   clearErrors();
   inputOtp.value = '';
   currentEmail = '';
+  // Clear the persisted pendingAuth too — explicit back-navigation must not
+  // resume at the OTP step on next popup open (review C-1).
+  try {
+    await sendToSw({ type: 'SIGN_OUT' });
+  } catch {
+    // best-effort; worst case the record expires via the resume window
+  }
   showView('email');
   inputEmail.focus();
 });

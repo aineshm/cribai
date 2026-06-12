@@ -1,5 +1,6 @@
 {
   "manifest_version": 3,
+  "minimum_chrome_version": "102",
   "name": "CribAI — Save to My Apartments",
   "version": "0.1.0",
   "description": "Save any rental listing page to your CribAI apartment CRM with one click.",
