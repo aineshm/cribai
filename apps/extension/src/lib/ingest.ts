@@ -5,7 +5,8 @@
  * making them fully unit-testable with vitest.
  */
 
-import { MAX_HTML_BYTES, INGEST_PATH } from '../config/constants';
+import { MAX_HTML_BYTES, MAX_PAYLOAD_BYTES, INGEST_PATH } from '../config/constants';
+import type { CapturedIframe } from './messages';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -15,17 +16,22 @@ export interface CapturedPage {
   readonly html: string;
   readonly sourceUrl: string;
   readonly title: string;
+  readonly innerText?: string;
+  readonly iframes?: readonly CapturedIframe[];
 }
 
 export interface IngestPayload {
   readonly html: string;
   readonly sourceUrl: string;
   readonly capturedAt: string;
+  readonly innerText?: string;
+  readonly iframes?: readonly CapturedIframe[];
 }
 
 export type IngestResultOk = {
   readonly ok: true;
   readonly listingId?: string;
+  readonly deepScanQueued?: boolean;
 };
 
 export type IngestResultErr = {
@@ -74,14 +80,55 @@ export function checkHtmlSize(html: string, maxBytes = MAX_HTML_BYTES): SizeGuar
 
 /**
  * Assembles the ingest request body from a captured page.
- * Pure function — no side effects.
+ * Pure function — no side effects. title is dropped (not sent to server).
  */
 export function assemblePayload(page: CapturedPage): IngestPayload {
   return {
     html: page.html,
     sourceUrl: page.sourceUrl,
     capturedAt: new Date().toISOString(),
+    ...(page.innerText !== undefined ? { innerText: page.innerText } : {}),
+    ...(page.iframes !== undefined ? { iframes: page.iframes } : {}),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Payload budget enforcement
+// ---------------------------------------------------------------------------
+
+/** Returns UTF-8 byte length of a string. */
+const utf8Bytes = (s: string): number =>
+  typeof TextEncoder !== 'undefined' ? new TextEncoder().encode(s).byteLength : s.length * 3;
+
+function payloadBytes(p: IngestPayload): number {
+  return utf8Bytes(JSON.stringify(p));
+}
+
+/**
+ * Shrink the payload to MAX_PAYLOAD_BYTES by dropping richer fields:
+ * largest iframes first, then truncate innerText by halves. html is never touched
+ * (it has its own MAX_HTML_BYTES guard upstream).
+ */
+export function fitPayloadToBudget(payload: IngestPayload): IngestPayload {
+  let current = payload;
+  if (payloadBytes(current) <= MAX_PAYLOAD_BYTES) return current;
+
+  // Drop iframes largest-first until the payload fits
+  const keptIframes = [...(current.iframes ?? [])].sort((a, b) => a.html.length - b.html.length);
+  while (
+    keptIframes.length > 0 &&
+    payloadBytes({ ...current, iframes: keptIframes }) > MAX_PAYLOAD_BYTES
+  ) {
+    keptIframes.pop(); // drop the largest remaining
+  }
+  current = { ...current, iframes: keptIframes };
+
+  // Truncate innerText by halves until budget satisfied
+  let text = current.innerText ?? '';
+  while (text.length > 0 && payloadBytes({ ...current, innerText: text }) > MAX_PAYLOAD_BYTES) {
+    text = text.slice(0, Math.floor(text.length / 2));
+  }
+  return { ...current, innerText: text };
 }
 
 // ---------------------------------------------------------------------------
@@ -179,8 +226,8 @@ export async function postIngest(
   }
 
   try {
-    const body = (await response.json()) as { listingId?: string };
-    return { ok: true, listingId: body.listingId };
+    const body = (await response.json()) as { listingId?: string; deepScanQueued?: boolean };
+    return { ok: true, listingId: body.listingId, deepScanQueued: body.deepScanQueued };
   } catch {
     // 2xx with non-JSON body — still a success
     return { ok: true };

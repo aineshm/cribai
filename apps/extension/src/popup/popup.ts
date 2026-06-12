@@ -39,6 +39,7 @@ const saveError = el('save-error');
 const saveWarning = el('save-warning');
 const authEmailDisplay = el('auth-email-display');
 const deepLink = el<HTMLAnchorElement>('deep-link');
+const deepScanNotice = el('deep-scan-notice');
 
 // ---------------------------------------------------------------------------
 // View management
@@ -332,6 +333,7 @@ async function handleSave(): Promise<void> {
       deepLink.href = response.deepLinkUrl.startsWith('https://')
         ? response.deepLinkUrl
         : '#';
+      deepScanNotice.style.display = response.deepScanQueued ? 'block' : 'none';
       showView('success');
     } else if (response.type === 'ERROR') {
       if (response.code === 'auth') {

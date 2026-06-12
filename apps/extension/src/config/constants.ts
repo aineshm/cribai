@@ -38,6 +38,15 @@ export const SUPABASE_ANON_KEY: string =
 /** Maximum HTML payload size accepted by the server (4 MiB). */
 export const MAX_HTML_BYTES = 4 * 1024 * 1024;
 
+/** Cap on captured page innerText (chars). */
+export const MAX_INNER_TEXT_CHARS = 200_000;
+/** Max same-origin iframes captured per page. */
+export const MAX_IFRAMES = 10;
+/** Cap per captured iframe HTML (chars). */
+export const MAX_IFRAME_HTML_CHARS = 524_288;
+/** Total payload budget (bytes) — stays under the server's 4.5 MiB content-length precheck. */
+export const MAX_PAYLOAD_BYTES = Math.floor(4.4 * 1024 * 1024);
+
 /** Ingest endpoint path. */
 export const INGEST_PATH = '/api/crm/ingest';
 
