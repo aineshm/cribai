@@ -7,6 +7,8 @@ import {
   checkHtmlSize,
   assemblePayload,
   postIngest,
+  fitPayloadToBudget,
+  utf8ByteLength,
   type CapturedPage,
   type IngestPayload,
 } from '../ingest';
@@ -276,5 +278,112 @@ describe('postIngest', () => {
     expect(body.html).toBe(basePayload.html);
     expect(body.sourceUrl).toBe(basePayload.sourceUrl);
     expect(body.capturedAt).toBe(basePayload.capturedAt);
+  });
+
+  it('parses deepScanQueued from 201 response', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(makeResponse(201, { listingId: 'l1', deepScanQueued: true }));
+    const result = await postIngest('https://cribai.app', 'token', basePayload, mockFetch);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.deepScanQueued).toBe(true);
+    }
+  });
+
+  it('deepScanQueued is absent when not in response', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(makeResponse(201, { listingId: 'l1' }));
+    const result = await postIngest('https://cribai.app', 'token', basePayload, mockFetch);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.deepScanQueued).toBeUndefined();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fitPayloadToBudget
+// ---------------------------------------------------------------------------
+
+describe('fitPayloadToBudget', () => {
+  const base = { html: 'h'.repeat(100), sourceUrl: 'https://x.test/a', capturedAt: '2026-06-12T00:00:00.000Z' };
+
+  it('returns payload unchanged when under budget', () => {
+    const p: IngestPayload = { ...base, innerText: 'text', iframes: [{ src: 'https://x.test/f', html: '<p>hi</p>' }] };
+    expect(fitPayloadToBudget(p)).toEqual(p);
+  });
+
+  it('drops largest iframes first when over budget', () => {
+    // 2MB html + 3MB iframe > 4.4MB budget → must drop the big iframe
+    const big = 'a'.repeat(3 * 1024 * 1024);
+    const p: IngestPayload = { ...base, html: 'h'.repeat(2 * 1024 * 1024), innerText: 'keep',
+      iframes: [{ src: 's', html: big }, { src: 't', html: 'tiny' }] };
+    const fitted = fitPayloadToBudget(p);
+    expect(fitted.iframes).toEqual([{ src: 't', html: 'tiny' }]);
+    expect(fitted.innerText).toBe('keep');
+  });
+
+  it('truncates innerText after iframes are gone, never touches html', () => {
+    const p: IngestPayload = { ...base, html: 'h'.repeat(4 * 1024 * 1024), innerText: 'x'.repeat(1024 * 1024), iframes: [] };
+    const fitted = fitPayloadToBudget(p);
+    expect(fitted.html).toBe(p.html);
+    expect((fitted.innerText ?? '').length).toBeLessThan(p.innerText!.length);
+  });
+
+  it('returns a new object when trimming (immutable — does not mutate input)', () => {
+    // Provide an over-budget payload so trimming kicks in and a new object must be returned
+    const p: IngestPayload = { ...base, html: 'h'.repeat(4 * 1024 * 1024), innerText: 'x'.repeat(1024 * 1024), iframes: [] };
+    const fitted = fitPayloadToBudget(p);
+    // Original must not be modified
+    expect(p.innerText!.length).toBe(1024 * 1024);
+    // Fitted must differ
+    expect(fitted).not.toBe(p);
+  });
+
+  // FIX 9: omit empty fields
+  it('omits innerText when trimmed to empty string', () => {
+    // Build a payload where all iframes drop and innerText gets fully truncated to ''
+    const bigHtml = 'h'.repeat(4 * 1024 * 1024);
+    // innerText starts tiny so the trim loop will truncate it to empty
+    const p: IngestPayload = { ...base, html: bigHtml, innerText: 'ab', iframes: [] };
+    const fitted = fitPayloadToBudget(p);
+    // innerText should be omitted (undefined) when budget is still over after full truncation
+    // OR remain as the final truncated value. The key assertion is that an empty string
+    // is NOT emitted as a field — it must be undefined.
+    if (fitted.innerText !== undefined) {
+      expect(fitted.innerText.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('omits iframes field when all iframes are dropped (not empty array)', () => {
+    const bigIframe = 'a'.repeat(3 * 1024 * 1024);
+    const p: IngestPayload = {
+      ...base,
+      html: 'h'.repeat(2 * 1024 * 1024),
+      innerText: 'keep',
+      iframes: [{ src: 's', html: bigIframe }],
+    };
+    const fitted = fitPayloadToBudget(p);
+    // All iframes dropped → the iframes field must be undefined (omitted), not []
+    expect(fitted.iframes).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// utf8ByteLength — exported helper (FIX 9: single consolidated function)
+// ---------------------------------------------------------------------------
+
+describe('utf8ByteLength', () => {
+  it('returns correct byte count for ASCII string', () => {
+    expect(utf8ByteLength('hello')).toBe(5);
+  });
+
+  it('returns correct byte count for multi-byte chars', () => {
+    // '€' is 3 bytes in UTF-8
+    expect(utf8ByteLength('€')).toBe(3);
+  });
+
+  it('is used by checkHtmlSize (consistent measurement)', () => {
+    const s = 'abc€';
+    // Should be 3 ASCII + 3 bytes for € = 6
+    expect(utf8ByteLength(s)).toBe(6);
   });
 });

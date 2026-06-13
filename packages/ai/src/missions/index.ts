@@ -12,6 +12,7 @@ import './housing-search/index';
 import './tour-outreach-mission';
 import './listing-deep-dive/index';
 import './sublease-post/index';
+import './crm-deep-extract/index';
 
 export { executeMission } from './executor';
 export { runMissionQueueOnce } from './worker';
@@ -55,5 +56,7 @@ export { tourOutreachDefinition } from './tour-outreach-mission';
 export { LISTING_DEEP_DIVE_STEPS } from './listing-deep-dive/index';
 export { SUBLEASE_POST_STEPS } from './sublease-post/index';
 export { HOUSING_SEARCH_STEPS } from './housing-search/index';
+export { CRM_DEEP_EXTRACT_STEPS } from './crm-deep-extract/index';
+export type { CrmDeepExtractInput } from './crm-deep-extract/index';
 export { parseSteeringIntent } from './steering-parser';
 export type { SteeringUpdate } from './steering-parser';

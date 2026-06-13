@@ -14,7 +14,7 @@
  */
 
 import { getSupabaseClient } from './supabase-client';
-import { checkHtmlSize, assemblePayload, postIngest } from '../lib/ingest';
+import { checkHtmlSize, assemblePayload, fitPayloadToBudget, postIngest } from '../lib/ingest';
 import { isCapturableUrl, NON_CAPTURABLE_MESSAGE } from '../lib/capturable-url';
 import { API_BASE, APP_DOMAIN, MY_APARTMENTS_PATH } from '../config/constants';
 import { createPendingAuthStore } from '../lib/pending-auth-store';
@@ -297,12 +297,15 @@ async function handlePopupMessage(msg: PopupToSwMessage): Promise<SwResponse> {
         };
       }
 
-      // 5. Assemble and POST
-      const payload = assemblePayload({
+      // 5. Assemble, fit to budget, and POST
+      const rawPayload = assemblePayload({
         html: captureResult.html,
         sourceUrl: captureResult.sourceUrl,
         title: captureResult.title,
+        innerText: captureResult.innerText,
+        iframes: captureResult.iframes,
       });
+      const payload = fitPayloadToBudget(rawPayload);
 
       const result = await postIngest(API_BASE, session.access_token, payload);
 
@@ -319,7 +322,7 @@ async function handlePopupMessage(msg: PopupToSwMessage): Promise<SwResponse> {
       }
 
       const deepLinkUrl = `${APP_DOMAIN}${MY_APARTMENTS_PATH}`;
-      return { type: 'SAVE_OK', listingId: result.listingId, deepLinkUrl };
+      return { type: 'SAVE_OK', listingId: result.listingId, deepLinkUrl, deepScanQueued: result.deepScanQueued };
     }
 
     default: {
@@ -338,19 +341,41 @@ async function handlePopupMessage(msg: PopupToSwMessage): Promise<SwResponse> {
  * Inline capture function — injected into the page via executeScript.
  *
  * MUST be a self-contained function with no closure references.
+ * Caps are inlined as literals because an injected function cannot import
+ * from module scope. Each literal MUST stay in sync with its constants.ts name:
+ *
+ *   200_000  → MAX_INNER_TEXT_CHARS  (constants.ts)
+ *   10       → MAX_IFRAMES           (constants.ts)
+ *   524_288  → MAX_IFRAME_HTML_CHARS (constants.ts)
+ *
+ * If you change a constant, update BOTH constants.ts AND the literal here.
+ *
  * chrome.runtime IS available in injected scripts (MV3).
  */
 function captureAndSendInline(): void {
   try {
     const html = document.documentElement.outerHTML;
-    const sourceUrl = location.href;
-    const title = document.title;
-
+    const innerText = (document.body ? document.body.innerText : '').slice(0, 200_000); // MAX_INNER_TEXT_CHARS
+    const iframes: Array<{ src: string; html: string }> = [];
+    const frames = document.querySelectorAll('iframe');
+    for (let i = 0; i < frames.length && iframes.length < 10; i++) { // 10 = MAX_IFRAMES
+      try {
+        const doc = frames[i]!.contentDocument; // throws/null when cross-origin
+        const root = doc && doc.documentElement;
+        if (root) {
+          iframes.push({ src: frames[i]!.src || '', html: root.outerHTML.slice(0, 524_288) }); // 524_288 = MAX_IFRAME_HTML_CHARS
+        }
+      } catch {
+        // cross-origin iframe — invisible to us by design; the deep-extract mission covers it
+      }
+    }
     chrome.runtime.sendMessage({
       type: 'PAGE_CAPTURED',
       html,
-      sourceUrl,
-      title,
+      sourceUrl: location.href,
+      title: document.title,
+      innerText,
+      iframes,
     });
   } catch (err) {
     chrome.runtime.sendMessage({

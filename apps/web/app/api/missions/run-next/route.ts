@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
 import { runMissionQueueOnce } from '@campusnest/ai';
 
+/**
+ * Allow up to 300 s for this route on Vercel Pro.
+ * crm_deep_extract missions need ~30–90 s (crawl + LLM synthesis + re-analysis);
+ * the default 60 s Vercel limit is too tight for that workload.
+ */
+export const maxDuration = 300;
+
 const MAX_JOBS_PER_REQUEST = 10;
 const MIN_LEASE_SECONDS = 30;
 const MAX_LEASE_SECONDS = 1800;

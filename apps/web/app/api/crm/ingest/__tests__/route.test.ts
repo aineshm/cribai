@@ -228,6 +228,37 @@ describe('POST /api/crm/ingest — content-length precheck', () => {
     expect(res.status).toBe(413);
     expect(mockAddListing).not.toHaveBeenCalled();
   });
+
+  // FIX 8: oversized raw body (no Content-Length header) → 413 before JSON.parse
+  it('returns 413 for an oversized raw body even without Content-Length header', async () => {
+    // Build a raw body that exceeds MAX_CONTENT_LENGTH_BYTES (~4.5 MiB) but
+    // omit Content-Length so the precheck is bypassed. The new post-buffer
+    // total-size check must fire before JSON.parse.
+    const MAX_BYTES = 4 * 1024 * 1024 + 512 * 1024; // MAX_CONTENT_LENGTH_BYTES
+    const bigPayload = JSON.stringify({
+      sourceUrl: SOURCE_URL,
+      html: 'a'.repeat(10),
+      capturedAt: CAPTURED_AT,
+      innerText: 'x'.repeat(MAX_BYTES), // bloats raw body past threshold
+    });
+    const req = new NextRequest('http://localhost/api/crm/ingest', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: 'Bearer valid-access-token',
+        // No content-length header
+      },
+      body: bigPayload,
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(413);
+    expect(mockAddListing).not.toHaveBeenCalled();
+  });
+
+  it('does not 413 for a normal body without Content-Length header', async () => {
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+  });
 });
 
 // ── Request validation ────────────────────────────────────────────────────────
@@ -451,7 +482,8 @@ describe('POST /api/crm/ingest — happy path', () => {
     await POST(makeRequest(validBody()));
 
     // extractListingFromHtml must have been called with the captured values.
-    expect(mockExtractListingFromHtml).toHaveBeenCalledWith(VALID_HTML, SOURCE_URL);
+    // The third arg is the richer options object (may include innerText/iframes from the request).
+    expect(mockExtractListingFromHtml).toHaveBeenCalledWith(VALID_HTML, SOURCE_URL, expect.any(Object));
 
     // fetch must NOT have been called with the sourceUrl (belt-and-suspenders check).
     for (const call of fetchSpy.mock.calls) {
@@ -541,6 +573,45 @@ describe('POST /api/crm/ingest — happy path', () => {
   });
 });
 
+// ── Richer inputs (innerText + iframes) ──────────────────────────────────────
+
+describe('POST /api/crm/ingest — richer inputs', () => {
+  it('accepts and forwards innerText and iframes to extraction', async () => {
+    mockAddListing.mockImplementation(async (_url: string, deps: { extract: (url: string) => unknown }) => {
+      await deps.extract(SOURCE_URL);
+      return { listingId: 'l1', alreadySaved: false, confidence: 0.8 };
+    });
+
+    const body = validBody({ innerText: 'Rent from $899', iframes: [{ src: 'https://w.test', html: '<div>2BR $1200</div>' }] });
+    const res = await POST(makeRequest(body));
+    expect(res.status).toBe(201);
+    expect(mockExtractListingFromHtml).toHaveBeenCalledWith(
+      VALID_HTML,
+      SOURCE_URL,
+      expect.objectContaining({ innerText: 'Rent from $899', iframes: [expect.objectContaining({ src: 'https://w.test' })] }),
+    );
+  });
+
+  it('rejects more than 10 iframes with 400', async () => {
+    const body = validBody({ iframes: Array.from({ length: 11 }, (_, i) => ({ src: `https://s${i}.test`, html: 'x' })) });
+    const res = await POST(makeRequest(body));
+    expect(res.status).toBe(400);
+    expect(mockAddListing).not.toHaveBeenCalled();
+  });
+
+  it('rejects innerText longer than 200k chars with 400', async () => {
+    const body = validBody({ innerText: 'x'.repeat(200_001) });
+    const res = await POST(makeRequest(body));
+    expect(res.status).toBe(400);
+    expect(mockAddListing).not.toHaveBeenCalled();
+  });
+
+  it('accepts request without innerText or iframes (backwards compat)', async () => {
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+  });
+});
+
 // ── CORS preflight ────────────────────────────────────────────────────────────
 
 describe('OPTIONS /api/crm/ingest — CORS preflight', () => {
@@ -621,5 +692,413 @@ describe('OPTIONS /api/crm/ingest — CORS preflight', () => {
         process.env['CRM_EXTENSION_ORIGIN'] = origEnv;
       }
     }
+  });
+});
+
+// ── Deep-extract mission enqueue (AIN-71) ────────────────────────────────────
+
+describe('POST /api/crm/ingest — deep-extract enqueue (AIN-71)', () => {
+  it('enqueues crm_deep_extract mission on new save with confidence < 0.5', async () => {
+    const lowConfidenceResult = { listingId: 'l-low', alreadySaved: false, confidence: 0.3 };
+    mockAddListing.mockResolvedValue(lowConfidenceResult);
+
+    // Track insert calls on the missions table — capture insert payload
+    let capturedInsertPayload: Record<string, unknown> | null = null;
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockImplementation((row: Record<string, unknown>) => {
+            capturedInsertPayload = row;
+            return { select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'mission-1' }, error: null }) }) };
+          }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }),
+        };
+      }
+      // Default: row cap check
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+
+    // The enqueue now awaits before building the response — no extra tick needed
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(capturedInsertPayload).not.toBeNull();
+    expect(capturedInsertPayload!.type).toBe('crm_deep_extract');
+    // FIX 1: idempotency_key must be set (not null)
+    expect(capturedInsertPayload!.idempotency_key).toBe('crm_deep_extract:l-low');
+  });
+
+  it('does NOT enqueue crm_deep_extract on new save with confidence >= 0.5', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-hi', alreadySaved: false, confidence: 0.7 });
+
+    let deepExtractInserted = false;
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockImplementation((row: Record<string, unknown>) => {
+            if (row.type === 'crm_deep_extract') deepExtractInserted = true;
+            return { select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'mission-1' }, error: null }) }) };
+          }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }),
+        };
+      }
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(deepExtractInserted).toBe(false);
+  });
+
+  it('does NOT enqueue crm_deep_extract when listing was already saved', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-dup', alreadySaved: true, confidence: 0.3 });
+
+    let deepExtractInserted = false;
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockImplementation((row: Record<string, unknown>) => {
+            if (row.type === 'crm_deep_extract') deepExtractInserted = true;
+            return { select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'mission-1' }, error: null }) }) };
+          }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }),
+        };
+      }
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(200);
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(deepExtractInserted).toBe(false);
+  });
+
+  it('responds 201 even if deep-extract mission insert fails (best-effort)', async () => {
+    const lowConfidenceResult = { listingId: 'l-low-fail', alreadySaved: false, confidence: 0.2 };
+    mockAddListing.mockResolvedValue(lowConfidenceResult);
+
+    // Simulate missions insert failing (constraint violation)
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: null, error: { message: 'constraint violation' } }) }),
+          }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }),
+        };
+      }
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Still 201 — enqueue failure is swallowed
+    expect(res.status).toBe(201);
+  });
+
+  it('includes deepScanQueued: true in response when deep-extract is enqueued', async () => {
+    const lowConfidenceResult = { listingId: 'l-low-dq', alreadySaved: false, confidence: 0.3 };
+    mockAddListing.mockResolvedValue(lowConfidenceResult);
+
+    // Need missions insert to succeed for deepScanQueued to be true (FIX 2)
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'mission-dq' }, error: null }) }),
+          }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }),
+        };
+      }
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+
+    const res = await POST(makeRequest(validBody()));
+    const body = await res.json();
+
+    // deepScanQueued: true only when the insert genuinely succeeded (FIX 2)
+    expect(body.deepScanQueued).toBe(true);
+  });
+
+  // FIX 1: 23505 unique-violation = already-queued → treated as success (true), no poke
+  it('treats unique-violation (23505) as already-queued — returns true, no poke', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-23505', alreadySaved: false, confidence: 0.3 });
+    vi.stubEnv('CRON_SECRET', 'secret-23505');
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: null,
+                error: { message: 'duplicate key value', code: '23505' },
+              }),
+            }),
+          }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }),
+        };
+      }
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }));
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    // already-queued via 23505 → deepScanQueued true (idempotent success)
+    expect(body.deepScanQueued).toBe(true);
+
+    await new Promise((r) => setTimeout(r, 20));
+    // No poke on already-queued (nothing new to process)
+    const pokeCalls = fetchSpy.mock.calls.filter(([url]) =>
+      String(url).includes('/api/missions/run-next'),
+    );
+    expect(pokeCalls.length).toBe(0);
+
+    fetchSpy.mockRestore();
+  });
+
+  // FIX 2: deepScanQueued absent when insert fails with non-23505 error
+  it('deepScanQueued absent when insert fails with a non-23505 error', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-fail-sq', alreadySaved: false, confidence: 0.3 });
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: null,
+                error: { message: 'some other error', code: '42601' },
+              }),
+            }),
+          }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }),
+        };
+      }
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    // insert failed → deepScanQueued must not be present (undefined/absent)
+    expect(body.deepScanQueued).toBeUndefined();
+  });
+
+  // FIX 2: enqueue timeout → 201 with no deepScanQueued
+  it('enqueue timeout resolves false → 201 with no deepScanQueued', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-timeout-sq', alreadySaved: false, confidence: 0.3 });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockImplementation(
+                () => new Promise(() => { /* never resolves */ }),
+              ),
+            }),
+          }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }),
+        };
+      }
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+
+    const resPromise = POST(makeRequest(validBody()));
+    // Advance timers past the 3s enqueue timeout
+    vi.advanceTimersByTime(4000);
+    const res = await resPromise;
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.deepScanQueued).toBeUndefined();
+
+    vi.useRealTimers();
+  });
+});
+
+// ── Worker poke after deep-extract enqueue (AIN-71 step 5.3) ─────────────────
+
+describe('POST /api/crm/ingest — worker poke (AIN-71 step 5.3)', () => {
+  function setupMissionsInsertSuccess() {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: { id: 'mission-poke' }, error: null }),
+            }),
+          }),
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }),
+          }),
+        };
+      }
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+  }
+
+  it('pokes /api/missions/run-next via POST with Bearer CRON_SECRET after successful enqueue', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-poke', alreadySaved: false, confidence: 0.3 });
+    setupMissionsInsertSuccess();
+    vi.stubEnv('CRON_SECRET', 'test-cron-secret');
+    vi.stubEnv('MISSION_WORKER_BASE_URL', 'https://worker.example.com');
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(null, { status: 200 }),
+    );
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+    await new Promise((r) => setTimeout(r, 20));
+
+    const pokeCalls = fetchSpy.mock.calls.filter(([url]) =>
+      String(url).includes('/api/missions/run-next'),
+    );
+    expect(pokeCalls.length).toBe(1);
+    const [pokeUrl, pokeInit] = pokeCalls[0]!;
+    // FIX 3: poke target derived from env — never from request.url
+    expect(String(pokeUrl)).toBe('https://worker.example.com/api/missions/run-next');
+    expect((pokeInit as RequestInit)?.method?.toUpperCase()).toBe('POST');
+    expect((pokeInit as RequestInit)?.headers).toMatchObject({
+      authorization: 'Bearer test-cron-secret',
+    });
+
+    fetchSpy.mockRestore();
+  });
+
+  // FIX 3: no env → no poke (fail-closed)
+  it('does NOT poke when no base-URL env var is available (fail-closed)', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-noenv-poke', alreadySaved: false, confidence: 0.3 });
+    setupMissionsInsertSuccess();
+    vi.stubEnv('CRON_SECRET', 'test-cron-secret');
+    // Ensure all base URL env vars are absent
+    delete process.env['MISSION_WORKER_BASE_URL'];
+    delete process.env['VERCEL_PROJECT_PRODUCTION_URL'];
+    delete process.env['VERCEL_URL'];
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(null, { status: 200 }),
+    );
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+    await new Promise((r) => setTimeout(r, 20));
+
+    const pokeCalls = fetchSpy.mock.calls.filter(([url]) =>
+      String(url).includes('/api/missions/run-next'),
+    );
+    expect(pokeCalls.length).toBe(0);
+
+    fetchSpy.mockRestore();
+  });
+
+  it('does NOT poke when CRON_SECRET is unset', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-nopoke', alreadySaved: false, confidence: 0.3 });
+    setupMissionsInsertSuccess();
+    // Ensure CRON_SECRET is absent
+    delete process.env['CRON_SECRET'];
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(null, { status: 200 }),
+    );
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+    await new Promise((r) => setTimeout(r, 20));
+
+    const pokeCalls = fetchSpy.mock.calls.filter(([url]) =>
+      String(url).includes('/api/missions/run-next'),
+    );
+    expect(pokeCalls.length).toBe(0);
+
+    fetchSpy.mockRestore();
+  });
+
+  it('does NOT poke when enqueue was skipped (confidence >= 0.5)', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-hipoke', alreadySaved: false, confidence: 0.7 });
+    vi.stubEnv('CRON_SECRET', 'test-cron-secret');
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(null, { status: 200 }),
+    );
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+    await new Promise((r) => setTimeout(r, 20));
+
+    const pokeCalls = fetchSpy.mock.calls.filter(([url]) =>
+      String(url).includes('/api/missions/run-next'),
+    );
+    expect(pokeCalls.length).toBe(0);
+
+    fetchSpy.mockRestore();
+  });
+
+  it('does NOT poke when enqueue failed (insert error) — save still 201', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-failpoke', alreadySaved: false, confidence: 0.3 });
+    vi.stubEnv('CRON_SECRET', 'test-cron-secret');
+
+    // missions insert returns an error
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: null, error: { message: 'constraint violation', code: '23514' } }),
+            }),
+          }),
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }),
+          }),
+        };
+      }
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(null, { status: 200 }),
+    );
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+    await new Promise((r) => setTimeout(r, 20));
+
+    const pokeCalls = fetchSpy.mock.calls.filter(([url]) =>
+      String(url).includes('/api/missions/run-next'),
+    );
+    expect(pokeCalls.length).toBe(0);
+
+    fetchSpy.mockRestore();
+  });
+
+  it('a rejected poke fetch does not affect the 201 response', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-rejpoke', alreadySaved: false, confidence: 0.3 });
+    setupMissionsInsertSuccess();
+    vi.stubEnv('CRON_SECRET', 'test-cron-secret');
+
+    // Poke fetch rejects (network error)
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network error'));
+
+    const res = await POST(makeRequest(validBody()));
+    // Response must not be affected by the rejected fetch
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.deepScanQueued).toBe(true);
+
+    await new Promise((r) => setTimeout(r, 20));
+    fetchSpy.mockRestore();
   });
 });

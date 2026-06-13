@@ -5,7 +5,8 @@
  * making them fully unit-testable with vitest.
  */
 
-import { MAX_HTML_BYTES, INGEST_PATH } from '../config/constants';
+import { MAX_HTML_BYTES, MAX_PAYLOAD_BYTES, INGEST_PATH } from '../config/constants';
+import type { CapturedIframe } from './messages';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -15,17 +16,22 @@ export interface CapturedPage {
   readonly html: string;
   readonly sourceUrl: string;
   readonly title: string;
+  readonly innerText?: string;
+  readonly iframes?: readonly CapturedIframe[];
 }
 
 export interface IngestPayload {
   readonly html: string;
   readonly sourceUrl: string;
   readonly capturedAt: string;
+  readonly innerText?: string;
+  readonly iframes?: readonly CapturedIframe[];
 }
 
 export type IngestResultOk = {
   readonly ok: true;
   readonly listingId?: string;
+  readonly deepScanQueued?: boolean;
 };
 
 export type IngestResultErr = {
@@ -42,13 +48,21 @@ export type IngestResult = IngestResultOk | IngestResultErr;
 // Size guard
 // ---------------------------------------------------------------------------
 
-/** Returns byte length of a UTF-16 string as UTF-8. */
-function utf8ByteLength(s: string): number {
-  // TextEncoder not available in all test envs — fall back to a worst-case estimate
+/**
+ * Returns byte length of a string as UTF-8.
+ *
+ * Uses TextEncoder when available (exact measurement). Falls back to
+ * `s.length * 3` — a conservative over-estimate (safe: never under-counts
+ * real UTF-8 size for valid BMP strings; 4-byte code-points are counted as 6
+ * in the fallback, but those are rare and the over-estimate just causes earlier
+ * trimming, never a missed limit).
+ *
+ * Exported so callers can reuse this single measurement consistently.
+ */
+export function utf8ByteLength(s: string): number {
   if (typeof TextEncoder !== 'undefined') {
     return new TextEncoder().encode(s).byteLength;
   }
-  // 3 bytes per character is a safe upper bound for BMP characters
   return s.length * 3;
 }
 
@@ -74,14 +88,60 @@ export function checkHtmlSize(html: string, maxBytes = MAX_HTML_BYTES): SizeGuar
 
 /**
  * Assembles the ingest request body from a captured page.
- * Pure function — no side effects.
+ * Pure function — no side effects. title is dropped (not sent to server).
  */
 export function assemblePayload(page: CapturedPage): IngestPayload {
   return {
     html: page.html,
     sourceUrl: page.sourceUrl,
     capturedAt: new Date().toISOString(),
+    ...(page.innerText !== undefined ? { innerText: page.innerText } : {}),
+    ...(page.iframes !== undefined ? { iframes: page.iframes } : {}),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Payload budget enforcement
+// ---------------------------------------------------------------------------
+
+function payloadBytes(p: IngestPayload): number {
+  return utf8ByteLength(JSON.stringify(p));
+}
+
+/**
+ * Shrink the payload to MAX_PAYLOAD_BYTES by dropping richer fields:
+ * largest iframes first, then truncate innerText by halves. html is never touched
+ * (it has its own MAX_HTML_BYTES guard upstream).
+ *
+ * FIX 9: omit empty fields rather than sending empty strings / empty arrays:
+ *   - innerText is omitted (undefined) when trimmed to empty
+ *   - iframes is omitted (undefined) when the kept list is empty
+ */
+export function fitPayloadToBudget(payload: IngestPayload): IngestPayload {
+  let current = payload;
+  if (payloadBytes(current) <= MAX_PAYLOAD_BYTES) return current;
+
+  // Drop iframes largest-first until the payload fits
+  const keptIframes = [...(current.iframes ?? [])].sort((a, b) => a.html.length - b.html.length);
+  while (
+    keptIframes.length > 0 &&
+    payloadBytes({ ...current, iframes: keptIframes }) > MAX_PAYLOAD_BYTES
+  ) {
+    keptIframes.pop(); // drop the largest remaining
+  }
+  // Omit iframes field entirely when empty (don't send [])
+  current = {
+    ...current,
+    iframes: keptIframes.length > 0 ? keptIframes : undefined,
+  };
+
+  // Truncate innerText by halves until budget satisfied
+  let text = current.innerText ?? '';
+  while (text.length > 0 && payloadBytes({ ...current, innerText: text }) > MAX_PAYLOAD_BYTES) {
+    text = text.slice(0, Math.floor(text.length / 2));
+  }
+  // Omit innerText field entirely when empty (don't send "")
+  return { ...current, innerText: text || undefined };
 }
 
 // ---------------------------------------------------------------------------
@@ -179,8 +239,8 @@ export async function postIngest(
   }
 
   try {
-    const body = (await response.json()) as { listingId?: string };
-    return { ok: true, listingId: body.listingId };
+    const body = (await response.json()) as { listingId?: string; deepScanQueued?: boolean };
+    return { ok: true, listingId: body.listingId, deepScanQueued: body.deepScanQueued };
   } catch {
     // 2xx with non-JSON body — still a success
     return { ok: true };

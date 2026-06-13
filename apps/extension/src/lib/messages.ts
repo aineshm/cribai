@@ -39,6 +39,7 @@ export type SwResponse =
       readonly type: 'SAVE_OK';
       readonly listingId?: string;
       readonly deepLinkUrl: string;
+      readonly deepScanQueued?: boolean;
     }
   | { readonly type: 'ERROR'; readonly code: string; readonly message: string };
 
@@ -53,11 +54,18 @@ export type SwToContentMessage =
 // Content Script → Service Worker (capture result)
 // ---------------------------------------------------------------------------
 
+export interface CapturedIframe {
+  readonly src: string;
+  readonly html: string;
+}
+
 export type ContentToSwMessage =
   | {
       readonly type: 'PAGE_CAPTURED';
       readonly html: string;
       readonly sourceUrl: string;
       readonly title: string;
+      readonly innerText?: string;
+      readonly iframes?: readonly CapturedIframe[];
     }
   | { readonly type: 'CAPTURE_ERROR'; readonly message: string };

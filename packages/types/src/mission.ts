@@ -40,6 +40,7 @@ export const missionTypeSchema = z.enum([
   'tour_outreach',   // Phase 28 — email draft + send to landlord
   'listing_deep_dive',
   'sublease_post',
+  'crm_deep_extract',
 ]);
 
 export type MissionType = z.infer<typeof missionTypeSchema>;
