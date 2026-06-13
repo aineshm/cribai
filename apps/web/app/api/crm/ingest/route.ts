@@ -58,6 +58,7 @@ import {
   type AddListingErrorCode,
 } from '@campusnest/ai';
 import { resolveCrmAuthFromBearer, type CrmAuth } from '../_lib/auth';
+import { sourceUrlSchema } from '../_lib/source-url-schema';
 import { buildExtensionCorsHeaders as buildCorsHeaders } from '../_lib/extension-cors';
 import {
   checkIngestRateLimit,
@@ -95,22 +96,9 @@ const DEFAULT_BUDGET_MS = 30_000;
 // ── Zod schema ────────────────────────────────────────────────────────────────
 
 const ingestBodySchema = z.object({
-  sourceUrl: z
-    .string()
-    .trim() // match listings-route schema; prevents whitespace-variant dedup misses
-    .min(1)
-    .max(2048)
-    .refine(
-      (value) => {
-        try {
-          const protocol = new URL(value).protocol;
-          return protocol === 'http:' || protocol === 'https:';
-        } catch {
-          return false;
-        }
-      },
-      { message: 'Only http(s) listing URLs are supported' },
-    ),
+  // sourceUrlSchema: trim + 1–2048 chars + http(s)-only. Shared with
+  // GET /api/crm/saved so dedup comparisons can never drift (Fix 5, AIN-72).
+  sourceUrl: sourceUrlSchema,
   html: z
     .string()
     .min(1, { message: 'html must be a non-empty string' })

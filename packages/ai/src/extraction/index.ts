@@ -346,24 +346,6 @@ async function fetchHtml(
 }
 
 /**
- * Fetch public HTML with SSRF protection, redirect resolution, block-signal
- * checking, and a 5MB body cap. Exported for the `crm_deep_extract` mission
- * step that needs to crawl the source site server-side.
- *
- * Throws `ExtractionError` with `fetch_failed` or `fetch_blocked` on failure.
- */
-export async function fetchPublicHtml(
-  url: string,
-  opts: { fetcher?: typeof fetch; timeoutMs?: number; userAgent?: string } = {},
-): Promise<string> {
-  const fetcher = opts.fetcher ?? fetch;
-  const userAgent = opts.userAgent ?? DEFAULT_USER_AGENT;
-  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const { body } = await fetchHtml(url, fetcher, userAgent, timeoutMs);
-  return body;
-}
-
-/**
  * Extract a normalized `ExtractedListing` from a listing URL.
  *
  * Fetches the page once (SSRF-guarded, redirect-resolved, block-signal
@@ -422,4 +404,25 @@ export async function extractListing(
     llmExtractor: opts.llmExtractor,
     sourceUrl: url,
   });
+}
+
+/**
+ * Fetch an SSRF-guarded, block-signal-checked HTML page by URL.
+ * Returns only the response body text (the full `{body, finalUrl}` tuple is
+ * available internally; this surface is kept narrow for callers that only
+ * need the HTML — e.g. the crm_deep_extract mission crawl step).
+ *
+ * Throws `ExtractionError` on network failure, SSRF block, redirect overflow,
+ * or a captcha/block signal in the response body.
+ */
+export async function fetchPublicHtml(
+  url: string,
+  opts: Pick<ExtractListingOptions, 'fetcher' | 'userAgent' | 'timeoutMs' | 'lookup'> = {},
+): Promise<string> {
+  const fetcher = opts.fetcher ?? fetch;
+  const userAgent = opts.userAgent ?? DEFAULT_USER_AGENT;
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const lookup = opts.lookup as DnsLookupFn | undefined;
+  const { body } = await fetchHtml(url, fetcher, userAgent, timeoutMs, lookup);
+  return body;
 }

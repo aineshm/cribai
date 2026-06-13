@@ -151,12 +151,12 @@ describe('buildExtensionCorsHeaders — matching origin (all four CORS headers)'
     expect(headers.get('access-control-allow-origin')).toBe(EXT_ORIGIN);
   });
 
-  it('sets access-control-allow-methods to "POST, OPTIONS"', async () => {
+  it('sets access-control-allow-methods to "GET, POST, OPTIONS"', async () => {
     vi.resetModules();
     vi.stubEnv('CRM_EXTENSION_ORIGIN', EXT_ORIGIN);
     const { buildExtensionCorsHeaders } = await import('../extension-cors');
     const headers = buildExtensionCorsHeaders(EXT_ORIGIN);
-    expect(headers.get('access-control-allow-methods')).toBe('POST, OPTIONS');
+    expect(headers.get('access-control-allow-methods')).toBe('GET, POST, OPTIONS');
   });
 
   it('sets access-control-allow-headers to "content-type, authorization"', async () => {
@@ -183,7 +183,7 @@ describe('buildExtensionCorsHeaders — matching origin (all four CORS headers)'
     // Pass the origin string directly — no Fetch API involved, no happy-dom stripping.
     const headers = buildExtensionCorsHeaders(chromeOrigin);
     expect(headers.get('access-control-allow-origin')).toBe(chromeOrigin);
-    expect(headers.get('access-control-allow-methods')).toBe('POST, OPTIONS');
+    expect(headers.get('access-control-allow-methods')).toBe('GET, POST, OPTIONS');
   });
 });
 
