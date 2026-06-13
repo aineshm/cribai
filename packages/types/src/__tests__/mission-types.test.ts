@@ -81,6 +81,7 @@ describe('missionTypeSchema', () => {
     'tour_outreach',
     'listing_deep_dive',
     'sublease_post',
+    'crm_deep_extract',
   ];
 
   it('accepts all valid types', () => {
@@ -89,8 +90,8 @@ describe('missionTypeSchema', () => {
     }
   });
 
-  it('has exactly 9 members', () => {
-    expect(missionTypeSchema.options).toHaveLength(9);
+  it('has exactly 10 members', () => {
+    expect(missionTypeSchema.options).toHaveLength(10);
   });
 
   it('rejects invalid type', () => {
