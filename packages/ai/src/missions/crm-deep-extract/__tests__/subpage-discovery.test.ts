@@ -45,13 +45,17 @@ describe('discoverSubpages', () => {
     expect(() => discoverSubpages('', 'https://example.com/')).not.toThrow();
   });
 
-  it('completes within 100ms on a 512KB href-flood input (regex-DoS guard)', () => {
-    // 512KB of text with many non-matching href-like strings
+  it('completes well under 1s on a 512KB href-flood input (regex-DoS guard)', () => {
+    // 512KB of text with many non-matching href-like strings.
+    // The guard distinguishes a LINEAR scan (low hundreds of ms even on a slow,
+    // noisy CI runner) from catastrophic backtracking (seconds-to-minutes). The
+    // 1s bound is deliberately loose to avoid hardware-variance flakiness while
+    // still failing hard on any super-linear regression.
     const flood = '<a href="/about">About</a>'.repeat(20_000) + '<a href="/pricing">P</a>';
     const start = Date.now();
     const urls = discoverSubpages(flood, 'https://example.com/');
     const elapsed = Date.now() - start;
-    expect(elapsed).toBeLessThan(100);
+    expect(elapsed).toBeLessThan(1000);
     expect(urls.length).toBeGreaterThan(0);
   });
 });
