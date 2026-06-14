@@ -16,7 +16,7 @@
 import { getSupabaseClient } from './supabase-client';
 import { checkHtmlSize, assemblePayload, fitPayloadToBudget, postIngest } from '../lib/ingest';
 import { isCapturableUrl, NON_CAPTURABLE_MESSAGE } from '../lib/capturable-url';
-import { API_BASE, APP_DOMAIN, MY_APARTMENTS_PATH } from '../config/constants';
+import { API_BASE, WEB_APP_URL, MY_APARTMENTS_PATH } from '../config/constants';
 import { createPendingAuthStore } from '../lib/pending-auth-store';
 import { isCuratedDetailUrl } from '../lib/curated-url';
 import type {
@@ -373,7 +373,7 @@ async function handlePopupMessage(msg: PopupToSwMessage): Promise<SwResponse> {
         };
       }
 
-      const deepLinkUrl = `${APP_DOMAIN}${MY_APARTMENTS_PATH}`;
+      const deepLinkUrl = `${WEB_APP_URL}${MY_APARTMENTS_PATH}`;
       return { type: 'SAVE_OK', listingId: result.listingId, deepLinkUrl, deepScanQueued: result.deepScanQueued };
     }
 
@@ -424,7 +424,7 @@ async function handleContentSaveMessage(
         return { type: 'SAVED_STATE', saved: false };
       }
       const body = (await res.json()) as { saved?: boolean; listingId?: string };
-      const deepLinkUrl = body.saved ? `${APP_DOMAIN}${MY_APARTMENTS_PATH}` : undefined;
+      const deepLinkUrl = body.saved ? `${WEB_APP_URL}${MY_APARTMENTS_PATH}` : undefined;
       return {
         type: 'SAVED_STATE',
         saved: Boolean(body.saved),
@@ -469,7 +469,7 @@ async function handleContentSaveMessage(
     return { type: 'ERROR', code: result.code, message: result.message };
   }
 
-  const deepLinkUrl = `${APP_DOMAIN}${MY_APARTMENTS_PATH}`;
+  const deepLinkUrl = `${WEB_APP_URL}${MY_APARTMENTS_PATH}`;
   return {
     type: 'SAVE_OK',
     listingId: result.listingId,

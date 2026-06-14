@@ -5,6 +5,8 @@
  * .env file at the extension root (apps/extension/.env):
  *
  *   VITE_CRIBAI_APP_DOMAIN=https://cribai.app
+ *   VITE_CRIBAI_WEB_APP_URL=https://ai-real-estate-agent-omega.vercel.app
+ *   VITE_CRIBAI_API_BASE=http://localhost:3000  (dev only — does NOT affect deep-links)
  *   VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
  *   VITE_SUPABASE_ANON_KEY=<publishable anon key — safe to embed>
  *
@@ -15,6 +17,23 @@
 export const APP_DOMAIN: string =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (typeof __CRIBAI_APP_DOMAIN__ !== 'undefined' ? __CRIBAI_APP_DOMAIN__ : '') as string;
+
+/**
+ * User-facing web URL for deep-links (e.g. "Open My Apartments").
+ *
+ * This is INDEPENDENT of API_BASE: in dev builds API_BASE is typically
+ * http://localhost:3000 (the local Next.js server), but deep-links must
+ * always open the live public site. Sourced from VITE_CRIBAI_WEB_APP_URL;
+ * falls back to the known prod Vercel deployment so that even a plain
+ * `pnpm build` (without .env overrides) emits a working https:// URL.
+ *
+ * Never fall back to APP_DOMAIN here — APP_DOMAIN may be localhost in dev.
+ */
+export const WEB_APP_URL: string =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (typeof __CRIBAI_WEB_APP_URL__ !== 'undefined'
+    ? __CRIBAI_WEB_APP_URL__
+    : 'https://ai-real-estate-agent-omega.vercel.app') as string;
 
 /** Base URL for the CribAI API (may differ from APP_DOMAIN on preview deploys). */
 export const API_BASE: string =
