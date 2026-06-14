@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { X, Check, DollarSign, Flag, Home } from 'lucide-react';
+import { X, Check, DollarSign, Flag, Home, MapPin, HelpCircle, ExternalLink, Calendar, BookmarkCheck } from 'lucide-react';
 import type { CrmListingRow, FirstSaveAnalysis } from '@campusnest/ai';
 import type { CrmUnit } from '@/lib/crm/proposed-types';
 import { crmClient } from '@/lib/crm-client';
@@ -10,6 +10,16 @@ import { money } from '@/lib/crm/format';
 import { AmenitySplit } from '../ui/AmenitySplit';
 import { BranchState } from '../ui/BranchState';
 import { DeadlinePill } from '../ui/DeadlinePill';
+
+/** Format an ISO date string (or null) to a short locale date. */
+function fmtDate(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  try {
+    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Detail / edit slide-over (ported from the `.drawer` in dashboard.html).
@@ -47,7 +57,8 @@ export function UnitDetailDrawer({
 
 function DrawerContent({ unit, onClose }: { unit: CrmUnit; onClose: () => void }) {
   const { unit: u, amenitySplit, application } = unit._proposed;
-  const photo = unit.photo_urls?.[0] ?? '';
+  const photos = unit.photo_urls ?? [];
+  const photo = photos[0] ?? '';
 
   // Local mock edit state (reseeded per-unit via the `key` on this component).
   const [rent, setRent] = useState<number>(unit.rent ?? 0);
@@ -121,11 +132,27 @@ function DrawerContent({ unit, onClose }: { unit: CrmUnit; onClose: () => void }
 
         {/* Body */}
         <div className="flex flex-1 flex-col gap-[1.1rem] overflow-y-auto px-[1.3rem] pb-8 pt-[1.1rem]">
-          {/* Hero photo */}
-          {photo ? (
-            <div className="overflow-hidden rounded-[14px] border" style={{ borderColor: 'var(--surface-200)' }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photo} alt="" className="block h-[170px] w-full object-cover" />
+          {/* Photo gallery — hero + additional thumbnails */}
+          {photos.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              <div className="overflow-hidden rounded-[14px] border" style={{ borderColor: 'var(--surface-200)' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={photo} alt={unit.title ?? ''} className="block h-[170px] w-full object-cover" />
+              </div>
+              {photos.length > 1 ? (
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {photos.slice(1).map((url, i) => (
+                    <div
+                      key={url}
+                      className="h-16 w-24 flex-shrink-0 overflow-hidden rounded-[10px] border"
+                      style={{ borderColor: 'var(--surface-200)' }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={url} alt={`Photo ${i + 2}`} className="block h-full w-full object-cover" />
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ) : null}
 
@@ -177,6 +204,70 @@ function DrawerContent({ unit, onClose }: { unit: CrmUnit; onClose: () => void }
               />
             </Field>
           </Block>
+
+          {/* Listing metadata: description, source link, move-in, saved date */}
+          {(unit.description || unit.source_url || unit.available_from || unit.saved_at) ? (
+            <Block>
+              {unit.description ? (
+                <p
+                  className="m-0 text-[0.875rem] leading-relaxed"
+                  style={{ color: 'var(--surface-700)' }}
+                >
+                  {unit.description}
+                </p>
+              ) : null}
+              {(unit.source_url || unit.available_from || unit.saved_at) ? (
+                <div
+                  className={cn('flex flex-col gap-1.5', unit.description ? 'mt-3.5' : '')}
+                >
+                  {unit.source_url ? (
+                    <a
+                      href={unit.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-[0.8125rem] font-semibold"
+                      style={{ color: 'var(--primary-800)' }}
+                    >
+                      <ExternalLink aria-hidden="true" className="h-3.5 w-3.5 flex-shrink-0" />
+                      View original listing
+                      {unit.source_site ? (
+                        <span
+                          className="rounded-full border px-1.5 py-0.5 text-[0.6875rem] font-bold"
+                          style={{
+                            color: 'var(--surface-500)',
+                            borderColor: 'var(--surface-200)',
+                            background: 'var(--surface-50)',
+                          }}
+                        >
+                          {unit.source_site}
+                        </span>
+                      ) : null}
+                    </a>
+                  ) : null}
+                  <div className="flex flex-wrap gap-3.5">
+                    {unit.available_from ? (
+                      <span
+                        className="inline-flex items-center gap-1.5 text-[0.8125rem]"
+                        style={{ color: 'var(--surface-600)' }}
+                      >
+                        <Calendar aria-hidden="true" className="h-3.5 w-3.5 flex-shrink-0" />
+                        Move-in {fmtDate(unit.available_from)}
+                      </span>
+                    ) : null}
+                    {unit.saved_at ? (
+                      <span
+                        className="inline-flex items-center gap-1.5 text-[0.8125rem]"
+                        style={{ color: 'var(--surface-500)' }}
+                      >
+                        <BookmarkCheck aria-hidden="true" className="h-3.5 w-3.5 flex-shrink-0" />
+                        Saved {fmtDate(unit.saved_at)}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </Block>
+          ) : null}
 
           {/* Amenity split */}
           <Block>
@@ -283,6 +374,65 @@ function DrawerContent({ unit, onClose }: { unit: CrmUnit; onClose: () => void }
                       {rf.summary}
                     </p>
                   </div>
+                )}
+              </BranchState>
+            ) : (
+              <LoadingHint />
+            )}
+          </Block>
+
+          {/* Nearby places (placesSnapshot) */}
+          <Block>
+            <SectionLabel icon={<MapPin className="h-[15px] w-[15px]" />} label="Nearby" />
+            {analysis ? (
+              <BranchState branch={analysis.placesSnapshot}>
+                {(ps) => (
+                  <div>
+                    {Object.entries(ps.categories).map(([cat, items]) => (
+                      <div key={cat} className="mb-2.5 last:mb-0">
+                        <div
+                          className="mb-1.5 text-[0.6875rem] font-extrabold uppercase tracking-[0.08em]"
+                          style={{ color: 'var(--surface-400)' }}
+                        >
+                          {cat}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {items.map((n) => (
+                            <span
+                              key={n}
+                              className="rounded-md border px-2 py-1 text-xs font-semibold"
+                              style={{
+                                color: 'var(--surface-700)',
+                                background: 'var(--surface-50)',
+                                borderColor: 'var(--surface-200)',
+                              }}
+                            >
+                              {n}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </BranchState>
+            ) : (
+              <LoadingHint />
+            )}
+          </Block>
+
+          {/* Steering question */}
+          <Block>
+            <SectionLabel icon={<HelpCircle className="h-[15px] w-[15px]" />} label="One question for you" />
+            {analysis ? (
+              <BranchState branch={analysis.steeringQuestion}>
+                {(sq) => (
+                  <p
+                    className="m-0 text-[0.9375rem] font-bold leading-snug"
+                    style={{ fontFamily: 'var(--font-display)', color: 'var(--surface-900)' }}
+                  >
+                    {sq.question}
+                  </p>
                 )}
               </BranchState>
             ) : (

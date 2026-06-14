@@ -10,6 +10,8 @@ import { CanvasSheet } from './CanvasSheet';
 import { SavedUnitCard } from './SavedUnitCard';
 import { FirstSaveAnalysisCard } from './FirstSaveAnalysisCard';
 import { RankCompareTable } from './RankCompareTable';
+import { UnitDetailDrawer } from './dashboard/UnitDetailDrawer';
+import type { CrmUnit } from '@/lib/crm/proposed-types';
 
 /**
  * The chat-first "My Apartments" shell (ported from workspace-closed.html +
@@ -32,7 +34,16 @@ export function CrmWorkspace() {
   const { messages, send, pending } = useCrmChat();
   const [draft, setDraft] = useState('');
   const [canvasOpen, setCanvasOpen] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
   const isMobile = useIsMobile();
+
+  // Resolve the unit object from the messages list for the drawer.
+  const openUnit: CrmUnit | null =
+    openId != null
+      ? (messages.find((m) => m.kind === 'saved-unit' && m.unit.id === openId) as
+          | { kind: 'saved-unit'; unit: CrmUnit; id: string }
+          | undefined)?.unit ?? null
+      : null;
 
   const submit = () => {
     const text = draft.trim();
@@ -89,7 +100,7 @@ export function CrmWorkspace() {
             <div className="mx-auto flex w-full max-w-[720px] flex-col gap-5">
               <Greeting />
               {messages.map((m) => (
-                <MessageView key={m.id} message={m} />
+                <MessageView key={m.id} message={m} onOpen={setOpenId} />
               ))}
             </div>
           </div>
@@ -151,6 +162,9 @@ export function CrmWorkspace() {
       {isMobile ? (
         <CanvasSheet open={canvasOpen} onClose={() => setCanvasOpen(false)} />
       ) : null}
+
+      {/* Unit detail drawer — shared between chat thread cards and the canvas. */}
+      <UnitDetailDrawer unit={openUnit} onClose={() => setOpenId(null)} />
     </div>
   );
 }
@@ -172,10 +186,16 @@ function Greeting() {
   );
 }
 
-function MessageView({ message }: { message: ChatMessage }) {
+function MessageView({
+  message,
+  onOpen,
+}: {
+  message: ChatMessage;
+  onOpen: (id: string) => void;
+}) {
   switch (message.kind) {
     case 'saved-unit':
-      return <SavedUnitCard unit={message.unit} />;
+      return <SavedUnitCard unit={message.unit} onOpen={onOpen} />;
     case 'analysis':
       return <FirstSaveAnalysisCard analysis={message.analysis} />;
     case 'rank':
