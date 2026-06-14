@@ -27,7 +27,7 @@ export default defineConfig(({ mode }) => {
         env['VITE_CRIBAI_APP_DOMAIN'] ?? 'https://cribai.app',
       ),
       __CRIBAI_WEB_APP_URL__: JSON.stringify(
-        env['VITE_CRIBAI_WEB_APP_URL'] ?? 'https://ai-real-estate-agent.vercel.app',
+        env['VITE_CRIBAI_WEB_APP_URL'] ?? 'https://ai-real-estate-agent-omega.vercel.app',
       ),
       __CRIBAI_API_BASE__: JSON.stringify(
         env['VITE_CRIBAI_API_BASE'] ??

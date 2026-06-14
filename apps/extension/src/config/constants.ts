@@ -5,7 +5,7 @@
  * .env file at the extension root (apps/extension/.env):
  *
  *   VITE_CRIBAI_APP_DOMAIN=https://cribai.app
- *   VITE_CRIBAI_WEB_APP_URL=https://ai-real-estate-agent.vercel.app
+ *   VITE_CRIBAI_WEB_APP_URL=https://ai-real-estate-agent-omega.vercel.app
  *   VITE_CRIBAI_API_BASE=http://localhost:3000  (dev only — does NOT affect deep-links)
  *   VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
  *   VITE_SUPABASE_ANON_KEY=<publishable anon key — safe to embed>
@@ -33,7 +33,7 @@ export const WEB_APP_URL: string =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (typeof __CRIBAI_WEB_APP_URL__ !== 'undefined'
     ? __CRIBAI_WEB_APP_URL__
-    : 'https://ai-real-estate-agent.vercel.app') as string;
+    : 'https://ai-real-estate-agent-omega.vercel.app') as string;
 
 /** Base URL for the CribAI API (may differ from APP_DOMAIN on preview deploys). */
 export const API_BASE: string =

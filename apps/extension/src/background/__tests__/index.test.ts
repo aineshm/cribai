@@ -546,7 +546,7 @@ describe('WEB_APP_URL deep-link decoupling', () => {
     // vitest.config.ts stubs __CRIBAI_WEB_APP_URL__ to the prod Vercel URL.
     // If the URL is overridden in .env, this test would need updating — but the
     // https:// guard test above still enforces the safety invariant.
-    expect(WEB_APP_URL).toBe('https://ai-real-estate-agent.vercel.app');
+    expect(WEB_APP_URL).toBe('https://ai-real-estate-agent-omega.vercel.app');
   });
 
   it('API_BASE is allowed to be http:// (localhost dev) without affecting deep-links', () => {

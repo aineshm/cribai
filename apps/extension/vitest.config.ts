@@ -21,7 +21,7 @@ export default defineConfig({
   // Stub out build-time globals so tests can run without a Vite build
   define: {
     __CRIBAI_APP_DOMAIN__: JSON.stringify('https://cribai.app'),
-    __CRIBAI_WEB_APP_URL__: JSON.stringify('https://ai-real-estate-agent.vercel.app'),
+    __CRIBAI_WEB_APP_URL__: JSON.stringify('https://ai-real-estate-agent-omega.vercel.app'),
     __CRIBAI_API_BASE__: JSON.stringify('http://localhost:3000'),
     __SUPABASE_URL__: JSON.stringify('https://test.supabase.co'),
     __SUPABASE_ANON_KEY__: JSON.stringify('test-anon-key'),
