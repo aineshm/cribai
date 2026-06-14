@@ -126,6 +126,12 @@ export const synthesizeStep: MissionStep = {
       (ctx.state as Record<string, unknown>).pages ?? []
     ) as ReadonlyArray<{ url: string; fields: Record<string, unknown>; textExcerpt: string }>;
 
+    // When no pages were crawled (e.g. source was bot-blocked), skip the LLM call —
+    // return empty fields so the pipeline continues without wasting a token budget.
+    if (pages.length === 0) {
+      return { output: { fields: {} } };
+    }
+
     const generate = (
       (ctx.input as Record<string, unknown>).generate as CrmGenerateObject | undefined
     ) ?? defaultCrmGenerate;
