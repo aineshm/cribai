@@ -541,6 +541,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
 
     const isNewSave = !result.alreadySaved;
+    // checkNeedsEnrichment is a fast PK SELECT run OUTSIDE withBudget by design —
+    // same as enqueueDeepExtract below. Neither is an unbounded round-trip inside
+    // the extraction budget; both are cheap post-save book-keeping operations.
     const needsDeepScan =
       isNewSave && await checkNeedsEnrichment(auth, result.listingId, result.confidence);
 

@@ -177,6 +177,111 @@ describe('update_row step', () => {
     expect(result.done).toBe(true);
   });
 
+  // AIN-75 Fix 1: crawl_blocked persisted in raw_extraction.deep_extract
+  it('sets crawl_blocked: true in raw_extraction when crawl state is "blocked"', async () => {
+    let capturedUpdatePayload: Record<string, unknown> | null = null;
+    const supabase = {
+      from: vi.fn(() => ({
+        update: vi.fn((payload: Record<string, unknown>) => {
+          capturedUpdatePayload = payload;
+          return {
+            eq: vi.fn(() => ({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            })),
+          };
+        }),
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: {
+                  id: 'listing-1',
+                  rent: null, bedrooms: null, bathrooms: null, sqft: null,
+                  address: null, description: null, title: null,
+                  available_from: null, amenities: [], extraction_confidence: 0.3,
+                  raw_extraction: {},
+                },
+                error: null,
+              }),
+            })),
+          })),
+        })),
+      })),
+    };
+
+    const { updateRowStep } = await import('../steps/04-update-row');
+    const ctx = makeCtx(
+      {
+        crawl: 'blocked', // step 01 was bot-blocked
+        pages: [],
+        discarded: [],
+        latitude: null,
+        longitude: null,
+        fields: {},
+      },
+      supabase as unknown as ReturnType<typeof makeSupabase>,
+    );
+
+    await updateRowStep.run(ctx);
+
+    expect(capturedUpdatePayload).not.toBeNull();
+    const raw = capturedUpdatePayload!['raw_extraction'] as Record<string, unknown>;
+    const deepExtract = raw['deep_extract'] as Record<string, unknown>;
+    expect(deepExtract['crawl_blocked']).toBe(true);
+  });
+
+  it('sets crawl_blocked: false in raw_extraction on a normal (non-blocked) crawl', async () => {
+    let capturedUpdatePayload: Record<string, unknown> | null = null;
+    const supabase = {
+      from: vi.fn(() => ({
+        update: vi.fn((payload: Record<string, unknown>) => {
+          capturedUpdatePayload = payload;
+          return {
+            eq: vi.fn(() => ({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            })),
+          };
+        }),
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: {
+                  id: 'listing-1',
+                  rent: null, bedrooms: null, bathrooms: null, sqft: null,
+                  address: null, description: null, title: null,
+                  available_from: null, amenities: [], extraction_confidence: 0.3,
+                  raw_extraction: {},
+                },
+                error: null,
+              }),
+            })),
+          })),
+        })),
+      })),
+    };
+
+    const { updateRowStep } = await import('../steps/04-update-row');
+    const ctx = makeCtx(
+      {
+        // no crawl state key — successful crawl
+        pages: [{ url: 'https://x01oncampus.com/', fields: {}, textExcerpt: '' }],
+        discarded: [],
+        latitude: null,
+        longitude: null,
+        fields: { rent: 1200, address: '640 W Dayton St, Madison, WI' },
+      },
+      supabase as unknown as ReturnType<typeof makeSupabase>,
+    );
+
+    await updateRowStep.run(ctx);
+
+    expect(capturedUpdatePayload).not.toBeNull();
+    const raw = capturedUpdatePayload!['raw_extraction'] as Record<string, unknown>;
+    const deepExtract = raw['deep_extract'] as Record<string, unknown>;
+    expect(deepExtract['crawl_blocked']).toBe(false);
+  });
+
   it('never overwrites non-null existing values (fill-gaps)', async () => {
     // Supabase returns a row with existing rent = 1350
     const updateMock = makeUpdateMock();
