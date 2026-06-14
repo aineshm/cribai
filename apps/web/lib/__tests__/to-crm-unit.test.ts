@@ -136,4 +136,29 @@ describe('toCrmUnit', () => {
       toCrmUnit({ ...BASE_ROW, title: null, address: null }, VIEWER_ID)._proposed.unit.building,
     ).toBe('Saved listing');
   });
+
+  // AIN-74 security HIGH — source_url renders as <a href> in UnitDetailDrawer;
+  // only absolute https: URLs may pass through (javascript: / data: XSS vectors).
+  describe('source_url https-only guard', () => {
+    it('drops a javascript: source_url → null', () => {
+      const unit = toCrmUnit({ ...BASE_ROW, source_url: 'javascript:alert(1)' }, VIEWER_ID);
+      expect(unit.source_url).toBeNull();
+    });
+
+    it('drops a data: source_url → null', () => {
+      const unit = toCrmUnit({ ...BASE_ROW, source_url: 'data:text/html,<b>hi</b>' }, VIEWER_ID);
+      expect(unit.source_url).toBeNull();
+    });
+
+    it('preserves a valid https source_url unchanged', () => {
+      const url = 'https://www.zillow.com/x';
+      const unit = toCrmUnit({ ...BASE_ROW, source_url: url }, VIEWER_ID);
+      expect(unit.source_url).toBe(url);
+    });
+
+    it('preserves null source_url as null', () => {
+      const unit = toCrmUnit({ ...BASE_ROW, source_url: null }, VIEWER_ID);
+      expect(unit.source_url).toBeNull();
+    });
+  });
 });
