@@ -44,6 +44,7 @@ const {
   mockGeocode,
   mockFirstSaveAnalysis,
   mockCreateBearerClient,
+  mockAfterFn,
 } = vi.hoisted(() => ({
   mockGetUser: vi.fn(),
   mockFrom: vi.fn(),
@@ -52,7 +53,14 @@ const {
   mockGeocode: vi.fn(),
   mockFirstSaveAnalysis: vi.fn(),
   mockCreateBearerClient: vi.fn(),
+  mockAfterFn: vi.fn(),
 }));
+
+// ── Mock next/server to capture `after` calls without replacing NextRequest/NextResponse ──
+vi.mock('next/server', async (importActual) => {
+  const actual = await importActual<typeof import('next/server')>();
+  return { ...actual, after: mockAfterFn };
+});
 
 // The Bearer client the mocked factory returns — re-usable across tests.
 const mockBearerClient = {
@@ -1100,5 +1108,30 @@ describe('POST /api/crm/ingest — worker poke (AIN-71 step 5.3)', () => {
 
     await new Promise((r) => setTimeout(r, 20));
     fetchSpy.mockRestore();
+  });
+});
+
+// ── after() scheduling (AIN-75 Task 1) ───────────────────────────────────────
+
+describe('POST /api/crm/ingest — after() scheduling (AIN-75)', () => {
+  it('schedules fireAnalysis via after() on new save', async () => {
+    mockAfterFn.mockClear();
+
+    let capturedOnSaved: ((id: string) => void) | undefined;
+    mockAddListing.mockImplementation(async (_url: string, deps: { onSaved?: (id: string) => void }) => {
+      capturedOnSaved = deps.onSaved;
+      return { listingId: 'l-after', alreadySaved: false, confidence: 0.9 };
+    });
+
+    await POST(makeRequest(validBody()));
+
+    // onSaved hook must be wired
+    expect(capturedOnSaved).toBeDefined();
+
+    // Invoke the hook directly (simulates addListing calling it after insert)
+    if (capturedOnSaved) capturedOnSaved('l-after');
+
+    // after() should have been called with a function — NOT void fireAnalysis directly
+    expect(mockAfterFn).toHaveBeenCalledWith(expect.any(Function));
   });
 });
