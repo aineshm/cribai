@@ -47,7 +47,7 @@
  * precheck below as their first line of defence before any body buffering.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { z } from 'zod';
 import {
   addListing,
@@ -486,8 +486,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         placesApiKey: process.env['GOOGLE_PLACES_API_KEY'],
         // onSaved: fire analysis asynchronously so the extension gets an
         // immediate response. Write-through is best-effort.
+        // after() persists the analysis work past the Vercel response boundary
+        // so the function stays alive until firstSaveAnalysis completes.
         onSaved: (listingId: string) => {
-          void fireAnalysis(auth, listingId);
+          after(() => fireAnalysis(auth, listingId));
         },
       }),
       budgetMs,

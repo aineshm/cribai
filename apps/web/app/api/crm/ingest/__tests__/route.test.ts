@@ -502,7 +502,7 @@ describe('POST /api/crm/ingest — happy path', () => {
     fetchSpy.mockRestore();
   });
 
-  it('passes an onSaved hook that fires firstSaveAnalysis for new saves', async () => {
+  it('passes an onSaved hook that schedules firstSaveAnalysis via after() for new saves', async () => {
     const listingId = 'lnew';
 
     // Capture the onSaved callback that addListing receives.
@@ -512,16 +512,24 @@ describe('POST /api/crm/ingest — happy path', () => {
       return { listingId, alreadySaved: false, confidence: 0.9 };
     });
 
+    // after() is mocked — capture the function it receives and execute it
+    let capturedAfterFn: (() => Promise<void>) | undefined;
+    mockAfterFn.mockImplementation((fn: () => Promise<void>) => {
+      capturedAfterFn = fn;
+    });
+
     await POST(makeRequest(validBody()));
 
     // The route must have wired an onSaved hook.
     expect(capturedOnSaved).toBeDefined();
 
-    // Invoke the hook directly (synchronous fire step) and flush async work.
-    if (capturedOnSaved) {
-      capturedOnSaved(listingId);
-      // Flush all pending microtasks so the async fireAnalysis chain runs.
-      await new Promise((resolve) => setTimeout(resolve, 0));
+    // Invoke the hook directly (simulates addListing calling it after insert).
+    if (capturedOnSaved) capturedOnSaved(listingId);
+
+    // after() should have been called — execute its registered fn to verify fireAnalysis
+    expect(mockAfterFn).toHaveBeenCalledWith(expect.any(Function));
+    if (capturedAfterFn) {
+      await capturedAfterFn();
     }
 
     // firstSaveAnalysis must have been called for the new listing id.
