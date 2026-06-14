@@ -163,7 +163,7 @@ export function CrmWorkspace() {
         <CanvasSheet open={canvasOpen} onClose={() => setCanvasOpen(false)} />
       ) : null}
 
-      {/* Unit detail drawer — shared between chat thread cards and the canvas. */}
+      {/* Unit detail drawer — serves the chat thread only. BoardView/CanvasSheet each own their own drawer. */}
       <UnitDetailDrawer unit={openUnit} onClose={() => setOpenId(null)} />
     </div>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { X, Check, DollarSign, Flag, Home, MapPin, HelpCircle, ExternalLink, Calendar, BookmarkCheck } from 'lucide-react';
 import type { CrmListingRow, FirstSaveAnalysis } from '@campusnest/ai';
@@ -66,17 +66,40 @@ function DrawerContent({ unit, onClose }: { unit: CrmUnit; onClose: () => void }
   const [notes, setNotes] = useState<string>(unit.user_notes ?? '');
   const [docs, setDocs] = useState(application.documents.map((d) => ({ ...d })));
 
-  // Analysis loads async; the rest of the drawer renders immediately.
+  // Analysis tri-state: 'loading' → 'done' | 'error'
+  const [analysisState, setAnalysisState] = useState<'loading' | 'done' | 'error'>('loading');
   const [analysis, setAnalysis] = useState<FirstSaveAnalysis | null>(null);
+
+  // Ref on close button for focus management on mount.
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
   useEffect(() => {
     let alive = true;
     void crmClient.getAnalysis(unit.id).then((a) => {
-      if (alive) setAnalysis(a);
+      if (alive) {
+        setAnalysis(a);
+        setAnalysisState('done');
+      }
+    }).catch(() => {
+      if (alive) setAnalysisState('error');
     });
     return () => {
       alive = false;
     };
   }, [unit.id]);
+
+  // Focus the close button on mount and wire Escape to onClose.
+  useEffect(() => {
+    closeButtonRef.current?.focus();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
 
   const doneCount = docs.filter((d) => d.done).length;
   const toggleDoc = (name: string) =>
@@ -101,6 +124,7 @@ function DrawerContent({ unit, onClose }: { unit: CrmUnit; onClose: () => void }
         className="fixed inset-y-0 right-0 z-[60] flex w-[480px] max-w-[94vw] flex-col border-l bg-white"
         style={{ borderColor: 'var(--surface-200)', boxShadow: '-24px 0 60px rgba(28, 25, 23, 0.12)' }}
         aria-label="Unit detail"
+        aria-modal="true"
       >
         {/* Head */}
         <div
@@ -120,6 +144,7 @@ function DrawerContent({ unit, onClose }: { unit: CrmUnit; onClose: () => void }
             </div>
           </div>
           <button
+            ref={closeButtonRef}
             type="button"
             onClick={onClose}
             className="inline-flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center rounded-[10px]"
@@ -143,7 +168,7 @@ function DrawerContent({ unit, onClose }: { unit: CrmUnit; onClose: () => void }
                 <div className="flex gap-2 overflow-x-auto pb-1">
                   {photos.slice(1).map((url, i) => (
                     <div
-                      key={url}
+                      key={`${url}-${i}`}
                       className="h-16 w-24 flex-shrink-0 overflow-hidden rounded-[10px] border"
                       style={{ borderColor: 'var(--surface-200)' }}
                     >
@@ -206,9 +231,9 @@ function DrawerContent({ unit, onClose }: { unit: CrmUnit; onClose: () => void }
           </Block>
 
           {/* Listing metadata: description, source link, move-in, saved date */}
-          {(unit.description || unit.source_url || unit.available_from || unit.saved_at) ? (
+          {(unit.description != null || unit.source_url || unit.available_from || unit.saved_at) ? (
             <Block>
-              {unit.description ? (
+              {unit.description != null ? (
                 <p
                   className="m-0 text-[0.875rem] leading-relaxed"
                   style={{ color: 'var(--surface-700)' }}
@@ -218,7 +243,7 @@ function DrawerContent({ unit, onClose }: { unit: CrmUnit; onClose: () => void }
               ) : null}
               {(unit.source_url || unit.available_from || unit.saved_at) ? (
                 <div
-                  className={cn('flex flex-col gap-1.5', unit.description ? 'mt-3.5' : '')}
+                  className={cn('flex flex-col gap-1.5', unit.description != null ? 'mt-3.5' : '')}
                 >
                   {unit.source_url ? (
                     <a
@@ -247,6 +272,7 @@ function DrawerContent({ unit, onClose }: { unit: CrmUnit; onClose: () => void }
                   <div className="flex flex-wrap gap-3.5">
                     {unit.available_from ? (
                       <span
+                        data-testid="move-in-date"
                         className="inline-flex items-center gap-1.5 text-[0.8125rem]"
                         style={{ color: 'var(--surface-600)' }}
                       >
@@ -256,6 +282,7 @@ function DrawerContent({ unit, onClose }: { unit: CrmUnit; onClose: () => void }
                     ) : null}
                     {unit.saved_at ? (
                       <span
+                        data-testid="saved-at-date"
                         className="inline-flex items-center gap-1.5 text-[0.8125rem]"
                         style={{ color: 'var(--surface-500)' }}
                       >
@@ -324,123 +351,161 @@ function DrawerContent({ unit, onClose }: { unit: CrmUnit; onClose: () => void }
           </Block>
 
           {/* Analysis summary (async) */}
-          <Block>
-            <SectionLabel icon={<DollarSign className="h-[15px] w-[15px]" />} label="True cost" />
-            {analysis ? (
-              <BranchState branch={analysis.trueCost}>
-                {(tc) => (
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-[0.78rem] font-extrabold uppercase tracking-wider" style={{ color: 'var(--surface-700)' }}>
-                      True cost / mo
-                    </span>
-                    <span
-                      className="text-2xl font-extrabold"
-                      style={{ fontFamily: 'var(--font-display)', color: 'var(--primary-800)' }}
-                    >
-                      {money(tc.total)}
-                      <span className="text-[0.8125rem] font-medium" style={{ color: 'var(--surface-500)' }}>
-                        /mo
-                      </span>
-                    </span>
-                  </div>
-                )}
-              </BranchState>
-            ) : (
-              <LoadingHint />
-            )}
-          </Block>
-
-          <Block>
-            <SectionLabel icon={<Flag className="h-[15px] w-[15px]" />} label="Red flags" />
-            {analysis ? (
-              <BranchState branch={analysis.redFlags}>
-                {(rf) => (
-                  <div>
-                    {rf.flags.length > 0 ? (
-                      <div className="mb-2.5 flex flex-wrap gap-1.5">
-                        {rf.flags.map((f) => (
-                          <span
-                            key={f}
-                            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold"
-                            style={{ color: 'var(--fair-ok)', background: 'var(--fair-ok-bg)' }}
-                          >
-                            <Flag aria-hidden="true" className="h-3 w-3" />
-                            {f}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                    <p className="m-0 text-[0.8125rem] leading-relaxed" style={{ color: 'var(--surface-600)' }}>
-                      {rf.summary}
-                    </p>
-                  </div>
-                )}
-              </BranchState>
-            ) : (
-              <LoadingHint />
-            )}
-          </Block>
-
-          {/* Nearby places (placesSnapshot) */}
-          <Block>
-            <SectionLabel icon={<MapPin className="h-[15px] w-[15px]" />} label="Nearby" />
-            {analysis ? (
-              <BranchState branch={analysis.placesSnapshot}>
-                {(ps) => (
-                  <div>
-                    {Object.entries(ps.categories).map(([cat, items]) => (
-                      <div key={cat} className="mb-2.5 last:mb-0">
-                        <div
-                          className="mb-1.5 text-[0.6875rem] font-extrabold uppercase tracking-[0.08em]"
-                          style={{ color: 'var(--surface-400)' }}
-                        >
-                          {cat}
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {items.map((n) => (
-                            <span
-                              key={n}
-                              className="rounded-md border px-2 py-1 text-xs font-semibold"
-                              style={{
-                                color: 'var(--surface-700)',
-                                background: 'var(--surface-50)',
-                                borderColor: 'var(--surface-200)',
-                              }}
-                            >
-                              {n}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </BranchState>
-            ) : (
-              <LoadingHint />
-            )}
-          </Block>
-
-          {/* Steering question */}
-          <Block>
-            <SectionLabel icon={<HelpCircle className="h-[15px] w-[15px]" />} label="One question for you" />
-            {analysis ? (
-              <BranchState branch={analysis.steeringQuestion}>
-                {(sq) => (
-                  <p
-                    className="m-0 text-[0.9375rem] font-bold leading-snug"
-                    style={{ fontFamily: 'var(--font-display)', color: 'var(--surface-900)' }}
-                  >
-                    {sq.question}
-                  </p>
-                )}
-              </BranchState>
-            ) : (
-              <LoadingHint />
-            )}
-          </Block>
+          <AnalysisSection analysisState={analysisState} analysis={analysis} />
         </div>
       </aside>
+    </>
+  );
+}
+
+/** Renders the three async analysis blocks, degrading through tri-state. */
+function AnalysisSection({
+  analysisState,
+  analysis,
+}: {
+  analysisState: 'loading' | 'done' | 'error';
+  analysis: FirstSaveAnalysis | null;
+}) {
+  if (analysisState === 'error') {
+    return (
+      <>
+        <Block>
+          <SectionLabel icon={<DollarSign className="h-[15px] w-[15px]" />} label="True cost" />
+          <AnalysisError />
+        </Block>
+        <Block>
+          <SectionLabel icon={<Flag className="h-[15px] w-[15px]" />} label="Red flags" />
+          <AnalysisError />
+        </Block>
+        <Block>
+          <SectionLabel icon={<MapPin className="h-[15px] w-[15px]" />} label="Nearby" />
+          <AnalysisError />
+        </Block>
+        <Block>
+          <SectionLabel icon={<HelpCircle className="h-[15px] w-[15px]" />} label="One question for you" />
+          <AnalysisError />
+        </Block>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Block>
+        <SectionLabel icon={<DollarSign className="h-[15px] w-[15px]" />} label="True cost" />
+        {analysisState === 'done' && analysis ? (
+          <BranchState branch={analysis.trueCost}>
+            {(tc) => (
+              <div className="flex items-baseline justify-between">
+                <span className="text-[0.78rem] font-extrabold uppercase tracking-wider" style={{ color: 'var(--surface-700)' }}>
+                  True cost / mo
+                </span>
+                <span
+                  className="text-2xl font-extrabold"
+                  style={{ fontFamily: 'var(--font-display)', color: 'var(--primary-800)' }}
+                >
+                  {money(tc.total)}
+                  <span className="text-[0.8125rem] font-medium" style={{ color: 'var(--surface-500)' }}>
+                    /mo
+                  </span>
+                </span>
+              </div>
+            )}
+          </BranchState>
+        ) : (
+          <LoadingHint />
+        )}
+      </Block>
+
+      <Block>
+        <SectionLabel icon={<Flag className="h-[15px] w-[15px]" />} label="Red flags" />
+        {analysisState === 'done' && analysis ? (
+          <BranchState branch={analysis.redFlags}>
+            {(rf) => (
+              <div>
+                {rf.flags.length > 0 ? (
+                  <div className="mb-2.5 flex flex-wrap gap-1.5">
+                    {rf.flags.map((f) => (
+                      <span
+                        key={f}
+                        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold"
+                        style={{ color: 'var(--fair-ok)', background: 'var(--fair-ok-bg)' }}
+                      >
+                        <Flag aria-hidden="true" className="h-3 w-3" />
+                        {f}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                <p className="m-0 text-[0.8125rem] leading-relaxed" style={{ color: 'var(--surface-600)' }}>
+                  {rf.summary}
+                </p>
+              </div>
+            )}
+          </BranchState>
+        ) : (
+          <LoadingHint />
+        )}
+      </Block>
+
+      {/* Nearby places (placesSnapshot) */}
+      <Block>
+        <SectionLabel icon={<MapPin className="h-[15px] w-[15px]" />} label="Nearby" />
+        {analysisState === 'done' && analysis ? (
+          <BranchState branch={analysis.placesSnapshot}>
+            {(ps) => (
+              <div>
+                {Object.entries(ps.categories).map(([cat, items]) => (
+                  <div key={cat} className="mb-2.5 last:mb-0">
+                    <div
+                      className="mb-1.5 text-[0.6875rem] font-extrabold uppercase tracking-[0.08em]"
+                      style={{ color: 'var(--surface-400)' }}
+                    >
+                      {cat}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {items.map((n) => (
+                        <span
+                          key={n}
+                          className="rounded-md border px-2 py-1 text-xs font-semibold"
+                          style={{
+                            color: 'var(--surface-700)',
+                            background: 'var(--surface-50)',
+                            borderColor: 'var(--surface-200)',
+                          }}
+                        >
+                          {n}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </BranchState>
+        ) : (
+          <LoadingHint />
+        )}
+      </Block>
+
+      {/* Steering question */}
+      <Block>
+        <SectionLabel icon={<HelpCircle className="h-[15px] w-[15px]" />} label="One question for you" />
+        {analysisState === 'done' && analysis ? (
+          <BranchState branch={analysis.steeringQuestion}>
+            {(sq) => (
+              <p
+                className="m-0 text-[0.9375rem] font-bold leading-snug"
+                style={{ fontFamily: 'var(--font-display)', color: 'var(--surface-900)' }}
+              >
+                {sq.question}
+              </p>
+            )}
+          </BranchState>
+        ) : (
+          <LoadingHint />
+        )}
+      </Block>
     </>
   );
 }
@@ -510,6 +575,14 @@ function LoadingHint() {
   return (
     <p className="text-sm" style={{ color: 'var(--surface-400)' }}>
       Loading…
+    </p>
+  );
+}
+
+function AnalysisError() {
+  return (
+    <p className="text-sm" style={{ color: 'var(--surface-400)' }}>
+      No analysis yet — CribAI runs a deep scan in the background.
     </p>
   );
 }
