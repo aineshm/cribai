@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { WEB_APP_URL, API_BASE, MY_APARTMENTS_PATH } from '../../config/constants';
 
 // ---------------------------------------------------------------------------
 // Fix 1 — sender validation helpers
@@ -523,5 +524,50 @@ describe('Fix 2 — deepLinkUrl https guard (SEC HIGH)', () => {
 
   it('returns undefined when deepLinkUrl is an empty string', () => {
     expect(resolveDeepLinkUrl('')).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// WEB_APP_URL deep-link decoupling — AIN-ext-web-app-url
+// ---------------------------------------------------------------------------
+
+/**
+ * Verify that WEB_APP_URL is decoupled from API_BASE:
+ *  - WEB_APP_URL must always be https:// (passes the content-script guard)
+ *  - API_BASE is allowed to be http:// (localhost in dev) and is NOT used for deep-links
+ *  - The constructed deep-link URL passes the isHttpsUrl guard
+ */
+describe('WEB_APP_URL deep-link decoupling', () => {
+  it('WEB_APP_URL starts with https:// (passes the content-script guard)', () => {
+    expect(WEB_APP_URL.startsWith('https://')).toBe(true);
+  });
+
+  it('WEB_APP_URL is the live Vercel deployment in the test environment', () => {
+    // vitest.config.ts stubs __CRIBAI_WEB_APP_URL__ to the prod Vercel URL.
+    // If the URL is overridden in .env, this test would need updating — but the
+    // https:// guard test above still enforces the safety invariant.
+    expect(WEB_APP_URL).toBe('https://ai-real-estate-agent.vercel.app');
+  });
+
+  it('API_BASE is allowed to be http:// (localhost dev) without affecting deep-links', () => {
+    // In the vitest stub API_BASE is set to http://localhost:3000 to mirror a
+    // real dev build. This test documents that having an http API_BASE is valid
+    // and is NOT used for deep-link construction.
+    expect(API_BASE.startsWith('http://')).toBe(true);
+  });
+
+  it('deep-link URL built from WEB_APP_URL passes the https guard', () => {
+    const deepLink = `${WEB_APP_URL}${MY_APARTMENTS_PATH}`;
+    expect(resolveDeepLinkUrl(deepLink)).toBe(deepLink);
+  });
+
+  it('deep-link URL built from WEB_APP_URL is distinct from an API_BASE deep-link', () => {
+    // API_BASE deep-link would be http:// in dev and would be rejected by the guard.
+    const webAppDeepLink = `${WEB_APP_URL}${MY_APARTMENTS_PATH}`;
+    const apiBaseDeepLink = `${API_BASE}${MY_APARTMENTS_PATH}`;
+    expect(webAppDeepLink).not.toBe(apiBaseDeepLink);
+    // The WEB_APP_URL deep-link is accepted; the API_BASE one (http://) is rejected.
+    expect(resolveDeepLinkUrl(webAppDeepLink)).toBeDefined();
+    expect(resolveDeepLinkUrl(apiBaseDeepLink)).toBeUndefined();
   });
 });
