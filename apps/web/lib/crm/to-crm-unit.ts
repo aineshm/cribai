@@ -55,6 +55,7 @@ export function toCrmUnit(row: CrmListingRow, viewerId: string): CrmUnit {
   return {
     ...row,
     photo_urls: httpsPhotoUrls(row.photo_urls),
+    source_url: row.source_url != null && isHttpsUrl(row.source_url) ? row.source_url : null,
     _proposed: {
       unit: {
         building: row.title ?? row.address ?? 'Saved listing',
