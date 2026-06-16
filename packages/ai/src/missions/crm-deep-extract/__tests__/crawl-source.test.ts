@@ -183,4 +183,38 @@ describe('crawl_source step', () => {
       }
     }
   });
+
+  // AIN-75 Task 3: blocked/uncrawlable source resilience
+  it('returns crawl:blocked with empty pages when landing fetch throws (Zillow-style block)', async () => {
+    const { crawlSourceStep } = await import('../steps/01-crawl-source');
+
+    const stubFetch = vi.fn().mockRejectedValue(new Error('403 Forbidden — bot detected'));
+    const ctx = makeCtx();
+    (ctx.input as Record<string, unknown>).fetchHtml = stubFetch;
+
+    const result = await crawlSourceStep.run(ctx);
+
+    expect(result.output.crawl).toBe('blocked');
+    expect(result.output.pages).toEqual([]);
+    expect(result.output.discarded).toEqual([]);
+    // Must not be done:true — pipeline continues (places_lookup + reanalyze still run)
+    expect(result.done).toBeUndefined();
+  });
+
+  it('returns crawl:blocked when landing fetch rejects with ExtractionError', async () => {
+    const { crawlSourceStep } = await import('../steps/01-crawl-source');
+    const { ExtractionError } = await import('../../../extraction');
+
+    const stubFetch = vi.fn().mockRejectedValue(
+      new ExtractionError('fetch_blocked', 'bot block', 'https://x01oncampus.com/units/2br'),
+    );
+    const ctx = makeCtx();
+    (ctx.input as Record<string, unknown>).fetchHtml = stubFetch;
+
+    const result = await crawlSourceStep.run(ctx);
+
+    expect(result.output.crawl).toBe('blocked');
+    expect(result.output.pages).toEqual([]);
+    expect(result.output.discarded).toEqual([]);
+  });
 });

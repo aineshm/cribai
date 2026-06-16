@@ -44,6 +44,7 @@ const {
   mockGeocode,
   mockFirstSaveAnalysis,
   mockCreateBearerClient,
+  mockAfterFn,
 } = vi.hoisted(() => ({
   mockGetUser: vi.fn(),
   mockFrom: vi.fn(),
@@ -52,7 +53,14 @@ const {
   mockGeocode: vi.fn(),
   mockFirstSaveAnalysis: vi.fn(),
   mockCreateBearerClient: vi.fn(),
+  mockAfterFn: vi.fn(),
 }));
+
+// ── Mock next/server to capture `after` calls without replacing NextRequest/NextResponse ──
+vi.mock('next/server', async (importActual) => {
+  const actual = await importActual<typeof import('next/server')>();
+  return { ...actual, after: mockAfterFn };
+});
 
 // The Bearer client the mocked factory returns — re-usable across tests.
 const mockBearerClient = {
@@ -494,7 +502,7 @@ describe('POST /api/crm/ingest — happy path', () => {
     fetchSpy.mockRestore();
   });
 
-  it('passes an onSaved hook that fires firstSaveAnalysis for new saves', async () => {
+  it('passes an onSaved hook that schedules firstSaveAnalysis via after() for new saves', async () => {
     const listingId = 'lnew';
 
     // Capture the onSaved callback that addListing receives.
@@ -504,16 +512,24 @@ describe('POST /api/crm/ingest — happy path', () => {
       return { listingId, alreadySaved: false, confidence: 0.9 };
     });
 
+    // after() is mocked — capture the function it receives and execute it
+    let capturedAfterFn: (() => Promise<void>) | undefined;
+    mockAfterFn.mockImplementation((fn: () => Promise<void>) => {
+      capturedAfterFn = fn;
+    });
+
     await POST(makeRequest(validBody()));
 
     // The route must have wired an onSaved hook.
     expect(capturedOnSaved).toBeDefined();
 
-    // Invoke the hook directly (synchronous fire step) and flush async work.
-    if (capturedOnSaved) {
-      capturedOnSaved(listingId);
-      // Flush all pending microtasks so the async fireAnalysis chain runs.
-      await new Promise((resolve) => setTimeout(resolve, 0));
+    // Invoke the hook directly (simulates addListing calling it after insert).
+    if (capturedOnSaved) capturedOnSaved(listingId);
+
+    // after() should have been called — execute its registered fn to verify fireAnalysis
+    expect(mockAfterFn).toHaveBeenCalledWith(expect.any(Function));
+    if (capturedAfterFn) {
+      await capturedAfterFn();
     }
 
     // firstSaveAnalysis must have been called for the new listing id.
@@ -698,7 +714,7 @@ describe('OPTIONS /api/crm/ingest — CORS preflight', () => {
 // ── Deep-extract mission enqueue (AIN-71) ────────────────────────────────────
 
 describe('POST /api/crm/ingest — deep-extract enqueue (AIN-71)', () => {
-  it('enqueues crm_deep_extract mission on new save with confidence < 0.5', async () => {
+  it('enqueues crm_deep_extract mission on new save with confidence < 0.7', async () => {
     const lowConfidenceResult = { listingId: 'l-low', alreadySaved: false, confidence: 0.3 };
     mockAddListing.mockResolvedValue(lowConfidenceResult);
 
@@ -730,8 +746,8 @@ describe('POST /api/crm/ingest — deep-extract enqueue (AIN-71)', () => {
     expect(capturedInsertPayload!.idempotency_key).toBe('crm_deep_extract:l-low');
   });
 
-  it('does NOT enqueue crm_deep_extract on new save with confidence >= 0.5', async () => {
-    mockAddListing.mockResolvedValue({ listingId: 'l-hi', alreadySaved: false, confidence: 0.7 });
+  it('does NOT enqueue crm_deep_extract on new save with confidence >= 0.7 AND all key fields present', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-hi', alreadySaved: false, confidence: 0.8 });
 
     let deepExtractInserted = false;
     mockFrom.mockImplementation((table: string) => {
@@ -742,6 +758,21 @@ describe('POST /api/crm/ingest — deep-extract enqueue (AIN-71)', () => {
             return { select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'mission-1' }, error: null }) }) };
           }),
           select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }),
+        };
+      }
+      if (table === 'crm_listings') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: { sqft: 850, amenities: ['pool'], available_from: '2026-08-01', description: 'Nice apt' },
+                  error: null,
+                }),
+              }),
+              neq: vi.fn().mockReturnValue({ data: null, error: null, count: 0 }),
+            }),
+          }),
         };
       }
       return createQueryBuilder({ data: null, error: null, count: 0 });
@@ -1027,9 +1058,28 @@ describe('POST /api/crm/ingest — worker poke (AIN-71 step 5.3)', () => {
     fetchSpy.mockRestore();
   });
 
-  it('does NOT poke when enqueue was skipped (confidence >= 0.5)', async () => {
-    mockAddListing.mockResolvedValue({ listingId: 'l-hipoke', alreadySaved: false, confidence: 0.7 });
+  it('does NOT poke when enqueue was skipped (confidence >= 0.7 with complete fields)', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-hipoke', alreadySaved: false, confidence: 0.8 });
     vi.stubEnv('CRON_SECRET', 'test-cron-secret');
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'crm_listings') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: { sqft: 850, amenities: ['pool'], available_from: '2026-08-01', description: 'Nice' },
+                  error: null,
+                }),
+              }),
+              neq: vi.fn().mockReturnValue({ data: null, error: null, count: 0 }),
+            }),
+          }),
+        };
+      }
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
 
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(null, { status: 200 }),
@@ -1100,5 +1150,287 @@ describe('POST /api/crm/ingest — worker poke (AIN-71 step 5.3)', () => {
 
     await new Promise((r) => setTimeout(r, 20));
     fetchSpy.mockRestore();
+  });
+});
+
+// ── needsEnrichment broadening (AIN-75 Task 2) ───────────────────────────────
+
+describe('POST /api/crm/ingest — needsEnrichment broadening (AIN-75)', () => {
+  it('enqueues when confidence=0.6 (below 0.7 threshold) — skips DB read', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-06', alreadySaved: false, confidence: 0.6 });
+
+    let capturedInsertPayload: Record<string, unknown> | null = null;
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockImplementation((row: Record<string, unknown>) => {
+            if (row.type === 'crm_deep_extract') capturedInsertPayload = row;
+            return { select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'm1' }, error: null }) }) };
+          }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }),
+        };
+      }
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(capturedInsertPayload).not.toBeNull();
+    expect(capturedInsertPayload!.type).toBe('crm_deep_extract');
+  });
+
+  it('does NOT enqueue when confidence=0.7 AND all key fields present', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-07-complete', alreadySaved: false, confidence: 0.7 });
+
+    let deepExtractInserted = false;
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockImplementation((row: Record<string, unknown>) => {
+            if (row.type === 'crm_deep_extract') deepExtractInserted = true;
+            return { select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'm1' }, error: null }) }) };
+          }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }),
+        };
+      }
+      if (table === 'crm_listings') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: { sqft: 850, amenities: ['pool'], available_from: '2026-08-01', description: 'Nice apt' },
+                  error: null,
+                }),
+              }),
+              neq: vi.fn().mockReturnValue({ data: null, error: null, count: 0 }),
+            }),
+          }),
+        };
+      }
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(deepExtractInserted).toBe(false);
+  });
+
+  it('enqueues when confidence=0.7 but sqft is missing', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-07-nosqft', alreadySaved: false, confidence: 0.7 });
+
+    let deepExtractInserted = false;
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockImplementation((row: Record<string, unknown>) => {
+            if (row.type === 'crm_deep_extract') deepExtractInserted = true;
+            return { select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'm1' }, error: null }) }) };
+          }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }),
+        };
+      }
+      if (table === 'crm_listings') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: { sqft: null, amenities: ['pool'], available_from: '2026-08-01', description: 'Nice apt' },
+                  error: null,
+                }),
+              }),
+              neq: vi.fn().mockReturnValue({ data: null, error: null, count: 0 }),
+            }),
+          }),
+        };
+      }
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(deepExtractInserted).toBe(true);
+  });
+
+  it('enqueues when confidence=0.7 but amenities is empty', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-07-noamenities', alreadySaved: false, confidence: 0.7 });
+
+    let deepExtractInserted = false;
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockImplementation((row: Record<string, unknown>) => {
+            if (row.type === 'crm_deep_extract') deepExtractInserted = true;
+            return { select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'm1' }, error: null }) }) };
+          }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }),
+        };
+      }
+      if (table === 'crm_listings') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: { sqft: 850, amenities: [], available_from: '2026-08-01', description: 'Nice apt' },
+                  error: null,
+                }),
+              }),
+              neq: vi.fn().mockReturnValue({ data: null, error: null, count: 0 }),
+            }),
+          }),
+        };
+      }
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(deepExtractInserted).toBe(true);
+  });
+
+  it('enqueues when confidence=0.7 but available_from is null', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-07-noavail', alreadySaved: false, confidence: 0.7 });
+
+    let deepExtractInserted = false;
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockImplementation((row: Record<string, unknown>) => {
+            if (row.type === 'crm_deep_extract') deepExtractInserted = true;
+            return { select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'm1' }, error: null }) }) };
+          }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }),
+        };
+      }
+      if (table === 'crm_listings') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: { sqft: 850, amenities: ['pool'], available_from: null, description: 'Nice apt' },
+                  error: null,
+                }),
+              }),
+              neq: vi.fn().mockReturnValue({ data: null, error: null, count: 0 }),
+            }),
+          }),
+        };
+      }
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(deepExtractInserted).toBe(true);
+  });
+
+  it('enqueues when confidence=0.7 but description is null', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-07-nodesc', alreadySaved: false, confidence: 0.7 });
+
+    let deepExtractInserted = false;
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockImplementation((row: Record<string, unknown>) => {
+            if (row.type === 'crm_deep_extract') deepExtractInserted = true;
+            return { select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'm1' }, error: null }) }) };
+          }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }),
+        };
+      }
+      if (table === 'crm_listings') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: { sqft: 850, amenities: ['pool'], available_from: '2026-08-01', description: null },
+                  error: null,
+                }),
+              }),
+              neq: vi.fn().mockReturnValue({ data: null, error: null, count: 0 }),
+            }),
+          }),
+        };
+      }
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(deepExtractInserted).toBe(true);
+  });
+
+  it('does NOT enqueue on DB error (defaults to false, never throws)', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-07-dberr', alreadySaved: false, confidence: 0.7 });
+
+    let deepExtractInserted = false;
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockImplementation((row: Record<string, unknown>) => {
+            if (row.type === 'crm_deep_extract') deepExtractInserted = true;
+            return { select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'm1' }, error: null }) }) };
+          }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }),
+        };
+      }
+      if (table === 'crm_listings') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: { message: 'db timeout', code: 'XX000' },
+                }),
+              }),
+              neq: vi.fn().mockReturnValue({ data: null, error: null, count: 0 }),
+            }),
+          }),
+        };
+      }
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+    await new Promise((r) => setTimeout(r, 10));
+    // DB error → default false → no enqueue
+    expect(deepExtractInserted).toBe(false);
+  });
+});
+
+// ── after() scheduling (AIN-75 Task 1) ───────────────────────────────────────
+
+describe('POST /api/crm/ingest — after() scheduling (AIN-75)', () => {
+  it('schedules fireAnalysis via after() on new save', async () => {
+    mockAfterFn.mockClear();
+
+    let capturedOnSaved: ((id: string) => void) | undefined;
+    mockAddListing.mockImplementation(async (_url: string, deps: { onSaved?: (id: string) => void }) => {
+      capturedOnSaved = deps.onSaved;
+      return { listingId: 'l-after', alreadySaved: false, confidence: 0.9 };
+    });
+
+    await POST(makeRequest(validBody()));
+
+    // onSaved hook must be wired
+    expect(capturedOnSaved).toBeDefined();
+
+    // Invoke the hook directly (simulates addListing calling it after insert)
+    if (capturedOnSaved) capturedOnSaved('l-after');
+
+    // after() should have been called with a function — NOT void fireAnalysis directly
+    expect(mockAfterFn).toHaveBeenCalledWith(expect.any(Function));
   });
 });

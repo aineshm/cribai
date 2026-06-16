@@ -44,6 +44,8 @@ export interface CrawlSourcePage {
 }
 
 export interface CrawlSourceOutput {
+  /** 'blocked' when the landing-page fetch was bot-blocked or unreachable. */
+  crawl?: 'blocked';
   pages: CrawlSourcePage[];
   discarded: Array<{ url: string; reason: string }>;
 }
@@ -140,12 +142,26 @@ export const crawlSourceStep: MissionStep = {
     const fetcher = resolveFetcher(ctx);
 
     let landingHtml: string;
+    let crawlBlocked = false;
     try {
       landingHtml = await fetcher(sourceUrl);
-    } catch (err) {
-      // Landing page fetch failure → throw (retryable by the executor)
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new Error(`crawl_source: failed to fetch landing page ${sourceUrl}: ${msg}`);
+    } catch {
+      // Landing page is bot-blocked or unreachable (e.g. Zillow server-side fetch).
+      // Record blocked state and return success — places_lookup + reanalyze still run
+      // against whatever the user's extension captured. Throwing here would kill the
+      // entire mission; returning blocked allows downstream steps to degrade gracefully.
+      crawlBlocked = true;
+      landingHtml = '';
+    }
+
+    if (crawlBlocked) {
+      return {
+        output: {
+          crawl: 'blocked' as const,
+          pages: [],
+          discarded: [],
+        },
+      };
     }
 
     let landingFields: Partial<ExtractedListing> = {};

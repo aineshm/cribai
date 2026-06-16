@@ -195,6 +195,10 @@ export const updateRowStep: MissionStep = {
     // 4. raw_extraction always update
     // -------------------------------------------------------------------------
     const existingRaw = row.raw_extraction ?? {};
+    // crawl_blocked: true when step 01 was bot-blocked / unreachable, false on a
+    // normal crawl (including a zero-page crawl). Distinguishes blocked missions from
+    // successful runs that found no subpages, for debugging and future retry logic.
+    const crawlBlocked = (state.crawl as string | undefined) === 'blocked';
     update.raw_extraction = {
       ...existingRaw,
       deep_extract: {
@@ -202,6 +206,7 @@ export const updateRowStep: MissionStep = {
         discarded,
         floor_plans: floorPlans ?? null,
         price_is_from: floorPlanCount > 0,
+        crawl_blocked: crawlBlocked,
         method: 'mission_v1',
         completed_at: new Date().toISOString(),
       },

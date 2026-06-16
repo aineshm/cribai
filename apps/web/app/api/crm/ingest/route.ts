@@ -47,7 +47,7 @@
  * precheck below as their first line of defence before any body buffering.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { z } from 'zod';
 import {
   addListing,
@@ -220,10 +220,55 @@ async function fireAnalysis(auth: CrmAuth, listingId: string): Promise<void> {
 // ── Deep-extract mission enqueue (AIN-71) ────────────────────────────────────
 
 /**
- * Confidence threshold below which we queue a crm_deep_extract mission.
- * Matches the 'low' confidence class (0.3) from the extraction confidence mapping.
+ * Confidence threshold below which we always queue a crm_deep_extract mission.
+ * Above this threshold we still enqueue when key fields (sqft, amenities,
+ * available_from, description) are missing — see checkNeedsEnrichment.
  */
-const DEEP_EXTRACT_CONFIDENCE_THRESHOLD = 0.5;
+const DEEP_EXTRACT_CONFIDENCE_THRESHOLD = 0.7;
+
+/**
+ * Returns true when the listing needs deep enrichment:
+ *   - confidence below threshold (always enqueue), OR
+ *   - any key field (sqft, amenities, available_from, description) is missing
+ *     on the just-inserted row (do a cheap projection SELECT).
+ *
+ * Does a cheap SELECT with a projection on the just-inserted row.
+ * Never throws — on DB error defaults to false (don't enqueue).
+ */
+async function checkNeedsEnrichment(
+  auth: CrmAuth,
+  listingId: string,
+  confidence: number,
+): Promise<boolean> {
+  if (confidence < DEEP_EXTRACT_CONFIDENCE_THRESHOLD) return true;
+
+  try {
+    const { data, error } = await auth.db
+      .from('crm_listings')
+      .select('sqft, amenities, available_from, description')
+      .eq('id', listingId)
+      .eq('user_id', auth.userId)
+      .maybeSingle();
+
+    if (error || !data) return false;
+
+    const row = data as {
+      sqft: number | null;
+      amenities: string[] | null;
+      available_from: string | null;
+      description: string | null;
+    };
+    const amenitiesMissing = !row.amenities || (row.amenities as string[]).length === 0;
+    return (
+      row.sqft == null ||
+      amenitiesMissing ||
+      row.available_from == null ||
+      row.description == null
+    );
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Enqueue result discriminant:
@@ -486,16 +531,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         placesApiKey: process.env['GOOGLE_PLACES_API_KEY'],
         // onSaved: fire analysis asynchronously so the extension gets an
         // immediate response. Write-through is best-effort.
+        // after() persists the analysis work past the Vercel response boundary
+        // so the function stays alive until firstSaveAnalysis completes.
         onSaved: (listingId: string) => {
-          void fireAnalysis(auth, listingId);
+          after(() => fireAnalysis(auth, listingId));
         },
       }),
       budgetMs,
     );
 
     const isNewSave = !result.alreadySaved;
+    // checkNeedsEnrichment is a fast PK SELECT run OUTSIDE withBudget by design —
+    // same as enqueueDeepExtract below. Neither is an unbounded round-trip inside
+    // the extraction budget; both are cheap post-save book-keeping operations.
     const needsDeepScan =
-      isNewSave && result.confidence < DEEP_EXTRACT_CONFIDENCE_THRESHOLD;
+      isNewSave && await checkNeedsEnrichment(auth, result.listingId, result.confidence);
 
     // Await enqueue OUTSIDE withBudget so a slow DB insert can't trigger a 504
     // after the listing was already saved. A 3s timeout races the insert and

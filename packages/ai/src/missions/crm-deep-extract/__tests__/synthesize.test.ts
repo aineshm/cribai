@@ -111,4 +111,19 @@ describe('synthesize step', () => {
     expect(capturedPrompt).not.toMatch(/<html/i);
     expect(capturedPrompt).toContain('Apartments from $899');
   });
+
+  // AIN-75 Task 4: no-op on empty pages (blocked crawl path)
+  it('returns empty fields without calling LLM when pages is empty (blocked crawl path)', async () => {
+    const mockGenerate = vi.fn().mockResolvedValue(FIXTURE_STANDARD);
+    const { synthesizeStep } = await import('../steps/03-synthesize');
+
+    // Empty pages array — simulates crawl:blocked output flowing into synthesize
+    const ctx = makeCtx([]);
+    (ctx.input as Record<string, unknown>).generate = mockGenerate;
+
+    const result = await synthesizeStep.run(ctx);
+
+    expect(result.output.fields).toEqual({});
+    expect(mockGenerate).not.toHaveBeenCalled();
+  });
 });
