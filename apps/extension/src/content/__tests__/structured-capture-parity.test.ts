@@ -74,13 +74,12 @@ function compareKeyFields(
   if (full.title !== undefined) {
     expect(structured.title).toBe(full.title);
   }
-  // Photos: structured must have at least as many as full (or same count)
+  // Photos: JSON-LD / OG / <img> are all preserved verbatim by the structured
+  // capture, so the count must match the full-HTML extraction exactly — a
+  // smaller count means the trim silently dropped a photo source (review L-3).
   if (full.photos !== undefined && full.photos.length > 0) {
     expect(structured.photos).toBeDefined();
-    // Allow same or more photos (structured capture preserves all JSON-LD/OG)
-    expect(structured.photos!.length).toBeGreaterThanOrEqual(
-      Math.min(full.photos.length, 1),
-    );
+    expect(structured.photos!.length).toBe(full.photos.length);
   }
   // Extraction method: structured should not regress to a less-informed method
   // (same method or equivalent is acceptable)

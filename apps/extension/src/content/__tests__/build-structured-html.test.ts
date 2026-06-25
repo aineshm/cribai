@@ -7,9 +7,10 @@
  *   3. Keeps body content that labeled-DOM extractors rely on (no-regression)
  *
  * Extraction parity (the critical test proving trim doesn't degrade extraction
- * quality) lives in packages/ai/src/extraction/__tests__/structured-capture-parity.test.ts
- * — it needs extractListingFromHtml which requires the AI package's dependency
- * tree (zod, @google/genai) and is collocated with the other fixture tests there.
+ * quality) lives alongside this file at
+ * apps/extension/src/content/__tests__/structured-capture-parity.test.ts —
+ * it imports extractListingFromHtml from @campusnest/ai (test-only devDep) and
+ * runs it on both full and structured HTML to assert field-for-field parity.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -215,5 +216,46 @@ describe('MAX_BODY_CAPTURE_CHARS constant', () => {
     expect(MAX_BODY_CAPTURE_CHARS).toBeGreaterThan(0);
     // Should be large enough to hold meaningful body content
     expect(MAX_BODY_CAPTURE_CHARS).toBeGreaterThanOrEqual(100_000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Malformed-page edge case (AIN-76 review M-1 / LOW-2)
+// ---------------------------------------------------------------------------
+
+describe('buildStructuredHtml — malformed pages', () => {
+  it('still captures title/meta when the </head> tag is missing', () => {
+    // No </head> close tag — extractHeadContent must fall back to the rest of
+    // the document rather than dropping all head metadata (review M-1).
+    const html =
+      '<html><head>' +
+      '<title>Studio S1</title>' +
+      '<meta property="og:title" content="Chapter at Madison">' +
+      '<body><p>body content</p></body></html>';
+    const structured = buildStructuredHtml(makeDocFromHtml(html));
+    expect(structured).toContain('<title>Studio S1</title>');
+    expect(structured).toContain('og:title');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Adversarial wall-clock guard (AIN-76 review LOW-4; pins the WS3a no-ReDoS
+// contract on the new string-processing code so a future quadratic regression
+// is caught automatically).
+// ---------------------------------------------------------------------------
+
+describe('buildStructuredHtml — adversarial input is linear-time', () => {
+  it('completes well under 5s on 4 MB of unterminated <script floods', () => {
+    // The exact flood pattern stripTagBlocks was written to defend: ~440k
+    // `<script ` open tags with no matching close tags, ~3.9 MB total.
+    const hostile =
+      '<html><head></head><body>' +
+      '<script '.repeat(440_000) +
+      '</body></html>';
+    const start = Date.now();
+    const out = buildStructuredHtml(makeDocFromHtml(hostile));
+    const elapsedMs = Date.now() - start;
+    expect(typeof out).toBe('string');
+    expect(elapsedMs).toBeLessThan(5_000);
   });
 });

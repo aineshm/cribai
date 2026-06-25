@@ -92,9 +92,9 @@ function isWordCharCode(code: number): boolean {
 }
 
 /**
- * Strip every `<tag …> … </tag>` block from `html`, replacing each block
- * with a single space. Identical semantics to the same function in
- * prune-html.ts (@campusnest/ai):
+ * Strip every `<tag …> … </tag>` block from `html`, removing each block
+ * entirely (replaced with the empty string). Identical semantics to the same
+ * function in prune-html.ts (@campusnest/ai):
  *
  *   - open tag: `<tag` + word boundary + attrs up to first `>`
  *   - close tag: `</tag` + optional whitespace + `>`
@@ -128,7 +128,7 @@ function stripTagBlocks(html: string, tag: string): string {
       const c = lower.indexOf(close, searchFrom);
       if (c === -1) break;
       let p = c + close.length;
-      while (p < lower.length && /\s/.test(lower[p]!)) p += 1;
+      while (p < lower.length && lower.charCodeAt(p) <= 32) p += 1;
       if (lower[p] === '>') {
         end = p + 1;
       } else {

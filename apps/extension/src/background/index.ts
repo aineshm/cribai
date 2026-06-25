@@ -532,7 +532,7 @@ function captureAndSendInline(): void {
           const c = lower.indexOf(close, searchFrom);
           if (c === -1) break;
           let p = c + close.length;
-          while (p < lower.length && /\s/.test(lower[p]!)) p += 1;
+          while (p < lower.length && lower.charCodeAt(p) <= 32) p += 1;
           if (lower[p] === '>') { end = p + 1; } else { searchFrom = c + 1; }
         }
         if (end === -1) break;
@@ -550,8 +550,14 @@ function captureAndSendInline(): void {
       const headOpen = lower.indexOf('<head');
       const headTagClose = headOpen !== -1 ? lower.indexOf('>', headOpen + 5) : -1;
       const headClose = headTagClose !== -1 ? lower.indexOf('</head>', headTagClose + 1) : -1;
-      const headSection = (headTagClose !== -1 && headClose !== -1)
-        ? fullHtml.slice(headTagClose + 1, headClose) : '';
+      // Match lib/structured-html.ts extractHeadContent: when <head> opened but
+      // </head> is absent (malformed page), fall back to the rest of the doc so
+      // title/meta are still found — do NOT drop them (AIN-76 review M-1).
+      const headSection = headTagClose === -1
+        ? ''
+        : (headClose !== -1
+            ? fullHtml.slice(headTagClose + 1, headClose)
+            : fullHtml.slice(headTagClose + 1));
 
       const headParts: string[] = [];
 
