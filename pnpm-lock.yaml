@@ -55,6 +55,9 @@ importers:
         specifier: ^2.47.0
         version: 2.98.0
     devDependencies:
+      '@campusnest/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@types/chrome':
         specifier: ^0.0.268
         version: 0.0.268

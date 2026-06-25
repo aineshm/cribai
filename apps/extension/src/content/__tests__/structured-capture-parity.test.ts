@@ -5,13 +5,13 @@
  * doesn't degrade extraction quality: `extractListingFromHtml(structured, url)`
  * must return the SAME key fields as `extractListingFromHtml(fullHtml, url)`.
  *
- * Why this file lives in the AI package (not the extension package):
- *   - Needs `extractListingFromHtml` which transitively imports `@google/genai`,
- *     `zod`, etc. — all available in the AI package's node_modules.
- *   - Imports `buildStructuredHtmlFromString` from the extension package via
- *     relative path (the function is a pure string utility with no external deps).
- *   - Co-located with the other real-fixture tests (zillow-real-fixture.test.ts)
- *     for discoverability.
+ * This file lives in the extension package because:
+ *   - `buildStructuredHtmlFromString` is defined HERE (in the extension package)
+ *     so the import is a clean local relative import with no cross-package path.
+ *   - `extractListingFromHtml` is imported via the `@campusnest/ai` package
+ *     boundary (devDependency — TEST ONLY, never enters the production bundle).
+ *   - Fixture HTML files are read from disk via fs — data files, not TS modules,
+ *     so reading across the monorepo is fine.
  */
 
 import { readFile } from 'node:fs/promises';
@@ -19,16 +19,19 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { describe, it, expect } from 'vitest';
 
-import { extractListingFromHtml } from '../extract-from-html';
+// Package-boundary import: devDependency, test-only, never bundled
+import { extractListingFromHtml } from '@campusnest/ai';
 
-// Import the pure string-based structured capture function from the extension
-// package via relative path. `buildStructuredHtmlFromString` has no external
-// deps so it resolves cleanly from the AI package's test context.
-// Path: packages/ai/src/extraction/__tests__/ → (5 levels up) → repo root
-//       → apps/extension/src/lib/structured-html
-import { buildStructuredHtmlFromString } from '../../../../../apps/extension/src/lib/structured-html';
+// Local import: same package, clean relative path
+import { buildStructuredHtmlFromString } from '../../lib/structured-html';
 
-const FIXTURES_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '__fixtures__');
+const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
+// Path from apps/extension/src/content/__tests__/ up to repo root,
+// then down to the AI package's real browser-captured fixtures.
+const FIXTURES_DIR = join(
+  TESTS_DIR,
+  '../../../../../packages/ai/src/extraction/__fixtures__',
+);
 
 const ZILLOW_SINGLE = {
   fixture: 'zillow.html',
