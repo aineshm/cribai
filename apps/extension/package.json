@@ -16,6 +16,7 @@
     "@supabase/supabase-js": "^2.47.0"
   },
   "devDependencies": {
+    "@campusnest/ai": "workspace:*",
     "@types/chrome": "^0.0.268",
     "@types/node": "^22.0.0",
     "typescript": "^5.7.0",

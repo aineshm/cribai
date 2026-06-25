@@ -482,20 +482,149 @@ async function handleContentSaveMessage(
  * Inline capture function — injected into the page via executeScript.
  *
  * MUST be a self-contained function with no closure references.
- * Caps are inlined as literals because an injected function cannot import
- * from module scope. Each literal MUST stay in sync with its constants.ts name:
+ * Caps and structured-capture logic are inlined as literals / nested functions
+ * because an injected function cannot import from module scope.
  *
- *   200_000  → MAX_INNER_TEXT_CHARS  (constants.ts)
- *   10       → MAX_IFRAMES           (constants.ts)
- *   524_288  → MAX_IFRAME_HTML_CHARS (constants.ts)
+ * Each literal MUST stay in sync with its constants.ts name:
  *
- * If you change a constant, update BOTH constants.ts AND the literal here.
+ *   200_000  → MAX_INNER_TEXT_CHARS   (constants.ts)
+ *   10       → MAX_IFRAMES            (constants.ts)
+ *   524_288  → MAX_IFRAME_HTML_CHARS  (constants.ts)
+ *   500_000  → MAX_BODY_CAPTURE_CHARS (constants.ts)  ← NEW (AIN-76)
+ *
+ * The structured-capture helpers below are identical in algorithm to
+ * lib/structured-html.ts (`buildStructuredHtmlFromString`). If you change
+ * the extraction logic there, update it here too.
  *
  * chrome.runtime IS available in injected scripts (MV3).
  */
 function captureAndSendInline(): void {
   try {
-    const html = document.documentElement.outerHTML;
+    // ── Structured-first capture (AIN-76) ──────────────────────────────────
+    // Reduces a 3.9 MB Zillow page to ~1.5 MB by keeping only the signals
+    // the server extraction pipeline needs (JSON-LD, OG meta, __NEXT_DATA__,
+    // stripped body). All helpers are inlined — no imports allowed.
+
+    function isWordCharCode(code: number): boolean {
+      return (code >= 97 && code <= 122) || (code >= 48 && code <= 57) || code === 95;
+    }
+
+    function stripTagBlocks(h: string, tag: string): string {
+      const lower = h.toLowerCase();
+      const open = '<' + tag;
+      const close = '</' + tag;
+      let out = '';
+      let cursor = 0;
+      while (cursor < h.length) {
+        const start = lower.indexOf(open, cursor);
+        if (start === -1) break;
+        const boundary = start + open.length;
+        if (boundary < lower.length && isWordCharCode(lower.charCodeAt(boundary))) {
+          out += h.slice(cursor, boundary);
+          cursor = boundary;
+          continue;
+        }
+        const gt = lower.indexOf('>', boundary);
+        if (gt === -1) break;
+        let end = -1;
+        let searchFrom = gt + 1;
+        while (end === -1) {
+          const c = lower.indexOf(close, searchFrom);
+          if (c === -1) break;
+          let p = c + close.length;
+          while (p < lower.length && lower.charCodeAt(p) <= 32) p += 1;
+          if (lower[p] === '>') { end = p + 1; } else { searchFrom = c + 1; }
+        }
+        if (end === -1) break;
+        out += h.slice(cursor, start);
+        cursor = end;
+      }
+      return out + h.slice(cursor);
+    }
+
+    function buildStructuredHtml(fullHtml: string): string {
+      if (!fullHtml) return '<!doctype html><html><head></head><body></body></html>';
+      const lower = fullHtml.toLowerCase();
+
+      // Extract head section content
+      const headOpen = lower.indexOf('<head');
+      const headTagClose = headOpen !== -1 ? lower.indexOf('>', headOpen + 5) : -1;
+      const headClose = headTagClose !== -1 ? lower.indexOf('</head>', headTagClose + 1) : -1;
+      // Match lib/structured-html.ts extractHeadContent: when <head> opened but
+      // </head> is absent (malformed page), fall back to the rest of the doc so
+      // title/meta are still found — do NOT drop them (AIN-76 review M-1).
+      const headSection = headTagClose === -1
+        ? ''
+        : (headClose !== -1
+            ? fullHtml.slice(headTagClose + 1, headClose)
+            : fullHtml.slice(headTagClose + 1));
+
+      const headParts: string[] = [];
+
+      // 1. <title> from head
+      const titleM = /<title\b[^>]*>[\s\S]*?<\/title>/i.exec(headSection);
+      if (titleM) headParts.push(titleM[0]);
+
+      // 2. <meta> tags from head
+      const metaRe = /<meta\b[^>]*\/?>/gi;
+      let metaM: RegExpExecArray | null;
+      while ((metaM = metaRe.exec(headSection)) !== null) headParts.push(metaM[0]);
+
+      // 3. <link rel="canonical"> from head
+      const canonM = /<link\b[^>]*rel\s*=\s*["']canonical["'][^>]*\/?>/i.exec(headSection);
+      if (canonM) headParts.push(canonM[0]);
+
+      // 4. All <script type="application/ld+json"> blocks verbatim (full HTML)
+      const JSON_LD_RE = /^<script[^>]*type\s*=\s*["']application\/ld\+json\s*(?:;[^"']*)?["'][^>]*>$/i;
+      const OPEN = '<script';
+      const CLOSE = '</script>';
+      let cursor = 0;
+      while (cursor < fullHtml.length) {
+        const start = lower.indexOf(OPEN, cursor);
+        if (start === -1) break;
+        const tagEnd = lower.indexOf('>', start + OPEN.length);
+        if (tagEnd === -1) break;
+        if (!JSON_LD_RE.test(fullHtml.slice(start, tagEnd + 1))) { cursor = tagEnd + 1; continue; }
+        const closeIdx = lower.indexOf(CLOSE, tagEnd + 1);
+        if (closeIdx === -1) break;
+        headParts.push(fullHtml.slice(start, closeIdx + CLOSE.length));
+        cursor = closeIdx + CLOSE.length;
+      }
+
+      // 5. <script id="__NEXT_DATA__"> block verbatim (full HTML)
+      cursor = 0;
+      while (cursor < fullHtml.length) {
+        const start = lower.indexOf(OPEN, cursor);
+        if (start === -1) break;
+        const tagEnd = lower.indexOf('>', start + OPEN.length);
+        if (tagEnd === -1) break;
+        const openTag = fullHtml.slice(start, tagEnd + 1);
+        if (/\bid\s*=\s*["']__NEXT_DATA__["']/.test(openTag)) {
+          const closeIdx = lower.indexOf(CLOSE, tagEnd + 1);
+          if (closeIdx !== -1) headParts.push(fullHtml.slice(start, closeIdx + CLOSE.length));
+          break;
+        }
+        cursor = tagEnd + 1;
+      }
+
+      // 6. Stripped body content (scripts/styles/svgs removed, capped at 500_000)
+      const bodyOpen = lower.indexOf('<body');
+      const bodyTagClose = bodyOpen !== -1 ? lower.indexOf('>', bodyOpen + 5) : -1;
+      const bodyClose = lower.lastIndexOf('</body>');
+      let bodyHtml = (bodyTagClose !== -1)
+        ? (bodyClose !== -1 ? fullHtml.slice(bodyTagClose + 1, bodyClose) : fullHtml.slice(bodyTagClose + 1))
+        : '';
+      for (const tag of ['script', 'style', 'svg', 'noscript', 'template']) {
+        bodyHtml = stripTagBlocks(bodyHtml, tag);
+      }
+      bodyHtml = bodyHtml.replace(/<link\b[^>]*\/?>/gi, '');
+      const body = bodyHtml.slice(0, 500_000); // 500_000 = MAX_BODY_CAPTURE_CHARS
+
+      return `<!doctype html><html><head>\n${headParts.join('\n')}\n</head><body>${body}</body></html>`;
+    }
+    // ── End structured-first capture helpers ───────────────────────────────
+
+    const html = buildStructuredHtml(document.documentElement.outerHTML);
     const innerText = (document.body ? document.body.innerText : '').slice(0, 200_000); // MAX_INNER_TEXT_CHARS
     const iframes: Array<{ src: string; html: string }> = [];
     const frames = document.querySelectorAll('iframe');

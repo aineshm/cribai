@@ -55,7 +55,13 @@ describe('capturePage — basic fields', () => {
     });
     const result = capturePage(doc, makeLoc('https://zillow.com/homedetails/foo/123_zpid/'));
 
-    expect(result.html).toBe('<html><body>hello</body></html>');
+    // AIN-76: result.html is now structured capture output (not raw outerHTML).
+    // It contains the original body content, wrapped in a well-formed doctype shell.
+    expect(result.html).toMatch(/<!doctype html>/i);
+    expect(result.html).toContain('hello'); // body content preserved
+    // Must NOT be the raw outerHTML anymore
+    expect(result.html).not.toBe('<html><body>hello</body></html>');
+
     expect(result.sourceUrl).toBe('https://zillow.com/homedetails/foo/123_zpid/');
     expect(result.title).toBe('Listing');
     expect(result.innerText).toBe('hello world');

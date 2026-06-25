@@ -57,6 +57,20 @@ export const SUPABASE_ANON_KEY: string =
 /** Maximum HTML payload size accepted by the server (4 MiB). */
 export const MAX_HTML_BYTES = 4 * 1024 * 1024;
 
+/**
+ * Maximum characters of stripped body content included in the structured
+ * capture output (AIN-76). The body is stripped of script/style/svg blocks
+ * before this cap is applied. A stripped Zillow /apartments/ page is ~640KB
+ * after tag removal; this cap keeps the total structured payload well under
+ * MAX_HTML_BYTES while still covering labeled-DOM patterns and the LLM rare
+ * path (which calls pruneHtml, capping at 50KB anyway).
+ *
+ * If you change this value, update BOTH this constant AND the inlined literal
+ * in captureAndSendInline in background/index.ts (same constraint as the
+ * other inlined constants — see the "keep BOTH in sync" comment there).
+ */
+export const MAX_BODY_CAPTURE_CHARS = 500_000;
+
 /** Cap on captured page innerText (chars). */
 export const MAX_INNER_TEXT_CHARS = 200_000;
 /** Max same-origin iframes captured per page. */
