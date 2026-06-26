@@ -22,7 +22,19 @@ function makeCtx(overrides: Partial<StepContext> = {}): StepContext {
   };
 }
 
-function makeMockSupabase(opts: { found: boolean; archived?: boolean; wrongUser?: boolean }) {
+interface MockSupabase {
+  from: ReturnType<typeof vi.fn>;
+  /** Spy on the `.eq()` that fires when the capture row is deleted. */
+  captureDeleteSpy: ReturnType<typeof vi.fn>;
+}
+
+function makeMockSupabase(opts: {
+  found: boolean;
+  archived?: boolean;
+  wrongUser?: boolean;
+  /** HTML to return from crm_listing_captures; null/undefined means no capture. */
+  captureHtml?: string | null;
+}): MockSupabase {
   const row =
     opts.found && !opts.archived && !opts.wrongUser
       ? {
@@ -38,16 +50,43 @@ function makeMockSupabase(opts: { found: boolean; archived?: boolean; wrongUser?
         ? { id: 'listing-1', user_id: 'user-1', title: 'X01', address: null, rent: null, extraction_confidence: 0.3, status: 'archived' }
         : null;
 
+  // Spy exposed so tests can assert the capture row was deleted after consumption.
+  // The delete chains two .eq() calls (listing_id, then user_id — AIN-78
+  // defense-in-depth); captureDeleteSpy is the first .eq, returning a chainable
+  // second .eq that resolves the query.
+  const captureDeleteSpy = vi.fn(() => ({
+    eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+  }));
+
   return {
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
+    from: vi.fn((table: string) => {
+      // ── crm_listing_captures: select or delete ────────────────────────────
+      if (table === 'crm_listing_captures') {
+        const captureData = opts.captureHtml != null ? { html: opts.captureHtml } : null;
+        return {
+          // select chains .eq('listing_id').eq('user_id').maybeSingle()
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                maybeSingle: vi.fn().mockResolvedValue({ data: captureData, error: null }),
+              })),
+            })),
+          })),
+          delete: vi.fn(() => ({ eq: captureDeleteSpy })),
+        };
+      }
+      // ── crm_listings: ownership + status check ────────────────────────────
+      return {
+        select: vi.fn(() => ({
           eq: vi.fn(() => ({
-            maybeSingle: vi.fn().mockResolvedValue({ data: row, error: null }),
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn().mockResolvedValue({ data: row, error: null }),
+            })),
           })),
         })),
-      })),
-    })),
+      };
+    }),
+    captureDeleteSpy,
   };
 }
 
@@ -216,5 +255,87 @@ describe('crawl_source step', () => {
     expect(result.output.crawl).toBe('blocked');
     expect(result.output.pages).toEqual([]);
     expect(result.output.discarded).toEqual([]);
+  });
+
+  // AIN-78: reuse extension-captured HTML in crawl_source
+  it('uses extension capture HTML when present: skips landing fetch, populates pages[0], is not blocked, deletes capture', async () => {
+    const { crawlSourceStep } = await import('../steps/01-crawl-source');
+
+    const captureHtml = FLOOR_PLAN_HTML;
+    const mockSupa = makeMockSupabase({ found: true, captureHtml });
+    const stubFetch = vi.fn(); // must NOT be called for the landing page
+
+    const ctx = makeCtx({
+      supabase: mockSupa as unknown as StepContext['supabase'],
+    });
+    // Inject stubFetch so subpage fetches (if any) use it instead of the real fetchPublicHtml.
+    // For FLOOR_PLAN_HTML, subpage discovery yields /floor-plans; stubFetch handles it.
+    stubFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'text/html' }),
+      text: () => Promise.resolve(FLOOR_PLAN_HTML),
+      body: null,
+    });
+    (ctx.input as Record<string, unknown>).fetchHtml = stubFetch;
+
+    const result = await crawlSourceStep.run(ctx);
+
+    // Must not be blocked
+    expect(result.output.crawl).toBeUndefined();
+
+    // pages[0] must be the landing page from the capture
+    const pages = result.output.pages as Array<{ url: string; textExcerpt: string }>;
+    expect(Array.isArray(pages)).toBe(true);
+    expect(pages.length).toBeGreaterThan(0);
+    expect(pages.at(0)?.url).toBe('https://x01oncampus.com/units/2br');
+    // textExcerpt populated from the capture HTML
+    expect(pages.at(0)?.textExcerpt.length).toBeGreaterThan(0);
+
+    // Fetch must NOT have been called with the landing page URL
+    const landingFetchCalls = stubFetch.mock.calls.filter(
+      (call: unknown[]) => String(call[0]) === 'https://x01oncampus.com/units/2br',
+    );
+    expect(landingFetchCalls.length).toBe(0);
+
+    // Capture must have been deleted after use (best-effort self-consume)
+    expect(mockSupa.captureDeleteSpy).toHaveBeenCalledWith('listing_id', 'listing-1');
+  });
+
+  it('falls back to fetch path when no capture row exists (AIN-78 fallback)', async () => {
+    const { crawlSourceStep } = await import('../steps/01-crawl-source');
+
+    // No captureHtml → mock returns null from crm_listing_captures
+    const mockSupa = makeMockSupabase({ found: true, captureHtml: null });
+    const stubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'text/html' }),
+      text: () => Promise.resolve(FLOOR_PLAN_HTML),
+      body: null,
+    });
+
+    const ctx = makeCtx({
+      supabase: mockSupa as unknown as StepContext['supabase'],
+    });
+    (ctx.input as Record<string, unknown>).fetchHtml = stubFetch;
+
+    const result = await crawlSourceStep.run(ctx);
+
+    // Should succeed via the fetch path
+    expect(result.output.skipped).toBeUndefined();
+    expect(result.output.crawl).toBeUndefined();
+    const pages = result.output.pages as Array<{ url: string }>;
+    expect(pages.length).toBeGreaterThan(0);
+    expect(pages.at(0)?.url).toBe('https://x01oncampus.com/units/2br');
+
+    // Fetch must have been called for the landing page (fallback path)
+    const landingFetchCalls = stubFetch.mock.calls.filter(
+      (call: unknown[]) => String(call[0]) === 'https://x01oncampus.com/units/2br',
+    );
+    expect(landingFetchCalls.length).toBe(1);
+
+    // No capture delete issued (nothing to delete)
+    expect(mockSupa.captureDeleteSpy).not.toHaveBeenCalled();
   });
 });

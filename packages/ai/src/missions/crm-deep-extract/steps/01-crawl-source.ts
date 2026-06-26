@@ -1,12 +1,17 @@
 /**
- * crawl_source step for crm_deep_extract mission (AIN-71).
+ * crawl_source step for crm_deep_extract mission (AIN-71, AIN-78).
  *
  * 1. Re-reads the crm_listings row; skips if missing / archived / wrong user.
- * 2. Fetches the source URL (SSRF-guarded via fetchPublicHtml).
- * 3. Extracts fields from the landing page.
- * 4. Discovers and fetches up to 4 housing-related subpages.
- * 5. Filters subpages via isHousingRelated; discards non-housing pages.
- * 6. Outputs pages + discarded (JSONB-safe: no raw HTML stored).
+ * 2. AIN-78: looks up crm_listing_captures for extension-captured HTML. When
+ *    present, uses it as the landing page source (bypasses the server-side
+ *    fetch that anti-bot sites like Zillow block). Deletes the capture row
+ *    after reading (self-consuming, best-effort).
+ * 3. Falls back to fetching the source URL (SSRF-guarded via fetchPublicHtml)
+ *    when no capture is present.
+ * 4. Extracts fields from the landing page.
+ * 5. Discovers and fetches up to 4 housing-related subpages.
+ * 6. Filters subpages via isHousingRelated; discards non-housing pages.
+ * 7. Outputs pages + discarded (JSONB-safe: no raw HTML stored).
  */
 
 import type { MissionStep, StepContext, StepResult } from '../../types';
@@ -15,6 +20,7 @@ import { fetchPublicHtml, ExtractionError } from '../../../extraction';
 import { pruneHtml } from '../../../extraction/prune-html';
 import { discoverSubpages, isHousingRelated } from '../lib/subpage-discovery';
 import type { ExtractedListing } from '../../../extraction/types';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -35,6 +41,10 @@ interface CrmListingRow {
   readonly rent: number | null;
   readonly extraction_confidence: number | null;
   readonly status: string | null;
+}
+
+interface CaptureRow {
+  readonly html: string;
 }
 
 export interface CrawlSourcePage {
@@ -95,6 +105,110 @@ async function fetchAndExtract(
   return { fields, textExcerpt };
 }
 
+/**
+ * Discover, fetch, and relevance-filter subpages from a landing-page HTML blob.
+ * Returns housing-related pages and the list of discarded URLs with reasons.
+ * Extracted from `run` to keep each function under 50 lines.
+ */
+async function processSubpages(
+  landingHtml: string,
+  sourceUrl: string,
+  fetcher: typeof fetchPublicHtml,
+): Promise<{ pages: CrawlSourcePage[]; discarded: Array<{ url: string; reason: string }> }> {
+  const subpageUrls = discoverSubpages(landingHtml, sourceUrl);
+  const pages: CrawlSourcePage[] = [];
+  const discarded: Array<{ url: string; reason: string }> = [];
+
+  for (const subUrl of subpageUrls) {
+    const result = await fetchAndExtract(subUrl, fetcher);
+    if (!result) {
+      discarded.push({ url: subUrl, reason: 'fetch_failed' });
+      continue;
+    }
+
+    // 4. Relevance gate — landing page is exempt; subpages must pass
+    if (
+      !isHousingRelated(result.textExcerpt, {
+        price: typeof result.fields.price === 'number' ? result.fields.price : undefined,
+        bedrooms: typeof result.fields.bedrooms === 'number' ? result.fields.bedrooms : undefined,
+        address: typeof result.fields.address === 'string' ? result.fields.address : undefined,
+      })
+    ) {
+      discarded.push({ url: subUrl, reason: 'not_housing' });
+      continue;
+    }
+
+    pages.push({ url: subUrl, fields: result.fields, textExcerpt: result.textExcerpt });
+  }
+
+  return { pages, discarded };
+}
+
+/**
+ * AIN-78: Look up the extension-captured HTML for a listing.
+ * Returns the captured html string, or null when no capture exists / on error.
+ * Never throws — failures are silently swallowed; the caller falls back to fetch.
+ *
+ * The `user_id` filter is defense-in-depth: the worker runs as service-role
+ * (bypasses RLS), so without it a capture row keyed by the same listing_id but
+ * owned by another user could be served into this mission. The normal flow can't
+ * produce that (listing_id always traces to the owner), but the filter ensures a
+ * future bug can never leak one user's captured HTML into another's mission.
+ */
+async function lookupCapture(
+  supabase: SupabaseClient,
+  listingId: string,
+  userId: string,
+): Promise<string | null> {
+  try {
+    const { data } = (await supabase
+      .from('crm_listing_captures')
+      .select('html')
+      .eq('listing_id', listingId)
+      .eq('user_id', userId)
+      .maybeSingle()) as { data: CaptureRow | null; error: unknown };
+    return data?.html ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * AIN-78: Best-effort delete of a consumed capture row. Called after the HTML
+ * has been read so storage never accumulates. Logs on failure but never throws.
+ *
+ * Scoped by `user_id` for the same defense-in-depth reason as `lookupCapture`.
+ *
+ * NOTE: the delete fires immediately after the landing HTML is read (before
+ * subpage fetching). If the step throws mid-subpage and retries, the capture is
+ * already gone and the retry falls back to a server-side fetch — accepted
+ * degradation. Do not move this later without weighing that trade-off.
+ */
+async function deleteCapture(
+  supabase: SupabaseClient,
+  listingId: string,
+  userId: string,
+): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from('crm_listing_captures')
+      .delete()
+      .eq('listing_id', listingId)
+      .eq('user_id', userId);
+    if (error) {
+      console.warn(
+        '[crawl_source] capture delete failed (non-fatal):',
+        (error as { message?: string }).message ?? error,
+      );
+    }
+  } catch (err) {
+    console.warn(
+      '[crawl_source] capture delete failed (non-fatal):',
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Step
 // ---------------------------------------------------------------------------
@@ -137,7 +251,42 @@ export const crawlSourceStep: MissionStep = {
     }
 
     // -------------------------------------------------------------------------
-    // 2. Fetch + extract landing page
+    // 2. AIN-78: Use extension capture as landing page when present
+    // -------------------------------------------------------------------------
+    const captureHtml = await lookupCapture(ctx.supabase, listingId, ctx.userId);
+
+    if (captureHtml) {
+      // Use the HTML the user's own browser already loaded — no server-side fetch
+      // needed and anti-bot protections (Zillow) are never triggered.
+      let landingFields: Partial<ExtractedListing> = {};
+      try {
+        landingFields = await extractListingFromHtml(captureHtml, sourceUrl);
+      } catch {
+        // Tolerate extraction failure; fields stay empty
+      }
+
+      const landingPage: CrawlSourcePage = {
+        url: sourceUrl,
+        fields: landingFields,
+        textExcerpt: pruneHtml(captureHtml).slice(0, MAX_TEXT_EXCERPT_CHARS),
+      };
+
+      // Self-consume the capture (best-effort) after reading.
+      await deleteCapture(ctx.supabase, listingId, ctx.userId);
+
+      // Subpages still require a server-side fetch (uses injected fetcher for tests).
+      const fetcher = resolveFetcher(ctx);
+      const { pages: subPages, discarded } = await processSubpages(
+        captureHtml,
+        sourceUrl,
+        fetcher,
+      );
+
+      return { output: { pages: [landingPage, ...subPages], discarded } };
+    }
+
+    // -------------------------------------------------------------------------
+    // 3. Fetch + extract landing page (fallback when no capture)
     // -------------------------------------------------------------------------
     const fetcher = resolveFetcher(ctx);
 
@@ -171,43 +320,21 @@ export const crawlSourceStep: MissionStep = {
       // Tolerate extraction failure on landing page; continue with empty fields
     }
 
-    const landingExcerpt = pruneHtml(landingHtml).slice(0, MAX_TEXT_EXCERPT_CHARS);
+    const landingPage: CrawlSourcePage = {
+      url: sourceUrl,
+      fields: landingFields,
+      textExcerpt: pruneHtml(landingHtml).slice(0, MAX_TEXT_EXCERPT_CHARS),
+    };
 
-    const pages: CrawlSourcePage[] = [
-      { url: sourceUrl, fields: landingFields, textExcerpt: landingExcerpt },
-    ];
-
-    // -------------------------------------------------------------------------
-    // 3. Discover + fetch subpages
-    // -------------------------------------------------------------------------
-    const subpageUrls = discoverSubpages(landingHtml, sourceUrl);
-    const discarded: Array<{ url: string; reason: string }> = [];
-
-    for (const subUrl of subpageUrls) {
-      const result = await fetchAndExtract(subUrl, fetcher);
-      if (!result) {
-        discarded.push({ url: subUrl, reason: 'fetch_failed' });
-        continue;
-      }
-
-      // 4. Relevance gate — landing page is exempt; subpages must pass
-      if (
-        !isHousingRelated(result.textExcerpt, {
-          price: typeof result.fields.price === 'number' ? result.fields.price : undefined,
-          bedrooms: typeof result.fields.bedrooms === 'number' ? result.fields.bedrooms : undefined,
-          address: typeof result.fields.address === 'string' ? result.fields.address : undefined,
-        })
-      ) {
-        discarded.push({ url: subUrl, reason: 'not_housing' });
-        continue;
-      }
-
-      pages.push({ url: subUrl, fields: result.fields, textExcerpt: result.textExcerpt });
-    }
+    const { pages: subPages, discarded } = await processSubpages(
+      landingHtml,
+      sourceUrl,
+      fetcher,
+    );
 
     return {
       output: {
-        pages,
+        pages: [landingPage, ...subPages],
         discarded,
       },
     };
