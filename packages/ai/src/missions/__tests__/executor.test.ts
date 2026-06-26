@@ -306,12 +306,36 @@ describe('executeMission', () => {
 
     await executeMission({ missionId: 'mission-1' });
 
-    expect(mockUpdateStatus).toHaveBeenCalledWith(expect.anything(), 'mission-1', 'failed');
+    expect(mockMarkMissionFailed).toHaveBeenCalledWith(
+      expect.anything(),
+      'mission-1',
+      expect.stringContaining('No mission definition registered for type: housing_search'),
+      {},
+    );
     const errorLog = mockInsertLog.mock.calls.find(
       (call) => (call[1] as any).status === 'error',
     );
     expect(errorLog).toBeDefined();
     expect((errorLog![1] as any).detail).toContain('No mission definition registered');
+  });
+
+  it('persists last_error via markMissionFailed when no definition is registered', async () => {
+    // Regression: the no-definition branch previously called updateMissionStatus(..., 'failed')
+    // which does NOT persist last_error — mission row had last_error=NULL after silent failure.
+    // The fix calls markMissionFailed so last_error is always durably persisted.
+    mockGetMission.mockResolvedValue(baseMission({ type: 'sublease_post' }));
+    mockGetDefinition.mockReturnValue(undefined);
+
+    await executeMission({ missionId: 'mission-1' });
+
+    expect(mockMarkMissionFailed).toHaveBeenCalledWith(
+      expect.anything(),
+      'mission-1',
+      expect.stringContaining('No mission definition registered for type: sublease_post'),
+      {},
+    );
+    // updateMissionStatus must NOT be called with 'failed' — markMissionFailed handles it
+    expect(mockUpdateStatus).not.toHaveBeenCalledWith(expect.anything(), 'mission-1', 'failed');
   });
 
   it('is a no-op if mission status is completed', async () => {

@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { resolveMissionAuth, verifyMissionOwnership, getQueryClient } from '../_helpers';
+import { resolveMissionAuth, verifyMissionOwnership, getQueryClient, redactMissionSecrets } from '../_helpers';
 
 /** GET /api/missions/[id] — mission detail + logs + current draft. */
 export async function GET(
@@ -47,8 +47,12 @@ export async function GET(
     return NextResponse.json({ error: 'Failed to load mission logs' }, { status: 500 });
   }
 
+  // AIN-77: strip any secret-named keys from mission.input before echoing to client.
+  // Defense-in-depth: Hardening A ensures no secret enters input, but this
+  // guarantees the API never leaks a secret-named field even if a future code
+  // path writes one.
   return NextResponse.json({
-    mission,
+    mission: redactMissionSecrets(mission),
     logs: logsResult.data ?? [],
     currentDraft: draftResult.data ?? null,
   });

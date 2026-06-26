@@ -1,8 +1,11 @@
 /**
  * Tests for reanalyze step (AIN-71 step 4.6).
+ *
+ * AIN-77: placesApiKey is env-only. Tests use vi.stubEnv where they need to
+ * verify the key is forwarded; ctx.input.placesApiKey is never set.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import type { StepContext } from '../../types';
 
 function makeUpdateMock() {
@@ -34,7 +37,7 @@ function makeCtx(
       listingId: 'listing-1',
       sourceUrl: 'https://x01oncampus.com/',
       firstSaveAnalysis: stubs.firstSaveAnalysis,
-      placesApiKey: 'test-key',
+      // AIN-77: placesApiKey intentionally absent from input
     },
     state: {
       updatedFields: ['rent', 'address'],
@@ -57,6 +60,11 @@ const ERROR_ANALYSIS = {
   ...OK_ANALYSIS,
   redFlags: { status: 'error', data: null },
 };
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.resetModules();
+});
 
 describe('reanalyze step', () => {
   it('calls firstSaveAnalysis and persists when all branches ok', async () => {
@@ -98,5 +106,23 @@ describe('reanalyze step', () => {
     const result = await reanalyzeStep.run(ctx);
     expect(result.output.analysisStatus).toBe('failed');
     // Should not throw
+  });
+
+  it('reads placesApiKey from env only — ignores placesApiKey in ctx.input (AIN-77)', async () => {
+    vi.stubEnv('GOOGLE_PLACES_API_KEY', 'correct-env-key');
+    vi.resetModules();
+    const stubAnalysis = vi.fn().mockResolvedValue(OK_ANALYSIS);
+    const { reanalyzeStep } = await import('../steps/05-reanalyze');
+
+    const ctx = makeCtx({ firstSaveAnalysis: stubAnalysis });
+    // Deliberately put a different key in input — it must NOT be forwarded
+    (ctx.input as Record<string, unknown>).placesApiKey = 'wrong-input-key';
+
+    await reanalyzeStep.run(ctx);
+
+    // The second argument to analysisFn should contain placesApiKey from env
+    expect(stubAnalysis).toHaveBeenCalledOnce();
+    const callOptions = (stubAnalysis.mock.calls[0] as unknown[])[1] as Record<string, unknown>;
+    expect(callOptions.placesApiKey).toBe('correct-env-key');
   });
 });

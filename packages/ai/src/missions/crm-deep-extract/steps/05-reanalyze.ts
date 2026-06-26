@@ -45,7 +45,6 @@ export const reanalyzeStep: MissionStep = {
 
   async run(ctx: StepContext): Promise<StepResult> {
     const listingId = ctx.input.listingId as string;
-    const placesApiKey = (ctx.input as Record<string, unknown>).placesApiKey as string | undefined;
     const state = ctx.state as Record<string, unknown>;
 
     const analysisFn = resolveAnalysisFn(ctx);
@@ -55,7 +54,8 @@ export const reanalyzeStep: MissionStep = {
       analysis = await analysisFn(listingId, {
         db: ctx.supabase,
         userId: ctx.userId,
-        placesApiKey: placesApiKey ?? process.env['GOOGLE_PLACES_API_KEY'],
+        // AIN-77: key from env only — never from mission input (input is user-readable JSONB).
+        placesApiKey: process.env['GOOGLE_PLACES_API_KEY'],
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

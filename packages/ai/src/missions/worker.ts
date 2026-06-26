@@ -2,6 +2,9 @@ import { createSecretClient } from '@campusnest/supabase/server';
 import type { Mission } from '@campusnest/types';
 import { claimNextMission } from './mission-repository';
 import { executeMission } from './executor';
+// Populate the mission registry — worker.ts never imports the barrel (index.ts)
+// so registerMission() would never run without this explicit import.
+import './register';
 
 const MAX_JOBS_PER_RUN = 10;
 const MIN_LEASE_SECONDS = 30;
