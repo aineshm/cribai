@@ -87,13 +87,17 @@ export async function executeMission(options: ExecuteOptions): Promise<void> {
   // ── Look up mission definition ──────────────────────────
   const definition = getMissionDefinition(mission.type);
   if (!definition) {
+    const noDefMessage = `No mission definition registered for type: ${mission.type}`;
+    console.error(`[executor] ${noDefMessage}`);
     await insertMissionLog(supabase, {
       mission_id: options.missionId,
       action: 'executor_error',
-      detail: `No mission definition registered for type: ${mission.type}`,
+      detail: noDefMessage,
       status: 'error',
     });
-    await updateMissionStatus(supabase, options.missionId, 'failed');
+    // Use markMissionFailed (not updateMissionStatus) so last_error is durably
+    // persisted — updateMissionStatus only sets status, leaving last_error=NULL.
+    await markMissionFailed(supabase, options.missionId, noDefMessage, {});
     return;
   }
 

@@ -5,14 +5,10 @@
  * definitions for use by API routes and mission implementations.
  */
 
-// Side-effect imports: register all mission pipelines with the registry.
-// These MUST be import statements (not just re-exports) so tree-shaking
-// cannot strip them — the registerMission() calls run at import time.
-import './housing-search/index';
-import './tour-outreach-mission';
-import './listing-deep-dive/index';
-import './sublease-post/index';
-import './crm-deep-extract/index';
+// Register all mission pipelines via the dedicated side-effect module.
+// register.ts holds the authoritative list so both this barrel and the
+// standalone worker (worker.ts) share the same registration path.
+import './register';
 
 export { executeMission } from './executor';
 export { runMissionQueueOnce } from './worker';

@@ -4,6 +4,10 @@
   "private": true,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "sideEffects": [
+    "./src/missions/register.ts",
+    "./dist/missions/register.js"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
