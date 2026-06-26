@@ -51,7 +51,12 @@ function makeMockSupabase(opts: {
         : null;
 
   // Spy exposed so tests can assert the capture row was deleted after consumption.
-  const captureDeleteSpy = vi.fn().mockResolvedValue({ data: null, error: null });
+  // The delete chains two .eq() calls (listing_id, then user_id — AIN-78
+  // defense-in-depth); captureDeleteSpy is the first .eq, returning a chainable
+  // second .eq that resolves the query.
+  const captureDeleteSpy = vi.fn(() => ({
+    eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+  }));
 
   return {
     from: vi.fn((table: string) => {
@@ -59,9 +64,12 @@ function makeMockSupabase(opts: {
       if (table === 'crm_listing_captures') {
         const captureData = opts.captureHtml != null ? { html: opts.captureHtml } : null;
         return {
+          // select chains .eq('listing_id').eq('user_id').maybeSingle()
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
-              maybeSingle: vi.fn().mockResolvedValue({ data: captureData, error: null }),
+              eq: vi.fn(() => ({
+                maybeSingle: vi.fn().mockResolvedValue({ data: captureData, error: null }),
+              })),
             })),
           })),
           delete: vi.fn(() => ({ eq: captureDeleteSpy })),

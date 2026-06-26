@@ -244,7 +244,9 @@ async function persistCapture(
     const { error } = await auth.db
       .from('crm_listing_captures')
       .upsert(
-        { listing_id: listingId, user_id: auth.userId, html },
+        // captured_at refreshed on conflict so a re-capture is never treated as
+        // stale by a future TTL cleanup (AIN-79).
+        { listing_id: listingId, user_id: auth.userId, html, captured_at: new Date().toISOString() },
         { onConflict: 'listing_id' },
       );
     if (error) {

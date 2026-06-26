@@ -148,16 +148,24 @@ async function processSubpages(
  * AIN-78: Look up the extension-captured HTML for a listing.
  * Returns the captured html string, or null when no capture exists / on error.
  * Never throws — failures are silently swallowed; the caller falls back to fetch.
+ *
+ * The `user_id` filter is defense-in-depth: the worker runs as service-role
+ * (bypasses RLS), so without it a capture row keyed by the same listing_id but
+ * owned by another user could be served into this mission. The normal flow can't
+ * produce that (listing_id always traces to the owner), but the filter ensures a
+ * future bug can never leak one user's captured HTML into another's mission.
  */
 async function lookupCapture(
   supabase: SupabaseClient,
   listingId: string,
+  userId: string,
 ): Promise<string | null> {
   try {
     const { data } = (await supabase
       .from('crm_listing_captures')
       .select('html')
       .eq('listing_id', listingId)
+      .eq('user_id', userId)
       .maybeSingle()) as { data: CaptureRow | null; error: unknown };
     return data?.html ?? null;
   } catch {
@@ -168,16 +176,31 @@ async function lookupCapture(
 /**
  * AIN-78: Best-effort delete of a consumed capture row. Called after the HTML
  * has been read so storage never accumulates. Logs on failure but never throws.
+ *
+ * Scoped by `user_id` for the same defense-in-depth reason as `lookupCapture`.
+ *
+ * NOTE: the delete fires immediately after the landing HTML is read (before
+ * subpage fetching). If the step throws mid-subpage and retries, the capture is
+ * already gone and the retry falls back to a server-side fetch — accepted
+ * degradation. Do not move this later without weighing that trade-off.
  */
 async function deleteCapture(
   supabase: SupabaseClient,
   listingId: string,
+  userId: string,
 ): Promise<void> {
   try {
-    await supabase
+    const { error } = await supabase
       .from('crm_listing_captures')
       .delete()
-      .eq('listing_id', listingId);
+      .eq('listing_id', listingId)
+      .eq('user_id', userId);
+    if (error) {
+      console.warn(
+        '[crawl_source] capture delete failed (non-fatal):',
+        (error as { message?: string }).message ?? error,
+      );
+    }
   } catch (err) {
     console.warn(
       '[crawl_source] capture delete failed (non-fatal):',
@@ -230,9 +253,9 @@ export const crawlSourceStep: MissionStep = {
     // -------------------------------------------------------------------------
     // 2. AIN-78: Use extension capture as landing page when present
     // -------------------------------------------------------------------------
-    const captureHtml = await lookupCapture(ctx.supabase, listingId);
+    const captureHtml = await lookupCapture(ctx.supabase, listingId, ctx.userId);
 
-    if (captureHtml !== null) {
+    if (captureHtml) {
       // Use the HTML the user's own browser already loaded — no server-side fetch
       // needed and anti-bot protections (Zillow) are never triggered.
       let landingFields: Partial<ExtractedListing> = {};
@@ -249,7 +272,7 @@ export const crawlSourceStep: MissionStep = {
       };
 
       // Self-consume the capture (best-effort) after reading.
-      await deleteCapture(ctx.supabase, listingId);
+      await deleteCapture(ctx.supabase, listingId, ctx.userId);
 
       // Subpages still require a server-side fetch (uses injected fetcher for tests).
       const fetcher = resolveFetcher(ctx);
