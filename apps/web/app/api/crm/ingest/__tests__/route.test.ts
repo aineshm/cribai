@@ -1410,6 +1410,75 @@ describe('POST /api/crm/ingest — needsEnrichment broadening (AIN-75)', () => {
   });
 });
 
+// ── Capture persistence (AIN-78) ─────────────────────────────────────────────
+
+describe('POST /api/crm/ingest — capture persistence (AIN-78)', () => {
+  /**
+   * When a deep-extract is going to be enqueued (needsDeepScan=true), the ingest
+   * route must persist the extension-captured HTML to crm_listing_captures so the
+   * crawl_source step can reuse it instead of re-fetching (which Zillow blocks).
+   * The write is best-effort — a failure must never affect the 201 response.
+   */
+
+  function setupMockForCapture(captureUpsertSpy: ReturnType<typeof vi.fn>) {
+    // Low confidence ensures needsDeepScan=true without a DB round-trip for checkNeedsEnrichment.
+    mockAddListing.mockResolvedValue({ listingId: 'l-cap', alreadySaved: false, confidence: 0.3 });
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'crm_listing_captures') {
+        return { upsert: captureUpsertSpy };
+      }
+      if (table === 'missions') {
+        return {
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: { id: 'mission-cap' }, error: null }),
+            }),
+          }),
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+            }),
+          }),
+        };
+      }
+      return createQueryBuilder({ data: null, error: null, count: 0 });
+    });
+  }
+
+  it('upserts crm_listing_captures with the captured HTML when a deep-extract is enqueued', async () => {
+    const captureUpsertSpy = vi.fn().mockResolvedValue({ data: null, error: null });
+    setupMockForCapture(captureUpsertSpy);
+
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+
+    // Allow any async tails to settle
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(captureUpsertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        listing_id: 'l-cap',
+        html: VALID_HTML,
+        user_id: 'u-1',
+      }),
+      expect.anything(), // onConflict options
+    );
+  });
+
+  it('returns 201 even when the capture upsert throws (best-effort, must not fail the save)', async () => {
+    const captureUpsertSpy = vi.fn().mockRejectedValue(new Error('DB connection lost'));
+    setupMockForCapture(captureUpsertSpy);
+
+    const res = await POST(makeRequest(validBody()));
+
+    // The 201 must be returned regardless of the capture write failing
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.listingId).toBe('l-cap');
+  });
+});
+
 // ── after() scheduling (AIN-75 Task 1) ───────────────────────────────────────
 
 describe('POST /api/crm/ingest — after() scheduling (AIN-75)', () => {

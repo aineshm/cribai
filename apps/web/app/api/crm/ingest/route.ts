@@ -217,6 +217,47 @@ async function fireAnalysis(auth: CrmAuth, listingId: string): Promise<void> {
   }
 }
 
+// ── Capture persistence (AIN-78) ─────────────────────────────────────────────
+
+/**
+ * Best-effort upsert of the extension-captured HTML into crm_listing_captures.
+ *
+ * Called when a deep-extract mission is about to be enqueued so the
+ * crawl_source step can reuse the user's real browser HTML instead of
+ * re-fetching the URL server-side (anti-bot sites like Zillow block the
+ * server-side fetch; the user's browser already loaded it cleanly).
+ *
+ * Design:
+ *   - Upserts on listing_id conflict so re-ingest of the same URL always
+ *     stores the freshest HTML the user's browser captured.
+ *   - Best-effort only: a write failure is logged and swallowed. The mission
+ *     still runs; crawl_source falls back to a server-side fetch (which may
+ *     be blocked, but that was the prior behaviour before AIN-78).
+ *   - Never mutates its arguments; always creates a new row object.
+ */
+async function persistCapture(
+  auth: CrmAuth,
+  listingId: string,
+  html: string,
+): Promise<void> {
+  try {
+    const { error } = await auth.db
+      .from('crm_listing_captures')
+      .upsert(
+        { listing_id: listingId, user_id: auth.userId, html },
+        { onConflict: 'listing_id' },
+      );
+    if (error) {
+      console.warn('[crm/ingest] capture persist failed (non-fatal):', error.message);
+    }
+  } catch (err) {
+    console.warn(
+      '[crm/ingest] capture persist threw (non-fatal):',
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+}
+
 // ── Deep-extract mission enqueue (AIN-71) ────────────────────────────────────
 
 /**
@@ -554,6 +595,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // (or was already-queued via 23505). Never set based on confidence alone.
     let enqueueResult: EnqueueResult = 'failed';
     if (needsDeepScan) {
+      // AIN-78: persist the extension-captured HTML before enqueueing so
+      // crawl_source can reuse it. Best-effort — failure is logged and
+      // swallowed; the mission is still enqueued and the response is unaffected.
+      await persistCapture(auth, result.listingId, capturedHtml);
+
       try {
         enqueueResult = await Promise.race([
           enqueueDeepExtract(auth, result.listingId, sourceUrl),
