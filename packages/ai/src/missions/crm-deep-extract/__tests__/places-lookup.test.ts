@@ -1,8 +1,11 @@
 /**
  * Tests for places-lookup step (AIN-71 step 4.3).
+ *
+ * AIN-77: placesApiKey is env-only. Tests use vi.stubEnv to provide the key;
+ * ctx.input.placesApiKey is intentionally never set.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import type { StepContext } from '../../types';
 
 function makeCtx(stateOverrides: Record<string, unknown> = {}): StepContext {
@@ -19,8 +22,15 @@ function makeCtx(stateOverrides: Record<string, unknown> = {}): StepContext {
 
 const GEOCODE_RESULT = { latitude: 43.071, longitude: -89.402 };
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.resetModules();
+});
+
 describe('places_lookup step', () => {
   it('geocodes using best address from pages output', async () => {
+    vi.stubEnv('GOOGLE_PLACES_API_KEY', 'test-key');
+    vi.resetModules();
     const stubGeocode = vi.fn().mockResolvedValue(GEOCODE_RESULT);
     const { placesLookupStep } = await import('../steps/02-places-lookup');
 
@@ -31,7 +41,6 @@ describe('places_lookup step', () => {
       discarded: [],
     });
     (ctx.input as Record<string, unknown>).geocode = stubGeocode;
-    (ctx.input as Record<string, unknown>).placesApiKey = 'test-key';
 
     const result = await placesLookupStep.run(ctx);
 
@@ -41,6 +50,8 @@ describe('places_lookup step', () => {
   });
 
   it('falls back to row.address when pages have no address', async () => {
+    vi.stubEnv('GOOGLE_PLACES_API_KEY', 'test-key');
+    vi.resetModules();
     const stubGeocode = vi.fn().mockResolvedValue(GEOCODE_RESULT);
     const { placesLookupStep } = await import('../steps/02-places-lookup');
 
@@ -49,9 +60,6 @@ describe('places_lookup step', () => {
       discarded: [],
     });
     (ctx.input as Record<string, unknown>).geocode = stubGeocode;
-    (ctx.input as Record<string, unknown>).placesApiKey = 'test-key';
-    // Provide row address via state (as crawl_source would not have written this)
-    // Use the listingId to simulate a fallback from the original input.address
     (ctx.input as Record<string, unknown>).rowAddress = '640 W Dayton St, Madison, WI';
 
     const result = await placesLookupStep.run(ctx);
@@ -61,6 +69,8 @@ describe('places_lookup step', () => {
   });
 
   it('returns empty output (never throws) when geocode fails', async () => {
+    vi.stubEnv('GOOGLE_PLACES_API_KEY', 'test-key');
+    vi.resetModules();
     const stubGeocode = vi.fn().mockResolvedValue(null);
     const { placesLookupStep } = await import('../steps/02-places-lookup');
 
@@ -69,7 +79,6 @@ describe('places_lookup step', () => {
       discarded: [],
     });
     (ctx.input as Record<string, unknown>).geocode = stubGeocode;
-    (ctx.input as Record<string, unknown>).placesApiKey = 'test-key';
 
     const result = await placesLookupStep.run(ctx);
 
@@ -78,6 +87,8 @@ describe('places_lookup step', () => {
   });
 
   it('skips geocoding when no address candidate is available', async () => {
+    vi.stubEnv('GOOGLE_PLACES_API_KEY', 'test-key');
+    vi.resetModules();
     const stubGeocode = vi.fn().mockResolvedValue(GEOCODE_RESULT);
     const { placesLookupStep } = await import('../steps/02-places-lookup');
 
@@ -86,7 +97,6 @@ describe('places_lookup step', () => {
       discarded: [],
     });
     (ctx.input as Record<string, unknown>).geocode = stubGeocode;
-    (ctx.input as Record<string, unknown>).placesApiKey = 'test-key';
 
     const result = await placesLookupStep.run(ctx);
 
@@ -94,12 +104,10 @@ describe('places_lookup step', () => {
     expect(result.output.latitude).toBeUndefined();
   });
 
-  // FIX 4: fall back to process.env when input.placesApiKey is absent
   it('geocodes using GOOGLE_PLACES_API_KEY env var when input key is absent', async () => {
     vi.stubEnv('GOOGLE_PLACES_API_KEY', 'env-places-key');
-    const stubGeocode = vi.fn().mockResolvedValue(GEOCODE_RESULT);
-    // Re-import after env change to pick up new module state
     vi.resetModules();
+    const stubGeocode = vi.fn().mockResolvedValue(GEOCODE_RESULT);
     const { placesLookupStep } = await import('../steps/02-places-lookup');
 
     const ctx = makeCtx({
@@ -115,7 +123,28 @@ describe('places_lookup step', () => {
 
     expect(stubGeocode).toHaveBeenCalledWith('640 W Dayton St, Madison, WI', 'env-places-key');
     expect(result.output.latitude).toBe(43.071);
+  });
 
-    vi.unstubAllEnvs();
+  it('ignores placesApiKey set in ctx.input — env var is the sole authority (AIN-77)', async () => {
+    vi.stubEnv('GOOGLE_PLACES_API_KEY', 'correct-env-key');
+    vi.resetModules();
+    const stubGeocode = vi.fn().mockResolvedValue(GEOCODE_RESULT);
+    const { placesLookupStep } = await import('../steps/02-places-lookup');
+
+    const ctx = makeCtx({
+      pages: [
+        { url: 'https://x01oncampus.com/', fields: { address: '640 W Dayton St, Madison, WI' }, textExcerpt: '' },
+      ],
+      discarded: [],
+    });
+    (ctx.input as Record<string, unknown>).geocode = stubGeocode;
+    // Deliberately set a different key in input — it must NOT be used
+    (ctx.input as Record<string, unknown>).placesApiKey = 'wrong-input-key';
+
+    const result = await placesLookupStep.run(ctx);
+
+    // The env key should be used, not the input key
+    expect(stubGeocode).toHaveBeenCalledWith('640 W Dayton St, Madison, WI', 'correct-env-key');
+    expect(result.output.latitude).toBe(43.071);
   });
 });
