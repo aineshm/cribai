@@ -53,7 +53,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build workspace packages
-        run: pnpm --filter @campusnest/types --filter @campusnest/supabase build
+        # Build every workspace dependency of @campusnest/ai (currently types,
+        # supabase, utils). The worker runs ai via tsx (source), but ai consumes
+        # its workspace deps as built dist (package "main"). The "^..." selector
+        # auto-tracks new deps so a missing build can't silently break the worker
+        # again (AIN-77: registering the mission graph pulled in @campusnest/utils,
+        # which was unbuilt → MODULE_NOT_FOUND at worker startup).
+        run: pnpm --filter "@campusnest/ai^..." build
 
       - name: Run mission worker once
         run: pnpm worker:missions -- --once
