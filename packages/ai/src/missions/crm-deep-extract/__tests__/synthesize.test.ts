@@ -83,7 +83,7 @@ describe('synthesize step', () => {
     expect(fields.bedrooms).toBe(0);
   });
 
-  it('returns empty fields without throwing when LLM fails', async () => {
+  it('degrades to the structured baseline on LLM failure (empty here — no page fields)', async () => {
     const stubGenerate = vi.fn().mockRejectedValue(new Error('provider error'));
     const { synthesizeStep } = await import('../steps/03-synthesize');
 
@@ -110,6 +110,86 @@ describe('synthesize step', () => {
 
     expect(capturedPrompt).not.toMatch(/<html/i);
     expect(capturedPrompt).toContain('Apartments from $899');
+  });
+
+  // AIN-81: the high-confidence structured extraction from crawl_source
+  // (pages[].fields, ExtractedListing names: price=rent, square_feet=sqft) must
+  // reach the row. It is the BASELINE; the LLM augments/overrides it per-field.
+  describe('structured baseline (AIN-81)', () => {
+    it('falls back to structured page extraction when the LLM fails', async () => {
+      const stubGenerate = vi.fn().mockRejectedValue(new Error('provider error'));
+      const { synthesizeStep } = await import('../steps/03-synthesize');
+
+      const pages = [{
+        url: 'https://www.zillow.com/homedetails/x/',
+        fields: {
+          price: 1950,
+          square_feet: 850,
+          bedrooms: 2,
+          bathrooms: 1,
+          address: '123 W Gorham St',
+          description: 'Cozy 2BR near campus.',
+          available_from: '2026-08-15',
+          amenities: ['In-unit laundry', 'Dishwasher'],
+        },
+        textExcerpt: '<h1>123 W Gorham St</h1>',
+      }];
+      const ctx = makeCtx(pages);
+      (ctx.input as Record<string, unknown>).generate = stubGenerate;
+
+      const result = await synthesizeStep.run(ctx);
+      const f = result.output.fields as Record<string, unknown>;
+      expect(f.rent).toBe(1950);
+      expect(f.sqft).toBe(850);
+      expect(f.bedrooms).toBe(2);
+      expect(f.bathrooms).toBe(1);
+      expect(f.address).toBe('123 W Gorham St');
+      expect(f.description).toBe('Cozy 2BR near campus.');
+      expect(f.available_from).toBe('2026-08-15');
+      expect(f.amenities).toEqual(['In-unit laundry', 'Dishwasher']);
+    });
+
+    it('uses the LLM output to fill gaps the structured extraction missed', async () => {
+      const stubGenerate = vi.fn().mockResolvedValue({ description: 'Modern apartment', rent: null });
+      const { synthesizeStep } = await import('../steps/03-synthesize');
+
+      const pages = [{ url: 'https://x/', fields: { price: 1950 }, textExcerpt: 'Apartments' }];
+      const ctx = makeCtx(pages);
+      (ctx.input as Record<string, unknown>).generate = stubGenerate;
+
+      const result = await synthesizeStep.run(ctx);
+      const f = result.output.fields as Record<string, unknown>;
+      expect(f.rent).toBe(1950); // from structured baseline (LLM returned null)
+      expect(f.description).toBe('Modern apartment'); // from LLM
+    });
+
+    it('preserves bedrooms: 0 (studio) from the structured baseline on LLM failure', async () => {
+      const stubGenerate = vi.fn().mockRejectedValue(new Error('provider error'));
+      const { synthesizeStep } = await import('../steps/03-synthesize');
+
+      const pages = [{ url: 'https://x/', fields: { price: 1500, bedrooms: 0, bathrooms: 1 }, textExcerpt: '' }];
+      const ctx = makeCtx(pages);
+      (ctx.input as Record<string, unknown>).generate = stubGenerate;
+
+      const result = await synthesizeStep.run(ctx);
+      const f = result.output.fields as Record<string, unknown>;
+      expect(f.bedrooms).toBe(0); // studio — must not be dropped to null
+      expect(f.bathrooms).toBe(1);
+      expect(f.rent).toBe(1500);
+    });
+
+    it('prefers the LLM value over the structured baseline on conflict', async () => {
+      const stubGenerate = vi.fn().mockResolvedValue({ rent: 1800 });
+      const { synthesizeStep } = await import('../steps/03-synthesize');
+
+      const pages = [{ url: 'https://x/', fields: { price: 1950 }, textExcerpt: 'Apartments' }];
+      const ctx = makeCtx(pages);
+      (ctx.input as Record<string, unknown>).generate = stubGenerate;
+
+      const result = await synthesizeStep.run(ctx);
+      const f = result.output.fields as Record<string, unknown>;
+      expect(f.rent).toBe(1800); // LLM wins on a real conflict
+    });
   });
 
   // AIN-75 Task 4: no-op on empty pages (blocked crawl path)

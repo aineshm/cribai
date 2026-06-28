@@ -113,6 +113,68 @@ function applyFloorPlanTopLevel(fields: DeepExtract): DeepExtract {
   };
 }
 
+/**
+ * Build a DeepExtract baseline from the structured fields crawl_source already
+ * extracted into state.pages[].fields (ExtractedListing names: price→rent,
+ * square_feet→sqft). AIN-81: this is the floor the LLM augments. When the LLM
+ * call fails or returns null for a field, the high-confidence json_ld/OG
+ * extraction still reaches the row instead of being silently dropped. First
+ * non-nullish value across pages wins (the landing page is pages[0]).
+ */
+function buildBaselineFromPages(
+  pages: ReadonlyArray<{ fields: Record<string, unknown> }>,
+): DeepExtract {
+  const baseline: DeepExtract = {};
+  const str = (v: unknown): string | undefined =>
+    typeof v === 'string' && v.trim().length > 0 ? v : undefined;
+  const num = (v: unknown): number | undefined =>
+    typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : undefined;
+  // bedrooms/bathrooms may legitimately be 0 (a studio) — allow >= 0 so the
+  // count isn't silently dropped to null on the baseline path.
+  const countNum = (v: unknown): number | undefined =>
+    typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : undefined;
+
+  for (const { fields: f } of pages) {
+    baseline.rent ??= num(f['price']);
+    baseline.sqft ??= num(f['square_feet']);
+    baseline.bedrooms ??= countNum(f['bedrooms']);
+    baseline.bathrooms ??= countNum(f['bathrooms']);
+    baseline.title ??= str(f['title']);
+    baseline.address ??= str(f['address']);
+    baseline.description ??= str(f['description']);
+    baseline.available_from ??= str(f['available_from']);
+    if (baseline.amenities == null && Array.isArray(f['amenities']) && f['amenities'].length > 0) {
+      baseline.amenities = (f['amenities'] as unknown[]).filter(
+        (a): a is string => typeof a === 'string',
+      );
+    }
+  }
+  return baseline;
+}
+
+/**
+ * Merge the LLM's structured output ONTO the baseline: the LLM wins on any field
+ * it provides a non-nullish value for; the baseline fills the rest. Gap-fill
+ * against existing row values (never overwriting user data) happens in update-row.
+ */
+function mergeOntoBaseline(llm: DeepExtract, baseline: DeepExtract): DeepExtract {
+  const pick = <K extends keyof DeepExtract>(k: K): DeepExtract[K] =>
+    (llm[k] ?? baseline[k] ?? null) as DeepExtract[K];
+  return {
+    title: pick('title'),
+    description: pick('description'),
+    rent: pick('rent'),
+    bedrooms: pick('bedrooms'),
+    bathrooms: pick('bathrooms'),
+    sqft: pick('sqft'),
+    address: pick('address'),
+    available_from: pick('available_from'),
+    amenities:
+      llm.amenities && llm.amenities.length > 0 ? llm.amenities : baseline.amenities ?? null,
+    floor_plans: llm.floor_plans ?? null,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Step
 // ---------------------------------------------------------------------------
@@ -138,7 +200,10 @@ export const synthesizeStep: MissionStep = {
 
     const prompt = buildPrompt(pages);
 
-    let fields: DeepExtract = {};
+    // AIN-81: the structured json_ld/OG extraction from crawl_source is the
+    // baseline. The LLM augments it; on LLM failure the baseline still ships.
+    const baseline = buildBaselineFromPages(pages);
+    let fields: DeepExtract = baseline;
 
     try {
       const raw = await generate({
@@ -149,10 +214,10 @@ export const synthesizeStep: MissionStep = {
       });
       const parsed = DeepExtractSchema.safeParse(raw);
       if (parsed.success) {
-        fields = applyFloorPlanTopLevel(parsed.data);
+        fields = mergeOntoBaseline(applyFloorPlanTopLevel(parsed.data), baseline);
       }
     } catch {
-      // LLM failures degrade to empty fields — never throws
+      // LLM failure → keep the structured baseline (never throws)
     }
 
     return {
