@@ -10,6 +10,7 @@ import { createSecretClient } from '@campusnest/supabase/server';
 import type { Mission } from '@campusnest/types';
 import type { ExecuteOptions, StepContext } from './types';
 import { getMissionDefinition } from './registry';
+import { ensureMissionsRegistered } from './register';
 import {
   clearMissionLease,
   completeMission,
@@ -65,6 +66,14 @@ function isRetryableError(message: string): boolean {
  * reflected in the mission's status.
  */
 export async function executeMission(options: ExecuteOptions): Promise<void> {
+  // AIN-80: guarantee the mission registry is populated before the definition
+  // lookup below. Registration must NOT depend on bundler-preserved import side
+  // effects — the in-process run-next path pulls this module through the
+  // @campusnest/ai barrel, where the narrow `sideEffects` config lets the
+  // bundler drop register.ts's side-effect imports. An explicit call is the
+  // only entry-point-independent guarantee. Idempotent + cheap.
+  ensureMissionsRegistered();
+
   const supabase = createSecretClient();
 
   // ── Fetch mission ──────────────────────────────────────

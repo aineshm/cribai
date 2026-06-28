@@ -45,6 +45,13 @@ vi.mock('../registry', () => ({
   getMissionDefinition: vi.fn(),
 }));
 
+// executor.ts imports ensureMissionsRegistered from './register' (AIN-80). Mock
+// it to a no-op so these tests don't load the real mission modules (heavy deps);
+// definition resolution here is driven by the mocked getMissionDefinition above.
+vi.mock('../register', () => ({
+  ensureMissionsRegistered: vi.fn(),
+}));
+
 import { executeMission } from '../executor';
 import {
   clearMissionLease,

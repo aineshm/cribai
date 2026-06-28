@@ -5,9 +5,11 @@
  * definitions for use by API routes and mission implementations.
  */
 
-// Register all mission pipelines via the dedicated side-effect module.
-// register.ts holds the authoritative list so both this barrel and the
-// standalone worker (worker.ts) share the same registration path.
+// Eagerly register all mission pipelines for source-executed entry points (the
+// tsx worker, tests). NOTE (AIN-80): in a *bundled* server build this bare
+// side-effect import can be tree-shaken away — the authoritative registration
+// guarantee now lives in executeMission() via ensureMissionsRegistered(), which
+// cannot be elided. This import is kept for the non-bundled paths.
 import './register';
 
 export { executeMission } from './executor';
