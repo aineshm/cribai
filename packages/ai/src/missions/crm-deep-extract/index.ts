@@ -16,7 +16,7 @@
  */
 
 import { registerMission } from '../registry';
-import type { MissionStep } from '../types';
+import type { MissionStep, MissionDefinition } from '../types';
 import { crawlSourceStep } from './steps/01-crawl-source';
 import { placesLookupStep } from './steps/02-places-lookup';
 import { synthesizeStep } from './steps/03-synthesize';
@@ -36,8 +36,11 @@ export interface CrmDeepExtractInput {
   readonly sourceUrl: string;
 }
 
-// Side-effect registration — import this module to make crm_deep_extract available.
-registerMission({
+export const CRM_DEEP_EXTRACT_DEFINITION: MissionDefinition = {
   type: 'crm_deep_extract',
   steps: CRM_DEEP_EXTRACT_STEPS,
-});
+};
+
+// Side-effect registration — import this module to make crm_deep_extract available.
+// AIN-80: also registered explicitly via ensureMissionsRegistered() (tree-shake-proof).
+registerMission(CRM_DEEP_EXTRACT_DEFINITION);

@@ -1,5 +1,5 @@
 import { registerMission } from '../registry';
-import type { MissionStep } from '../types';
+import type { MissionStep, MissionDefinition } from '../types';
 import { validateFieldsStep } from './steps/01-validate';
 import { geocodeAddressStep } from './steps/02-geocode';
 import { insertListingStep } from './steps/03-insert';
@@ -12,8 +12,11 @@ export const SUBLEASE_POST_STEPS: readonly MissionStep[] = [
   confirmStep,
 ];
 
-// Side-effect registration — import this module to make sublease_post available.
-registerMission({
+export const SUBLEASE_POST_DEFINITION: MissionDefinition = {
   type: 'sublease_post',
   steps: SUBLEASE_POST_STEPS,
-});
+};
+
+// Side-effect registration — import this module to make sublease_post available.
+// AIN-80: also registered explicitly via ensureMissionsRegistered() (tree-shake-proof).
+registerMission(SUBLEASE_POST_DEFINITION);
