@@ -36,7 +36,7 @@ const SAMPLE_NEARBY_PLACES = [
   {
     displayName: { text: 'Trader Joes' },
     formattedAddress: '123 Main St',
-    types: ['grocery_or_supermarket'],
+    types: ['grocery_store'],
     location: { latitude: 43.07, longitude: -89.40 },
   },
   {

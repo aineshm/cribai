@@ -15,7 +15,9 @@ const inputSchema = z.object({
 const CACHE_TTL_MS = 604_800_000; // 7 days
 
 const AMENITY_TYPES = [
-  'grocery_or_supermarket',
+  // Places API (New) Table A type — legacy 'grocery_or_supermarket' 400s the
+  // whole searchNearby request (AIN-81).
+  'grocery_store',
   'cafe',
   'restaurant',
   'gym',
@@ -24,7 +26,7 @@ const AMENITY_TYPES = [
 ] as const;
 
 const TYPE_CATEGORY_MAP: Record<string, string> = {
-  grocery_or_supermarket: 'Grocery',
+  grocery_store: 'Grocery',
   cafe: 'Dining',
   restaurant: 'Dining',
   gym: 'Fitness',

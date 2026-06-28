@@ -82,7 +82,10 @@ const STATIC_STEERING_QUESTION =
  * from the handler (wrong dep direction).
  */
 const AMENITY_TYPES = [
-  'grocery_or_supermarket',
+  // 'grocery_store' is the Places API (New) Table A type. The legacy
+  // 'grocery_or_supermarket' is invalid in places:searchNearby and makes the
+  // ENTIRE request 400 (AIN-81), silently killing the analysis branch.
+  'grocery_store',
   'cafe',
   'restaurant',
   'gym',
@@ -95,7 +98,7 @@ const AMENITY_TYPES = [
  * Mirrored from tools/handlers/get-neighborhood-info.ts.
  */
 const TYPE_CATEGORY_MAP: Readonly<Record<string, string>> = {
-  grocery_or_supermarket: 'Grocery',
+  grocery_store: 'Grocery',
   cafe: 'Dining',
   restaurant: 'Dining',
   gym: 'Fitness',
