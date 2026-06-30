@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
 import { Building2, Send } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-is-mobile';
@@ -218,7 +220,13 @@ function Bubble({ role, text }: { role: 'user' | 'assistant'; text: string }) {
             : { background: '#fff', color: 'var(--surface-700)', boxShadow: 'var(--shadow-card)' }
         }
       >
-        {text}
+        {isUser ? (
+          text
+        ) : (
+          <div className="prose prose-sm max-w-none">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+          </div>
+        )}
       </div>
     </div>
   );
