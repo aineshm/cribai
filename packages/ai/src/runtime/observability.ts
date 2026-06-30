@@ -127,7 +127,10 @@ export function initLangfuse(
   const processor = factory({
     publicKey: env.LANGFUSE_PUBLIC_KEY,
     secretKey: env.LANGFUSE_SECRET_KEY,
-    baseUrl: env.LANGFUSE_BASE_URL,
+    // Coerce an empty string (e.g. an unset GitHub Actions `${{ secrets.X }}`
+    // expands to "") to undefined so the SDK falls back to its default endpoint
+    // instead of constructing `new URL("")` and throwing during init.
+    baseUrl: env.LANGFUSE_BASE_URL || undefined,
   });
   register(processor);
 
