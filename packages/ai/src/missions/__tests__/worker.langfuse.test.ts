@@ -20,13 +20,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ── Hoist mock factories so they are available inside vi.mock() factories ─────
-const { mockInitLangfuse, mockFlushLangfuse, mockIsLangfuseConfigured, mockClaimNextMission } =
-  vi.hoisted(() => ({
-    mockInitLangfuse: vi.fn().mockReturnValue(null),
-    mockFlushLangfuse: vi.fn().mockResolvedValue(undefined),
-    mockIsLangfuseConfigured: vi.fn().mockReturnValue(false),
-    mockClaimNextMission: vi.fn().mockResolvedValue(null),
-  }));
+const {
+  mockInitLangfuse,
+  mockFlushLangfuse,
+  mockIsLangfuseConfigured,
+  mockClaimNextMission,
+  mockExecuteMission,
+} = vi.hoisted(() => ({
+  mockInitLangfuse: vi.fn().mockReturnValue(null),
+  mockFlushLangfuse: vi.fn().mockResolvedValue(undefined),
+  mockIsLangfuseConfigured: vi.fn().mockReturnValue(false),
+  mockClaimNextMission: vi.fn().mockResolvedValue(null),
+  mockExecuteMission: vi.fn().mockResolvedValue(undefined),
+}));
 
 // ── Mock the 5 mission modules (register.ts imports these for side effects) ───
 vi.mock('../housing-search/index', async () => {
@@ -77,7 +83,7 @@ vi.mock('@campusnest/supabase/server', () => ({
   createSecretClient: vi.fn().mockReturnValue({}),
 }));
 vi.mock('../mission-repository', () => ({ claimNextMission: mockClaimNextMission }));
-vi.mock('../executor', () => ({ executeMission: vi.fn() }));
+vi.mock('../executor', () => ({ executeMission: mockExecuteMission }));
 
 // ── Import the module under test AFTER mocks are declared ────────────────────
 import { runMissionQueueOnce } from '../worker';
@@ -89,6 +95,7 @@ describe('worker Langfuse lifecycle', () => {
     mockFlushLangfuse.mockResolvedValue(undefined);
     mockClaimNextMission.mockResolvedValue(null);
     mockInitLangfuse.mockReturnValue(null);
+    mockExecuteMission.mockResolvedValue(undefined);
   });
 
   it('calls initLangfuse once and flushLangfuse once when the queue is empty', async () => {
@@ -106,6 +113,21 @@ describe('worker Langfuse lifecycle', () => {
 
     // flushLangfuse MUST run regardless — buffered spans must not be lost when
     // the worker process is about to exit after an unexpected rejection.
+    expect(mockFlushLangfuse).toHaveBeenCalledTimes(1);
+  });
+
+  it('still calls flushLangfuse when executeMission throws (finally guarantee)', async () => {
+    mockClaimNextMission.mockResolvedValueOnce({
+      id: 'mission-1',
+      type: 'crm_deep_extract',
+      current_step_index: 0,
+    });
+    mockExecuteMission.mockRejectedValueOnce(new Error('LLM error'));
+
+    await expect(runMissionQueueOnce({ maxJobs: 1 })).rejects.toThrow('LLM error');
+
+    // A claimed mission that fails mid-execution must not strand buffered spans —
+    // the finally flushes even though executeMission (not claimNextMission) threw.
     expect(mockFlushLangfuse).toHaveBeenCalledTimes(1);
   });
 });

@@ -50,12 +50,13 @@ export async function runMissionQueueOnce(
     readonly startFromStep: number;
   }> = [];
 
-  // Idempotently register the Langfuse OTel span processor for this process.
-  // Safe to call on every queue drain — initLangfuse() installs the processor
-  // only once per process and is a no-op when LANGFUSE_* keys are absent.
-  initLangfuse();
-
   try {
+    // Idempotently register the Langfuse OTel span processor for this process.
+    // Safe to call on every queue drain — initLangfuse() installs the processor
+    // only once per process and is a no-op when LANGFUSE_* keys are absent.
+    // Inside the try so the finally still flushes if init ever throws.
+    initLangfuse();
+
     for (let i = 0; i < maxJobs; i++) {
       const mission = await claimNextMission(supabase, leaseSeconds);
       if (!mission) {
