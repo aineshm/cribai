@@ -28,14 +28,18 @@ jobs:
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      # LLM provider: OpenAI-first runtime (Track C migration). Vertex AI is
+      # retained for step-1 HTML extraction (GOOGLE_GENAI_USE_VERTEXAI=true).
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      AI_PROVIDER: 'openai'
+      LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+      LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+      LANGFUSE_BASE_URL: ${{ secrets.LANGFUSE_BASE_URL }}
       GOOGLE_GENAI_USE_VERTEXAI: 'true'
       GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
       GOOGLE_CLOUD_LOCATION: ${{ secrets.GOOGLE_CLOUD_LOCATION }}
       GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
       GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
-      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       MISSION_WORKER_RUN_ONCE: 'true'
       MISSION_WORKER_IDLE_LOG_INTERVAL_MS: '1000'
       MISSION_WORKER_MAX_JOBS_PER_TICK: ${{ github.event.inputs.max_jobs || '5' }}
