@@ -376,3 +376,36 @@ describe('AIN-24 — campusName is a trust boundary (sanitized before interpolat
     expect(cachedPrefix).toContain('platform at UW-Madison.');
   });
 });
+
+// ---------------------------------------------------------------------------
+// CRM surface prompt (show_card wave)
+// ---------------------------------------------------------------------------
+
+describe('CRM surface prompt', () => {
+  it('CRM cachedPrefix omits the 4 excluded tools and search-first RULE #1', () => {
+    const { cachedPrefix } = buildSystemPrompt(baseState(), ALICE, { surface: 'crm' });
+    expect(cachedPrefix).not.toContain('### search_listings');
+    expect(cachedPrefix).not.toContain('SEARCH FIRST, ASK LATER');
+    expect(cachedPrefix).toContain('### rank_compare');
+    expect(cachedPrefix).toContain("THIS IS THE USER'S SAVED LIST");
+  });
+
+  it('CRM cachedPrefix is byte-stable across turns (state/profile do not affect it)', () => {
+    const a = buildSystemPrompt(baseState(), ALICE, { surface: 'crm' }).cachedPrefix;
+    const b = buildSystemPrompt(withPendingTour(), BOB, { surface: 'crm' }).cachedPrefix;
+    expect(a).toBe(b);
+  });
+
+  it('explore cachedPrefix is byte-identical to the pre-change output (no CRM arg)', () => {
+    const { cachedPrefix } = buildSystemPrompt(baseState(), ALICE, {});
+    expect(cachedPrefix).toContain('### search_listings');
+    expect(cachedPrefix).toContain('SEARCH FIRST, ASK LATER');
+  });
+
+  it('CRM dynamicSuffix carries the card-guidance block; explore does not', () => {
+    const crm = buildSystemPrompt(baseState(), ALICE, { surface: 'crm' }).dynamicSuffix;
+    const explore = buildSystemPrompt(baseState(), ALICE, {}).dynamicSuffix;
+    expect(crm).toContain('My Apartments is the single source of truth');
+    expect(explore).not.toContain('My Apartments is the single source of truth');
+  });
+});

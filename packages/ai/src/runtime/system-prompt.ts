@@ -26,8 +26,8 @@
 import type { ConversationState } from '@campusnest/types';
 import { z, type ZodTypeAny } from 'zod';
 import { buildPersona, DEFAULT_CAMPUS_NAME } from './persona';
-import { POLICY_BLOCK } from './policy';
-import { TOOL_SPECS, type ToolSpec } from './tool-registry';
+import { buildPolicyBlock } from './policy';
+import { TOOL_SPECS, toolSpecsForSurface, type ToolSpec, type RuntimeSurface } from './tool-registry';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -55,6 +55,14 @@ export interface BuildSystemPromptOptions {
    * across signed-in and guest traffic.
    */
   readonly isGuest?: boolean;
+  /**
+   * Surface identifier. 'crm' = My Apartments workspace (scoped tool list +
+   * saved-list RULE #1 + show_card guidance in the dynamic suffix). Absent =
+   * explore/default (all 17 tools, search-first RULE #1). Byte-stable per
+   * surface: the CRM prefix and the default prefix are each computed once at
+   * call time from module-load constants.
+   */
+  readonly surface?: RuntimeSurface;
 }
 
 export interface SystemPromptParts {
@@ -147,6 +155,21 @@ function renderToolList(): string {
 
 // Computed once at module load — fixed input, deterministic output.
 const TOOL_LIST_BLOCK: string = renderToolList();
+
+// CRM surface tool list — also computed once at module load for byte-stability.
+const CRM_TOOL_LIST_BLOCK: string = toolSpecsForSurface('crm').map(renderToolSpec).join('\n\n');
+
+/**
+ * CRM-surface guidance injected into the dynamic suffix (not the cached prefix).
+ * Tells the model: when to show cards, how to read the saved list, and what
+ * My Apartments is vs. Explore.
+ */
+const CRM_SURFACE_BLOCK: string = `CRM surface — My Apartments (the user's saved-listing workspace):
+- My Apartments is the single source of truth for this user's saved listings. Explore / the sublease marketplace is a SEPARATE surface for browsing other people's posts — never send the user there for their own list.
+- Answer casual or status questions in prose. Mentioning a listing does NOT require a card.
+- add_listing, first_save_analysis and rank_compare accept show_card. Set show_card: false unless a card genuinely helps: a save the user just made, a deep-dive analysis they asked for, or a ranking/comparison they explicitly requested.
+- To read the saved list for a prose answer, call rank_compare with show_card: false.
+- For the full list view, summarize briefly and point the user to their My Apartments page.`;
 
 // ---------------------------------------------------------------------------
 // Dynamic suffix builders
@@ -253,6 +276,10 @@ function buildDynamicSuffix(
     sections.push(hitlReminder);
   }
 
+  if (options.surface === 'crm') {
+    sections.push(CRM_SURFACE_BLOCK);
+  }
+
   return sections.join('\n\n');
 }
 
@@ -273,13 +300,14 @@ export function buildSystemPrompt(
   options: BuildSystemPromptOptions = {},
 ): SystemPromptParts {
   const campusName = options.campusName ?? DEFAULT_CAMPUS_NAME;
+  const toolList = options.surface === 'crm' ? CRM_TOOL_LIST_BLOCK : TOOL_LIST_BLOCK;
   const cachedPrefix = [
     buildPersona(campusName),
     '',
     'Available tools (when_to_call hints + input shape):',
-    TOOL_LIST_BLOCK,
+    toolList,
     '',
-    POLICY_BLOCK,
+    buildPolicyBlock(options.surface),
   ].join('\n');
 
   const dynamicSuffix = buildDynamicSuffix(state, profile, options);
