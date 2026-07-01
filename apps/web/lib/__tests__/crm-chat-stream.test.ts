@@ -316,6 +316,68 @@ describe('messagesFromToolResult', () => {
       }),
     ]);
   });
+
+  describe('show_card (Task 5)', () => {
+    it('suppresses the saved-unit card when show_card is false', () => {
+      const event: CrmSseEvent = {
+        type: 'tool_result',
+        name: 'add_listing',
+        block: { type: 'text', content: 'Saved!' },
+        machineData: {
+          kind: 'add_listing',
+          result: { listingId: ROW.id, alreadySaved: false, confidence: 0.9 },
+          listing: ROW,
+          show_card: false,
+        },
+      };
+      expect(messagesFromToolResult(event, VIEWER_ID, nextId)).toEqual([]);
+    });
+
+    it('suppresses analysis card AND steering bubble when show_card is false', () => {
+      const event: CrmSseEvent = {
+        type: 'tool_result',
+        name: 'first_save_analysis',
+        block: { type: 'text', content: 'Analysis complete.' },
+        machineData: {
+          kind: 'first_save_analysis',
+          analysis: ANALYSIS,
+          show_card: false,
+        },
+      };
+      expect(messagesFromToolResult(event, VIEWER_ID, nextId)).toEqual([]);
+    });
+
+    it('renders the rank card when show_card is true', () => {
+      const event: CrmSseEvent = {
+        type: 'tool_result',
+        name: 'rank_compare',
+        block: { type: 'text', content: 'Ranked.' },
+        machineData: {
+          kind: 'rank_compare',
+          result: RANK,
+          show_card: true,
+        },
+      };
+      const messages = messagesFromToolResult(event, VIEWER_ID, nextId);
+      expect(messages[0]?.kind).toBe('rank');
+    });
+
+    it('renders the card when show_card is absent — default-on (legacy events)', () => {
+      const event: CrmSseEvent = {
+        type: 'tool_result',
+        name: 'add_listing',
+        block: { type: 'text', content: 'Saved!' },
+        machineData: {
+          kind: 'add_listing',
+          result: { listingId: ROW.id, alreadySaved: false, confidence: 0.9 },
+          listing: ROW,
+          // no show_card key → default on
+        },
+      };
+      const messages = messagesFromToolResult(event, VIEWER_ID, nextId);
+      expect(messages[0]?.kind).toBe('saved-unit');
+    });
+  });
 });
 
 describe('projectHistory', () => {

@@ -182,6 +182,10 @@ export function messagesFromToolResult(
   const md = event.machineData;
   if (!isRecord(md) || typeof md.kind !== 'string') return textFallback(event, nextId);
 
+  // Model-controlled card gate (show_card wave): false = the model chose prose;
+  // its streamed text carries the answer, so emit nothing for this tool result.
+  if (md.show_card === false) return [];
+
   switch (md.kind) {
     case 'add_listing': {
       const listing = asSavedListing(md);
