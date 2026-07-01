@@ -246,7 +246,21 @@ const DESCRIPTIONS: Readonly<Record<ToolName, string>> = {
  * allowlist) is closed over by each `execute` closure so the LLM-first turn
  * handler can pass the registry directly to `streamText`/`generateText`.
  */
-export type ToolRegistry = Readonly<Record<RegistryToolName, Tool>>;
+/** Surface identifier for CRM (My Apartments) vs. default explore context. */
+export type RuntimeSurface = 'crm';
+
+/** Explore-discovery tools excluded from the CRM (My Apartments) surface. */
+export const CRM_EXCLUDED_TOOL_NAMES = [
+  'search_listings',
+  'get_saved_listings',
+  'get_listing_detail',
+  'compare_listings',
+] as const satisfies readonly ToolName[];
+
+const isExcludedForCrm = (name: RegistryToolName): boolean =>
+  (CRM_EXCLUDED_TOOL_NAMES as readonly string[]).includes(name);
+
+export type ToolRegistry = Readonly<Partial<Record<RegistryToolName, Tool>>>;
 
 /**
  * Out-of-band sink for the full `ToolResult`. PDR-004 codex P1 (PR #69): the
@@ -301,6 +315,7 @@ export function buildToolRegistry(
   context: ToolContext,
   sink: ToolResultSink,
   budget?: ToolCallBudget,
+  surface?: RuntimeSurface,
 ): ToolRegistry {
   /**
    * Shared `execute` body for BOTH the legacy (`make`) and CRM (`makeCrm`)
@@ -376,7 +391,7 @@ export function buildToolRegistry(
         ),
     });
 
-  return Object.freeze({
+  const all: Record<RegistryToolName, Tool> = {
     search_listings: make('search_listings', searchListingsInput),
     get_listing_detail: make('get_listing_detail', getListingDetailInput),
     compare_listings: make('compare_listings', compareListingsInput),
@@ -400,7 +415,18 @@ export function buildToolRegistry(
     ),
     infer_profile: makeCrm('infer_profile', inferProfileInput, INFER_PROFILE_DESCRIPTION, inferProfileHandler),
     rank_compare: makeCrm('rank_compare', rankCompareInput, RANK_COMPARE_DESCRIPTION, rankCompareHandler),
-  });
+  };
+
+  // CRM surface: return a new filtered registry (new object — no mutation).
+  if (surface === 'crm') {
+    return Object.freeze(
+      Object.fromEntries(
+        Object.entries(all).filter(([name]) => !isExcludedForCrm(name as RegistryToolName)),
+      ),
+    ) as ToolRegistry;
+  }
+
+  return Object.freeze(all) as ToolRegistry;
 }
 
 /**
@@ -439,6 +465,14 @@ export const TOOL_SPECS: readonly ToolSpec[] = Object.freeze([
   { name: 'infer_profile', description: INFER_PROFILE_DESCRIPTION, inputSchema: inferProfileInput },
   { name: 'rank_compare', description: RANK_COMPARE_DESCRIPTION, inputSchema: rankCompareInput },
 ]);
+
+/**
+ * Return the subset of TOOL_SPECS applicable to a given surface.
+ * CRM surface excludes the 4 explore-discovery tools; default returns all 17.
+ */
+export function toolSpecsForSurface(surface?: RuntimeSurface): readonly ToolSpec[] {
+  return surface === 'crm' ? TOOL_SPECS.filter((s) => !isExcludedForCrm(s.name)) : TOOL_SPECS;
+}
 
 /** Tools whose handlers enforce a preview/confirm HITL gate. */
 export const HITL_TOOLS: readonly ToolName[] = Object.freeze([
