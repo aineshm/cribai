@@ -601,6 +601,7 @@ export async function POST(request: NextRequest) {
               campusName: campus.name as string,
               isGuest,
               history: clampHistory(parseHistory(history), isGuest),
+              surface: validSurface,
               // AIN-8 FIX 3 — stamp TTFT at the FIRST model output part (first
               // text-delta or tool-call) rather than at the step-boundary text
               // flush, so the cross-runtime TTFT comparison stays fair on

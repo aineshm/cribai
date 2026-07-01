@@ -50,6 +50,7 @@ import {
   type ToolCallBudget,
   type ToolResultSink,
   type RegistryToolName,
+  type RuntimeSurface,
 } from './tool-registry';
 import type { ToolContext, ToolResult } from '../tools/types';
 import type { ChatEvent } from '../cribai';
@@ -145,6 +146,12 @@ export interface RunLlmTurnInput {
    * tests stay offline. Injecting `false` keeps the SDK from emitting spans.
    */
   readonly telemetryEnabled?: boolean;
+  /**
+   * CRM surface flag. When `'crm'`, scopes the tool registry to exclude the 4
+   * explore-discovery tools and injects the CRM-specific system-prompt guidance.
+   * Undefined → explore/default behavior (all 17 tools, search-first policy).
+   */
+  readonly surface?: RuntimeSurface;
 }
 
 /** Map the deterministic conversation history into AI SDK ModelMessages. */
@@ -224,6 +231,7 @@ export async function* runLlmTurn(
     onTurnCost,
     turnCostCapUsd,
     telemetryEnabled,
+    surface,
   } = input;
 
   // AIN-9 — wire Langfuse telemetry into `streamText` only when configured.
@@ -251,6 +259,7 @@ export async function* runLlmTurn(
   const { cachedPrefix, dynamicSuffix } = buildSystemPrompt(state, profile, {
     campusName,
     isGuest,
+    surface,
   });
 
   // Resolve explicit cache (or null → compose prefix inline). A null handle
@@ -301,7 +310,7 @@ export async function* runLlmTurn(
     count: 0,
   };
 
-  const tools = buildToolRegistry(toolContext, sink, toolCallBudget);
+  const tools = buildToolRegistry(toolContext, sink, toolCallBudget, surface);
 
   const result = streamText({
     model,
