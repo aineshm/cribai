@@ -50,13 +50,25 @@ export async function runMissionQueueOnce(
     readonly startFromStep: number;
   }> = [];
 
+  // Idempotently register the Langfuse OTel span processor for this process.
+  // Isolated in its own try/catch so that a bad LANGFUSE_BASE_URL (or any other
+  // constructor-time failure in OTLPTraceExporter) cannot prevent missions from
+  // being claimed and executed. Observability is best-effort — the queue must
+  // drain regardless of whether tracing is available.
+  // flushLangfuse() in the finally below is a no-op when no processor was
+  // installed, so it is safe to keep even when init fails here.
   try {
-    // Idempotently register the Langfuse OTel span processor for this process.
-    // Safe to call on every queue drain — initLangfuse() installs the processor
-    // only once per process and is a no-op when LANGFUSE_* keys are absent.
-    // Inside the try so the finally still flushes if init ever throws.
     initLangfuse();
+  } catch (err) {
+    console.error('[mission-worker] Langfuse init failed; continuing without tracing:', err);
+  }
 
+  // Mission claim-and-execute loop. Isolated from the observability block above
+  // so that init failures (see above) cannot reach here. flushLangfuse() runs
+  // unconditionally in the finally — including when claimNextMission or
+  // executeMission throws — so no spans are lost on unexpected failures.
+  // flushLangfuse() always resolves (no-op when Langfuse is not configured).
+  try {
     for (let i = 0; i < maxJobs; i++) {
       const mission = await claimNextMission(supabase, leaseSeconds);
       if (!mission) {
@@ -72,10 +84,6 @@ export async function runMissionQueueOnce(
       await executeMission({ missionId: mission.id, startFromStep: mission.current_step_index });
     }
   } finally {
-    // Flush buffered Langfuse spans before the process may exit. Runs on every
-    // return path — including when claimNextMission or executeMission throws —
-    // so no spans are lost on unexpected failures. flushLangfuse() always
-    // resolves (no-op when Langfuse is not configured).
     await flushLangfuse();
   }
 

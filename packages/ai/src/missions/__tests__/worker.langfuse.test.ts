@@ -15,6 +15,10 @@
  *   1. Empty queue → initLangfuse called once, flushLangfuse called once.
  *   2. claimNextMission throws → runMissionQueueOnce rejects, flushLangfuse
  *      still called (the finally guarantee).
+ *   3. executeMission throws → runMissionQueueOnce rejects, flushLangfuse
+ *      still called (the finally guarantee).
+ *   4. initLangfuse throws → runMissionQueueOnce STILL RESOLVES and drains the
+ *      queue. Observability failures must never block mission execution.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -128,6 +132,27 @@ describe('worker Langfuse lifecycle', () => {
 
     // A claimed mission that fails mid-execution must not strand buffered spans —
     // the finally flushes even though executeMission (not claimNextMission) threw.
+    expect(mockFlushLangfuse).toHaveBeenCalledTimes(1);
+  });
+
+  it('drains the queue even when initLangfuse throws (observability must not block missions)', async () => {
+    // Simulate the prod incident: malformed LANGFUSE_BASE_URL causes the
+    // OTLPTraceExporter constructor to reject, making initLangfuse() throw before
+    // any mission is claimed. The queue must still drain.
+    mockInitLangfuse.mockImplementationOnce(() => {
+      throw new Error('bad LANGFUSE_BASE_URL');
+    });
+    mockClaimNextMission
+      .mockResolvedValueOnce({ id: 'm1', type: 'crm_deep_extract', current_step_index: 0 })
+      .mockResolvedValue(null);
+
+    // Must resolve, not reject — init failure is not a fatal error.
+    const result = await runMissionQueueOnce({ maxJobs: 2 });
+
+    expect(result.processed).toBe(1);
+    // The claim+execute loop must have run despite the init error.
+    expect(mockExecuteMission).toHaveBeenCalledTimes(1);
+    // flushLangfuse must still be called (no-op when no processor installed).
     expect(mockFlushLangfuse).toHaveBeenCalledTimes(1);
   });
 });
