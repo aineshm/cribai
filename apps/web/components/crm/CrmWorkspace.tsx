@@ -223,7 +223,7 @@ function Bubble({ role, text }: { role: 'user' | 'assistant'; text: string }) {
         {isUser ? (
           text
         ) : (
-          <div className="prose prose-sm max-w-none">
+          <div className="prose prose-sm max-w-none text-[0.9375rem] [&_p]:my-1 [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:my-0.5">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
           </div>
         )}
