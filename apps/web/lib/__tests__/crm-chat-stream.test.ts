@@ -282,8 +282,8 @@ describe('messagesFromToolResult', () => {
     ).toEqual([]);
   });
 
-  it('legacy listing_card/map blocks with results → honest text stub, not silence (review M2)', () => {
-    const cardMessages = messagesFromToolResult(
+  it('silences legacy listing_card blocks instead of rendering the Explore stub', () => {
+    const messages = messagesFromToolResult(
       {
         type: 'tool_result',
         name: 'search_listings',
@@ -292,15 +292,11 @@ describe('messagesFromToolResult', () => {
       VIEWER_ID,
       nextId,
     );
-    expect(cardMessages).toEqual([
-      expect.objectContaining({
-        kind: 'text',
-        role: 'assistant',
-        text: 'Found 3 listings — open the Explore page to view them on the map.',
-      }),
-    ]);
+    expect(messages).toEqual([]);
+  });
 
-    const mapMessages = messagesFromToolResult(
+  it('silences legacy map blocks with listings', () => {
+    const messages = messagesFromToolResult(
       {
         type: 'tool_result',
         name: 'search_listings',
@@ -309,12 +305,26 @@ describe('messagesFromToolResult', () => {
       VIEWER_ID,
       nextId,
     );
-    expect(mapMessages).toEqual([
-      expect.objectContaining({
-        kind: 'text',
-        text: 'Found 1 listing — open the Explore page to view it on the map.',
-      }),
-    ]);
+    expect(messages).toEqual([]);
+  });
+
+  it('never emits text mentioning the Explore page from any tool_result', () => {
+    // Sweep guard: all fixture events produce no "Explore" mention in output.
+    const fixtureEvents: CrmSseEvent[] = [
+      { type: 'tool_result', name: 'search_listings', block: { type: 'listing_card', listings: [{}] } },
+      { type: 'tool_result', name: 'search_listings', block: { type: 'map', listings: [{}] } },
+      { type: 'tool_result', name: 'search_listings' },
+      { type: 'tool_result', name: 'add_listing', block: { type: 'text', content: 'Saved!' },
+        machineData: { kind: 'add_listing', result: { listingId: ROW.id, alreadySaved: false, confidence: 0.9 }, listing: ROW } },
+    ];
+    for (const event of fixtureEvents) {
+      const messages = messagesFromToolResult(event, VIEWER_ID, nextId);
+      for (const msg of messages) {
+        if (msg.kind === 'text' || msg.kind === 'steering') {
+          expect(msg.text).not.toContain('Explore');
+        }
+      }
+    }
   });
 
   describe('show_card (Task 5)', () => {
