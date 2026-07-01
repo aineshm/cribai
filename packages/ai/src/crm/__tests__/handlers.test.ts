@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ToolContext, ToolResult } from '../../tools/types';
 import type { AddListingResult, FirstSaveAnalysis, InferProfileResult, RankCompareResult } from '../types';
+import type { AddListingMachineData, FirstSaveAnalysisMachineData, RankCompareMachineData } from '../handlers/types';
 
 // ---------------------------------------------------------------------------
 // Mock the 4 cores + service-client
@@ -649,6 +650,7 @@ describe('machineData emission (AIN-65)', () => {
         kind: 'add_listing',
         result: addResult,
         listing: SAVED_ROW,
+        show_card: true,
       });
       // Read-back is scoped to the saved row AND the signed-in user.
       expect(from).toHaveBeenCalledWith('crm_listings');
@@ -675,6 +677,7 @@ describe('machineData emission (AIN-65)', () => {
         kind: 'add_listing',
         result: addResult,
         listing: { ...SAVED_ROW, id: 'listing-uuid-2' },
+        show_card: true,
       });
     });
 
@@ -686,7 +689,7 @@ describe('machineData emission (AIN-65)', () => {
 
       const result = await addListingHandler({ url: 'https://zillow.com/foo' }, ctx);
 
-      expect(result.machineData).toEqual({ kind: 'add_listing', result: addResult, listing: null });
+      expect(result.machineData).toEqual({ kind: 'add_listing', result: addResult, listing: null, show_card: true });
       assertTextBlock(result);
     });
 
@@ -697,7 +700,7 @@ describe('machineData emission (AIN-65)', () => {
 
       const result = await addListingHandler({ url: 'https://zillow.com/foo' }, ctx);
 
-      expect(result.machineData).toEqual({ kind: 'add_listing', result: addResult, listing: null });
+      expect(result.machineData).toEqual({ kind: 'add_listing', result: addResult, listing: null, show_card: true });
       expect(result.modelContext).toContain('listing-uuid-4');
     });
 
@@ -710,7 +713,7 @@ describe('machineData emission (AIN-65)', () => {
       const result = await addListingHandler({ url: 'https://zillow.com/foo' }, ctx);
 
       expect(from).not.toHaveBeenCalled();
-      expect(result.machineData).toEqual({ kind: 'add_listing', result: addResult, listing: null });
+      expect(result.machineData).toEqual({ kind: 'add_listing', result: addResult, listing: null, show_card: true });
     });
 
     it('error path (AddListingError): no machineData', async () => {
@@ -760,6 +763,7 @@ describe('machineData emission (AIN-65)', () => {
       expect(result.machineData).toEqual({
         kind: 'first_save_analysis',
         analysis: { ...fsaResult, redFlags: { status: 'error', error: 'analysis_failed' } },
+        show_card: true,
       });
       expect(result.modelContext).not.toContain(rawProviderError);
       expect(JSON.stringify(result.machineData)).not.toContain('req-123');
@@ -803,7 +807,7 @@ describe('machineData emission (AIN-65)', () => {
 
       const result = await rankCompareHandler({ mode: 'rank' }, ctx);
 
-      expect(result.machineData).toEqual({ kind: 'rank_compare', result: rcResult });
+      expect(result.machineData).toEqual({ kind: 'rank_compare', result: rcResult, show_card: true });
       assertTextBlock(result);
     });
 
@@ -817,7 +821,7 @@ describe('machineData emission (AIN-65)', () => {
 
       const result = await rankCompareHandler({ mode: 'compare' }, ctx);
 
-      expect(result.machineData).toEqual({ kind: 'rank_compare', result: rcResult });
+      expect(result.machineData).toEqual({ kind: 'rank_compare', result: rcResult, show_card: true });
     });
 
     it('empty result set: machineData still emitted (UI renders the empty state)', async () => {
@@ -827,7 +831,7 @@ describe('machineData emission (AIN-65)', () => {
 
       const result = await rankCompareHandler({ mode: 'rank' }, ctx);
 
-      expect(result.machineData).toEqual({ kind: 'rank_compare', result: rcResult });
+      expect(result.machineData).toEqual({ kind: 'rank_compare', result: rcResult, show_card: true });
     });
 
     it('core throw / sign-in gate / invalid input: no machineData', async () => {
@@ -897,6 +901,91 @@ describe('machineData emission (AIN-65)', () => {
 
       const signedOut = await inferProfileHandler({}, makeContext({ userId: undefined }));
       expect(signedOut.machineData).toBeUndefined();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// show_card passthrough (CRM show_card wave)
+// ---------------------------------------------------------------------------
+
+describe('show_card passthrough', () => {
+  const mockAddListing = vi.mocked(addListing);
+  const mockFsa = vi.mocked(firstSaveAnalysis);
+  const mockRankCompare = vi.mocked(rankCompare);
+  const mockGetCrmServiceClient = vi.mocked(getCrmServiceClient);
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockGetCrmServiceClient.mockReturnValue(makeMockDb());
+  });
+
+  describe('add_listing machineData carries show_card flag', () => {
+    it('add_listing machineData carries show_card: false when the model sets it', async () => {
+      const { db } = makeListingFetchDb(SAVED_ROW);
+      const ctx = makeContext({ supabase: db });
+      const addResult: AddListingResult = { listingId: 'listing-uuid-1', alreadySaved: false, confidence: 0.9 };
+      mockAddListing.mockResolvedValueOnce(addResult);
+
+      const result = await addListingHandler({ url: 'https://zillow.com/foo', show_card: false }, ctx);
+      expect((result.machineData as AddListingMachineData).show_card).toBe(false);
+    });
+
+    it('add_listing defaults show_card to true when omitted', async () => {
+      const { db } = makeListingFetchDb(SAVED_ROW);
+      const ctx = makeContext({ supabase: db });
+      const addResult: AddListingResult = { listingId: 'listing-uuid-1', alreadySaved: false, confidence: 0.9 };
+      mockAddListing.mockResolvedValueOnce(addResult);
+
+      const result = await addListingHandler({ url: 'https://zillow.com/foo' }, ctx);
+      expect((result.machineData as AddListingMachineData).show_card).toBe(true);
+    });
+  });
+
+  describe('first_save_analysis machineData carries show_card flag', () => {
+    const listingId = '00000000-0000-0000-0000-000000000002';
+    const fsaResult: FirstSaveAnalysis = {
+      listingId,
+      trueCost: { status: 'skipped', reason: 'no rent' },
+      redFlags: { status: 'ok', data: { flags: [], summary: 'None.' } },
+      placesSnapshot: { status: 'skipped', reason: 'no coordinates' },
+      steeringQuestion: { status: 'skipped', reason: 'not first save' },
+    };
+
+    it('first_save_analysis machineData carries show_card: false when the model sets it', async () => {
+      const ctx = makeContext();
+      mockFsa.mockResolvedValueOnce(fsaResult);
+
+      const result = await firstSaveAnalysisHandler({ listing_id: listingId, show_card: false }, ctx);
+      expect((result.machineData as FirstSaveAnalysisMachineData).show_card).toBe(false);
+    });
+
+    it('first_save_analysis defaults show_card to true when omitted', async () => {
+      const ctx = makeContext();
+      mockFsa.mockResolvedValueOnce(fsaResult);
+
+      const result = await firstSaveAnalysisHandler({ listing_id: listingId }, ctx);
+      expect((result.machineData as FirstSaveAnalysisMachineData).show_card).toBe(true);
+    });
+  });
+
+  describe('rank_compare machineData carries show_card flag', () => {
+    const rcResult: RankCompareResult = { mode: 'rank', ranked: [] };
+
+    it('rank_compare machineData carries show_card: false when the model sets it', async () => {
+      const ctx = makeContext();
+      mockRankCompare.mockResolvedValueOnce(rcResult);
+
+      const result = await rankCompareHandler({ mode: 'rank', show_card: false }, ctx);
+      expect((result.machineData as RankCompareMachineData).show_card).toBe(false);
+    });
+
+    it('rank_compare defaults show_card to true when omitted', async () => {
+      const ctx = makeContext();
+      mockRankCompare.mockResolvedValueOnce(rcResult);
+
+      const result = await rankCompareHandler({ mode: 'rank' }, ctx);
+      expect((result.machineData as RankCompareMachineData).show_card).toBe(true);
     });
   });
 });

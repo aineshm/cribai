@@ -127,6 +127,7 @@ export async function addListingHandler(
   }
 
   const { url } = parsed.data;
+  const showCard = parsed.data.show_card ?? true;
   const userId = context.userId;
 
   try {
@@ -182,6 +183,7 @@ export async function addListingHandler(
       kind: 'add_listing',
       result,
       listing,
+      show_card: showCard,
     };
 
     return {

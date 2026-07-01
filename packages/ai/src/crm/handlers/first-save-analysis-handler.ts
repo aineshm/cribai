@@ -176,6 +176,8 @@ export async function firstSaveAnalysisHandler(
     };
   }
 
+  const showCard = parsed.data.show_card ?? true;
+
   try {
     const analysis = sanitizeAnalysis(
       await firstSaveAnalysis(parsed.data.listing_id, {
@@ -191,6 +193,7 @@ export async function firstSaveAnalysisHandler(
     const machineData: FirstSaveAnalysisMachineData = {
       kind: 'first_save_analysis',
       analysis,
+      show_card: showCard,
     };
 
     return {
