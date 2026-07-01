@@ -302,7 +302,7 @@ export function buildSystemPrompt(
   const campusName = options.campusName ?? DEFAULT_CAMPUS_NAME;
   const toolList = options.surface === 'crm' ? CRM_TOOL_LIST_BLOCK : TOOL_LIST_BLOCK;
   const cachedPrefix = [
-    buildPersona(campusName),
+    buildPersona(campusName, options.surface),
     '',
     'Available tools (when_to_call hints + input shape):',
     toolList,
