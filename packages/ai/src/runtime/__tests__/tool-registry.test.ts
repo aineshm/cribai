@@ -20,7 +20,10 @@ import {
   TOOL_SPECS,
   HITL_TOOLS,
   buildToolRegistry,
+  toolSpecsForSurface,
   type ToolSpec,
+  type ToolResultSink,
+  type RegistryToolName,
 } from '../tool-registry';
 import { CRIBAI_TOOLS_BY_NAME } from '../../tools/schemas';
 import { executeTool } from '../../tools/executor';
@@ -685,6 +688,44 @@ describe('tool-registry — CRM tool path (AIN-15 Phase 2)', () => {
     expect(String(returned).toLowerCase()).toMatch(/sign.?in/);
     expect(sinkCalls).toHaveLength(1);
     expect(sinkCalls[0]!.result.clientBlock.type).toBe('text');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Surface scoping (CRM show_card wave)
+// ---------------------------------------------------------------------------
+
+describe('surface scoping (CRM show_card wave)', () => {
+  const fakeContext = {
+    supabase: {} as never,
+    campusId: 'campus-uw-madison',
+    campusSlug: 'uw-madison',
+  } as ToolContext;
+  const sink: ToolResultSink = () => {};
+
+  it('CRM surface excludes the 4 explore-discovery tools', () => {
+    const registry = buildToolRegistry(fakeContext, sink, undefined, 'crm');
+    for (const name of ['search_listings', 'get_saved_listings', 'get_listing_detail', 'compare_listings']) {
+      expect(registry[name as RegistryToolName]).toBeUndefined();
+    }
+  });
+
+  it('CRM surface keeps the remaining 13 tools (9 legacy + 4 CRM)', () => {
+    const registry = buildToolRegistry(fakeContext, sink, undefined, 'crm');
+    expect(Object.keys(registry)).toHaveLength(13);
+    for (const name of ['add_listing', 'first_save_analysis', 'infer_profile', 'rank_compare', 'schedule_tour', 'create_sublease']) {
+      expect(registry[name as RegistryToolName]).toBeDefined();
+    }
+  });
+
+  it('no surface (explore/default) keeps all 17 tools — unchanged', () => {
+    expect(Object.keys(buildToolRegistry(fakeContext, sink))).toHaveLength(17);
+  });
+
+  it('toolSpecsForSurface("crm") omits excluded specs; default returns all 17', () => {
+    expect(toolSpecsForSurface('crm').map((s) => s.name)).not.toContain('search_listings');
+    expect(toolSpecsForSurface('crm')).toHaveLength(13);
+    expect(toolSpecsForSurface()).toHaveLength(17);
   });
 });
 

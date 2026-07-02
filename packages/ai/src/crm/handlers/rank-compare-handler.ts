@@ -109,6 +109,8 @@ export async function rankCompareHandler(
     };
   }
 
+  const showCard = parsed.data.show_card ?? true;
+
   // --- Map snake_case → camelCase ---
   const coreArgs = {
     mode: parsed.data.mode,
@@ -135,6 +137,7 @@ export async function rankCompareHandler(
     const machineData: RankCompareMachineData = {
       kind: 'rank_compare',
       result,
+      show_card: showCard,
     };
 
     return {

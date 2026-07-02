@@ -31,6 +31,8 @@ export type AddListingMachineData = {
   readonly kind: 'add_listing';
   readonly result: AddListingResult;
   readonly listing: CrmListingRow | null;
+  /** Model-controlled card gate: false = answer in prose, true = render card. */
+  readonly show_card: boolean;
 };
 
 /**
@@ -40,12 +42,16 @@ export type AddListingMachineData = {
 export type FirstSaveAnalysisMachineData = {
   readonly kind: 'first_save_analysis';
   readonly analysis: FirstSaveAnalysis;
+  /** Model-controlled card gate: false = answer in prose, true = render card. */
+  readonly show_card: boolean;
 };
 
 /** `rank_compare` payload — the discriminated rank/compare result as-is. */
 export type RankCompareMachineData = {
   readonly kind: 'rank_compare';
   readonly result: RankCompareResult;
+  /** Model-controlled card gate: false = answer in prose, true = render card. */
+  readonly show_card: boolean;
 };
 
 /**

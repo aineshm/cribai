@@ -137,31 +137,16 @@ function steeringQuestionOf(analysis: FirstSaveAnalysis): string | null {
 }
 
 /**
- * Fall back to the tool's plain-text client block. Non-text blocks (the
- * legacy explore tools' listing_card/map cards have no CRM renderer) degrade
- * to an honest text stub instead of vanishing — "find me apartments" in CRM
- * chat must not execute a search and render nothing (review M2). An EMPTY
- * result block still renders nothing: the model's prose covers no-results.
+ * Fall back to the tool's plain-text client block. Non-text blocks
+ * (listing_card / map from the legacy explore tools) fall through to `[]` —
+ * those tools are excluded from the CRM surface entirely (Task 1), so any
+ * stray block is silenced rather than rendered as an Explore-page stub.
+ * An EMPTY result block still renders nothing: the model's prose covers it.
  */
 function textFallback(event: CrmSseEvent, nextId: () => string): readonly ChatMessage[] {
   const block = event.block;
   if (block?.type === 'text' && typeof block.content === 'string' && block.content.trim()) {
     return [{ id: nextId(), kind: 'text', role: 'assistant', text: block.content }];
-  }
-  if (
-    (block?.type === 'listing_card' || block?.type === 'map') &&
-    Array.isArray(block.listings) &&
-    block.listings.length > 0
-  ) {
-    const n = block.listings.length;
-    return [
-      {
-        id: nextId(),
-        kind: 'text',
-        role: 'assistant',
-        text: `Found ${n} listing${n === 1 ? '' : 's'} — open the Explore page to view ${n === 1 ? 'it' : 'them'} on the map.`,
-      },
-    ];
   }
   return [];
 }
@@ -181,6 +166,10 @@ export function messagesFromToolResult(
 ): readonly ChatMessage[] {
   const md = event.machineData;
   if (!isRecord(md) || typeof md.kind !== 'string') return textFallback(event, nextId);
+
+  // Model-controlled card gate (show_card wave): false = the model chose prose;
+  // its streamed text carries the answer, so emit nothing for this tool result.
+  if (md.show_card === false) return [];
 
   switch (md.kind) {
     case 'add_listing': {

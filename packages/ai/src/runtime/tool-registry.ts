@@ -246,7 +246,36 @@ const DESCRIPTIONS: Readonly<Record<ToolName, string>> = {
  * allowlist) is closed over by each `execute` closure so the LLM-first turn
  * handler can pass the registry directly to `streamText`/`generateText`.
  */
-export type ToolRegistry = Readonly<Record<RegistryToolName, Tool>>;
+/** Surface identifier for CRM (My Apartments) vs. default explore context. */
+export type RuntimeSurface = 'crm';
+
+/** Explore-discovery tools excluded from the CRM (My Apartments) surface. */
+export const CRM_EXCLUDED_TOOL_NAMES = [
+  'search_listings',
+  'get_saved_listings',
+  'get_listing_detail',
+  'compare_listings',
+] as const satisfies readonly ToolName[];
+
+const isExcludedForCrm = (name: RegistryToolName): boolean =>
+  (CRM_EXCLUDED_TOOL_NAMES as readonly string[]).includes(name);
+
+/**
+ * CRM-surface description overrides for tools whose default text references
+ * the excluded explore tools (review Finding 1 sweep: the CRM prompt must
+ * never mention a tool the registry cannot serve). Applied in BOTH
+ * `toolSpecsForSurface` (prompt tool list) and `buildToolRegistry`
+ * (model-facing tool definition) so the two stay coherent.
+ */
+const CRM_DESCRIPTION_OVERRIDES: Readonly<Partial<Record<ToolName, string>>> = {
+  web_search:
+    'Search the web for rental listings and housing information when the user asks about something not covered by their saved list, or when they explicitly ask to search the web.',
+};
+
+const descriptionForSurface = (name: ToolName, surface?: RuntimeSurface): string =>
+  (surface === 'crm' ? CRM_DESCRIPTION_OVERRIDES[name] : undefined) ?? DESCRIPTIONS[name];
+
+export type ToolRegistry = Readonly<Partial<Record<RegistryToolName, Tool>>>;
 
 /**
  * Out-of-band sink for the full `ToolResult`. PDR-004 codex P1 (PR #69): the
@@ -301,6 +330,7 @@ export function buildToolRegistry(
   context: ToolContext,
   sink: ToolResultSink,
   budget?: ToolCallBudget,
+  surface?: RuntimeSurface,
 ): ToolRegistry {
   /**
    * Shared `execute` body for BOTH the legacy (`make`) and CRM (`makeCrm`)
@@ -349,7 +379,7 @@ export function buildToolRegistry(
     inputSchema: T,
   ): Tool =>
     tool({
-      description: DESCRIPTIONS[name],
+      description: descriptionForSurface(name, surface),
       inputSchema,
       execute: (input, options): Promise<string> =>
         runWithBudget(name, options.toolCallId, () =>
@@ -376,7 +406,7 @@ export function buildToolRegistry(
         ),
     });
 
-  return Object.freeze({
+  const all: Record<RegistryToolName, Tool> = {
     search_listings: make('search_listings', searchListingsInput),
     get_listing_detail: make('get_listing_detail', getListingDetailInput),
     compare_listings: make('compare_listings', compareListingsInput),
@@ -400,7 +430,18 @@ export function buildToolRegistry(
     ),
     infer_profile: makeCrm('infer_profile', inferProfileInput, INFER_PROFILE_DESCRIPTION, inferProfileHandler),
     rank_compare: makeCrm('rank_compare', rankCompareInput, RANK_COMPARE_DESCRIPTION, rankCompareHandler),
-  });
+  };
+
+  // CRM surface: return a new filtered registry (new object — no mutation).
+  if (surface === 'crm') {
+    return Object.freeze(
+      Object.fromEntries(
+        Object.entries(all).filter(([name]) => !isExcludedForCrm(name as RegistryToolName)),
+      ),
+    ) as ToolRegistry;
+  }
+
+  return Object.freeze(all) as ToolRegistry;
 }
 
 /**
@@ -439,6 +480,18 @@ export const TOOL_SPECS: readonly ToolSpec[] = Object.freeze([
   { name: 'infer_profile', description: INFER_PROFILE_DESCRIPTION, inputSchema: inferProfileInput },
   { name: 'rank_compare', description: RANK_COMPARE_DESCRIPTION, inputSchema: rankCompareInput },
 ]);
+
+/**
+ * Return the subset of TOOL_SPECS applicable to a given surface.
+ * CRM surface excludes the 4 explore-discovery tools; default returns all 17.
+ */
+export function toolSpecsForSurface(surface?: RuntimeSurface): readonly ToolSpec[] {
+  if (surface !== 'crm') return TOOL_SPECS;
+  return TOOL_SPECS.filter((s) => !isExcludedForCrm(s.name)).map((s) => {
+    const override = CRM_DESCRIPTION_OVERRIDES[s.name as ToolName];
+    return override ? { ...s, description: override } : s;
+  });
+}
 
 /** Tools whose handlers enforce a preview/confirm HITL gate. */
 export const HITL_TOOLS: readonly ToolName[] = Object.freeze([

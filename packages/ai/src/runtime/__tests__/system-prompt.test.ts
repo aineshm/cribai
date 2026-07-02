@@ -31,6 +31,7 @@ import {
   EMPTY_PROFILE_SNIPPET,
   type UserProfileSnippet,
 } from '../system-prompt';
+import { buildPersona } from '../persona';
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -374,5 +375,65 @@ describe('AIN-24 — campusName is a trust boundary (sanitized before interpolat
       { campusName: 'UW-Madison' },
     );
     expect(cachedPrefix).toContain('platform at UW-Madison.');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CRM surface prompt (show_card wave)
+// ---------------------------------------------------------------------------
+
+describe('CRM surface prompt', () => {
+  it('CRM cachedPrefix omits the 4 excluded tools and search-first RULE #1', () => {
+    const { cachedPrefix } = buildSystemPrompt(baseState(), ALICE, { surface: 'crm' });
+    expect(cachedPrefix).not.toContain('### search_listings');
+    expect(cachedPrefix).not.toContain('SEARCH FIRST, ASK LATER');
+    expect(cachedPrefix).toContain('### rank_compare');
+    expect(cachedPrefix).toContain("THIS IS THE USER'S SAVED LIST");
+  });
+
+  it('CRM cachedPrefix is byte-stable across turns (state/profile do not affect it)', () => {
+    const a = buildSystemPrompt(baseState(), ALICE, { surface: 'crm' }).cachedPrefix;
+    const b = buildSystemPrompt(withPendingTour(), BOB, { surface: 'crm' }).cachedPrefix;
+    expect(a).toBe(b);
+  });
+
+  it('explore cachedPrefix is byte-identical to the pre-change output (no CRM arg)', () => {
+    const { cachedPrefix } = buildSystemPrompt(baseState(), ALICE, {});
+    expect(cachedPrefix).toContain('### search_listings');
+    expect(cachedPrefix).toContain('SEARCH FIRST, ASK LATER');
+  });
+
+  it('CRM dynamicSuffix carries the card-guidance block; explore does not', () => {
+    const crm = buildSystemPrompt(baseState(), ALICE, { surface: 'crm' }).dynamicSuffix;
+    const explore = buildSystemPrompt(baseState(), ALICE, {}).dynamicSuffix;
+    expect(crm).toContain('My Apartments is the single source of truth');
+    expect(explore).not.toContain('My Apartments is the single source of truth');
+  });
+
+  it('CRM cachedPrefix never mentions excluded tools ANYWHERE (persona coherence)', () => {
+    // Review Finding 1: the persona's Context block must not instruct an
+    // explore-only workflow (search_listings / get_listing_detail) on the CRM
+    // surface where those tools do not exist. Sweep the FULL prefix, not just
+    // the '### name' spec entries.
+    const { cachedPrefix } = buildSystemPrompt(baseState(), ALICE, { surface: 'crm' });
+    expect(cachedPrefix).not.toContain('search_listings');
+    expect(cachedPrefix).not.toContain('get_listing_detail');
+    expect(cachedPrefix).not.toContain('get_saved_listings');
+    expect(cachedPrefix).not.toContain('compare_listings');
+  });
+
+  it('buildPersona explore output is byte-identical with and without the surface arg', () => {
+    expect(buildPersona('UW-Madison')).toBe(buildPersona('UW-Madison', undefined));
+  });
+
+  it('CRM persona swaps the search workflow for the saved-list analysis workflow', () => {
+    const crmPersona = buildPersona('UW-Madison', 'crm');
+    expect(crmPersona).toContain('first_save_analysis');
+    expect(crmPersona).toContain('rank_compare');
+    expect(crmPersona).not.toContain('search_listings');
+    expect(crmPersona).not.toContain('get_listing_detail');
+    // Identity/voice unchanged.
+    expect(crmPersona).toContain('You are CribAI');
+    expect(crmPersona).toContain('Voice:');
   });
 });

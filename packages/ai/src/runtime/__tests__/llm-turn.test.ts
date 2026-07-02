@@ -488,6 +488,87 @@ describe('runLlmTurn — guest tool rejection', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Task 4: surface scoping — tools + system prompt thread through runLlmTurn
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates a MockLanguageModelV3 that captures the tool names and raw system
+ * prompt from the `doStream` params (what streamText actually passes to the
+ * model). Returns mutable `captured` arrays so assertions run after `collect`.
+ */
+function makeCaptureModel(extraParts: LanguageModelV3StreamPart[] = []): {
+  model: MockLanguageModelV3;
+  captured: { tools: string[]; system: string };
+} {
+  const captured = { tools: [] as string[], system: '' };
+  const model = new MockLanguageModelV3({
+    doStream: async (params: Record<string, unknown>) => {
+      const toolList = params['tools'] as Array<{ name: string }> | undefined;
+      if (toolList) {
+        captured.tools.push(...toolList.map((t) => t.name));
+      }
+      // system is the first `system`-role message in prompt
+      const prompt = params['prompt'] as Array<{ role: string; content: unknown }> | undefined;
+      const sysMsg = prompt?.find((m) => m.role === 'system');
+      if (sysMsg) {
+        captured.system =
+          typeof sysMsg.content === 'string'
+            ? sysMsg.content
+            : (sysMsg.content as Array<{ text?: string }>)?.[0]?.text ?? '';
+      }
+      return {
+        stream: simulateReadableStream({
+          chunks: [
+            { type: 'stream-start', warnings: [] } as LanguageModelV3StreamPart,
+            ...extraParts,
+            FINISH,
+          ],
+          initialDelayInMs: null,
+          chunkDelayInMs: null,
+        }),
+      };
+    },
+  });
+  return { model, captured };
+}
+
+describe('runLlmTurn — surface scoping (Task 4)', () => {
+  it('surface: crm scopes tools — excludes explore-discovery tools, keeps CRM tools', async () => {
+    const { model, captured } = makeCaptureModel();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await collect(runLlmTurn(baseInput(model, { surface: 'crm' } as any)));
+
+    expect(captured.tools).not.toContain('search_listings');
+    expect(captured.tools).not.toContain('get_saved_listings');
+    expect(captured.tools).not.toContain('get_listing_detail');
+    expect(captured.tools).not.toContain('compare_listings');
+    expect(captured.tools).toContain('rank_compare');
+    expect(captured.tools).toContain('add_listing');
+    expect(captured.tools).toHaveLength(13);
+  });
+
+  it('surface: crm injects CRM guidance into the system prompt', async () => {
+    const { model, captured } = makeCaptureModel();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await collect(runLlmTurn(baseInput(model, { surface: 'crm' } as any)));
+
+    expect(captured.system).toContain("THIS IS THE USER'S SAVED LIST");
+    expect(captured.system).not.toContain('SEARCH FIRST, ASK LATER');
+  });
+
+  it('no surface leaves all 17 tools — explore/default unchanged', async () => {
+    const { model, captured } = makeCaptureModel();
+
+    await collect(runLlmTurn(baseInput(model)));
+
+    expect(captured.tools).toHaveLength(17);
+    expect(captured.tools).toContain('search_listings');
+  });
+});
+
 describe('runLlmTurn — onFirstModelToken (FIX 3: TTFT at first token)', () => {
   it('fires onFirstModelToken on the FIRST text-delta, before the step boundary flush', async () => {
     const onFirstModelToken = vi.fn();

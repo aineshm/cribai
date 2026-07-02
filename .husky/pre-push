@@ -51,7 +51,13 @@ while read local_ref local_oid remote_ref remote_oid; do
   cat /tmp/codex_prepush.log
 
   if [ $REVIEW_EXIT -ne 0 ]; then
-    if grep -qiE "usage limit|TokenRefreshFailed|worker quit with fatal|rate limit|stream error|connection refused|timed out" /tmp/codex_prepush.log; then
+    # AIN-87: a missing/blocked codex BINARY is an outage, not findings.
+    # Covers: npm wrapper spawn ENOENT (binary quarantined/deleted — e.g. the
+    # 2026-07-01 macOS malware-flag incident) and the CLI not being installed
+    # at all ("codex: command not found" / "codex: not found"). Deliberately
+    # narrow patterns so genuine review findings mentioning "not found" in
+    # code context can never be misread as an outage.
+    if grep -qiE "usage limit|TokenRefreshFailed|worker quit with fatal|rate limit|stream error|connection refused|timed out|ENOENT|codex: command not found|codex: not found|command not found: codex" /tmp/codex_prepush.log; then
       echo ""
       echo "⚠️  Codex UNAVAILABLE (outage: rate-limit/auth/transport) — allowing push (AIN-49)."
       echo "    REQUIRED substitute (the new default while codex is rate-limited"

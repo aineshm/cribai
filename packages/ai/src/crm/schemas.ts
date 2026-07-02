@@ -11,6 +11,16 @@
 
 import { z } from 'zod';
 
+/**
+ * Shared `show_card` param for the 3 card-emitting CRM tools.
+ * Set false to answer in prose only; defaults to true (safe failure mode —
+ * a model that omits the field gets current behavior, not a regression).
+ */
+const showCardParam = z
+  .boolean()
+  .optional()
+  .describe('Render a card for this result. Set false to answer in prose only. Defaults to true.');
+
 // ---------------------------------------------------------------------------
 // Tool name registry (Phase 2 forward)
 // ---------------------------------------------------------------------------
@@ -30,6 +40,7 @@ export type CrmToolName = (typeof CRM_TOOL_NAMES)[number];
 
 export const addListingInput = z.object({
   url: z.string().url(),
+  show_card: showCardParam,
 });
 
 export const ADD_LISTING_DESCRIPTION =
@@ -41,6 +52,7 @@ export const ADD_LISTING_DESCRIPTION =
 
 export const firstSaveAnalysisInput = z.object({
   listing_id: z.string().uuid(),
+  show_card: showCardParam,
 });
 
 export const FIRST_SAVE_ANALYSIS_DESCRIPTION =
@@ -63,6 +75,7 @@ export const rankCompareInput = z.object({
   mode: z.enum(['rank', 'compare']).optional(),
   listing_titles: z.array(z.string()).optional(),
   listing_ids: z.array(z.string().uuid()).optional(),
+  show_card: showCardParam,
 });
 
 export const RANK_COMPARE_DESCRIPTION =
