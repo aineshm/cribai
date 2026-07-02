@@ -108,6 +108,7 @@ function toBatches<T>(items: readonly T[], size: number): T[][] {
 async function sweepBatch(
   supabase: SupabaseClient,
   batch: readonly ExpiredCaptureRow[],
+  cutoff: string,
 ): Promise<number> {
   const paths = batch.map((row) => row.storage_path);
   const ids = batch.map((row) => row.listing_id);
@@ -119,10 +120,18 @@ async function sweepBatch(
       return 0;
     }
 
+    // TOCTOU guard: a re-capture between the SELECT and this DELETE (ingest
+    // upsert refreshes captured_at + overwrites the storage object) must not
+    // delete the fresh row — re-qualify by the same cutoff so only rows still
+    // expired at delete time are removed. If the object was already replaced
+    // in that window this degrades gracefully: the pointer row survives, a
+    // later download misses and falls back to fetch, and the next ingest
+    // re-uploads.
     const { error: deleteError } = await supabase
       .from('crm_listing_captures')
       .delete()
-      .in('listing_id', ids);
+      .in('listing_id', ids)
+      .lt('captured_at', cutoff);
     if (deleteError) {
       // Objects are already gone but rows remain; the next sweep retries the
       // rows and storage.remove tolerates already-missing objects.
@@ -189,7 +198,7 @@ export async function sweepExpiredCaptures(
 
   let removed = 0;
   for (const batch of toBatches(rows, batchSize)) {
-    removed += await sweepBatch(supabase, batch);
+    removed += await sweepBatch(supabase, batch, cutoff);
   }
 
   return { scanned: rows.length, removed, failed: rows.length - removed, dryRun };

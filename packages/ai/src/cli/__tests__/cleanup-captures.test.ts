@@ -57,14 +57,18 @@ function makeMockSupabase(opts: {
     return { data: [], error: null };
   });
 
+  // Chain: .delete().in('listing_id', ids).lt('captured_at', cutoff) — the
+  // .lt() re-qualifies the delete by the same cutoff as the SELECT (TOCTOU
+  // guard), so the mock resolves on the .lt() call, not .in().
   let deleteCall = 0;
-  const inSpy = vi.fn(async (_col: string, _ids: string[]) => {
+  const ltDeleteSpy = vi.fn(async (_col: string, _cutoff: string) => {
     const call = deleteCall++;
     if (opts.deleteFailsOnCall?.includes(call)) {
       return { data: null, error: { message: `delete failed on batch ${call}` } };
     }
     return { data: null, error: null };
   });
+  const inSpy = vi.fn((_col: string, _ids: string[]) => ({ lt: ltDeleteSpy }));
   const deleteSpy = vi.fn(() => ({ in: inSpy }));
 
   const client = {
@@ -72,7 +76,7 @@ function makeMockSupabase(opts: {
     storage: { from: vi.fn(() => ({ remove: removeSpy })) },
   };
 
-  return { client, ltSpy, rangeSpy, selectSpy, removeSpy, deleteSpy, inSpy };
+  return { client, ltSpy, rangeSpy, selectSpy, removeSpy, deleteSpy, inSpy, ltDeleteSpy };
 }
 
 // ---------------------------------------------------------------------------
@@ -119,7 +123,7 @@ describe('sweepExpiredCaptures', () => {
 
   it('removes storage objects and deletes rows in batches', async () => {
     const rows = makeRows(5);
-    const { client, removeSpy, inSpy } = makeMockSupabase({ rows });
+    const { client, removeSpy, inSpy, ltDeleteSpy } = makeMockSupabase({ rows });
 
     const summary = await sweepExpiredCaptures(client as never, {
       retentionDays: 14,
@@ -139,12 +143,18 @@ describe('sweepExpiredCaptures', () => {
     expect(inSpy).toHaveBeenNthCalledWith(1, 'listing_id', ['listing-0', 'listing-1']);
     expect(inSpy).toHaveBeenNthCalledWith(3, 'listing_id', ['listing-4']);
 
+    // TOCTOU guard: every batch delete re-qualifies by the same cutoff as the
+    // SELECT so a fresh re-capture (upsert refreshing captured_at) survives.
+    expect(ltDeleteSpy).toHaveBeenCalledTimes(3);
+    expect(ltDeleteSpy).toHaveBeenNthCalledWith(1, 'captured_at', '2026-06-18T08:00:00.000Z');
+    expect(ltDeleteSpy).toHaveBeenNthCalledWith(3, 'captured_at', '2026-06-18T08:00:00.000Z');
+
     expect(summary).toEqual({ scanned: 5, removed: 5, failed: 0, dryRun: false });
   });
 
   it('isolates a failed batch: keeps its rows, continues with the rest', async () => {
     const rows = makeRows(4);
-    const { client, removeSpy, inSpy } = makeMockSupabase({
+    const { client, removeSpy, inSpy, ltDeleteSpy } = makeMockSupabase({
       rows,
       removeFailsOnCall: [0], // first batch's storage remove fails
     });
@@ -160,13 +170,15 @@ describe('sweepExpiredCaptures', () => {
     // …but only the SECOND batch's rows were deleted (failed batch retries next run).
     expect(inSpy).toHaveBeenCalledTimes(1);
     expect(inSpy).toHaveBeenCalledWith('listing_id', ['listing-2', 'listing-3']);
+    expect(ltDeleteSpy).toHaveBeenCalledTimes(1);
+    expect(ltDeleteSpy).toHaveBeenCalledWith('captured_at', '2026-06-18T08:00:00.000Z');
 
     expect(summary).toEqual({ scanned: 4, removed: 2, failed: 2, dryRun: false });
   });
 
   it('counts a batch failed (rows retained implicitly retried) when the row delete fails after remove succeeds', async () => {
     const rows = makeRows(2);
-    const { client, inSpy } = makeMockSupabase({
+    const { client, inSpy, ltDeleteSpy } = makeMockSupabase({
       rows,
       deleteFailsOnCall: [0],
     });
@@ -178,6 +190,8 @@ describe('sweepExpiredCaptures', () => {
     });
 
     expect(inSpy).toHaveBeenCalledTimes(1);
+    expect(ltDeleteSpy).toHaveBeenCalledTimes(1);
+    expect(ltDeleteSpy).toHaveBeenCalledWith('captured_at', '2026-06-18T08:00:00.000Z');
     expect(summary).toEqual({ scanned: 2, removed: 0, failed: 2, dryRun: false });
   });
 
