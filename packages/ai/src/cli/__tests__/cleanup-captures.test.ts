@@ -37,9 +37,15 @@ function makeMockSupabase(opts: {
   /** Batch indices whose row delete fails. */
   deleteFailsOnCall?: number[];
 }) {
-  const ltSpy = vi.fn().mockResolvedValue(
-    opts.selectError ? { data: null, error: opts.selectError } : { data: opts.rows, error: null },
-  );
+  // The expired-row select paginates with .range() — PostgREST silently caps
+  // unranged selects at 1000 rows, so the sweep pages explicitly (AIN-84).
+  // Chain: .select().lt(col, cutoff).order().range(from, to)
+  const rangeSpy = vi.fn(async (from: number, to: number) => {
+    if (opts.selectError) return { data: null, error: opts.selectError };
+    return { data: opts.rows.slice(from, to + 1), error: null };
+  });
+  const orderSpy = vi.fn(() => ({ range: rangeSpy }));
+  const ltSpy = vi.fn(() => ({ order: orderSpy }));
   const selectSpy = vi.fn(() => ({ lt: ltSpy }));
 
   let removeCall = 0;
@@ -66,7 +72,7 @@ function makeMockSupabase(opts: {
     storage: { from: vi.fn(() => ({ remove: removeSpy })) },
   };
 
-  return { client, ltSpy, selectSpy, removeSpy, deleteSpy, inSpy };
+  return { client, ltSpy, rangeSpy, selectSpy, removeSpy, deleteSpy, inSpy };
 }
 
 // ---------------------------------------------------------------------------
@@ -188,6 +194,25 @@ describe('sweepExpiredCaptures', () => {
     expect(removeSpy).not.toHaveBeenCalled();
     expect(deleteSpy).not.toHaveBeenCalled();
     expect(summary).toEqual({ scanned: 3, removed: 0, failed: 0, dryRun: true });
+  });
+
+  it('paginates the expired-row select past the PostgREST 1000-row cap', async () => {
+    // 5 rows with a select page size of 2 → 3 range calls (last one short).
+    const rows = makeRows(5);
+    const { client, rangeSpy } = makeMockSupabase({ rows });
+
+    const summary = await sweepExpiredCaptures(client as never, {
+      retentionDays: 14,
+      now: NOW,
+      batchSize: 100,
+      selectPageSize: 2,
+    });
+
+    expect(rangeSpy).toHaveBeenCalledTimes(3);
+    expect(rangeSpy).toHaveBeenNthCalledWith(1, 0, 1);
+    expect(rangeSpy).toHaveBeenNthCalledWith(2, 2, 3);
+    expect(rangeSpy).toHaveBeenNthCalledWith(3, 4, 5);
+    expect(summary).toEqual({ scanned: 5, removed: 5, failed: 0, dryRun: false });
   });
 
   it('returns a zero summary when nothing is expired', async () => {

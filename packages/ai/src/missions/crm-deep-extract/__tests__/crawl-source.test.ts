@@ -47,6 +47,11 @@ function makeMockSupabase(opts: {
   captureHtml?: string | null;
   /** When true, the pointer row exists but the storage download fails (AIN-84). */
   downloadFails?: boolean;
+  /**
+   * Overrides the pointer row's storage_path (AIN-84 ownership check: a path
+   * outside the owner's folder must be treated as a capture-miss).
+   */
+  captureStoragePath?: string;
 }): MockSupabase {
   const row =
     opts.found && !opts.archived && !opts.wrongUser
@@ -92,7 +97,9 @@ function makeMockSupabase(opts: {
     from: vi.fn((table: string) => {
       // ── crm_listing_captures: pointer select or consumed-mark update ──────
       if (table === 'crm_listing_captures') {
-        const captureData = hasPointerRow ? { storage_path: CAPTURE_STORAGE_PATH } : null;
+        const captureData = hasPointerRow
+          ? { storage_path: opts.captureStoragePath ?? CAPTURE_STORAGE_PATH }
+          : null;
         return {
           // select chains .eq('listing_id').eq('user_id').maybeSingle()
           select: vi.fn(() => ({
@@ -422,5 +429,49 @@ describe('crawl_source step', () => {
     expect(landingFetchCalls.length).toBe(1);
     // …and nothing was marked consumed (nothing was actually used).
     expect(mockSupa.captureConsumeSpy).not.toHaveBeenCalled();
+  });
+
+  it('treats a storage_path outside the owner folder as a capture-miss without downloading (AIN-84 ownership check)', async () => {
+    const { crawlSourceStep } = await import('../steps/01-crawl-source');
+
+    // A malicious owner can UPDATE their own pointer row (RLS allows it) to
+    // aim at ANOTHER user's object. The service-role download would succeed —
+    // the step must refuse the path before downloading.
+    const mockSupa = makeMockSupabase({
+      found: true,
+      captureHtml: FLOOR_PLAN_HTML,
+      captureStoragePath: 'other-user/listing-1.html.gz',
+    });
+    const stubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'text/html' }),
+      text: () => Promise.resolve(FLOOR_PLAN_HTML),
+      body: null,
+    });
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const ctx = makeCtx({
+      supabase: mockSupa as unknown as StepContext['supabase'],
+    });
+    (ctx.input as Record<string, unknown>).fetchHtml = stubFetch;
+
+    const result = await crawlSourceStep.run(ctx);
+
+    // The foreign object was NEVER downloaded…
+    expect(mockSupa.storageDownloadSpy).not.toHaveBeenCalled();
+    // …the fetch fallback ran instead…
+    expect(result.output.skipped).toBeUndefined();
+    const landingFetchCalls = stubFetch.mock.calls.filter(
+      (call: unknown[]) => String(call[0]) === 'https://x01oncampus.com/units/2br',
+    );
+    expect(landingFetchCalls.length).toBe(1);
+    // …nothing was marked consumed, and the refusal was logged.
+    expect(mockSupa.captureConsumeSpy).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('outside owner folder'),
+      expect.any(String),
+    );
+    warnSpy.mockRestore();
   });
 });

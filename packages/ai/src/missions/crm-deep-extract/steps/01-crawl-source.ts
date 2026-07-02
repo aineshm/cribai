@@ -181,6 +181,19 @@ async function lookupCapture(
       .maybeSingle()) as { data: CaptureRow | null; error: unknown };
     if (!data?.storage_path) return null;
 
+    // Ownership check BEFORE downloading: RLS lets an owner UPDATE their own
+    // pointer row, so a malicious user could aim storage_path at ANOTHER
+    // user's object — and this service-role download would succeed. Refuse
+    // any path outside the owner's folder (capturePath convention:
+    // `${userId}/…`) and degrade to a capture-miss.
+    if (!data.storage_path.startsWith(`${userId}/`)) {
+      console.warn(
+        '[crawl_source] capture storage_path outside owner folder — treating as miss:',
+        data.storage_path,
+      );
+      return null;
+    }
+
     // downloadCapture returns null (never throws) on any storage failure —
     // treated as a capture-miss so the fetch fallback runs.
     return await downloadCapture(supabase, data.storage_path);

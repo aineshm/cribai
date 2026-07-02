@@ -34,6 +34,13 @@ export const DEFAULT_RETENTION_DAYS = 14;
 /** Objects removed per storage.remove() call / rows deleted per batch. */
 export const SWEEP_BATCH_SIZE = 100;
 
+/**
+ * Page size for the expired-row select. PostgREST silently caps unranged
+ * selects at 1000 rows — the sweep paginates with .range() so it never
+ * silently bounds itself to the first 1000 expired captures.
+ */
+export const SELECT_PAGE_SIZE = 1000;
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
@@ -73,6 +80,8 @@ export interface SweepOptions {
   readonly batchSize?: number;
   /** Injectable clock for tests. */
   readonly now?: Date;
+  /** Select pagination size (tests only; defaults to SELECT_PAGE_SIZE). */
+  readonly selectPageSize?: number;
 }
 
 export interface SweepSummary {
@@ -145,16 +154,28 @@ export async function sweepExpiredCaptures(
   const batchSize = options.batchSize ?? SWEEP_BATCH_SIZE;
   const cutoff = new Date(now.getTime() - options.retentionDays * MS_PER_DAY).toISOString();
 
-  const { data, error } = await supabase
-    .from('crm_listing_captures')
-    .select('listing_id, storage_path')
-    .lt('captured_at', cutoff);
+  // Paginate explicitly: PostgREST silently caps unranged selects at 1000
+  // rows, which would silently bound the sweep. All pages are collected
+  // BEFORE any deletion so the range offsets stay stable.
+  const pageSize = options.selectPageSize ?? SELECT_PAGE_SIZE;
+  let rows: readonly ExpiredCaptureRow[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from('crm_listing_captures')
+      .select('listing_id, storage_path')
+      .lt('captured_at', cutoff)
+      .order('captured_at', { ascending: true })
+      .range(from, from + pageSize - 1);
 
-  if (error) {
-    throw new Error(`[cleanup-captures] expired-row select failed: ${error.message}`);
+    if (error) {
+      throw new Error(`[cleanup-captures] expired-row select failed: ${error.message}`);
+    }
+
+    const page = (data ?? []) as ExpiredCaptureRow[];
+    rows = [...rows, ...page];
+    if (page.length < pageSize) break;
   }
 
-  const rows = (data ?? []) as ExpiredCaptureRow[];
   if (rows.length === 0) {
     return { scanned: 0, removed: 0, failed: 0, dryRun };
   }
