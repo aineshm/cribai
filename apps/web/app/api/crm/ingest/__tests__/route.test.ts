@@ -26,6 +26,7 @@
  *     extension origin
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { gzipSync } from 'node:zlib';
 import { NextRequest } from 'next/server';
 import { createQueryBuilder } from '../../__tests__/test-helpers';
 import { _resetRateLimiterForTests, INGEST_RATE_LIMIT } from '../../_lib/ingest-rate-limiter';
@@ -44,6 +45,7 @@ const {
   mockGeocode,
   mockFirstSaveAnalysis,
   mockCreateBearerClient,
+  mockCreateSecretClient,
   mockAfterFn,
 } = vi.hoisted(() => ({
   mockGetUser: vi.fn(),
@@ -53,6 +55,7 @@ const {
   mockGeocode: vi.fn(),
   mockFirstSaveAnalysis: vi.fn(),
   mockCreateBearerClient: vi.fn(),
+  mockCreateSecretClient: vi.fn(),
   mockAfterFn: vi.fn(),
 }));
 
@@ -70,7 +73,7 @@ const mockBearerClient = {
 
 vi.mock('@campusnest/supabase/server', () => ({
   createServerComponentClient: vi.fn(() => ({ auth: { getUser: vi.fn() }, from: vi.fn() })),
-  createSecretClient: vi.fn(() => ({ from: vi.fn() })),
+  createSecretClient: mockCreateSecretClient,
   createBearerClient: mockCreateBearerClient,
 }));
 
@@ -107,6 +110,16 @@ beforeEach(() => {
     error: null,
   });
   mockCreateBearerClient.mockReturnValue(mockBearerClient);
+
+  // Default: secret client whose storage upload succeeds (AIN-84 capture path).
+  mockCreateSecretClient.mockReturnValue({
+    from: vi.fn(),
+    storage: {
+      from: vi.fn(() => ({
+        upload: vi.fn().mockResolvedValue({ data: { path: 'x' }, error: null }),
+      })),
+    },
+  });
 
   // Default: row cap under the limit.
   mockFrom.mockReturnValue(createQueryBuilder({ data: null, error: null, count: 0 }));
@@ -1410,23 +1423,35 @@ describe('POST /api/crm/ingest — needsEnrichment broadening (AIN-75)', () => {
   });
 });
 
-// ── Capture persistence (AIN-78) ─────────────────────────────────────────────
+// ── Capture persistence (AIN-84, supersedes AIN-78) ──────────────────────────
 
-describe('POST /api/crm/ingest — capture persistence (AIN-78)', () => {
+describe('POST /api/crm/ingest — capture persistence (AIN-84)', () => {
   /**
    * When a deep-extract is going to be enqueued (needsDeepScan=true), the ingest
-   * route must persist the extension-captured HTML to crm_listing_captures so the
-   * crawl_source step can reuse it instead of re-fetching (which Zillow blocks).
-   * The write is best-effort — a failure must never affect the 201 response.
+   * route must persist the extension-captured HTML as a gzipped object in the
+   * private listing-captures bucket (service-role client — the Bearer client
+   * cannot write a policy-less private bucket) and upsert a POINTER row into
+   * crm_listing_captures (auth.db, RLS-scoped): storage_path + captured_at +
+   * consumed_at reset to null. No html column anymore. Both writes are
+   * best-effort — a failure must never affect the 201 response, and an upload
+   * failure must skip the pointer-row write entirely (no dangling pointer).
    */
 
-  function setupMockForCapture(captureUpsertSpy: ReturnType<typeof vi.fn>) {
+  function setupMockForCapture(opts: {
+    captureUpsertSpy: ReturnType<typeof vi.fn>;
+    uploadSpy: ReturnType<typeof vi.fn>;
+  }) {
     // Low confidence ensures needsDeepScan=true without a DB round-trip for checkNeedsEnrichment.
     mockAddListing.mockResolvedValue({ listingId: 'l-cap', alreadySaved: false, confidence: 0.3 });
 
+    mockCreateSecretClient.mockReturnValue({
+      from: vi.fn(),
+      storage: { from: vi.fn(() => ({ upload: opts.uploadSpy })) },
+    });
+
     mockFrom.mockImplementation((table: string) => {
       if (table === 'crm_listing_captures') {
-        return { upsert: captureUpsertSpy };
+        return { upsert: opts.captureUpsertSpy };
       }
       if (table === 'missions') {
         return {
@@ -1446,9 +1471,10 @@ describe('POST /api/crm/ingest — capture persistence (AIN-78)', () => {
     });
   }
 
-  it('upserts crm_listing_captures with the captured HTML when a deep-extract is enqueued', async () => {
+  it('uploads gzipped HTML to the private bucket and upserts a pointer row (no html column)', async () => {
     const captureUpsertSpy = vi.fn().mockResolvedValue({ data: null, error: null });
-    setupMockForCapture(captureUpsertSpy);
+    const uploadSpy = vi.fn().mockResolvedValue({ data: { path: 'u-1/l-cap.html.gz' }, error: null });
+    setupMockForCapture({ captureUpsertSpy, uploadSpy });
 
     const res = await POST(makeRequest(validBody()));
     expect(res.status).toBe(201);
@@ -1456,19 +1482,50 @@ describe('POST /api/crm/ingest — capture persistence (AIN-78)', () => {
     // Allow any async tails to settle
     await new Promise((r) => setTimeout(r, 10));
 
+    // Upload: gzipped bytes of the captured HTML at the path convention.
+    expect(uploadSpy).toHaveBeenCalledWith(
+      'u-1/l-cap.html.gz',
+      expect.any(Buffer),
+      expect.objectContaining({ contentType: 'application/gzip', upsert: true }),
+    );
+    const uploadedBytes = uploadSpy.mock.calls[0]?.[1] as Buffer;
+    expect(uploadedBytes.equals(gzipSync(Buffer.from(VALID_HTML, 'utf8')))).toBe(true);
+
+    // Pointer row: storage_path + consumed_at reset; html is GONE.
     expect(captureUpsertSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         listing_id: 'l-cap',
-        html: VALID_HTML,
         user_id: 'u-1',
+        storage_path: 'u-1/l-cap.html.gz',
+        consumed_at: null,
       }),
-      expect.anything(), // onConflict options
+      expect.objectContaining({ onConflict: 'listing_id' }),
     );
+    const upsertedRow = captureUpsertSpy.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(upsertedRow.html).toBeUndefined();
+    expect(typeof upsertedRow.captured_at).toBe('string');
   });
 
-  it('returns 201 even when the capture upsert throws (best-effort, must not fail the save)', async () => {
+  it('skips the pointer-row write and still returns 201 when the storage upload fails', async () => {
+    const captureUpsertSpy = vi.fn().mockResolvedValue({ data: null, error: null });
+    const uploadSpy = vi.fn().mockResolvedValue({ data: null, error: { message: 'bucket not found' } });
+    setupMockForCapture({ captureUpsertSpy, uploadSpy });
+
+    const res = await POST(makeRequest(validBody()));
+
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.listingId).toBe('l-cap');
+
+    await new Promise((r) => setTimeout(r, 10));
+    // Upload failed → NO dangling pointer row.
+    expect(captureUpsertSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns 201 even when the pointer-row upsert throws (best-effort, must not fail the save)', async () => {
     const captureUpsertSpy = vi.fn().mockRejectedValue(new Error('DB connection lost'));
-    setupMockForCapture(captureUpsertSpy);
+    const uploadSpy = vi.fn().mockResolvedValue({ data: { path: 'u-1/l-cap.html.gz' }, error: null });
+    setupMockForCapture({ captureUpsertSpy, uploadSpy });
 
     const res = await POST(makeRequest(validBody()));
 
@@ -1476,6 +1533,21 @@ describe('POST /api/crm/ingest — capture persistence (AIN-78)', () => {
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.listingId).toBe('l-cap');
+  });
+
+  it('returns 201 even when createSecretClient itself throws (missing env, best-effort)', async () => {
+    const captureUpsertSpy = vi.fn().mockResolvedValue({ data: null, error: null });
+    const uploadSpy = vi.fn();
+    setupMockForCapture({ captureUpsertSpy, uploadSpy });
+    mockCreateSecretClient.mockImplementation(() => {
+      throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY');
+    });
+
+    const res = await POST(makeRequest(validBody()));
+
+    expect(res.status).toBe(201);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(captureUpsertSpy).not.toHaveBeenCalled();
   });
 });
 

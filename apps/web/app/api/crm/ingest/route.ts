@@ -57,6 +57,9 @@ import {
   firstSaveAnalysis,
   type AddListingErrorCode,
 } from '@campusnest/ai';
+import { createSecretClient } from '@campusnest/supabase/server';
+import { uploadCapture } from '@campusnest/supabase/storage';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { resolveCrmAuthFromBearer, type CrmAuth } from '../_lib/auth';
 import { sourceUrlSchema } from '../_lib/source-url-schema';
 import { buildExtensionCorsHeaders as buildCorsHeaders } from '../_lib/extension-cors';
@@ -217,22 +220,33 @@ async function fireAnalysis(auth: CrmAuth, listingId: string): Promise<void> {
   }
 }
 
-// ── Capture persistence (AIN-78) ─────────────────────────────────────────────
+// ── Capture persistence (AIN-84, supersedes AIN-78) ──────────────────────────
 
 /**
- * Best-effort upsert of the extension-captured HTML into crm_listing_captures.
+ * Best-effort persistence of the extension-captured HTML: gzipped object in
+ * the private `listing-captures` bucket + a pointer row in
+ * crm_listing_captures (`storage_path`, `captured_at`, `consumed_at`).
  *
  * Called when a deep-extract mission is about to be enqueued so the
  * crawl_source step can reuse the user's real browser HTML instead of
  * re-fetching the URL server-side (anti-bot sites like Zillow block the
  * server-side fetch; the user's browser already loaded it cleanly).
  *
- * Design:
- *   - Upserts on listing_id conflict so re-ingest of the same URL always
- *     stores the freshest HTML the user's browser captured.
- *   - Best-effort only: a write failure is logged and swallowed. The mission
- *     still runs; crawl_source falls back to a server-side fetch (which may
- *     be blocked, but that was the prior behaviour before AIN-78).
+ * Design (AIN-84):
+ *   - Storage upload runs on the SERVICE-ROLE client (`createSecretClient`):
+ *     this route authenticates via `createBearerClient` (anon key + JWT),
+ *     which cannot write to a policy-less private bucket. `userId` comes from
+ *     validated auth and scopes the object path — same trust model as the
+ *     service-role mission reads.
+ *   - The pointer-row upsert stays on `auth.db` (RLS-scoped), exactly like
+ *     the pre-AIN-84 row write.
+ *   - Upload failure → SKIP the row write entirely (no dangling pointer),
+ *     warn, and let the request 201 as before. The mission falls back to a
+ *     server-side fetch.
+ *   - Re-ingest overwrites the object (upsert), refreshes captured_at, and
+ *     resets consumed_at to null — the freshest capture is unconsumed by
+ *     definition and never treated as stale by the retention sweep (AIN-79
+ *     is closed into AIN-84's sweep).
  *   - Never mutates its arguments; always creates a new row object.
  */
 async function persistCapture(
@@ -241,20 +255,33 @@ async function persistCapture(
   html: string,
 ): Promise<void> {
   try {
+    const storageClient = createSecretClient() as unknown as SupabaseClient;
+    const storagePath = await uploadCapture(storageClient, {
+      userId: auth.userId,
+      listingId,
+      html,
+    });
+
     const { error } = await auth.db
       .from('crm_listing_captures')
       .upsert(
-        // captured_at refreshed on conflict so a re-capture is never treated as
-        // stale by a future TTL cleanup (AIN-79).
-        { listing_id: listingId, user_id: auth.userId, html, captured_at: new Date().toISOString() },
+        {
+          listing_id: listingId,
+          user_id: auth.userId,
+          storage_path: storagePath,
+          captured_at: new Date().toISOString(),
+          consumed_at: null,
+        },
         { onConflict: 'listing_id' },
       );
     if (error) {
-      console.warn('[crm/ingest] capture persist failed (non-fatal):', error.message);
+      console.warn('[crm/ingest] capture pointer-row upsert failed (non-fatal):', error.message);
     }
   } catch (err) {
+    // An uploadCapture throw lands here BEFORE the row write — an upload
+    // failure therefore never leaves a dangling pointer row.
     console.warn(
-      '[crm/ingest] capture persist threw (non-fatal):',
+      '[crm/ingest] capture persist failed (non-fatal):',
       err instanceof Error ? err.message : String(err),
     );
   }
