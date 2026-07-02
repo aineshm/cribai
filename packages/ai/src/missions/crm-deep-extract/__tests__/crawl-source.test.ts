@@ -1,8 +1,9 @@
 /**
- * Tests for crawl-source step (AIN-71 step 4.2).
+ * Tests for crawl-source step (AIN-71 step 4.2; capture storage per AIN-84).
  */
 
 import { describe, it, expect, vi } from 'vitest';
+import { gzipSync } from 'node:zlib';
 import type { StepContext } from '../../types';
 
 // ---------------------------------------------------------------------------
@@ -22,18 +23,30 @@ function makeCtx(overrides: Partial<StepContext> = {}): StepContext {
   };
 }
 
+const CAPTURE_STORAGE_PATH = 'user-1/listing-1.html.gz';
+
 interface MockSupabase {
   from: ReturnType<typeof vi.fn>;
-  /** Spy on the `.eq()` that fires when the capture row is deleted. */
-  captureDeleteSpy: ReturnType<typeof vi.fn>;
+  /**
+   * Spy on the `.update()` that marks the capture row consumed (AIN-84:
+   * consume MARKS consumed_at; nothing is deleted).
+   */
+  captureConsumeSpy: ReturnType<typeof vi.fn>;
+  /** Spy on `storage.from('listing-captures').download(path)`. */
+  storageDownloadSpy: ReturnType<typeof vi.fn>;
 }
 
 function makeMockSupabase(opts: {
   found: boolean;
   archived?: boolean;
   wrongUser?: boolean;
-  /** HTML to return from crm_listing_captures; null/undefined means no capture. */
+  /**
+   * HTML the storage object gunzips to; null/undefined means no capture
+   * pointer row exists at all.
+   */
   captureHtml?: string | null;
+  /** When true, the pointer row exists but the storage download fails (AIN-84). */
+  downloadFails?: boolean;
 }): MockSupabase {
   const row =
     opts.found && !opts.archived && !opts.wrongUser
@@ -50,19 +63,36 @@ function makeMockSupabase(opts: {
         ? { id: 'listing-1', user_id: 'user-1', title: 'X01', address: null, rent: null, extraction_confidence: 0.3, status: 'archived' }
         : null;
 
-  // Spy exposed so tests can assert the capture row was deleted after consumption.
-  // The delete chains two .eq() calls (listing_id, then user_id — AIN-78
-  // defense-in-depth); captureDeleteSpy is the first .eq, returning a chainable
-  // second .eq that resolves the query.
-  const captureDeleteSpy = vi.fn(() => ({
-    eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+  const hasPointerRow = opts.captureHtml != null || opts.downloadFails === true;
+
+  // Spy exposed so tests can assert the capture row was marked consumed after
+  // use. The update chains .eq('listing_id', …).eq('user_id', …) — AIN-78
+  // defense-in-depth preserved; captureConsumeSpy is the update() itself so
+  // tests can assert the consumed_at payload.
+  const captureConsumeSpy = vi.fn(() => ({
+    eq: vi.fn(() => ({
+      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+    })),
   }));
+
+  // AIN-84: the capture object lives in the private listing-captures bucket,
+  // gzipped. download() returns a Blob-like with arrayBuffer().
+  const storageDownloadSpy = vi.fn(async (_path: string) => {
+    if (opts.downloadFails || opts.captureHtml == null) {
+      return { data: null, error: { message: 'Object not found' } };
+    }
+    const gz = gzipSync(Buffer.from(opts.captureHtml, 'utf8'));
+    return {
+      data: { arrayBuffer: async () => gz.buffer.slice(gz.byteOffset, gz.byteOffset + gz.byteLength) },
+      error: null,
+    };
+  });
 
   return {
     from: vi.fn((table: string) => {
-      // ── crm_listing_captures: select or delete ────────────────────────────
+      // ── crm_listing_captures: pointer select or consumed-mark update ──────
       if (table === 'crm_listing_captures') {
-        const captureData = opts.captureHtml != null ? { html: opts.captureHtml } : null;
+        const captureData = hasPointerRow ? { storage_path: CAPTURE_STORAGE_PATH } : null;
         return {
           // select chains .eq('listing_id').eq('user_id').maybeSingle()
           select: vi.fn(() => ({
@@ -72,7 +102,7 @@ function makeMockSupabase(opts: {
               })),
             })),
           })),
-          delete: vi.fn(() => ({ eq: captureDeleteSpy })),
+          update: captureConsumeSpy,
         };
       }
       // ── crm_listings: ownership + status check ────────────────────────────
@@ -86,8 +116,12 @@ function makeMockSupabase(opts: {
         })),
       };
     }),
-    captureDeleteSpy,
-  };
+    storage: {
+      from: vi.fn(() => ({ download: storageDownloadSpy })),
+    },
+    captureConsumeSpy,
+    storageDownloadSpy,
+  } as MockSupabase & { storage: unknown };
 }
 
 const FLOOR_PLAN_HTML = `
@@ -257,8 +291,8 @@ describe('crawl_source step', () => {
     expect(result.output.discarded).toEqual([]);
   });
 
-  // AIN-78: reuse extension-captured HTML in crawl_source
-  it('uses extension capture HTML when present: skips landing fetch, populates pages[0], is not blocked, deletes capture', async () => {
+  // AIN-84: reuse extension-captured HTML (gzipped storage object) in crawl_source
+  it('uses extension capture HTML when present: skips landing fetch, populates pages[0], is not blocked, marks consumed', async () => {
     const { crawlSourceStep } = await import('../steps/01-crawl-source');
 
     const captureHtml = FLOOR_PLAN_HTML;
@@ -284,13 +318,23 @@ describe('crawl_source step', () => {
     // Must not be blocked
     expect(result.output.crawl).toBeUndefined();
 
-    // pages[0] must be the landing page from the capture
-    const pages = result.output.pages as Array<{ url: string; textExcerpt: string }>;
+    // pages[0] must be the landing page from the capture — the gunzipped
+    // storage object content really reached extraction/pruning.
+    const pages = result.output.pages as Array<{
+      url: string;
+      textExcerpt: string;
+      fields: Record<string, unknown>;
+    }>;
     expect(Array.isArray(pages)).toBe(true);
     expect(pages.length).toBeGreaterThan(0);
     expect(pages.at(0)?.url).toBe('https://x01oncampus.com/units/2br');
     // textExcerpt populated from the capture HTML
     expect(pages.at(0)?.textExcerpt.length).toBeGreaterThan(0);
+    // Content from the gunzipped capture (JSON-LD name) made it into fields.
+    expect((pages.at(0)?.fields as { title?: string } | undefined)?.title).toBe('X01 on Campus');
+
+    // The storage object was downloaded at the pointer's path
+    expect(mockSupa.storageDownloadSpy).toHaveBeenCalledWith(CAPTURE_STORAGE_PATH);
 
     // Fetch must NOT have been called with the landing page URL
     const landingFetchCalls = stubFetch.mock.calls.filter(
@@ -298,14 +342,17 @@ describe('crawl_source step', () => {
     );
     expect(landingFetchCalls.length).toBe(0);
 
-    // Capture must have been deleted after use (best-effort self-consume)
-    expect(mockSupa.captureDeleteSpy).toHaveBeenCalledWith('listing_id', 'listing-1');
+    // AIN-84: the capture is MARKED consumed (consumed_at set), NOT deleted —
+    // it stays readable for audit/eval and for a mid-subpage-crawl retry.
+    expect(mockSupa.captureConsumeSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ consumed_at: expect.any(String) }),
+    );
   });
 
-  it('falls back to fetch path when no capture row exists (AIN-78 fallback)', async () => {
+  it('falls back to fetch path when no capture row exists (AIN-78 fallback, unchanged)', async () => {
     const { crawlSourceStep } = await import('../steps/01-crawl-source');
 
-    // No captureHtml → mock returns null from crm_listing_captures
+    // No captureHtml → mock returns null pointer row from crm_listing_captures
     const mockSupa = makeMockSupabase({ found: true, captureHtml: null });
     const stubFetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -335,7 +382,45 @@ describe('crawl_source step', () => {
     );
     expect(landingFetchCalls.length).toBe(1);
 
-    // No capture delete issued (nothing to delete)
-    expect(mockSupa.captureDeleteSpy).not.toHaveBeenCalled();
+    // No consumed-mark issued (nothing was consumed)
+    expect(mockSupa.captureConsumeSpy).not.toHaveBeenCalled();
+  });
+
+  // AIN-84: pointer row exists but the storage download fails → capture-miss
+  it('falls back to fetch path when the storage download fails (AIN-84 capture-miss)', async () => {
+    const { crawlSourceStep } = await import('../steps/01-crawl-source');
+
+    const mockSupa = makeMockSupabase({ found: true, downloadFails: true });
+    const stubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'text/html' }),
+      text: () => Promise.resolve(FLOOR_PLAN_HTML),
+      body: null,
+    });
+
+    const ctx = makeCtx({
+      supabase: mockSupa as unknown as StepContext['supabase'],
+    });
+    (ctx.input as Record<string, unknown>).fetchHtml = stubFetch;
+
+    const result = await crawlSourceStep.run(ctx);
+
+    // Degrades exactly like a capture-miss: the fetch fallback ran.
+    expect(result.output.skipped).toBeUndefined();
+    expect(result.output.crawl).toBeUndefined();
+    const pages = result.output.pages as Array<{ url: string }>;
+    expect(pages.length).toBeGreaterThan(0);
+    expect(pages.at(0)?.url).toBe('https://x01oncampus.com/units/2br');
+
+    // The download was attempted at the pointer's path…
+    expect(mockSupa.storageDownloadSpy).toHaveBeenCalledWith(CAPTURE_STORAGE_PATH);
+    // …the landing page was fetched as fallback…
+    const landingFetchCalls = stubFetch.mock.calls.filter(
+      (call: unknown[]) => String(call[0]) === 'https://x01oncampus.com/units/2br',
+    );
+    expect(landingFetchCalls.length).toBe(1);
+    // …and nothing was marked consumed (nothing was actually used).
+    expect(mockSupa.captureConsumeSpy).not.toHaveBeenCalled();
   });
 });
