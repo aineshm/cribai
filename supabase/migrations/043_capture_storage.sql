@@ -17,9 +17,11 @@
 --     deny for anon/authenticated. Only the service-role client (bypasses
 --     storage RLS) reads/writes objects. This is deliberate — do NOT copy the
 --     public listing-photos (019) policies here.
---   - Existing rows are cleared before the column swap: the table is
---     transient by design and storage_path is NOT NULL with no default.
---     VERIFY THE TABLE IS EMPTY via Supabase MCP immediately before applying.
+--   - The table is transient by design and storage_path is NOT NULL with no
+--     default, so the migration REFUSES to run (raises) if the table is
+--     non-empty rather than clearing rows itself — the operator deletes
+--     consciously. VERIFY THE TABLE IS EMPTY via Supabase MCP immediately
+--     before applying.
 --   - file-only: not applied to any Supabase project by this commit. Apply
 --     via Supabase MCP under user supervision at the merge gate, BEFORE
 --     deploying the code that uses it.
@@ -36,9 +38,21 @@ ON CONFLICT (id) DO NOTHING;
 -- ============================================================
 -- 2. crm_listing_captures: html text column → storage pointer
 -- ============================================================
--- Clear transient rows so storage_path can be added NOT NULL without a
--- default. Idempotent: deleting an already-empty table is a no-op.
-DELETE FROM public.crm_listing_captures;
+-- Guard replaces a bare DELETE: an empty table proceeds identically (the
+-- ALTER statements below then run against an empty table, so adding the
+-- NOT NULL column is safe), but a non-empty table now fails LOUDLY instead
+-- of silently destroying rows — including on an accidental re-run against a
+-- populated post-swap table, which would otherwise wipe pointer rows.
+DO $$
+DECLARE
+  row_count integer;
+BEGIN
+  SELECT count(*) INTO row_count FROM public.crm_listing_captures;
+
+  IF row_count > 0 THEN
+    RAISE EXCEPTION 'crm_listing_captures has % rows — expected empty before the html→storage_path swap (AIN-84). Investigate (rows may be fresh captures or post-swap pointer rows on a re-run); export/delete consciously, then re-run.', row_count;
+  END IF;
+END $$;
 
 ALTER TABLE public.crm_listing_captures
   DROP COLUMN IF EXISTS html;
