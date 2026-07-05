@@ -1,13 +1,15 @@
 /**
- * crawl_source step for crm_deep_extract mission (AIN-71, AIN-78).
+ * crawl_source step for crm_deep_extract mission (AIN-71, AIN-78, AIN-84).
  *
  * 1. Re-reads the crm_listings row; skips if missing / archived / wrong user.
- * 2. AIN-78: looks up crm_listing_captures for extension-captured HTML. When
+ * 2. AIN-84: looks up the crm_listing_captures pointer row and downloads the
+ *    gzipped capture object from the private listing-captures bucket. When
  *    present, uses it as the landing page source (bypasses the server-side
- *    fetch that anti-bot sites like Zillow block). Deletes the capture row
- *    after reading (self-consuming, best-effort).
+ *    fetch that anti-bot sites like Zillow block). Marks the capture consumed
+ *    (consumed_at) after reading — row and object are retained for the
+ *    retention window (audit/eval corpus) and deleted by the nightly sweep.
  * 3. Falls back to fetching the source URL (SSRF-guarded via fetchPublicHtml)
- *    when no capture is present.
+ *    when no capture is present or the storage download fails.
  * 4. Extracts fields from the landing page.
  * 5. Discovers and fetches up to 4 housing-related subpages.
  * 6. Filters subpages via isHousingRelated; discards non-housing pages.
@@ -15,6 +17,7 @@
  */
 
 import type { MissionStep, StepContext, StepResult } from '../../types';
+import { downloadCapture } from '@campusnest/supabase/storage';
 import { extractListingFromHtml } from '../../../extraction/extract-from-html';
 import { fetchPublicHtml, ExtractionError } from '../../../extraction';
 import { pruneHtml } from '../../../extraction/prune-html';
@@ -44,7 +47,7 @@ interface CrmListingRow {
 }
 
 interface CaptureRow {
-  readonly html: string;
+  readonly storage_path: string;
 }
 
 export interface CrawlSourcePage {
@@ -145,15 +148,24 @@ async function processSubpages(
 }
 
 /**
- * AIN-78: Look up the extension-captured HTML for a listing.
- * Returns the captured html string, or null when no capture exists / on error.
- * Never throws — failures are silently swallowed; the caller falls back to fetch.
+ * AIN-84: Look up the extension-captured HTML for a listing — pointer row in
+ * crm_listing_captures, gzipped object in the private listing-captures bucket.
+ * Returns the gunzipped html string, or null when no capture exists / the
+ * storage download fails / on any error. Never throws — failures degrade to a
+ * capture-miss and the caller falls back to a server-side fetch.
+ *
+ * Deliberately does NOT filter on `consumed_at`: a consumed capture within
+ * the retention window is still readable. This FIXES the old AIN-78 fragile
+ * point (delete-on-consume meant a mid-subpage-crawl retry lost the capture);
+ * `consumed_at` is bookkeeping for audit/eval, not an access gate.
  *
  * The `user_id` filter is defense-in-depth: the worker runs as service-role
  * (bypasses RLS), so without it a capture row keyed by the same listing_id but
  * owned by another user could be served into this mission. The normal flow can't
  * produce that (listing_id always traces to the owner), but the filter ensures a
  * future bug can never leak one user's captured HTML into another's mission.
+ * The object path also embeds the owner's user_id (capturePath convention),
+ * and the row's storage_path is only ever written alongside that user_id.
  */
 async function lookupCapture(
   supabase: SupabaseClient,
@@ -163,28 +175,45 @@ async function lookupCapture(
   try {
     const { data } = (await supabase
       .from('crm_listing_captures')
-      .select('html')
+      .select('storage_path')
       .eq('listing_id', listingId)
       .eq('user_id', userId)
       .maybeSingle()) as { data: CaptureRow | null; error: unknown };
-    return data?.html ?? null;
+    if (!data?.storage_path) return null;
+
+    // Ownership check BEFORE downloading: RLS lets an owner UPDATE their own
+    // pointer row, so a malicious user could aim storage_path at ANOTHER
+    // user's object — and this service-role download would succeed. Refuse
+    // any path outside the owner's folder (capturePath convention:
+    // `${userId}/…`) and degrade to a capture-miss.
+    if (!data.storage_path.startsWith(`${userId}/`)) {
+      console.warn(
+        '[crawl_source] capture storage_path outside owner folder — treating as miss:',
+        data.storage_path,
+      );
+      return null;
+    }
+
+    // downloadCapture returns null (never throws) on any storage failure —
+    // treated as a capture-miss so the fetch fallback runs.
+    return await downloadCapture(supabase, data.storage_path);
   } catch {
     return null;
   }
 }
 
 /**
- * AIN-78: Best-effort delete of a consumed capture row. Called after the HTML
- * has been read so storage never accumulates. Logs on failure but never throws.
+ * AIN-84: Best-effort mark of a consumed capture (`consumed_at = now()`).
+ * Replaces the old AIN-78 delete-on-consume: the row and storage object are
+ * RETAINED for the retention window so a bad extraction can be debugged
+ * against the exact HTML that produced it, and a mid-subpage-crawl retry can
+ * re-read the capture instead of degrading to a blocked server fetch. The
+ * nightly cleanup-captures sweep deletes both once past retention.
  *
  * Scoped by `user_id` for the same defense-in-depth reason as `lookupCapture`.
- *
- * NOTE: the delete fires immediately after the landing HTML is read (before
- * subpage fetching). If the step throws mid-subpage and retries, the capture is
- * already gone and the retry falls back to a server-side fetch — accepted
- * degradation. Do not move this later without weighing that trade-off.
+ * Logs on failure but never throws.
  */
-async function deleteCapture(
+async function markCaptureConsumed(
   supabase: SupabaseClient,
   listingId: string,
   userId: string,
@@ -192,18 +221,18 @@ async function deleteCapture(
   try {
     const { error } = await supabase
       .from('crm_listing_captures')
-      .delete()
+      .update({ consumed_at: new Date().toISOString() })
       .eq('listing_id', listingId)
       .eq('user_id', userId);
     if (error) {
       console.warn(
-        '[crawl_source] capture delete failed (non-fatal):',
+        '[crawl_source] capture consumed-mark failed (non-fatal):',
         (error as { message?: string }).message ?? error,
       );
     }
   } catch (err) {
     console.warn(
-      '[crawl_source] capture delete failed (non-fatal):',
+      '[crawl_source] capture consumed-mark failed (non-fatal):',
       err instanceof Error ? err.message : String(err),
     );
   }
@@ -251,7 +280,7 @@ export const crawlSourceStep: MissionStep = {
     }
 
     // -------------------------------------------------------------------------
-    // 2. AIN-78: Use extension capture as landing page when present
+    // 2. AIN-84: Use extension capture (private-bucket object) as landing page
     // -------------------------------------------------------------------------
     const captureHtml = await lookupCapture(ctx.supabase, listingId, ctx.userId);
 
@@ -271,8 +300,9 @@ export const crawlSourceStep: MissionStep = {
         textExcerpt: pruneHtml(captureHtml).slice(0, MAX_TEXT_EXCERPT_CHARS),
       };
 
-      // Self-consume the capture (best-effort) after reading.
-      await deleteCapture(ctx.supabase, listingId, ctx.userId);
+      // Mark the capture consumed (best-effort) after reading — retained, not
+      // deleted, so a retry within retention can re-read it (AIN-84).
+      await markCaptureConsumed(ctx.supabase, listingId, ctx.userId);
 
       // Subpages still require a server-side fetch (uses injected fetcher for tests).
       const fetcher = resolveFetcher(ctx);
@@ -286,7 +316,8 @@ export const crawlSourceStep: MissionStep = {
     }
 
     // -------------------------------------------------------------------------
-    // 3. Fetch + extract landing page (fallback when no capture)
+    // 3. Fetch + extract landing page (fallback when no capture, or when the
+    //    storage download failed — both surface here as captureHtml === null)
     // -------------------------------------------------------------------------
     const fetcher = resolveFetcher(ctx);
 

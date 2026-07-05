@@ -21,7 +21,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Build workspace packages
-        run: pnpm --filter @campusnest/types --filter @campusnest/utils build
+        # Build every workspace dependency of @campusnest/ai (currently types,
+        # supabase, utils) — missions-worker.yml precedent. The CLIs below run
+        # ai via tsx (source), but ai consumes its workspace deps as built dist
+        # (package "main"/"exports"), so a narrower filter dies MODULE_NOT_FOUND
+        # in CI only (AIN-77 trap; AIN-84 adds the @campusnest/supabase dep).
+        run: pnpm --filter "@campusnest/ai^..." build
 
       - name: Trigger fairness recalculation
         if: success()
@@ -113,4 +118,32 @@ jobs:
             echo "> **SUCCESS**" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "> **SKIPPED** (embedding step did not succeed)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # AIN-84: retention sweep for extension-captured HTML (private
+      # listing-captures bucket + crm_listing_captures pointer rows).
+      # Ordered LAST and continue-on-error so a sweep failure can never fail
+      # the fairness/embedding/PageIndex steps. Runs even when they failed
+      # (if: always()) — retention is independent of the earlier steps.
+      - name: Clean expired CRM captures
+        if: always()
+        id: cleanup_captures
+        continue-on-error: true
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: npx tsx packages/ai/src/cli/cleanup-captures.ts
+
+      - name: Write capture cleanup summary
+        if: always()
+        env:
+          CLEANUP_OUTCOME: ${{ steps.cleanup_captures.outcome }}
+        run: |
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "## CRM Capture Retention Sweep" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$CLEANUP_OUTCOME" = "failure" ]; then
+            echo "> **FAILED** -- Check logs for details (non-blocking)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "> **SUCCESS**" >> "$GITHUB_STEP_SUMMARY"
           fi
