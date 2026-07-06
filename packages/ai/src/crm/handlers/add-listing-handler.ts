@@ -58,7 +58,17 @@ const CRM_LISTING_COLUMN_NAMES = [
   'saved_at',
 ] as const satisfies readonly (keyof CrmListingRow)[];
 
-const CRM_LISTING_COLUMNS = CRM_LISTING_COLUMN_NAMES.join(', ');
+/**
+ * AIN-83: expose ONLY the deep_extract subtree (floor_plans / price_is_from)
+ * via a PostgREST JSON-path alias — never `raw_extraction` wholesale (multi-KB
+ * raw JSON-LD/OG blobs this SSE payload never needs). Kept as its OWN
+ * constant (not folded into `CRM_LISTING_COLUMN_NAMES`) so that array stays
+ * `satisfies (keyof CrmListingRow)[]`-checked against real column names —
+ * an aliased select string isn't a literal column name.
+ */
+const DEEP_EXTRACT_ALIAS = 'deep_extract:raw_extraction->deep_extract' as const;
+
+const CRM_LISTING_COLUMNS = [...CRM_LISTING_COLUMN_NAMES, DEEP_EXTRACT_ALIAS].join(', ');
 
 /**
  * Read the saved crm_listings row back so the front end can render

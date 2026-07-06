@@ -128,6 +128,21 @@ describe('GET /api/crm/listings', () => {
     expect(body.viewer).toEqual({ id: 'u-1', name: 'Emma' });
   });
 
+  // AIN-83: expose ONLY the deep_extract subtree (floor_plans / price_is_from),
+  // via a PostgREST JSON-path alias — never raw_extraction wholesale (multi-KB
+  // JSON-LD/OG blobs the browser never needs).
+  it('selects the deep_extract JSON-path alias, not raw_extraction wholesale', async () => {
+    const builder = createQueryBuilder({ data: [ROW], error: null });
+    mockFrom.mockReturnValue(builder);
+
+    await GET(getRequest());
+
+    const selectArg = builder.select.mock.calls[0]![0] as string;
+    expect(selectArg).toContain('deep_extract:raw_extraction->deep_extract');
+    expect(selectArg).not.toContain('raw_extraction,');
+    expect(selectArg.trim()).not.toMatch(/(^|,\s*)raw_extraction(\s*,|$)/);
+  });
+
   it('uses the RLS-bound client (not the service-role client) in production auth mode', async () => {
     mockFrom.mockReturnValue(createQueryBuilder({ data: [], error: null }));
     await GET(getRequest());

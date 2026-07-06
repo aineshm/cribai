@@ -185,4 +185,70 @@ describe('toCrmUnit', () => {
       expect(unit.source_url).toBeNull();
     });
   });
+
+  // AIN-83 — building-page floor-plan enrichment: real floor_plans /
+  // price_is_from from deep_extract, surfaced on CrmUnit for the dashboard
+  // and chat cards (both flow through this one adapter).
+  describe('floor-plan enrichment (AIN-83)', () => {
+    const FLOOR_PLANS = [
+      { name: 'A11', bedrooms: 1, bathrooms: 1, rent_min: 1819, rent_max: 2118, sqft: 799 },
+      { name: 'S1', bedrooms: 0, bathrooms: 1, rent_min: 1825, rent_max: 1825, sqft: 547 },
+    ];
+
+    it('populates floorPlans + priceIsFrom from deep_extract when present', () => {
+      const unit = toCrmUnit(
+        {
+          ...BASE_ROW,
+          deep_extract: { floor_plans: FLOOR_PLANS, price_is_from: true },
+        },
+        VIEWER_ID,
+      );
+      expect(unit.floorPlans).toEqual(FLOOR_PLANS);
+      expect(unit.priceIsFrom).toBe(true);
+    });
+
+    it('defaults to an empty array / false on a legacy row with no deep_extract', () => {
+      const unit = toCrmUnit(BASE_ROW, VIEWER_ID);
+      expect(unit.floorPlans).toEqual([]);
+      expect(unit.priceIsFrom).toBe(false);
+    });
+
+    it('defaults to an empty array / false when deep_extract is explicitly null', () => {
+      const unit = toCrmUnit({ ...BASE_ROW, deep_extract: null }, VIEWER_ID);
+      expect(unit.floorPlans).toEqual([]);
+      expect(unit.priceIsFrom).toBe(false);
+    });
+
+    it('treats a null floor_plans / price_is_from inside deep_extract the same as absent', () => {
+      const unit = toCrmUnit(
+        { ...BASE_ROW, deep_extract: { floor_plans: null, price_is_from: false } },
+        VIEWER_ID,
+      );
+      expect(unit.floorPlans).toEqual([]);
+      expect(unit.priceIsFrom).toBe(false);
+    });
+
+    it('sets _proposed.unit.floorPlan to the single plan name when exactly one plan exists', () => {
+      const unit = toCrmUnit(
+        {
+          ...BASE_ROW,
+          deep_extract: { floor_plans: [FLOOR_PLANS[0]!], price_is_from: true },
+        },
+        VIEWER_ID,
+      );
+      expect(unit._proposed.unit.floorPlan).toBe('A11');
+    });
+
+    it('leaves _proposed.unit.floorPlan empty (honest, no single label) when multiple plans exist', () => {
+      const unit = toCrmUnit(
+        { ...BASE_ROW, deep_extract: { floor_plans: FLOOR_PLANS, price_is_from: true } },
+        VIEWER_ID,
+      );
+      expect(unit._proposed.unit.floorPlan).toBe('');
+    });
+
+    it('leaves _proposed.unit.floorPlan empty when there are no plans (legacy row)', () => {
+      expect(toCrmUnit(BASE_ROW, VIEWER_ID)._proposed.unit.floorPlan).toBe('');
+    });
+  });
 });

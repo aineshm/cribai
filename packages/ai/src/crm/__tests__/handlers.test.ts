@@ -665,6 +665,24 @@ describe('machineData emission (AIN-65)', () => {
       assertTextBlock(result);
     });
 
+    // AIN-83: expose ONLY the deep_extract subtree (floor_plans / price_is_from)
+    // via a PostgREST JSON-path alias — never raw_extraction wholesale.
+    it('read-back projection selects the deep_extract JSON-path alias, not raw_extraction wholesale', async () => {
+      const { db, select } = makeListingFetchDb(SAVED_ROW);
+      const ctx = makeContext({ supabase: db });
+      mockAddListing.mockResolvedValueOnce({
+        listingId: 'listing-uuid-1',
+        alreadySaved: false,
+        confidence: 0.9,
+      });
+
+      await addListingHandler({ url: 'https://zillow.com/foo' }, ctx);
+
+      const projection = String(select.mock.calls[0]?.[0]);
+      expect(projection).toContain('deep_extract:raw_extraction->deep_extract');
+      expect(projection).not.toMatch(/(^|,\s*)raw_extraction(\s*,|$)/);
+    });
+
     it('dedup (alreadySaved): still emits machineData with the existing row', async () => {
       const { db } = makeListingFetchDb({ ...SAVED_ROW, id: 'listing-uuid-2' });
       const ctx = makeContext({ supabase: db });

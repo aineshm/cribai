@@ -44,6 +44,10 @@ const LISTING_COLUMNS = [
   'status',
   'user_notes',
   'saved_at',
+  // AIN-83: expose ONLY the deep_extract subtree (floor_plans / price_is_from)
+  // via a PostgREST JSON-path alias — never `raw_extraction` wholesale, which
+  // holds multi-KB raw JSON-LD/OG blobs the browser never needs.
+  'deep_extract:raw_extraction->deep_extract',
 ].join(', ');
 
 const MAX_LISTINGS = 200;

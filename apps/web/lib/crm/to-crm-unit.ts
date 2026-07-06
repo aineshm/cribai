@@ -10,7 +10,7 @@
  *   - addedBy = the current viewer (collaboration is mock-only; every real row
  *     belongs to the viewer per RLS)
  */
-import type { CrmListingRow } from '@campusnest/ai';
+import type { CrmListingRow, FloorPlan } from '@campusnest/ai';
 import type { ApplicationState, CrmUnit } from './proposed-types';
 
 /** crm_listings.status → application pipeline stage. */
@@ -50,16 +50,34 @@ function httpsPhotoUrls(urls: readonly string[] | null): readonly string[] | nul
   return urls.filter(isHttpsUrl);
 }
 
+/**
+ * The single label the UI can show for "the floor plan" of this row (e.g. in
+ * the drawer header, next to the listing name). Only resolves to a real name
+ * when there's EXACTLY one plan — a multi-plan building save has no single
+ * honest label (that's what the new Floor Plans list section is for); zero
+ * plans (legacy rows, single-unit saves with no plan data) also stays empty.
+ */
+function deriveFloorPlanLabel(floorPlans: readonly FloorPlan[]): string {
+  return floorPlans.length === 1 ? floorPlans[0]!.name : '';
+}
+
 /** Build a CrmUnit from a contract row + the viewing user's id. Pure — never mutates the row. */
 export function toCrmUnit(row: CrmListingRow, viewerId: string): CrmUnit {
+  // AIN-83: real per-plan breakdown, read from the deep_extract subtree
+  // (never fabricated — absent/null degrades to "no plans").
+  const floorPlans = row.deep_extract?.floor_plans ?? [];
+  const priceIsFrom = row.deep_extract?.price_is_from ?? false;
+
   return {
     ...row,
     photo_urls: httpsPhotoUrls(row.photo_urls),
     source_url: row.source_url != null && isHttpsUrl(row.source_url) ? row.source_url : null,
+    floorPlans,
+    priceIsFrom,
     _proposed: {
       unit: {
         building: row.nickname ?? row.title ?? row.address ?? 'Saved listing',
-        floorPlan: '',
+        floorPlan: deriveFloorPlanLabel(floorPlans),
         unitLabel: deriveUnitLabel(row.bedrooms),
       },
       amenitySplit: {

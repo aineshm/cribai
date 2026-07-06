@@ -1,7 +1,7 @@
 // PROPOSED EXTENSIONS — NOT in the @campusnest/ai contract. Mock-only until the
 // backend implements them (see engineering/mockups/crm-frontend/CONTRACT-DELTAS.md).
 
-import type { CrmListingRow } from '@campusnest/ai';
+import type { CrmListingRow, FloorPlan } from '@campusnest/ai';
 
 export interface ApplicationDocument {
   readonly name: string;
@@ -40,4 +40,16 @@ export interface CrmList {
 /** A saved unit as the UI consumes it: the real contract row + mock-only extras. */
 export interface CrmUnit extends CrmListingRow {
   readonly _proposed: ProposedUnitFields;
+  /**
+   * Real per-plan breakdown for a building-page save (AIN-83), derived from
+   * `CrmListingRow.deep_extract.floor_plans`. Empty array (never fabricated)
+   * on a legacy row or a single-unit save with no plan data.
+   */
+  readonly floorPlans: readonly FloorPlan[];
+  /**
+   * True when `rent` is a "from" (cheapest-plan) price rather than one
+   * unit's actual rent (AIN-83), derived from
+   * `CrmListingRow.deep_extract.price_is_from`.
+   */
+  readonly priceIsFrom: boolean;
 }

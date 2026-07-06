@@ -15,14 +15,14 @@
  *   CrmGenerateObject                      ← ./generate (Vercel AI SDK seam)
  */
 
-import type { ExtractedListing, ExtractionErrorCode } from '../extraction';
+import type { ExtractedListing, ExtractionErrorCode, FloorPlan } from '../extraction';
 import type { TrueCost } from '@campusnest/types';
 import type { GeocodeResult } from '../tools/lib/geocode-address';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CrmGenerateObject } from './generate';
 
 // Re-export the upstream types so consumers import from one place.
-export type { ExtractedListing, ExtractionErrorCode, TrueCost, GeocodeResult };
+export type { ExtractedListing, ExtractionErrorCode, TrueCost, GeocodeResult, FloorPlan };
 export type { CrmGenerateObject } from './generate';
 
 /**
@@ -89,6 +89,18 @@ export interface CrmListingRow {
   readonly latitude?: number | null;
   readonly longitude?: number | null;
   readonly saved_at?: string | null;
+  /**
+   * Deterministic building-page floor-plan enrichment (AIN-83). Read via the
+   * PostgREST JSON-path alias `deep_extract:raw_extraction->deep_extract`
+   * (never the whole `raw_extraction` blob — that's multi-KB raw JSON-LD/OG
+   * the browser never needs). Optional: only present when the select
+   * explicitly projects the alias. `null`/absent on legacy rows that
+   * predate this wave or haven't been through ingest/mission enrichment.
+   */
+  readonly deep_extract?: {
+    readonly floor_plans?: readonly FloorPlan[] | null;
+    readonly price_is_from?: boolean;
+  } | null;
 }
 
 // ---------------------------------------------------------------------------

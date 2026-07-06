@@ -403,6 +403,8 @@ describe('projectHistory', () => {
         role: 'assistant',
         unit: {
           ...ROW,
+          floorPlans: [],
+          priceIsFrom: false,
           _proposed: {
             unit: { building: 'Dayton Row · 2BR', floorPlan: '', unitLabel: '2 bed' },
             amenitySplit: { unit: [], building: [] },
