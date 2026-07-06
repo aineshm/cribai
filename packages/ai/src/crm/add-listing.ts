@@ -4,21 +4,27 @@
  * Orchestrates three sequential steps:
  *   1. Extract listing data from the URL via the injected extraction service.
  *   2. Dedup against crm_listings (same user_id + source_url, status != 'archived').
- *   3. Insert a new row and fire the post-save hook (fire-and-forget).
+ *   3. Insert a new row and fire the post-save hooks (fire-and-forget): the
+ *      caller's `onSaved` and background nickname generation (AIN-95).
  *
- * This module does NOT call Gemini or run any analysis — that is deferred
- * to the `firstSaveAnalysis` hook (Task 5) invoked via `deps.onSaved`.
+ * This module does NOT call Gemini or run any analysis itself — the
+ * `firstSaveAnalysis` fanout is deferred to `deps.onSaved` (Task 5), and
+ * nickname generation is deferred to `generateListingNickname` (AIN-95, its
+ * own silent-failure module) scheduled via `deps.scheduleBackground`. Both
+ * hooks fire on NEW saves ONLY — never on the `alreadySaved` dedup path.
  *
  * Import graph:
  *   ./types  ← AddListingDeps, AddListingResult, AddListingErrorCode,
  *              ExtractedListing, ExtractionErrorCode
  *   ./confidence  ← confidenceToNumeric
  *   ../extraction  ← ExtractionError (for instanceof check in catch)
+ *   ./nickname  ← generateListingNickname (background hook, AIN-95, Task 3)
  */
 
 import { randomUUID } from 'node:crypto';
 import { ExtractionError } from '../extraction';
 import { confidenceToNumeric } from './confidence';
+import { generateListingNickname } from './nickname';
 import type {
   AddListingDeps,
   AddListingResult,
@@ -300,6 +306,29 @@ export async function addListing(
       // Sync throw from the hook must not break addListing.
     }
   }
+
+  // -------------------------------------------------------------------------
+  // Step 6: Schedule background nickname generation (AIN-95, NEW saves only).
+  //
+  // This runs unconditionally for every new-save caller (extension ingest,
+  // chat add_listing tool, REST POST) since it lives inside the shared core,
+  // not any one route. `deps.scheduleBackground` lets request-bound callers
+  // hand the task to Next's `after()` so the lambda survives long enough for
+  // the background LLM call; the default below just fires it and swallows
+  // any rejection — a nickname failure must never surface as an addListing
+  // error (mirrors the onSaved fire-and-forget contract above).
+  // -------------------------------------------------------------------------
+  const scheduleBackground =
+    deps.scheduleBackground ??
+    ((task: () => Promise<void>) => {
+      void task().catch(() => {
+        // Suppress unhandled-rejection noise — fire-and-forget default.
+      });
+    });
+
+  scheduleBackground(() =>
+    generateListingNickname({ listingId, userId: deps.userId }, { db: deps.db }),
+  );
 
   return {
     listingId,

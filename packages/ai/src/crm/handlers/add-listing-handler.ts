@@ -146,6 +146,12 @@ export async function addListingHandler(
       // Eval kill-switch: forwards the ToolContext dry-run flag so a model-
       // driven save during an eval run skips the real extract + insert.
       dryRun: context.dryRun,
+      // AIN-95: no `scheduleBackground` dep here, deliberately — this call
+      // site runs inside the streaming chat turn, whose closure/lambda lives
+      // long enough for the default fire-and-forget scheduler (fires the
+      // nickname generation task and swallows its rejection) to complete.
+      // Unlike the ingest/REST routes, there's no serverless-lambda boundary
+      // to survive past, so Next's `after()` isn't needed.
     });
 
     // The model drives analysis via the separate `first_save_analysis` tool.

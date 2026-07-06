@@ -606,6 +606,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         onSaved: (listingId: string) => {
           after(() => fireAnalysis(auth, listingId));
         },
+        // Background nickname generation (AIN-95) — hand the task to Next's
+        // after() so the lambda survives long enough for the background LLM
+        // call, same pattern as onSaved above.
+        scheduleBackground: (task) => after(task),
       }),
       budgetMs,
     );

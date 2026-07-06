@@ -22,6 +22,14 @@ import {
   mediumConfidenceListing,
   lowConfidenceOgOnly,
 } from '../__fixtures__/extracted-listing';
+import { generateListingNickname } from '../nickname';
+
+// AIN-95: addListing schedules background nickname generation on new saves.
+// Mock the generator so tests assert scheduling/wiring, not the generator's
+// own behavior (that is covered exhaustively in nickname.test.ts).
+vi.mock('../nickname', () => ({
+  generateListingNickname: vi.fn().mockResolvedValue(undefined),
+}));
 
 // ---------------------------------------------------------------------------
 // DB builder stub helpers
@@ -148,6 +156,7 @@ const INPUT_URL = 'https://zillow.com/homedetails/123-main-st/123456789_zpid/';
 describe('addListing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(generateListingNickname).mockResolvedValue(undefined);
   });
 
   // -------------------------------------------------------------------------
@@ -576,6 +585,61 @@ describe('addListing', () => {
       const rawExtraction = row['raw_extraction'] as Record<string, unknown>;
       expect(rawExtraction['raw_og']).toEqual(lowConfidenceOgOnly.raw_og);
       expect(rawExtraction['extraction_method']).toBe('og');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Background nickname generation (AIN-95)
+  // -------------------------------------------------------------------------
+
+  describe('background nickname scheduling (AIN-95)', () => {
+    it('schedules a nickname-generation task on a NEW save via deps.scheduleBackground', async () => {
+      const scheduleBackground = vi.fn();
+      const deps = makeDeps({ scheduleBackground });
+
+      const result = await addListing(INPUT_URL, deps);
+
+      expect(scheduleBackground).toHaveBeenCalledTimes(1);
+      const task = scheduleBackground.mock.calls[0]![0] as () => Promise<void>;
+      expect(typeof task).toBe('function');
+
+      // Running the scheduled task calls generateListingNickname with the
+      // inserted listingId + userId.
+      await task();
+      expect(generateListingNickname).toHaveBeenCalledTimes(1);
+      expect(generateListingNickname).toHaveBeenCalledWith(
+        { listingId: result.listingId, userId: deps.userId },
+        expect.objectContaining({ db: deps.db }),
+      );
+    });
+
+    it('does NOT schedule nickname generation on the alreadySaved (dedup) path', async () => {
+      const scheduleBackground = vi.fn();
+      const existingRow = { id: 'existing-id', extraction_confidence: 0.7 };
+      const tableBuilder = buildTableBuilder(existingRow);
+      const deps = makeDeps({ tableBuilder, scheduleBackground });
+
+      const result = await addListing(INPUT_URL, deps);
+
+      expect(result.alreadySaved).toBe(true);
+      expect(scheduleBackground).not.toHaveBeenCalled();
+      expect(generateListingNickname).not.toHaveBeenCalled();
+    });
+
+    it('falls back to a fire-and-forget default scheduler when scheduleBackground is omitted, swallowing a rejection', async () => {
+      vi.mocked(generateListingNickname).mockRejectedValueOnce(new Error('generation blew up'));
+      const deps = makeDeps(); // no scheduleBackground
+
+      // Should resolve normally — the default scheduler must not propagate
+      // the background task's rejection, nor delay addListing's own return.
+      await expect(addListing(INPUT_URL, deps)).resolves.toMatchObject({
+        alreadySaved: false,
+      });
+
+      // Let the fire-and-forget microtask/catch settle before asserting —
+      // this also proves no unhandled rejection escapes the test.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(generateListingNickname).toHaveBeenCalledTimes(1);
     });
   });
 });

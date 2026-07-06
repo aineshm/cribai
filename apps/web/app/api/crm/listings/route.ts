@@ -11,7 +11,7 @@
  * dev-auth fallback, 401 unauthenticated. Inert in prod until the UI flags
  * (NEXT_PUBLIC_CRM_ENABLED / NEXT_PUBLIC_CRM_MOCK) flip.
  */
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { z } from 'zod';
 import {
   addListing,
@@ -161,6 +161,10 @@ export async function POST(request: NextRequest) {
       db: auth.db,
       userId: auth.userId,
       placesApiKey: process.env.GOOGLE_PLACES_API_KEY,
+      // Background nickname generation (AIN-95) — hand the task to Next's
+      // after() so the lambda survives long enough for the background LLM
+      // call to complete.
+      scheduleBackground: (task) => after(task),
     });
 
     return NextResponse.json(result, { status: result.alreadySaved ? 200 : 201 });

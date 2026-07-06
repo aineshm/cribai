@@ -129,6 +129,16 @@ export interface AddListingDeps {
    * `context.dryRun` here. Live traffic leaves it undefined (default = false).
    */
   readonly dryRun?: boolean;
+  /**
+   * Background-task scheduler (AIN-95). Used to run `generateListingNickname`
+   * without blocking the caller's response. Route callers with a request
+   * lifecycle (ingest, REST POST) pass Next's `after()` so the lambda stays
+   * alive long enough for the background LLM call to complete. Callers
+   * without a request boundary (the chat tool handler) omit this — the
+   * default below fires the task and swallows any rejection so a nickname
+   * failure can never surface as an addListing error.
+   */
+  readonly scheduleBackground?: (task: () => Promise<void>) => void;
 }
 
 /** Successful result of addListing. */
