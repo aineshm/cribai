@@ -23,14 +23,18 @@
  *     `console.warn` for operability, never rethrown.
  *
  * Import graph:
- *   ./generate  ← defaultCrmGenerate, CrmGenerateObject (Vercel AI SDK seam)
- *   zod         ← z (NicknameSchema)
+ *   ./generate            ← defaultCrmGenerate, CrmGenerateObject (Vercel AI SDK seam)
+ *   ./saved-list-context  ← sanitizeField (shared prompt-injection guard for
+ *                           title/address, since both fields originate from
+ *                           the same untrusted third-party extraction source)
+ *   zod                   ← z (NicknameSchema)
  */
 
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { defaultCrmGenerate } from './generate';
 import type { CrmGenerateObject } from './generate';
+import { sanitizeField } from './saved-list-context';
 
 // ---------------------------------------------------------------------------
 // Schema + validation
@@ -90,12 +94,22 @@ export interface NicknamePromptInput {
  * Asks for a short, distinctive 2-4 word name for a saved apartment listing
  * that differs from every existing nickname, captures what's distinctive
  * (street, building, layout), and contains no quotes or emoji.
+ *
+ * `title` and `address` are run through `sanitizeField` (shared with
+ * saved-list-context.ts) before interpolation — both originate from
+ * extracted third-party pages and could otherwise carry newlines/quotes
+ * that forge extra prompt lines or inject instruction-like text. `bedrooms`
+ * and `rent` are numeric (no sanitization needed); `existingNicknames` are
+ * already validated 2-4 words / <=40 chars at write time.
  */
 export function buildNicknamePrompt(input: NicknamePromptInput): string {
   const { title, address, bedrooms, rent, existingNicknames } = input;
 
-  const titleSection = title ? `Title: ${title}` : 'Title: (none)';
-  const addressSection = address ? `Address: ${address}` : 'Address: (none)';
+  const safeTitle = title ? sanitizeField(title) : null;
+  const safeAddress = address ? sanitizeField(address) : null;
+
+  const titleSection = safeTitle ? `Title: ${safeTitle}` : 'Title: (none)';
+  const addressSection = safeAddress ? `Address: ${safeAddress}` : 'Address: (none)';
   const bedroomsSection =
     bedrooms != null ? `Bedrooms: ${bedrooms}` : 'Bedrooms: (unknown)';
   const rentSection = rent != null ? `Rent: $${rent}/mo` : 'Rent: (unknown)';
@@ -157,8 +171,10 @@ interface ExistingNicknameRow {
  *
  * Steps:
  *   1. Fetch the listing row (title, address, bedrooms, rent), scoped to
- *      `id` + `user_id`. Missing/errored row → return silently (no generate
- *      call, no log — this is the expected "already gone" / race case).
+ *      `id` + `user_id`. Row missing (null, no error) → return silently (no
+ *      generate call, no log — the expected "already gone" / race case). A
+ *      genuine fetch error → `console.warn` (distinguishable from the race)
+ *      then return, no generate call.
  *   2. Fetch the user's existing non-null nicknames for uniqueness context.
  *   3. Generate via `deps.generate ?? defaultCrmGenerate`.
  *   4. Validate the output (2-4 words, <=40 chars); invalid → treated as a
@@ -187,7 +203,15 @@ export async function generateListingNickname(
       .eq('user_id', userId)
       .maybeSingle()) as { data: NicknameSourceRow | null; error: unknown };
 
-    if (rowError || row === null) {
+    if (rowError) {
+      console.warn(
+        `generateListingNickname: row fetch failed for listing ${listingId} — ${String(rowError)}`,
+      );
+      return;
+    }
+
+    if (row === null) {
+      // Expected "already gone" / race case — silent, no log.
       return;
     }
 

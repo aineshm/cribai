@@ -201,8 +201,12 @@ const SANITIZED_FIELD_MAX_LENGTH = 80;
  * \t) to a single space, strips double-quote characters, trims, and hard-
  * caps the result at `SANITIZED_FIELD_MAX_LENGTH` chars (appending `…` when
  * truncated).
+ *
+ * Exported (not module-private) because `nickname.ts` reuses this exact
+ * sanitizer for the same title/address fields before building its generation
+ * prompt — same untrusted-source, same injection risk, one implementation.
  */
-function sanitizeField(value: string): string {
+export function sanitizeField(value: string): string {
   const flattened = value.replace(/\s+/g, ' ').replace(/"/g, '').trim();
   return flattened.length > SANITIZED_FIELD_MAX_LENGTH
     ? `${flattened.slice(0, SANITIZED_FIELD_MAX_LENGTH - 1)}…`

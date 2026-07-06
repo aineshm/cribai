@@ -641,5 +641,23 @@ describe('addListing', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
       expect(generateListingNickname).toHaveBeenCalledTimes(1);
     });
+
+    // CodeRabbit finding (PR #119): a synchronously-throwing scheduler (e.g.
+    // Next's after() invoked outside a request scope) must not abort
+    // addListing after the row has already been persisted — Step 6 must be
+    // guarded exactly like the onSaved hook above it.
+    it('resolves with the normal success result when scheduleBackground throws synchronously', async () => {
+      const scheduleBackground = vi.fn().mockImplementation(() => {
+        throw new Error('scheduler exploded (e.g. after() outside request scope)');
+      });
+      const deps = makeDeps({ scheduleBackground });
+
+      await expect(addListing(INPUT_URL, deps)).resolves.toMatchObject({
+        listingId: 'new-listing-id',
+        alreadySaved: false,
+      });
+
+      expect(scheduleBackground).toHaveBeenCalledTimes(1);
+    });
   });
 });

@@ -326,9 +326,13 @@ export async function addListing(
       });
     });
 
-  scheduleBackground(() =>
-    generateListingNickname({ listingId, userId: deps.userId }, { db: deps.db }),
-  );
+  try {
+    scheduleBackground(() =>
+      generateListingNickname({ listingId, userId: deps.userId }, { db: deps.db }),
+    );
+  } catch {
+    // Sync throw from the scheduler must not break addListing.
+  }
 
   return {
     listingId,
