@@ -34,6 +34,7 @@ import {
   MONEY_RANGE,
   COUNT_RANGE,
 } from '../dom';
+import { FloorPlanSchema, FLOOR_PLAN_MAX_COUNT, sanitizePlanName, type FloorPlan } from '../floor-plan';
 
 /**
  * Project a Zillow `property` object (legacy `componentProps.property` or a
@@ -211,6 +212,21 @@ function projectBuilding(
 }
 
 /**
+ * Pull `componentProps.initialReduxState.gdp.building` out of a page's
+ * `__NEXT_DATA__` blob (the /apartments/ and /b/ building shape). Shared by
+ * `fromNextData` (below) and `extractZillowFloorPlans` (AIN-83) so both read
+ * the exact same navigation path. Returns `undefined` when the blob is
+ * absent, unparseable, or doesn't resolve to an object. Never throws.
+ */
+function extractBuildingFromNextData(html: string): Record<string, unknown> | undefined {
+  const data = asObject(extractNextData(html));
+  const pageProps = asObject(asObject(data?.props)?.pageProps);
+  const componentProps = asObject(pageProps?.componentProps);
+  if (!componentProps) return undefined;
+  return asObject(asObject(asObject(componentProps.initialReduxState)?.gdp)?.building);
+}
+
+/**
  * Try the three `__NEXT_DATA__` shapes in order: legacy property →
  * gdpClientCache property → redux building. Returns `{}` when none match.
  */
@@ -224,10 +240,101 @@ function fromNextData(html: string, sourceUrl: string): Partial<ExtractedFields>
     asObject(componentProps.property) ?? propertyFromGdpClientCache(componentProps);
   if (property) return projectProperty(property, sourceUrl);
 
-  const building = asObject(asObject(asObject(componentProps.initialReduxState)?.gdp)?.building);
+  const building = extractBuildingFromNextData(html);
   if (building) return projectBuilding(building, sourceUrl);
 
   return {};
+}
+
+// ---------------------------------------------------------------------------
+// Floor-plan enrichment (AIN-83) — reads the SAME building.floorPlans[] blob
+// as `minFloorPlanPrice` above, but keeps every plan instead of collapsing to
+// one scalar. Called by the orchestrator (`extract-from-html.ts`) as a
+// URL-gated pass, independent of the escalation ladder — see the module doc
+// comment at the top of this file and `isZillowBuildingUrl` below.
+// ---------------------------------------------------------------------------
+
+/** Building URL shapes that carry a `floorPlans[]` blob: `/apartments/<slug>` and `/b/<slug>`. */
+const BUILDING_PATH_REGEX = /^\/(b\/|apartments\/[^/]+)/;
+
+/**
+ * True when `url`'s pathname looks like a Zillow BUILDING page rather than a
+ * single-unit `/homedetails/` page. Mirrors the extension's `isDetail`
+ * building-half check. The orchestrator gates the floor-plan enrichment pass
+ * on this so unit pages pay zero extra parsing cost. Never throws — an
+ * unparseable URL returns `false`.
+ */
+export function isZillowBuildingUrl(url: string): boolean {
+  try {
+    return BUILDING_PATH_REGEX.test(new URL(url).pathname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Convert a plan-level `availableFrom` value (epoch milliseconds, as a
+ * number or numeric string) to an ISO `YYYY-MM-DD` date. Zillow uses `"0"`
+ * as a "no specific date" sentinel on this fixture — treated the same as
+ * absent. Returns `undefined` on anything else unparseable. Never throws.
+ */
+function planAvailability(value: unknown): string | undefined {
+  const ms = coerceNumber(value);
+  if (ms === undefined || ms <= 0) return undefined;
+  const date = new Date(ms);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Project one `building.floorPlans[]` entry into the shared `FloorPlan`
+ * shape. Returns `undefined` when the plan has no usable name or fails
+ * schema validation (e.g. an out-of-range price) — a single malformed plan
+ * must not break the rest of the array.
+ */
+function projectFloorPlan(plan: Record<string, unknown>): FloorPlan | undefined {
+  const rawName = coerceString(plan.name);
+  if (!rawName) return undefined;
+
+  const candidate = {
+    name: sanitizePlanName(rawName),
+    bedrooms: coerceNumber(plan.beds) ?? null,
+    bathrooms: coerceNumber(plan.baths) ?? null,
+    rent_min: coerceNumber(plan.minPrice) ?? null,
+    rent_max: coerceNumber(plan.maxPrice) ?? null,
+    sqft: coerceNumber(plan.sqft) ?? null,
+    availability: planAvailability(plan.availableFrom) ?? null,
+  };
+  const parsed = FloorPlanSchema.safeParse(candidate);
+  return parsed.success ? parsed.data : undefined;
+}
+
+/**
+ * Deterministically parse a Zillow building page's `building.floorPlans[]`
+ * into the shared `FloorPlan` shape (AIN-83). Sorted cheapest-first by
+ * `rent_min` (plans without a price sort last) and capped at
+ * `FLOOR_PLAN_MAX_COUNT`. Never throws; returns `[]` when the page has no
+ * building blob, no `floorPlans` array, or every plan fails validation.
+ */
+export function extractZillowFloorPlans(html: string): FloorPlan[] {
+  const building = extractBuildingFromNextData(html);
+  const rawPlans = Array.isArray(building?.floorPlans) ? building.floorPlans : [];
+
+  const projected: FloorPlan[] = [];
+  for (const plan of rawPlans) {
+    const obj = asObject(plan);
+    if (!obj) continue;
+    const fp = projectFloorPlan(obj);
+    if (fp) projected.push(fp);
+  }
+
+  projected.sort((a, b) => {
+    const aPrice = a.rent_min ?? Number.POSITIVE_INFINITY;
+    const bPrice = b.rent_min ?? Number.POSITIVE_INFINITY;
+    return aPrice - bPrice;
+  });
+
+  return projected.slice(0, FLOOR_PLAN_MAX_COUNT);
 }
 
 function fromLabeledDom(html: string): Partial<ExtractedFields> {
