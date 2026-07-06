@@ -109,17 +109,24 @@ const TYPE_CATEGORY_MAP: Readonly<Record<string, string>> = {
 /**
  * Bucket a list of nearby places into a categories record.
  * Returns a new object — does not mutate the input array.
+ *
+ * AIN-90 Fix 3: Google Places API (New) marks `displayName` OPTIONAL — a
+ * nameless place is useless in a category list, so it's skipped rather than
+ * crashing the branch.
  */
 function categorizePlaces(
-  places: readonly { displayName: { text: string }; types?: readonly string[] }[],
+  places: readonly { displayName?: { text?: string }; types?: readonly string[] }[],
 ): Record<string, readonly string[]> {
   const categories: Record<string, string[]> = {};
 
   for (const place of places) {
+    const name = place.displayName?.text;
+    if (!name) continue;
+
     const primaryType = place.types?.[0] ?? 'other';
     const category = TYPE_CATEGORY_MAP[primaryType] ?? 'Other';
     const existing = categories[category] ?? [];
-    categories[category] = [...existing, place.displayName.text];
+    categories[category] = [...existing, name];
   }
 
   return categories;
