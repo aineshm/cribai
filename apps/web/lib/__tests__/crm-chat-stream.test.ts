@@ -21,6 +21,7 @@ const ROW: CrmListingRow = {
   source_url: 'https://www.zillow.com/x',
   source_site: 'zillow',
   title: 'Dayton Row · 2BR',
+  nickname: null,
   address: '523 W Dayton St',
   rent: 1650,
   bedrooms: 2,

@@ -30,6 +30,7 @@ const LISTING_COLUMNS = [
   'source_url',
   'source_site',
   'title',
+  'nickname',
   'address',
   'rent',
   'bedrooms',

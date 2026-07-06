@@ -42,6 +42,7 @@ const CRM_LISTING_COLUMN_NAMES = [
   'source_url',
   'source_site',
   'title',
+  'nickname',
   'address',
   'rent',
   'bedrooms',

@@ -32,6 +32,7 @@ export function makeCrmRow(overrides: Partial<CrmListingRow> = {}): CrmListingRo
     source_url: `https://zillow.com/homedetails/${id}_zpid/`,
     source_site: 'zillow.com',
     title: '2BR/1BA Near Campus',
+    nickname: null,
     address: '123 Main St, Madison, WI 53706',
     rent: 1400,
     bedrooms: 2,

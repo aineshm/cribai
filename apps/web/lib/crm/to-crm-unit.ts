@@ -58,7 +58,7 @@ export function toCrmUnit(row: CrmListingRow, viewerId: string): CrmUnit {
     source_url: row.source_url != null && isHttpsUrl(row.source_url) ? row.source_url : null,
     _proposed: {
       unit: {
-        building: row.title ?? row.address ?? 'Saved listing',
+        building: row.nickname ?? row.title ?? row.address ?? 'Saved listing',
         floorPlan: '',
         unitLabel: deriveUnitLabel(row.bedrooms),
       },

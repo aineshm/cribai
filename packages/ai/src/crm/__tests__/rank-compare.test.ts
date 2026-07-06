@@ -610,8 +610,8 @@ describe('rankCompare — select-string column regression (FIX 5)', () => {
   });
 
   it('only selects columns that exist in migration 037 on crm_listings', async () => {
-    // Valid columns per migration 037:
-    //   id, title, rent, bedrooms, bathrooms, sqft, amenities, status
+    // Valid columns per migration 037 + 044 (AIN-95 nickname):
+    //   id, title, nickname, rent, bedrooms, bathrooms, sqft, amenities, status
     // (coordinates is a PostGIS column; not selected in Phase 1 — see comment in impl.)
     capturedListingsSelect = undefined;
 
@@ -619,11 +619,81 @@ describe('rankCompare — select-string column regression (FIX 5)', () => {
 
     expect(capturedListingsSelect).toBeDefined();
     // Verify each token in the select string is a known-valid column.
-    const validColumns = new Set(['id', 'title', 'rent', 'bedrooms', 'bathrooms', 'sqft', 'amenities', 'status', 'coordinates']);
+    const validColumns = new Set(['id', 'title', 'nickname', 'rent', 'bedrooms', 'bathrooms', 'sqft', 'amenities', 'status', 'coordinates']);
     const requested = (capturedListingsSelect ?? '').split(',').map((c) => c.trim());
     for (const col of requested) {
       expect(validColumns.has(col)).toBe(true);
     }
+  });
+
+  it('requests the nickname column (AIN-95 display fallback)', async () => {
+    capturedListingsSelect = undefined;
+
+    await rankCompare({}, makeDeps([cheapRow]));
+
+    expect(capturedListingsSelect).toMatch(/\bnickname\b/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AIN-95 — nickname display fallback (rank + compare output `title` field)
+// ---------------------------------------------------------------------------
+
+describe('rankCompare — nickname display fallback (AIN-95)', () => {
+  it('rank mode: uses the nickname as the ranked title when present', async () => {
+    const row = makeCrmRow({
+      id: 'nick-rank-1',
+      title: 'Extracted Title',
+      nickname: 'My Favorite Place',
+      status: 'active',
+      rent: 1000,
+    });
+    const result = await rankCompare({}, makeDeps([row]));
+
+    if (result.mode !== 'rank') throw new Error('wrong mode');
+    expect(result.ranked[0]!.title).toBe('My Favorite Place');
+  });
+
+  it('rank mode: falls back to title when nickname is null', async () => {
+    const row = makeCrmRow({
+      id: 'nick-rank-2',
+      title: 'Extracted Title',
+      nickname: null,
+      status: 'active',
+      rent: 1000,
+    });
+    const result = await rankCompare({}, makeDeps([row]));
+
+    if (result.mode !== 'rank') throw new Error('wrong mode');
+    expect(result.ranked[0]!.title).toBe('Extracted Title');
+  });
+
+  it('compare mode: uses the nickname as the compare row title when present', async () => {
+    const row = makeCrmRow({
+      id: 'nick-cmp-1',
+      title: 'Extracted Title',
+      nickname: 'My Favorite Place',
+      status: 'active',
+    });
+    const args: RankCompareArgs = { mode: 'compare', listingIds: ['nick-cmp-1'] };
+    const result = await rankCompare(args, makeDeps([row]));
+
+    if (result.mode !== 'compare') throw new Error('wrong mode');
+    expect(result.rows[0]!.title).toBe('My Favorite Place');
+  });
+
+  it('compare mode: falls back to title when nickname is null', async () => {
+    const row = makeCrmRow({
+      id: 'nick-cmp-2',
+      title: 'Extracted Title',
+      nickname: null,
+      status: 'active',
+    });
+    const args: RankCompareArgs = { mode: 'compare', listingIds: ['nick-cmp-2'] };
+    const result = await rankCompare(args, makeDeps([row]));
+
+    if (result.mode !== 'compare') throw new Error('wrong mode');
+    expect(result.rows[0]!.title).toBe('Extracted Title');
   });
 });
 

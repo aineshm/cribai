@@ -65,6 +65,14 @@ export interface CrmListingRow {
   readonly source_url: string | null;
   readonly source_site: string | null;
   readonly title: string | null;
+  /**
+   * User-facing display name (AIN-95). Distinct from `title` (extraction
+   * output, often generic/blank). Generated silently in the background after
+   * a NEW save; renamable by the user; generation never overwrites an
+   * existing value (writes only WHERE nickname IS NULL). Display fallback
+   * order everywhere: nickname ?? title ?? address ?? 'Saved listing'.
+   */
+  readonly nickname: string | null;
   readonly address: string | null;
   readonly rent: number | null;
   readonly bedrooms: number | null;
