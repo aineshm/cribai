@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { createHash } from 'node:crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { ToolContext, ToolResult } from '../types';
+import { UserFacingToolError } from '../errors';
 import { geocodeAddress } from '../lib/geocode-address';
 import { synthesizeListingText } from '../../embeddings/synthesize-text';
 import { generateEmbedding } from '../../embeddings/generate-embedding';
@@ -447,7 +448,7 @@ export async function createSublease(
   context: ToolContext,
 ): Promise<ToolResult> {
   if (!context.userId) {
-    throw new Error('This action requires signing in.');
+    throw new UserFacingToolError('This action requires signing in.');
   }
 
   // .edu verification gate — must run BEFORE any preview rendering so an

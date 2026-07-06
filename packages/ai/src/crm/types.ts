@@ -159,7 +159,9 @@ export interface FirstSaveAnalysisDeps {
     radiusMeters: number,
     includedTypes: readonly string[],
     apiKey: string,
-  ) => Promise<readonly { displayName: { text: string }; types?: readonly string[] }[]>;
+    // AIN-90: Google Places API (New) marks `displayName` OPTIONAL — a place
+    // can resolve with no name.
+  ) => Promise<readonly { displayName?: { text?: string }; types?: readonly string[] }[]>;
   readonly placesApiKey?: string;
   /** Per-branch wall-clock cap in ms; defaults to 1200. */
   readonly perBranchTimeoutMs?: number;

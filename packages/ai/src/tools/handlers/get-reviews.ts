@@ -15,7 +15,7 @@ const CACHE_TTL_MS = 86_400_000; // 24 hours
 async function resolveAddress(
   listingId: string,
   context: ToolContext,
-): Promise<string> {
+): Promise<string | null> {
   // AIN-63: intentionally unfiltered by source — reviews resolve any listing in the full corpus, incl. scraped properties
   const { data, error } = await context.supabase
     .from('listings')
@@ -23,19 +23,39 @@ async function resolveAddress(
     .eq('id', listingId)
     .single();
 
+  // AIN-90 Fix 2: a hallucinated/non-existent listing_id (e.g. the model
+  // inventing an all-zeros UUID) must degrade gracefully — return null so the
+  // caller can fall back to an explicit address, or a graceful empty state,
+  // instead of throwing a raw "not found" error.
   if (error || !data?.address) {
-    throw new Error(`Listing ${listingId} not found or has no address.`);
+    return null;
   }
 
   return data.address as string;
 }
 
+/**
+ * Reviews with a quotable body. Google Places API (New) marks `text`
+ * OPTIONAL — a rating-only review has none. Filtering here (before any
+ * quote/text-extraction site) keeps those reviews out of quotes/snippets
+ * without dropping them from Google's own rating aggregate, which is
+ * computed server-side and passed through untouched.
+ */
+function reviewsWithText(
+  reviews: readonly PlaceReview[],
+): readonly (PlaceReview & { readonly text: { readonly text: string } })[] {
+  return reviews.filter(
+    (r): r is PlaceReview & { readonly text: { readonly text: string } } =>
+      Boolean(r.text?.text),
+  );
+}
+
 function formatReviewQuotes(reviews: readonly PlaceReview[], max = 3): string {
-  return reviews
+  return reviewsWithText(reviews)
     .slice(0, max)
     .map(
       (r) =>
-        `> "${r.text.text}"\n> -- ${r.authorAttribution.displayName}, ${r.relativePublishTimeDescription}`,
+        `> "${r.text.text}"\n> -- ${r.authorAttribution?.displayName ?? 'A reviewer'}, ${r.relativePublishTimeDescription}`,
     )
     .join('\n\n');
 }
@@ -43,7 +63,7 @@ function formatReviewQuotes(reviews: readonly PlaceReview[], max = 3): string {
 async function generateSummary(reviews: readonly PlaceReview[]): Promise<string> {
   try {
     const ai = createGeminiClient();
-    const reviewTexts = reviews
+    const reviewTexts = reviewsWithText(reviews)
       .map((r) => `[${r.rating}/5] ${r.text.text}`)
       .join('\n');
 
@@ -68,7 +88,32 @@ export async function getReviews(
     throw new Error('Provide either a listing_id or address.');
   }
 
-  const address = parsed.address ?? (await resolveAddress(parsed.listing_id!, context));
+  // AIN-90 Fix 2: prefer an explicit address (no DB round-trip needed) and
+  // only resolve via listing_id when no address was given. resolveAddress
+  // returns null on a hallucinated/non-existent listing_id — that degrades
+  // gracefully below instead of throwing.
+  const address =
+    parsed.address ??
+    (parsed.listing_id ? await resolveAddress(parsed.listing_id, context) : null);
+
+  if (!address) {
+    return {
+      machineData: {
+        address: null,
+        rating: null,
+        ratingCount: 0,
+        reviewSnippets: [],
+        summary: null,
+      },
+      modelContext:
+        'Could not resolve that listing to an address, and none was provided. No reviews available.',
+      clientBlock: {
+        type: 'text' as const,
+        content:
+          "I couldn't find that listing to look up reviews for. Try giving me the property address or name.",
+      },
+    };
+  }
 
   // Check API key
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
@@ -140,7 +185,7 @@ export async function getReviews(
         reviewSnippets: [],
         summary: ratingInfo,
       },
-      modelContext: `${details.displayName.text}: ${ratingInfo}`,
+      modelContext: `${details.displayName?.text ?? address}: ${ratingInfo}`,
       clientBlock: {
         type: 'text' as const,
         content: ratingInfo,
@@ -155,19 +200,21 @@ export async function getReviews(
   const summary =
     reviews.length >= 3
       ? await generateSummary(reviews)
-      : reviews.map((r) => `${r.rating}/5: ${r.text.text}`).join(' | ');
+      : reviewsWithText(reviews)
+          .map((r) => `${r.rating}/5: ${r.text.text}`)
+          .join(' | ');
 
   const quotes = formatReviewQuotes(reviews);
 
   const modelContext = [
-    `${details.displayName.text} - Google Rating: ${rating}/5 (${ratingCount} ratings)`,
+    `${details.displayName?.text ?? address} - Google Rating: ${rating}/5 (${ratingCount} ratings)`,
     '',
     `Summary: ${summary}`,
     '',
     'Reviews:',
-    ...reviews.map(
+    ...reviewsWithText(reviews).map(
       (r) =>
-        `- [${r.rating}/5] "${r.text.text}" -- ${r.authorAttribution.displayName} (${r.relativePublishTimeDescription})`,
+        `- [${r.rating}/5] "${r.text.text}" -- ${r.authorAttribution?.displayName ?? 'A reviewer'} (${r.relativePublishTimeDescription})`,
     ),
   ].join('\n');
 
@@ -186,7 +233,9 @@ export async function getReviews(
       address,
       rating: rating ?? null,
       ratingCount: ratingCount ?? 0,
-      reviewSnippets: reviews.map((review) => review.text.text).slice(0, 5),
+      reviewSnippets: reviewsWithText(reviews)
+        .map((review) => review.text.text)
+        .slice(0, 5),
       summary,
     },
     modelContext,

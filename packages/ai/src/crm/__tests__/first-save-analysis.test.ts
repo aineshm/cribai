@@ -219,6 +219,36 @@ describe('firstSaveAnalysis', () => {
   });
 
   // -------------------------------------------------------------------------
+  // AIN-90 Fix 3: a place with no `displayName` (Google Places marks it
+  // OPTIONAL) must not crash categorizePlaces — it's skipped, other places
+  // still categorize correctly.
+  // -------------------------------------------------------------------------
+  it('placesSnapshot categorizes normally and skips a nameless place (no displayName) without throwing', async () => {
+    const deps = makeDeps({
+      nearby: vi.fn().mockResolvedValue([
+        ...FIXTURE_NEARBY_PLACES,
+        // deliberately no `displayName` — Google Places (New) marks it OPTIONAL
+        { types: ['restaurant'] },
+      ]),
+    });
+
+    const result = await firstSaveAnalysis(LISTING_ID, deps);
+
+    expect(result.placesSnapshot.status).toBe('ok');
+    if (result.placesSnapshot.status === 'ok') {
+      const cats = result.placesSnapshot.data.categories;
+      const allNames = Object.values(cats).flat();
+      // The 3 fixture places (with names) are still categorized correctly.
+      expect(allNames).toContain('Whole Foods');
+      expect(allNames).toContain('Planet Fitness');
+      expect(allNames).toContain('Starbucks');
+      // The nameless place contributes nothing quotable/displayable.
+      expect(allNames).not.toContain(undefined);
+      expect(allNames.length).toBe(3);
+    }
+  });
+
+  // -------------------------------------------------------------------------
   // Test 2: trueCost amenity flags fed correctly
   // -------------------------------------------------------------------------
   it('trueCost applies amenity flags: in-unit laundry + parking cost 0', async () => {

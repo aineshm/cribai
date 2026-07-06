@@ -17,13 +17,14 @@
  * guessed) and `stepCountIs` (confirmed over the `isStepCount` alternative).
  */
 
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { MockLanguageModelV3, simulateReadableStream } from 'ai/test';
 import type { LanguageModelV3StreamPart } from '@ai-sdk/provider';
 import { createEmptyConversationState } from '@campusnest/types';
 import type { ConversationState } from '@campusnest/types';
 import { EMPTY_PROFILE_SNIPPET } from '../system-prompt';
 import type { ToolContext, ToolResult } from '../../tools/types';
+import { UserFacingToolError } from '../../tools/errors';
 import { runLlmTurn } from '../llm-turn';
 import type { ChatEvent } from '../../cribai';
 
@@ -480,10 +481,96 @@ describe('runLlmTurn — guest tool rejection', () => {
     expect(toolResult).toBeDefined();
     expect(toolResult.name).toBe('schedule_tour');
     expect(toolResult.block.type).toBe('text');
-    expect((toolResult.block as { content: string }).content.toLowerCase()).toContain(
-      'signing in',
+    // AIN-90 follow-up (founder-confirmed regression): the guest sign-in
+    // gate is a DELIBERATELY user-facing error — it throws
+    // UserFacingToolError, so its friendly message streams through verbatim.
+    // Only unmarked (internal) errors get the sanitized generic message.
+    expect((toolResult.block as { content: string }).content).toBe(
+      'Error: This action requires signing in.',
     );
     // Still terminates cleanly.
+    expect(events[events.length - 1]!.type).toBe('done');
+  });
+});
+
+// AIN-90 Fix 4 — a prod incident streamed a raw handler crash message
+// ("Cannot read properties of undefined (reading 'text')") straight into the
+// chat bubble, with zero server-side logging. `tool-error` stream parts must
+// now: (1) log server-side via console.error, and (2) yield only the
+// sanitized `toolErrorBlock` message — never the raw error text.
+describe('runLlmTurn — tool-error sanitization (AIN-90 Fix 4)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('logs the raw error server-side and yields only a sanitized message, never the raw error text', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const rawMessage = "Cannot read properties of undefined (reading 'text')";
+    vi.mocked(executeTool).mockRejectedValue(new Error(rawMessage));
+
+    const model = streamModel([
+      toolCallPart('call-1', 'get_reviews', { address: '123 Trinity Place' }),
+      finishPart('stop'),
+    ]);
+
+    const events = await collect(runLlmTurn(baseInput(model)));
+
+    const toolResult = events.find((e) => e.type === 'tool_result') as Extract<
+      ChatEvent,
+      { type: 'tool_result' }
+    >;
+    expect(toolResult).toBeDefined();
+    expect(toolResult.name).toBe('get_reviews');
+    expect(toolResult.block.type).toBe('text');
+    const content = (toolResult.block as { content: string }).content;
+    expect(content).toBe('Error: The get_reviews tool hit a problem and was skipped.');
+    expect(content).not.toContain(rawMessage);
+
+    // The raw error text must not leak anywhere in the yielded event stream
+    // (client stream AND, per the same block being reused, next-turn model
+    // context history).
+    expect(JSON.stringify(events)).not.toContain(rawMessage);
+
+    // Server-side visibility: the raw error is now logged, not silently lost.
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[llm-turn] tool error:',
+      'get_reviews',
+      expect.any(Error),
+    );
+
+    expect(events[events.length - 1]!.type).toBe('done');
+  });
+
+  it('passes a UserFacingToolError message through verbatim without logging it as an error', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const friendlyMessage = 'Please verify your .edu email before posting a sublease.';
+    vi.mocked(executeTool).mockRejectedValue(new UserFacingToolError(friendlyMessage));
+
+    // Valid input for the tool's registry schema — the rejection must come
+    // from the mocked executor, not from SDK-side input validation (which
+    // would be an ordinary internal error and correctly get sanitized).
+    const model = streamModel([
+      toolCallPart('call-1', 'search_listings', { semantic_query: '2 bed' }),
+      finishPart('stop'),
+    ]);
+
+    const events = await collect(runLlmTurn(baseInput(model)));
+
+    const toolResult = events.find((e) => e.type === 'tool_result') as Extract<
+      ChatEvent,
+      { type: 'tool_result' }
+    >;
+    expect(toolResult).toBeDefined();
+    expect(toolResult.name).toBe('search_listings');
+    expect(toolResult.block.type).toBe('text');
+    expect((toolResult.block as { content: string }).content).toBe(
+      `Error: ${friendlyMessage}`,
+    );
+
+    // A deliberately user-facing error is expected behavior, not a fault —
+    // it must NOT hit the error log.
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+
     expect(events[events.length - 1]!.type).toBe('done');
   });
 });
