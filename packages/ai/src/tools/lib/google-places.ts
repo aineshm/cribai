@@ -7,15 +7,19 @@ const BASE_URL = 'https://places.googleapis.com/v1';
 
 export interface PlaceReview {
   readonly rating: number;
-  readonly text: { readonly text: string };
-  readonly authorAttribution: { readonly displayName: string };
+  // AIN-90: Google Places API (New) marks `text` and `authorAttribution`
+  // OPTIONAL on a review — a rating-only review has neither. Consumers must
+  // guard both the field and its nested `.text`/`.displayName`.
+  readonly text?: { readonly text?: string };
+  readonly authorAttribution?: { readonly displayName?: string };
   readonly relativePublishTimeDescription: string;
   readonly publishTime: string;
 }
 
 export interface PlaceDetailsResult {
   readonly id: string;
-  readonly displayName: { readonly text: string };
+  // AIN-90: `displayName` is also OPTIONAL on place details.
+  readonly displayName?: { readonly text?: string };
   readonly rating: number;
   readonly userRatingCount: number;
   readonly reviews: readonly PlaceReview[];

@@ -213,4 +213,131 @@ describe('getReviews', () => {
       getReviews({ listing_id: 'not-a-uuid' }, context),
     ).rejects.toThrow();
   });
+
+  // AIN-90 Fix 1 — Google Places API (New) marks reviews[].text,
+  // authorAttribution, and place displayName as OPTIONAL. A prod incident
+  // ("Trinity Place") crashed with "Cannot read properties of undefined
+  // (reading 'text')" because the handler assumed these were always present.
+  describe('AIN-90 Fix 1 — optional review fields', () => {
+    it('excludes a rating-only review (no text) from quotes/snippets but keeps the Google rating aggregate intact', async () => {
+      const context = createMockContext();
+      mockTextSearchPlace.mockResolvedValue('place-id-123');
+      const ratingOnlyReview = {
+        rating: 2,
+        relativePublishTimeDescription: '1 week ago',
+        publishTime: '2026-06-01T00:00:00Z',
+        // deliberately no `text`, no `authorAttribution` — Google marks both OPTIONAL
+      };
+      mockGetPlaceDetails.mockResolvedValue({
+        ...MOCK_PLACE_DETAILS,
+        reviews: [SAMPLE_REVIEWS[0], ratingOnlyReview, SAMPLE_REVIEWS[1]],
+        rating: 4.0,
+        userRatingCount: 25,
+      } as unknown as Awaited<ReturnType<typeof getPlaceDetails>>);
+      setupGeminiMock();
+
+      const result = await getReviews({ address: '123 Langdon St' }, context);
+
+      // Did not throw (implicit — we got here), and the well-formed shape holds.
+      expect(result.clientBlock.type).toBe('text');
+      const machineData = result.machineData as {
+        rating: number | null;
+        ratingCount: number;
+        reviewSnippets: readonly string[];
+      };
+      // Google's own aggregate already reflects the rating-only review —
+      // it passes through unfiltered.
+      expect(machineData.rating).toBe(4.0);
+      expect(machineData.ratingCount).toBe(25);
+      // Only the 2 reviews with real text are quotable.
+      expect(machineData.reviewSnippets).toHaveLength(2);
+      expect(machineData.reviewSnippets).not.toContain(undefined);
+      if (result.clientBlock.type === 'text') {
+        expect(result.clientBlock.content).not.toContain('undefined');
+      }
+      expect(result.modelContext).not.toContain('undefined');
+    });
+
+    it('falls back to the queried address when place displayName is missing', async () => {
+      const context = createMockContext();
+      mockTextSearchPlace.mockResolvedValue('place-id-123');
+      mockGetPlaceDetails.mockResolvedValue({
+        ...MOCK_PLACE_DETAILS,
+        displayName: undefined,
+        reviews: [],
+      } as unknown as Awaited<ReturnType<typeof getPlaceDetails>>);
+
+      const result = await getReviews({ address: '123 Langdon St' }, context);
+
+      expect(result.clientBlock.type).toBe('text');
+      expect(result.modelContext).toContain('123 Langdon St');
+    });
+
+    it("falls back to 'A reviewer' when authorAttribution is missing on a review", async () => {
+      const context = createMockContext();
+      mockTextSearchPlace.mockResolvedValue('place-id-123');
+      const noAuthorReview = {
+        ...SAMPLE_REVIEWS[0],
+        authorAttribution: undefined,
+      };
+      mockGetPlaceDetails.mockResolvedValue({
+        ...MOCK_PLACE_DETAILS,
+        reviews: [noAuthorReview, SAMPLE_REVIEWS[1]],
+      } as unknown as Awaited<ReturnType<typeof getPlaceDetails>>);
+      setupGeminiMock();
+
+      const result = await getReviews({ address: '123 Langdon St' }, context);
+
+      expect(result.clientBlock.type).toBe('text');
+      if (result.clientBlock.type === 'text') {
+        expect(result.clientBlock.content).toContain('A reviewer');
+      }
+      expect(result.modelContext).toContain('A reviewer');
+    });
+  });
+
+  // AIN-90 Fix 2 — a hallucinated/non-existent listing_id must degrade
+  // gracefully instead of crashing or throwing a raw DB-not-found error.
+  describe('AIN-90 Fix 2 — non-resolving listing_id', () => {
+    const ALL_ZEROS_UUID = '00000000-0000-0000-0000-000000000000';
+
+    it('falls back to the provided address when the listing_id does not resolve (regression pin)', async () => {
+      const context = createMockContext();
+      const builder = createMockQueryBuilder(null, null);
+      (context.supabase.from as ReturnType<typeof vi.fn>).mockReturnValue(builder);
+      mockTextSearchPlace.mockResolvedValue('place-id-123');
+      mockGetPlaceDetails.mockResolvedValue(MOCK_PLACE_DETAILS);
+      setupGeminiMock();
+
+      await expect(
+        getReviews(
+          { listing_id: ALL_ZEROS_UUID, address: 'Trinity Place, Madison, WI' },
+          context,
+        ),
+      ).resolves.not.toThrow();
+
+      const result = await getReviews(
+        { listing_id: ALL_ZEROS_UUID, address: 'Trinity Place, Madison, WI' },
+        context,
+      );
+
+      expect(mockTextSearchPlace).toHaveBeenCalledWith(
+        expect.stringContaining('Trinity Place, Madison, WI'),
+        expect.any(String),
+      );
+      expect(result.clientBlock.type).toBe('text');
+    });
+
+    it('degrades gracefully (no throw) when listing_id does not resolve and no address is given', async () => {
+      const context = createMockContext();
+      const builder = createMockQueryBuilder(null, null);
+      (context.supabase.from as ReturnType<typeof vi.fn>).mockReturnValue(builder);
+
+      const result = await getReviews({ listing_id: ALL_ZEROS_UUID }, context);
+
+      expect(result.clientBlock.type).toBe('text');
+      // No address ever became available, so the Places API was never queried.
+      expect(mockTextSearchPlace).not.toHaveBeenCalled();
+    });
+  });
 });
