@@ -120,7 +120,6 @@ export const updateRowStep: MissionStep = {
 
     // Check floor plans and recompute min rent if needed
     const floorPlans = synthFields.floor_plans ?? null;
-    const floorPlanCount = floorPlans?.length ?? 0;
 
     let effectiveRent = synthFields.rent ?? null;
     let effectiveBedrooms = synthFields.bedrooms ?? null;
@@ -199,13 +198,29 @@ export const updateRowStep: MissionStep = {
     // normal crawl (including a zero-page crawl). Distinguishes blocked missions from
     // successful runs that found no subpages, for debugging and future retry logic.
     const crawlBlocked = (state.crawl as string | undefined) === 'blocked';
+
+    // AIN-83 never-wipe guard: every OTHER deep_extract subfield always
+    // overwrites (that's the point of a fresh mission run), but floor_plans
+    // is fill-gap-only here. A prior ingest-time seed (Task 3) or an earlier
+    // successful mission run may have already written a real plan list; a
+    // LATER run that finds nothing this time (blocked re-fetch, or a
+    // deterministic+LLM miss) must not null it out. `price_is_from` follows
+    // the SAME plans, so it can never claim "from" pricing for an empty list.
+    const existingDeepExtract = (existingRaw as { deep_extract?: { floor_plans?: FloorPlan[] | null } })
+      .deep_extract;
+    const persistedFloorPlans: FloorPlan[] | null =
+      floorPlans && floorPlans.length > 0
+        ? (floorPlans as FloorPlan[])
+        : existingDeepExtract?.floor_plans ?? null;
+    const persistedFloorPlanCount = persistedFloorPlans?.length ?? 0;
+
     update.raw_extraction = {
       ...existingRaw,
       deep_extract: {
         pages: pages.map((p) => p.url),
         discarded,
-        floor_plans: floorPlans ?? null,
-        price_is_from: floorPlanCount > 0,
+        floor_plans: persistedFloorPlans,
+        price_is_from: persistedFloorPlanCount > 0,
         crawl_blocked: crawlBlocked,
         method: 'mission_v1',
         completed_at: new Date().toISOString(),
@@ -232,7 +247,10 @@ export const updateRowStep: MissionStep = {
         updatedFields,
         confidenceBefore,
         confidenceAfter,
-        floorPlanCount,
+        // Reflects what's ACTUALLY persisted (this run's plans, or the
+        // preserved existing ones under the never-wipe guard) — not just
+        // this run's own yield, which could understate a preserved list.
+        floorPlanCount: persistedFloorPlanCount,
       },
     };
   },

@@ -144,6 +144,13 @@ function buildBaselineFromPages(
         (a): a is string => typeof a === 'string',
       );
     }
+    // AIN-83: floor_plans populated by crawl_source for Zillow building pages
+    // (Task 2's extractZillowFloorPlans, threaded through pages[].fields).
+    // First page with a non-empty array wins — same "landing page first"
+    // precedence as every other baseline field above.
+    if (baseline.floor_plans == null && Array.isArray(f['floor_plans']) && f['floor_plans'].length > 0) {
+      baseline.floor_plans = f['floor_plans'] as FloorPlan[];
+    }
   }
   return baseline;
 }
@@ -167,7 +174,17 @@ function mergeOntoBaseline(llm: DeepExtract, baseline: DeepExtract): DeepExtract
     available_from: pick('available_from'),
     amenities:
       llm.amenities && llm.amenities.length > 0 ? llm.amenities : baseline.amenities ?? null,
-    floor_plans: llm.floor_plans ?? null,
+    // AIN-83 decision 4: the deterministic baseline WINS over the LLM here
+    // (the opposite precedence from every scalar field above) — exact
+    // structured numbers from __NEXT_DATA__ beat prose-mined guesses, and
+    // this also gives AIN-81 robustness for free: floor plans persist even
+    // when the LLM call throws (`fields = baseline` in the catch below).
+    // The LLM remains the only source for marketing sites with no
+    // structured blob (baseline empty).
+    floor_plans:
+      baseline.floor_plans && baseline.floor_plans.length > 0
+        ? baseline.floor_plans
+        : llm.floor_plans ?? null,
   };
 }
 

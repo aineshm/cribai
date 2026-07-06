@@ -192,6 +192,82 @@ describe('synthesize step', () => {
     });
   });
 
+  // -------------------------------------------------------------------------
+  // AIN-83 Task 4: deterministic floor_plans baseline wins over the LLM.
+  // The crawl_source step now populates pages[].fields.floor_plans for
+  // Zillow building pages (Task 2's extractZillowFloorPlans); those are
+  // EXACT numbers from __NEXT_DATA__ and must beat any LLM-mined guess.
+  // -------------------------------------------------------------------------
+  describe('deterministic floor_plans baseline (AIN-83)', () => {
+    const DETERMINISTIC_PLANS = [
+      { name: 'A11', bedrooms: 1, bathrooms: 1, rent_min: 1819, rent_max: 2118, sqft: 799 },
+      { name: 'S1', bedrooms: 0, bathrooms: 1, rent_min: 1825, rent_max: 1825, sqft: 547 },
+    ];
+
+    it('carries page-fields floor_plans into the baseline (first page with a non-empty array wins)', async () => {
+      const stubGenerate = vi.fn().mockRejectedValue(new Error('provider error'));
+      const { synthesizeStep } = await import('../steps/03-synthesize');
+
+      const pages = [
+        { url: 'https://www.zillow.com/apartments/x/', fields: { floor_plans: DETERMINISTIC_PLANS }, textExcerpt: '' },
+      ];
+      const ctx = makeCtx(pages);
+      (ctx.input as Record<string, unknown>).generate = stubGenerate;
+
+      const result = await synthesizeStep.run(ctx);
+      const f = result.output.fields as Record<string, unknown>;
+      expect(f.floor_plans).toEqual(DETERMINISTIC_PLANS);
+    });
+
+    it('ignores the LLM floor_plans when the deterministic baseline is non-empty (baseline wins)', async () => {
+      const llmPlans = [{ name: 'LLM-guessed plan', bedrooms: 3, rent_min: 500 }];
+      const stubGenerate = vi.fn().mockResolvedValue({ floor_plans: llmPlans });
+      const { synthesizeStep } = await import('../steps/03-synthesize');
+
+      const pages = [
+        { url: 'https://www.zillow.com/apartments/x/', fields: { floor_plans: DETERMINISTIC_PLANS }, textExcerpt: 'Studio from $899' },
+      ];
+      const ctx = makeCtx(pages);
+      (ctx.input as Record<string, unknown>).generate = stubGenerate;
+
+      const result = await synthesizeStep.run(ctx);
+      const f = result.output.fields as Record<string, unknown>;
+      expect(f.floor_plans).toEqual(DETERMINISTIC_PLANS);
+      expect(f.floor_plans).not.toEqual(llmPlans);
+    });
+
+    it('uses the LLM floor_plans when the baseline has none (marketing sites with no structured blob)', async () => {
+      const llmPlans = [{ name: 'Studio', bedrooms: 0, rent_min: 899 }];
+      const stubGenerate = vi.fn().mockResolvedValue({ floor_plans: llmPlans });
+      const { synthesizeStep } = await import('../steps/03-synthesize');
+
+      const pages = [
+        { url: 'https://x01oncampus.com/floor-plans', fields: {}, textExcerpt: 'Studio from $899' },
+      ];
+      const ctx = makeCtx(pages);
+      (ctx.input as Record<string, unknown>).generate = stubGenerate;
+
+      const result = await synthesizeStep.run(ctx);
+      const f = result.output.fields as Record<string, unknown>;
+      expect(f.floor_plans).toEqual(llmPlans);
+    });
+
+    it('AIN-81 robustness: deterministic floor_plans still persist when the LLM call throws', async () => {
+      const stubGenerate = vi.fn().mockRejectedValue(new Error('provider error'));
+      const { synthesizeStep } = await import('../steps/03-synthesize');
+
+      const pages = [
+        { url: 'https://www.zillow.com/apartments/x/', fields: { floor_plans: DETERMINISTIC_PLANS }, textExcerpt: '' },
+      ];
+      const ctx = makeCtx(pages);
+      (ctx.input as Record<string, unknown>).generate = stubGenerate;
+
+      const result = await synthesizeStep.run(ctx);
+      const f = result.output.fields as Record<string, unknown>;
+      expect(f.floor_plans).toEqual(DETERMINISTIC_PLANS);
+    });
+  });
+
   // AIN-75 Task 4: no-op on empty pages (blocked crawl path)
   it('returns empty fields without calling LLM when pages is empty (blocked crawl path)', async () => {
     const mockGenerate = vi.fn().mockResolvedValue(FIXTURE_STANDARD);
