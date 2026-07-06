@@ -28,6 +28,12 @@ import { z, type ZodTypeAny } from 'zod';
 import { buildPersona, DEFAULT_CAMPUS_NAME } from './persona';
 import { buildPolicyBlock } from './policy';
 import { TOOL_SPECS, toolSpecsForSurface, type ToolSpec, type RuntimeSurface } from './tool-registry';
+// AIN-91 — saved-list-context.ts has ZERO runtime imports (its own imports
+// are `import type` only, erased at compile time), so importing its VALUE
+// export here is cycle-safe even though other crm/* files (e.g. generate.ts)
+// import back from runtime/*. Imported by path per the module's own doc
+// comment (not re-exported from crm/index.ts).
+import { renderSavedListingsBlock, type SavedListContext } from '../crm/saved-list-context';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -63,6 +69,14 @@ export interface BuildSystemPromptOptions {
    * call time from module-load constants.
    */
   readonly surface?: RuntimeSurface;
+  /**
+   * AIN-91 — the user's saved-listing prompt context (id/nickname/title/
+   * address/rent/status). Rendered into the DYNAMIC suffix, gated to
+   * `surface === 'crm'`, so the cached prefix stays byte-identical regardless
+   * of this option. Absent/undefined → no block (explore surface, guests,
+   * or a degraded fetch never add the block).
+   */
+  readonly savedListContext?: SavedListContext;
 }
 
 export interface SystemPromptParts {
@@ -278,6 +292,9 @@ function buildDynamicSuffix(
 
   if (options.surface === 'crm') {
     sections.push(CRM_SURFACE_BLOCK);
+    if (options.savedListContext) {
+      sections.push(renderSavedListingsBlock(options.savedListContext));
+    }
   }
 
   return sections.join('\n\n');

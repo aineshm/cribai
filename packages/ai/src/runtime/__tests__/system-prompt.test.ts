@@ -32,6 +32,7 @@ import {
   type UserProfileSnippet,
 } from '../system-prompt';
 import { buildPersona } from '../persona';
+import type { SavedListContext } from '../../crm/saved-list-context';
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -435,5 +436,67 @@ describe('CRM surface prompt', () => {
     // Identity/voice unchanged.
     expect(crmPersona).toContain('You are CribAI');
     expect(crmPersona).toContain('Voice:');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AIN-91 — saved-list context injection (Task 6)
+// ---------------------------------------------------------------------------
+
+describe('buildSystemPrompt — savedListContext (AIN-91)', () => {
+  const SAVED_LISTING_ID = 'cccccccc-1111-4222-8333-444444444444';
+
+  const SAMPLE_CONTEXT: SavedListContext = {
+    listings: [
+      {
+        id: SAVED_LISTING_ID,
+        nickname: 'The Gorham Loft',
+        title: 'Spacious 2BR near campus',
+        address: '456 W Gorham St, Madison WI',
+        rent: 1100,
+        status: 'active',
+      },
+    ],
+    truncatedCount: 0,
+  };
+
+  it('includes the saved-listing block in dynamicSuffix for crm when context is provided', () => {
+    const { dynamicSuffix } = buildSystemPrompt(baseState(), ALICE, {
+      surface: 'crm',
+      savedListContext: SAMPLE_CONTEXT,
+    });
+    expect(dynamicSuffix).toContain(SAVED_LISTING_ID);
+    expect(dynamicSuffix).toContain('The Gorham Loft');
+  });
+
+  it('omits the block for the explore surface even when savedListContext is provided', () => {
+    const { dynamicSuffix } = buildSystemPrompt(baseState(), ALICE, {
+      savedListContext: SAMPLE_CONTEXT,
+    });
+    expect(dynamicSuffix).not.toContain(SAVED_LISTING_ID);
+    expect(dynamicSuffix).not.toContain('The Gorham Loft');
+  });
+
+  it('omits the block for crm when savedListContext is undefined', () => {
+    const { dynamicSuffix } = buildSystemPrompt(baseState(), ALICE, {
+      surface: 'crm',
+    });
+    expect(dynamicSuffix).not.toContain(SAVED_LISTING_ID);
+    expect(dynamicSuffix).not.toContain("USER'S SAVED LISTINGS");
+  });
+
+  it('cachedPrefix stays byte-identical with vs without savedListContext, on BOTH surfaces', () => {
+    const crmWithout = buildSystemPrompt(baseState(), ALICE, { surface: 'crm' }).cachedPrefix;
+    const crmWith = buildSystemPrompt(baseState(), ALICE, {
+      surface: 'crm',
+      savedListContext: SAMPLE_CONTEXT,
+    }).cachedPrefix;
+    expect(crmWith).toBe(crmWithout);
+
+    const exploreWithout = buildSystemPrompt(baseState(), ALICE, {}).cachedPrefix;
+    const exploreWith = buildSystemPrompt(baseState(), ALICE, {
+      savedListContext: SAMPLE_CONTEXT,
+    }).cachedPrefix;
+    expect(exploreWith).toBe(exploreWithout);
   });
 });

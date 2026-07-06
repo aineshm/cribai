@@ -175,3 +175,10 @@ export type {
   RankCompareMachineData,
   InferProfileMachineData,
 } from './crm';
+
+// AIN-91 — saved-list prompt context. Imported directly by path (not
+// re-exported from ./crm — see the module's own doc comment) so the chat
+// route can fetch it beside the profile snippet and thread it into
+// `runLlmTurn`.
+export { fetchSavedListContext, renderSavedListingsBlock, PROMPT_CONTEXT_LISTING_CAP } from './crm/saved-list-context';
+export type { SavedListContext, SavedListingSummary } from './crm/saved-list-context';

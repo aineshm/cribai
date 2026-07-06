@@ -11,6 +11,7 @@ import {
   getUserProfileSnippet,
   initLangfuse,
   flushLangfuse,
+  fetchSavedListContext,
   type ChatEvent,
   type RequestMetricsRecorder,
 } from '@campusnest/ai';
@@ -583,6 +584,26 @@ export async function POST(request: NextRequest) {
         displayName: profileDisplayName,
         campusSlug,
       });
+
+      // AIN-91 — fetch the user's saved-listing prompt context beside the
+      // profile snippet. Gated to signed-in CRM turns only: guests never get
+      // the CRM surface (see the `surface:` line inside runLlmTurn below),
+      // and explore turns have no use for the block. `fetchSavedListContext`
+      // already never throws (degrades to an empty context internally), but
+      // this is wrapped defensively anyway — an unexpected throw here must
+      // never fail the turn, it should just degrade to `undefined` (no block
+      // rendered, per `buildDynamicSuffix`'s `options.savedListContext`
+      // guard).
+      let savedListContext: Awaited<ReturnType<typeof fetchSavedListContext>> | undefined;
+      if (!isGuest && validSurface === 'crm' && userId) {
+        try {
+          savedListContext = await fetchSavedListContext(supabase, userId);
+        } catch (err) {
+          console.error('[cribai] fetchSavedListContext failed:', err);
+          savedListContext = undefined;
+        }
+      }
+
       const llmStream = new ReadableStream({
         async start(controller) {
           let nextConversationState = conversationState;
@@ -603,6 +624,10 @@ export async function POST(request: NextRequest) {
               history: clampHistory(parseHistory(history), isGuest),
               // Guests never get the CRM surface — scoped tools + guardrail would conflict (HIGH-1 discipline).
               surface: isGuest ? undefined : validSurface,
+              // AIN-91 — undefined for explore turns, guest turns, or a
+              // degraded fetch; buildSystemPrompt only renders the block when
+              // BOTH surface==='crm' AND this is set.
+              savedListContext,
               // AIN-8 FIX 3 — stamp TTFT at the FIRST model output part (first
               // text-delta or tool-call) rather than at the step-boundary text
               // flush, so the cross-runtime TTFT comparison stays fair on

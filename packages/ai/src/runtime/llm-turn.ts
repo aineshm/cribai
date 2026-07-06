@@ -54,6 +54,7 @@ import {
 } from './tool-registry';
 import type { ToolContext, ToolResult } from '../tools/types';
 import { UserFacingToolError } from '../tools/errors';
+import type { SavedListContext } from '../crm/saved-list-context';
 import type { ChatEvent } from '../cribai';
 import {
   ExplicitCacheMemo,
@@ -153,6 +154,13 @@ export interface RunLlmTurnInput {
    * Undefined → explore/default behavior (all 17 tools, search-first policy).
    */
   readonly surface?: RuntimeSurface;
+  /**
+   * AIN-91 — the user's saved-listing prompt context, threaded straight into
+   * `buildSystemPrompt`'s dynamic suffix (crm-surface gated there, not here).
+   * Undefined on explore turns, guest turns, or when the route's fetch
+   * degrades.
+   */
+  readonly savedListContext?: SavedListContext;
 }
 
 /** Map the deterministic conversation history into AI SDK ModelMessages. */
@@ -233,6 +241,7 @@ export async function* runLlmTurn(
     turnCostCapUsd,
     telemetryEnabled,
     surface,
+    savedListContext,
   } = input;
 
   // AIN-9 — wire Langfuse telemetry into `streamText` only when configured.
@@ -261,6 +270,7 @@ export async function* runLlmTurn(
     campusName,
     isGuest,
     surface,
+    savedListContext,
   });
 
   // Resolve explicit cache (or null → compose prefix inline). A null handle

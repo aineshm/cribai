@@ -85,6 +85,24 @@ let llmChatChunks: Array<unknown> = [];
 // `vi.mocked(runLlmTurn).mockImplementationOnce(...)` to throw mid-stream.
 let llmTurnChunks: Array<unknown> = [];
 
+// AIN-91 — controllable fixture for the mocked `fetchSavedListContext`. Reset
+// to a default non-empty context in `beforeEach`; individual tests can
+// override the module-level variable via a mockImplementationOnce style
+// re-assignment if needed.
+const SAVED_LIST_CONTEXT_FIXTURE = {
+  listings: [
+    {
+      id: 'eeeeeeee-3333-4444-8555-666666666666',
+      nickname: 'The Gorham Loft',
+      title: 'Spacious 2BR near campus',
+      address: '456 W Gorham St, Madison WI',
+      rent: 1100,
+      status: 'active' as const,
+    },
+  ],
+  truncatedCount: 0,
+};
+
 vi.mock('@campusnest/ai', async () => {
   const actual = await vi.importActual<typeof import('@campusnest/ai')>('@campusnest/ai');
   return {
@@ -113,12 +131,17 @@ vi.mock('@campusnest/ai', async () => {
         yield chunk;
       }
     }),
+    // AIN-91 — stub the real DB-backed fetch entirely so this test file stays
+    // offline/deterministic (the supabaseStub below has no `.order`/`.range`
+    // chain methods, which would otherwise force fetchSavedListContext's
+    // internal try/catch to swallow a TypeError on every call).
+    fetchSavedListContext: vi.fn(async () => SAVED_LIST_CONTEXT_FIXTURE),
   };
 });
 
 // Import CribAI after the mock so Fix 4 test 2 can override its behavior
 // per-test via vi.mocked(CribAI).mockImplementationOnce(...).
-import { CribAI, runLlmTurn } from '@campusnest/ai';
+import { CribAI, runLlmTurn, fetchSavedListContext } from '@campusnest/ai';
 
 // Capture inserts to ai_request_metrics across the test. Each .from(table)
 // call returns a chainable object whose .insert() resolves to {error:null}
@@ -256,6 +279,7 @@ describe('POST /api/ai/cribai — AIN-19 latency instrumentation', () => {
     // "was/wasn't called" assertions don't see cumulative counts.
     vi.mocked(maybeHandleDeterministicTurn).mockClear();
     vi.mocked(runLlmTurn).mockClear();
+    vi.mocked(fetchSavedListContext).mockClear();
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
@@ -788,6 +812,89 @@ describe('POST /api/ai/cribai — AIN-19 latency instrumentation', () => {
     const metricsInserts = recordedInserts.filter((i) => i.table === 'ai_request_metrics');
     expect(metricsInserts).toHaveLength(1);
     expect(metricsInserts[0]!.row.runtime).toBe('deterministic');
+  });
+
+  // ----------------------------------------------------------------------
+  // AIN-91 — saved-list prompt context threading. Signed-in CRM turns fetch
+  // the user's saved-listing context and pass it into runLlmTurn; guest turns
+  // (which never escalate to the CRM surface at all) must not carry it.
+  // ----------------------------------------------------------------------
+
+  it("passes savedListContext to runLlmTurn for a signed-in surface:'crm' turn", async () => {
+    process.env.CRIBAI_RUNTIME_CRM = '1';
+    llmTurnChunks = [
+      { type: 'text', content: 'Saved and analyzed.' },
+      { type: 'done' },
+    ];
+
+    const req = buildRequest(
+      {
+        query: 'lets discuss the gorham listing',
+        campusSlug: 'uw-madison',
+        history: [],
+        surface: 'crm',
+      },
+      { 'x-request-id': 'trace-crm-saved-list-1' },
+    );
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    await drainStream(res);
+
+    expect(fetchSavedListContext).toHaveBeenCalledTimes(1);
+    expect(runLlmTurn).toHaveBeenCalledTimes(1);
+    const passedInput = vi.mocked(runLlmTurn).mock.calls[0]![0] as {
+      savedListContext?: typeof SAVED_LIST_CONTEXT_FIXTURE;
+    };
+    expect(passedInput.savedListContext).toEqual(SAVED_LIST_CONTEXT_FIXTURE);
+  });
+
+  it("does NOT pass savedListContext (and never fetches it) for a guest surface:'crm' turn", async () => {
+    process.env.CRIBAI_RUNTIME_CRM = '1';
+
+    const req = buildGuestRequest(
+      {
+        query: 'lets discuss the gorham listing',
+        campusSlug: 'uw-madison',
+        history: [],
+        surface: 'crm',
+      },
+      { 'x-request-id': 'trace-crm-saved-list-guest' },
+    );
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    await drainStream(res);
+
+    // Guests never escalate to llm_first at all (existing HIGH-1 guard), so
+    // runLlmTurn is never called and the fetch is never attempted.
+    expect(fetchSavedListContext).not.toHaveBeenCalled();
+    expect(runLlmTurn).not.toHaveBeenCalled();
+  });
+
+  it("does NOT pass savedListContext for a signed-in EXPLORE (non-crm) llm_first turn", async () => {
+    process.env.CRIBAI_RUNTIME_LLM_FIRST = '1';
+    llmTurnChunks = [
+      { type: 'text', content: 'Here are some options.' },
+      { type: 'done' },
+    ];
+
+    const req = buildRequest({
+      query: 'find me a 2 bedroom',
+      campusSlug: 'uw-madison',
+      history: [],
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    await drainStream(res);
+
+    expect(fetchSavedListContext).not.toHaveBeenCalled();
+    expect(runLlmTurn).toHaveBeenCalledTimes(1);
+    const passedInput = vi.mocked(runLlmTurn).mock.calls[0]![0] as {
+      savedListContext?: unknown;
+    };
+    expect(passedInput.savedListContext).toBeUndefined();
   });
 
   it("GUEST turns never escalate via surface:'crm' — the rate limiter only covers authed users (security HIGH-1)", async () => {
