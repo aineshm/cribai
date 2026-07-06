@@ -411,16 +411,16 @@ export async function* runLlmTurn(
           break;
         }
         case 'tool-error': {
-          const message =
-            part.error instanceof Error
-              ? part.error.message
-              : typeof part.error === 'string'
-                ? part.error
-                : 'Tool execution failed';
+          // AIN-90 Fix 4: a prod incident streamed a raw handler-crash message
+          // straight into the chat bubble, with ZERO server-side logging —
+          // the failure was invisible in server logs. Log the raw error here
+          // (visible in logs) but never forward it to the client/model —
+          // yield only the generic, sanitized toolErrorBlock message.
+          console.error('[llm-turn] tool error:', part.toolName, part.error);
           yield {
             type: 'tool_result',
             name: part.toolName,
-            block: toolErrorBlock(message),
+            block: toolErrorBlock(`The ${part.toolName} tool hit a problem and was skipped.`),
           };
           break;
         }
