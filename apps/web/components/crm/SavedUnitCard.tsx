@@ -111,6 +111,13 @@ export function SavedUnitCard({
             className="whitespace-nowrap text-[1.375rem] font-extrabold"
             style={{ fontFamily: 'var(--font-display)', color: 'var(--surface-900)' }}
           >
+            {/* AIN-83: a building-page save's rent is the cheapest-plan price,
+                not one unit's actual rent — say so honestly. */}
+            {unit.priceIsFrom ? (
+              <span className="text-[0.8125rem] font-semibold" style={{ color: 'var(--surface-500)' }}>
+                from{' '}
+              </span>
+            ) : null}
             {unit.rent != null ? money(unit.rent) : '—'}
             <span className="text-[0.8125rem] font-medium" style={{ color: 'var(--surface-500)' }}>
               /mo

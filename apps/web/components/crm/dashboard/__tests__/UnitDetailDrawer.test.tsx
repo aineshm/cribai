@@ -111,6 +111,54 @@ describe('UnitDetailDrawer', () => {
     expect(screen.getByText(/nearby/i)).toBeInTheDocument();
   });
 
+  // ---------------------------------------------------------------------------
+  // AIN-83: read-only "Floor plans" section — plan list for a building-page
+  // save. Absent entirely for legacy rows / single-unit saves with no plans.
+  // ---------------------------------------------------------------------------
+  describe('floor plans section (AIN-83)', () => {
+    const FLOOR_PLANS = [
+      { name: 'A11', bedrooms: 1, bathrooms: 1, rent_min: 1819, rent_max: 2118, sqft: 799, availability: null },
+      { name: 'S1', bedrooms: 0, bathrooms: 1, rent_min: 1825, rent_max: 1825, sqft: 547, availability: '2026-08-15' },
+    ];
+
+    it('renders nothing for a legacy row with no floor plans', () => {
+      render(<UnitDetailDrawer unit={UNITS[0]!} onClose={() => {}} />);
+      expect(screen.queryByText(/floor plans/i)).not.toBeInTheDocument();
+    });
+
+    it('renders the "Floor plans" section label when plans are present', () => {
+      const unit = { ...UNITS[0]!, floorPlans: FLOOR_PLANS };
+      render(<UnitDetailDrawer unit={unit} onClose={() => {}} />);
+      expect(screen.getByText(/floor plans/i)).toBeInTheDocument();
+    });
+
+    it('renders one row per plan with name, beds/baths, price range, and sqft', () => {
+      const unit = { ...UNITS[0]!, floorPlans: FLOOR_PLANS };
+      const { container } = render(<UnitDetailDrawer unit={unit} onClose={() => {}} />);
+      expect(screen.getByText('A11')).toBeInTheDocument();
+      expect(screen.getByText('S1')).toBeInTheDocument();
+      expect(container.textContent).toMatch(/\$1,819\s*[–-]\s*\$2,118/);
+      expect(container.textContent).toMatch(/799/);
+      expect(container.textContent).toMatch(/547/);
+    });
+
+    it('renders availability when present, omits it when null (no fabricated text)', () => {
+      const unit = { ...UNITS[0]!, floorPlans: FLOOR_PLANS };
+      const { container } = render(<UnitDetailDrawer unit={unit} onClose={() => {}} />);
+      expect(container.textContent).toContain('2026-08-15');
+    });
+
+    it('renders plan text as plain escaped text, not raw markup (XSS guard)', () => {
+      const unit = {
+        ...UNITS[0]!,
+        floorPlans: [{ name: '<img src=x onerror=alert(1)>', bedrooms: 1, bathrooms: 1, rent_min: 900, rent_max: null, sqft: null, availability: null }],
+      };
+      const { container } = render(<UnitDetailDrawer unit={unit} onClose={() => {}} />);
+      expect(container.querySelector('img[onerror]')).toBeNull();
+      expect(screen.getByText('<img src=x onerror=alert(1)>')).toBeInTheDocument();
+    });
+  });
+
   it('renders steering question section label', () => {
     render(<UnitDetailDrawer unit={UNITS[0]!} onClose={() => {}} />);
     expect(screen.getByText(/question/i)).toBeInTheDocument();

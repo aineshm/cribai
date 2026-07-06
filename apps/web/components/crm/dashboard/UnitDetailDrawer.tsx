@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { X, Check, DollarSign, Flag, Home, MapPin, HelpCircle, ExternalLink, Calendar, BookmarkCheck, Pencil } from 'lucide-react';
-import type { CrmListingRow, FirstSaveAnalysis } from '@campusnest/ai';
+import { X, Check, DollarSign, Flag, Home, MapPin, HelpCircle, ExternalLink, Calendar, BookmarkCheck, Pencil, Layers } from 'lucide-react';
+import type { CrmListingRow, FirstSaveAnalysis, FloorPlan } from '@campusnest/ai';
 import type { CrmUnit } from '@/lib/crm/proposed-types';
 import { crmClient } from '@/lib/crm-client';
-import { money } from '@/lib/crm/format';
+import { money, bedLabel } from '@/lib/crm/format';
 import { AmenitySplit } from '../ui/AmenitySplit';
 import { BranchState } from '../ui/BranchState';
 import { DeadlinePill } from '../ui/DeadlinePill';
@@ -68,6 +68,7 @@ function DrawerContent({
   onRenamed?: (id: string, nickname: string) => void;
 }) {
   const { unit: u, amenitySplit, application } = unit._proposed;
+  const floorPlans = unit.floorPlans;
   const photos = unit.photo_urls ?? [];
   const photo = photos[0] ?? '';
 
@@ -439,6 +440,20 @@ function DrawerContent({
             <AmenitySplit split={amenitySplit} className="mt-0" />
           </Block>
 
+          {/* Floor plans (AIN-83) — read-only per-plan breakdown for a
+              building-page save. Absent entirely when the row has none
+              (legacy rows, single-unit saves with no plan data). */}
+          {floorPlans.length > 0 ? (
+            <Block>
+              <SectionLabel icon={<Layers className="h-[15px] w-[15px]" />} label="Floor plans" />
+              <div className="flex flex-col">
+                {floorPlans.map((plan, i) => (
+                  <FloorPlanRow key={`${plan.name}-${i}`} plan={plan} />
+                ))}
+              </div>
+            </Block>
+          ) : null}
+
           {/* Application checklist */}
           <Block tinted>
             {showDeadline ? (
@@ -644,6 +659,52 @@ function AnalysisSection({
         )}
       </Block>
     </>
+  );
+}
+
+/**
+ * Format a floor plan's rent as a single value or a range: `$1,819–$2,118`
+ * when min/max differ, `$1,825` when they match (or only one is known),
+ * `—` when neither is present. `money` already null-safes each side.
+ */
+function formatFloorPlanRent(min: number | null, max: number | null): string {
+  if (min != null && max != null && min !== max) return `${money(min)}–${money(max)}`;
+  return money(min ?? max);
+}
+
+/**
+ * One read-only floor-plan row (AIN-83): name — beds/baths — sqft —
+ * availability, with the rent range right-aligned. Plain React-escaped
+ * text throughout — every field originates from a third-party listing page.
+ */
+function FloorPlanRow({ plan }: { plan: FloorPlan }) {
+  const specs = [bedLabel(plan.bedrooms ?? null), plan.bathrooms != null ? `${plan.bathrooms} bath` : null]
+    .filter((s): s is string => Boolean(s))
+    .join(' · ');
+  const sqft = plan.sqft != null ? `${plan.sqft.toLocaleString()} sqft` : null;
+  const rent = formatFloorPlanRent(plan.rent_min ?? null, plan.rent_max ?? null);
+
+  return (
+    <div
+      className="flex items-center justify-between gap-3 border-t py-2 text-[0.8125rem] first:border-t-0 first:pt-0"
+      style={{ borderColor: 'var(--surface-100)' }}
+    >
+      <div className="min-w-0">
+        <span className="font-semibold" style={{ color: 'var(--surface-900)' }}>
+          {plan.name}
+        </span>
+        {[specs, sqft, plan.availability].filter(Boolean).map((detail, i) => (
+          <span key={i} style={{ color: 'var(--surface-500)' }}>
+            {' '}
+            · {detail}
+          </span>
+        ))}
+      </div>
+      <div className="flex-shrink-0 whitespace-nowrap font-bold" style={{ color: 'var(--surface-900)' }}>
+        {rent}
+        {rent !== '—' ? <span className="font-medium" style={{ color: 'var(--surface-500)' }}>/mo</span> : null}
+      </div>
+    </div>
   );
 }
 
