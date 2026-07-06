@@ -185,10 +185,36 @@ export function renderSavedListingsBlock(ctx: SavedListContext): string {
   ].join('\n');
 }
 
+/**
+ * Maximum length of a sanitized field before truncation (see `sanitizeField`).
+ * Bounds prompt growth from arbitrarily long third-party titles/addresses.
+ */
+const SANITIZED_FIELD_MAX_LENGTH = 80;
+
+/**
+ * System-prompt injection guard: `nickname`, `title`, and `address` on a
+ * saved listing originate from extracted third-party web pages (untrusted).
+ * A crafted title containing newlines could forge additional list lines
+ * (e.g. spoofing a fake "id: ..." row) or inject instruction text into the
+ * system prompt; embedded double quotes could break the `"..."` framing used
+ * around the name. This collapses all whitespace runs (including \n, \r,
+ * \t) to a single space, strips double-quote characters, trims, and hard-
+ * caps the result at `SANITIZED_FIELD_MAX_LENGTH` chars (appending `…` when
+ * truncated).
+ */
+function sanitizeField(value: string): string {
+  const flattened = value.replace(/\s+/g, ' ').replace(/"/g, '').trim();
+  return flattened.length > SANITIZED_FIELD_MAX_LENGTH
+    ? `${flattened.slice(0, SANITIZED_FIELD_MAX_LENGTH - 1)}…`
+    : flattened;
+}
+
 /** Render one compact line for a single saved listing. */
 function renderListingLine(listing: SavedListingSummary): string {
-  const name = listing.nickname ?? listing.title ?? listing.address ?? 'Untitled';
-  const address = listing.address ?? 'address unknown';
+  const rawName = listing.nickname ?? listing.title ?? listing.address ?? 'Untitled';
+  const rawAddress = listing.address ?? 'address unknown';
+  const name = sanitizeField(rawName);
+  const address = sanitizeField(rawAddress);
   const rent = listing.rent != null ? String(listing.rent) : '?';
   return `- "${name}" — ${address} — $${rent}/mo — id: ${listing.id}`;
 }
