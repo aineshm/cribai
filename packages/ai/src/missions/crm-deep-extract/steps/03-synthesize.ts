@@ -12,20 +12,17 @@ import {
   defaultCrmGenerate,
   type CrmGenerateObject,
 } from '../../../crm/generate';
+import { FloorPlanSchema, FLOOR_PLAN_MAX_COUNT, type FloorPlan } from '../../../extraction/floor-plan';
+
+// Re-exported so existing callers (04-update-row.ts, tests) importing
+// `FloorPlan` from this module keep working — the shared definition now
+// lives in `extraction/floor-plan.ts` (AIN-83 Task 1), reused by the
+// deterministic Zillow projection (Task 2) and this LLM mission path.
+export type { FloorPlan } from '../../../extraction/floor-plan';
 
 // ---------------------------------------------------------------------------
 // Schemas
 // ---------------------------------------------------------------------------
-
-const FloorPlanSchema = z.object({
-  name: z.string().max(120),
-  bedrooms: z.number().min(0).max(20).nullish(),
-  bathrooms: z.number().min(0).max(20).nullish(),
-  rent_min: z.number().positive().max(50_000).nullish(),
-  rent_max: z.number().positive().max(50_000).nullish(),
-  sqft: z.number().positive().max(50_000).nullish(),
-  availability: z.string().max(80).nullish(),
-});
 
 export const DeepExtractSchema = z.object({
   title: z.string().max(200).nullish(),
@@ -37,11 +34,10 @@ export const DeepExtractSchema = z.object({
   address: z.string().max(300).nullish(),
   available_from: z.string().max(40).nullish(),
   amenities: z.array(z.string().max(80)).max(30).nullish(),
-  floor_plans: z.array(FloorPlanSchema).max(20).nullish(),
+  floor_plans: z.array(FloorPlanSchema).max(FLOOR_PLAN_MAX_COUNT).nullish(),
 });
 
 export type DeepExtract = z.infer<typeof DeepExtractSchema>;
-export type FloorPlan = z.infer<typeof FloorPlanSchema>;
 
 // ---------------------------------------------------------------------------
 // Constants

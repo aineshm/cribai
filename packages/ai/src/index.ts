@@ -20,6 +20,7 @@ export type {
   ExtractListingOptions,
   ExtractListingFromHtmlOptions,
   ExtractionErrorCode,
+  FloorPlan,
 } from './extraction';
 // AIN-61: exported so the /api/crm/listings route can inject the same geocoder
 // the add_listing tool handler uses into the addListing core.
