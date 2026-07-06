@@ -24,6 +24,7 @@ import { createEmptyConversationState } from '@campusnest/types';
 import type { ConversationState } from '@campusnest/types';
 import { EMPTY_PROFILE_SNIPPET } from '../system-prompt';
 import type { ToolContext, ToolResult } from '../../tools/types';
+import { UserFacingToolError } from '../../tools/errors';
 import { runLlmTurn } from '../llm-turn';
 import type { ChatEvent } from '../../cribai';
 
@@ -480,15 +481,12 @@ describe('runLlmTurn — guest tool rejection', () => {
     expect(toolResult).toBeDefined();
     expect(toolResult.name).toBe('schedule_tour');
     expect(toolResult.block.type).toBe('text');
-    // AIN-90 Fix 4: ALL tool-error stream parts are sanitized uniformly —
-    // the executor's raw "This action requires signing in." message no
-    // longer reaches the client (or model-context history); every tool
-    // failure now yields the same generic, non-leaky shape.
+    // AIN-90 follow-up (founder-confirmed regression): the guest sign-in
+    // gate is a DELIBERATELY user-facing error — it throws
+    // UserFacingToolError, so its friendly message streams through verbatim.
+    // Only unmarked (internal) errors get the sanitized generic message.
     expect((toolResult.block as { content: string }).content).toBe(
-      'Error: The schedule_tour tool hit a problem and was skipped.',
-    );
-    expect((toolResult.block as { content: string }).content.toLowerCase()).not.toContain(
-      'signing in',
+      'Error: This action requires signing in.',
     );
     // Still terminates cleanly.
     expect(events[events.length - 1]!.type).toBe('done');
@@ -539,6 +537,39 @@ describe('runLlmTurn — tool-error sanitization (AIN-90 Fix 4)', () => {
       'get_reviews',
       expect.any(Error),
     );
+
+    expect(events[events.length - 1]!.type).toBe('done');
+  });
+
+  it('passes a UserFacingToolError message through verbatim without logging it as an error', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const friendlyMessage = 'Please verify your .edu email before posting a sublease.';
+    vi.mocked(executeTool).mockRejectedValue(new UserFacingToolError(friendlyMessage));
+
+    // Valid input for the tool's registry schema — the rejection must come
+    // from the mocked executor, not from SDK-side input validation (which
+    // would be an ordinary internal error and correctly get sanitized).
+    const model = streamModel([
+      toolCallPart('call-1', 'search_listings', { semantic_query: '2 bed' }),
+      finishPart('stop'),
+    ]);
+
+    const events = await collect(runLlmTurn(baseInput(model)));
+
+    const toolResult = events.find((e) => e.type === 'tool_result') as Extract<
+      ChatEvent,
+      { type: 'tool_result' }
+    >;
+    expect(toolResult).toBeDefined();
+    expect(toolResult.name).toBe('search_listings');
+    expect(toolResult.block.type).toBe('text');
+    expect((toolResult.block as { content: string }).content).toBe(
+      `Error: ${friendlyMessage}`,
+    );
+
+    // A deliberately user-facing error is expected behavior, not a fault —
+    // it must NOT hit the error log.
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
 
     expect(events[events.length - 1]!.type).toBe('done');
   });

@@ -1,4 +1,5 @@
 import type { ToolContext, ToolResult, ToolName } from './types';
+import { UserFacingToolError } from './errors';
 import { logAgentRun, sanitizeArgs, extractResultSummary } from './lib/agent-run-logger';
 import { searchListings } from './handlers/search-listings';
 import { getListingDetail } from './handlers/get-listing-detail';
@@ -39,7 +40,7 @@ export async function executeTool(
     context.allowedToolNames &&
     !context.allowedToolNames.includes(name as ToolName)
   ) {
-    throw new Error('This action requires signing in.');
+    throw new UserFacingToolError('This action requires signing in.');
   }
 
   const handler = HANDLERS[name];

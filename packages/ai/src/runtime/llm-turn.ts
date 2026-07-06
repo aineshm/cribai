@@ -53,6 +53,7 @@ import {
   type RuntimeSurface,
 } from './tool-registry';
 import type { ToolContext, ToolResult } from '../tools/types';
+import { UserFacingToolError } from '../tools/errors';
 import type { ChatEvent } from '../cribai';
 import {
   ExplicitCacheMemo,
@@ -416,6 +417,20 @@ export async function* runLlmTurn(
           // the failure was invisible in server logs. Log the raw error here
           // (visible in logs) but never forward it to the client/model —
           // yield only the generic, sanitized toolErrorBlock message.
+          //
+          // AIN-90 follow-up: that sanitization also swallowed deliberately
+          // user-facing rejections (e.g. the guest sign-in gate). Throw
+          // sites mark those with `UserFacingToolError` so this branch can
+          // stream the message verbatim — it's expected behavior, not a
+          // fault, so it's not console.error'd.
+          if (part.error instanceof UserFacingToolError) {
+            yield {
+              type: 'tool_result',
+              name: part.toolName,
+              block: toolErrorBlock(part.error.message),
+            };
+            break;
+          }
           console.error('[llm-turn] tool error:', part.toolName, part.error);
           yield {
             type: 'tool_result',
