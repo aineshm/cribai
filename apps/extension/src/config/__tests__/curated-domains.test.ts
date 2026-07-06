@@ -12,8 +12,17 @@ const CASES: Array<[string, boolean]> = [
     true,
   ],
   ['https://www.zillow.com/b/the-hub-madison-madison-wi-5XjKpF/', true],
+  // Zillow building/apartment-complex detail (AIN-83)
+  [
+    'https://www.zillow.com/apartments/san-francisco-ca/1177-market-at-trinity-place/Ch4m2W/',
+    true,
+  ],
   // Zillow search / non-detail
   ['https://www.zillow.com/madison-wi/rentals/', false],
+  // Zillow /apartments/ root (no complex slug) — must stay rejected (AIN-83)
+  ['https://www.zillow.com/apartments/', false],
+  // Zillow search path that merely contains "apartments" as a later segment
+  ['https://www.zillow.com/san-francisco-ca/apartments/', false],
   // Apartments.com detail — token contains a digit (Fix 4, AIN-72 review)
   ['https://www.apartments.com/the-james-madison-wi/abc1234/', true],
   // Apartments.com category pages — second segment is all-alpha → must be rejected (Fix 4)

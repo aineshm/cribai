@@ -22,7 +22,8 @@ export interface CuratedDomain {
 export const CURATED_DOMAINS: readonly CuratedDomain[] = [
   {
     hostSuffix: 'zillow.com',
-    isDetail: (u) => /^\/(homedetails|b)\//.test(u.pathname),
+    // Zillow building/complex pages (the AIN-83 class) live under /apartments/.
+    isDetail: (u) => /^\/(homedetails\/|b\/|apartments\/[^/]+)/.test(u.pathname),
   },
   {
     hostSuffix: 'apartments.com',
