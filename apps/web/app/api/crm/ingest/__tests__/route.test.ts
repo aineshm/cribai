@@ -552,6 +552,23 @@ describe('POST /api/crm/ingest — happy path', () => {
     );
   });
 
+  it('passes a scheduleBackground dep that wraps after() (AIN-95 nickname generation)', async () => {
+    mockAddListing.mockResolvedValue({ listingId: 'l-nick', alreadySaved: false, confidence: 0.9 });
+    mockAfterFn.mockClear();
+
+    await POST(makeRequest(validBody()));
+
+    const [, depsArg] = mockAddListing.mock.calls[0]!;
+    expect(typeof depsArg.scheduleBackground).toBe('function');
+
+    // Invoking scheduleBackground with a task must hand it to after(), not
+    // execute it directly — same survivability guarantee as onSaved/after above.
+    const task = vi.fn().mockResolvedValue(undefined);
+    depsArg.scheduleBackground(task);
+    expect(mockAfterFn).toHaveBeenCalledWith(task);
+    expect(task).not.toHaveBeenCalled();
+  });
+
   it('does NOT fire firstSaveAnalysis when listing was already saved (alreadySaved=true)', async () => {
     mockAddListing.mockResolvedValue({ listingId: 'l-dup', alreadySaved: true, confidence: 0.9 });
     await POST(makeRequest(validBody()));

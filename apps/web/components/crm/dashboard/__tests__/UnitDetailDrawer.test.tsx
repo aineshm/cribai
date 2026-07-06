@@ -180,4 +180,116 @@ describe('UnitDetailDrawer', () => {
       expect(screen.queryByText(/loading/i)).not.toBeInTheDocument();
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // AIN-95: inline nickname rename (pencil → input → PATCH → refetch)
+  // ---------------------------------------------------------------------------
+  describe('inline rename', () => {
+    const mockFetch = vi.fn();
+
+    beforeEach(() => {
+      mockFetch.mockReset();
+      vi.stubGlobal('fetch', mockFetch);
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    function jsonResponse(body: unknown, status = 200): Response {
+      return new Response(JSON.stringify(body), {
+        status,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+
+    it('renders an edit affordance next to the display name', () => {
+      render(<UnitDetailDrawer unit={UNITS[0]!} onClose={() => {}} />);
+      expect(screen.getByRole('button', { name: /rename/i })).toBeInTheDocument();
+    });
+
+    it('clicking the edit affordance swaps to a text input prefilled with the current name', () => {
+      render(<UnitDetailDrawer unit={UNITS[0]!} onClose={() => {}} />);
+      fireEvent.click(screen.getByRole('button', { name: /rename/i }));
+      const input = screen.getByRole('textbox', { name: /listing name/i });
+      expect(input).toHaveValue(UNITS[0]!.nickname ?? UNITS[0]!._proposed.unit.building);
+    });
+
+    it('saving calls PATCH /api/crm/listings/:id with the nickname body and exits edit mode', async () => {
+      mockFetch.mockResolvedValue(
+        jsonResponse({ listing: { id: UNITS[0]!.id, nickname: 'The Regent gem' } }),
+      );
+      render(<UnitDetailDrawer unit={UNITS[0]!} onClose={() => {}} />);
+
+      fireEvent.click(screen.getByRole('button', { name: /rename/i }));
+      const input = screen.getByRole('textbox', { name: /listing name/i });
+      fireEvent.change(input, { target: { value: 'The Regent gem' } });
+      fireEvent.click(screen.getByRole('button', { name: /save name/i }));
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          `/api/crm/listings/${UNITS[0]!.id}`,
+          expect.objectContaining({
+            method: 'PATCH',
+            body: JSON.stringify({ nickname: 'The Regent gem' }),
+          }),
+        );
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByRole('textbox', { name: /listing name/i })).not.toBeInTheDocument();
+      });
+      expect(screen.getByTestId('listing-display-name')).toHaveTextContent('The Regent gem');
+    });
+
+    it('disables the save control while the request is in flight', async () => {
+      let resolveFetch!: (value: Response) => void;
+      mockFetch.mockReturnValue(
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        }),
+      );
+      render(<UnitDetailDrawer unit={UNITS[0]!} onClose={() => {}} />);
+
+      fireEvent.click(screen.getByRole('button', { name: /rename/i }));
+      fireEvent.click(screen.getByRole('button', { name: /save name/i }));
+
+      expect(screen.getByRole('button', { name: /save name/i })).toBeDisabled();
+
+      resolveFetch(jsonResponse({ listing: { id: UNITS[0]!.id, nickname: 'x' } }));
+      await waitFor(() => {
+        expect(screen.queryByRole('textbox', { name: /listing name/i })).not.toBeInTheDocument();
+      });
+    });
+
+    it('Escape while editing restores the original display value and exits edit mode without closing the drawer', () => {
+      const onClose = vi.fn();
+      render(<UnitDetailDrawer unit={UNITS[0]!} onClose={onClose} />);
+
+      fireEvent.click(screen.getByRole('button', { name: /rename/i }));
+      const input = screen.getByRole('textbox', { name: /listing name/i });
+      fireEvent.change(input, { target: { value: 'Some draft text' } });
+      fireEvent.keyDown(input, { key: 'Escape' });
+
+      expect(screen.queryByRole('textbox', { name: /listing name/i })).not.toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.getByTestId('listing-display-name')).toHaveTextContent(
+        UNITS[0]!.nickname ?? UNITS[0]!._proposed.unit.building,
+      );
+    });
+
+    it('Cancel button restores the original display value and exits edit mode', () => {
+      render(<UnitDetailDrawer unit={UNITS[0]!} onClose={() => {}} />);
+
+      fireEvent.click(screen.getByRole('button', { name: /rename/i }));
+      const input = screen.getByRole('textbox', { name: /listing name/i });
+      fireEvent.change(input, { target: { value: 'Some draft text' } });
+      fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+
+      expect(screen.queryByRole('textbox', { name: /listing name/i })).not.toBeInTheDocument();
+      expect(screen.getByTestId('listing-display-name')).toHaveTextContent(
+        UNITS[0]!.nickname ?? UNITS[0]!._proposed.unit.building,
+      );
+    });
+  });
 });

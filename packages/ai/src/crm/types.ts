@@ -65,6 +65,14 @@ export interface CrmListingRow {
   readonly source_url: string | null;
   readonly source_site: string | null;
   readonly title: string | null;
+  /**
+   * User-facing display name (AIN-95). Distinct from `title` (extraction
+   * output, often generic/blank). Generated silently in the background after
+   * a NEW save; renamable by the user; generation never overwrites an
+   * existing value (writes only WHERE nickname IS NULL). Display fallback
+   * order everywhere: nickname ?? title ?? address ?? 'Saved listing'.
+   */
+  readonly nickname: string | null;
   readonly address: string | null;
   readonly rent: number | null;
   readonly bedrooms: number | null;
@@ -121,6 +129,16 @@ export interface AddListingDeps {
    * `context.dryRun` here. Live traffic leaves it undefined (default = false).
    */
   readonly dryRun?: boolean;
+  /**
+   * Background-task scheduler (AIN-95). Used to run `generateListingNickname`
+   * without blocking the caller's response. Route callers with a request
+   * lifecycle (ingest, REST POST) pass Next's `after()` so the lambda stays
+   * alive long enough for the background LLM call to complete. Callers
+   * without a request boundary (the chat tool handler) omit this — the
+   * default below fires the task and swallows any rejection so a nickname
+   * failure can never surface as an addListing error.
+   */
+  readonly scheduleBackground?: (task: () => Promise<void>) => void;
 }
 
 /** Successful result of addListing. */

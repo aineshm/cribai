@@ -14,6 +14,7 @@ const BASE_ROW: CrmListingRow = {
   source_url: 'https://www.zillow.com/x',
   source_site: 'zillow',
   title: 'Dayton Row · 2BR',
+  nickname: null,
   address: '523 W Dayton St',
   rent: 1650,
   bedrooms: 2,
@@ -135,6 +136,29 @@ describe('toCrmUnit', () => {
     expect(
       toCrmUnit({ ...BASE_ROW, title: null, address: null }, VIEWER_ID)._proposed.unit.building,
     ).toBe('Saved listing');
+  });
+
+  // AIN-95 — nickname is a user-renamable display name, distinct from the
+  // extraction-derived title. It takes priority over the whole title/address
+  // fallback chain when present.
+  describe('nickname display fallback (AIN-95)', () => {
+    it('uses the nickname for the building name when present', () => {
+      const unit = toCrmUnit({ ...BASE_ROW, nickname: 'The Dayton Spot' }, VIEWER_ID);
+      expect(unit._proposed.unit.building).toBe('The Dayton Spot');
+    });
+
+    it('falls back to title when nickname is null', () => {
+      const unit = toCrmUnit({ ...BASE_ROW, nickname: null }, VIEWER_ID);
+      expect(unit._proposed.unit.building).toBe(BASE_ROW.title);
+    });
+
+    it('nickname wins over title even when both are present', () => {
+      const unit = toCrmUnit(
+        { ...BASE_ROW, nickname: 'My Favorite Place', title: 'Some Extracted Title' },
+        VIEWER_ID,
+      );
+      expect(unit._proposed.unit.building).toBe('My Favorite Place');
+    });
   });
 
   // AIN-74 security HIGH — source_url renders as <a href> in UnitDetailDrawer;

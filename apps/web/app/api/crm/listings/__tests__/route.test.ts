@@ -11,7 +11,7 @@ vi.mock('next/headers', () => ({
   cookies: vi.fn(async () => ({ get: vi.fn(), getAll: vi.fn(() => []), set: vi.fn() })),
 }));
 
-const { mockGetUser, mockFrom, mockSecretFrom, mockAddListing, mockExtract, mockGeocode } =
+const { mockGetUser, mockFrom, mockSecretFrom, mockAddListing, mockExtract, mockGeocode, mockAfterFn } =
   vi.hoisted(() => ({
     mockGetUser: vi.fn(),
     mockFrom: vi.fn(),
@@ -19,7 +19,14 @@ const { mockGetUser, mockFrom, mockSecretFrom, mockAddListing, mockExtract, mock
     mockAddListing: vi.fn(),
     mockExtract: vi.fn(),
     mockGeocode: vi.fn(),
+    mockAfterFn: vi.fn(),
   }));
+
+// ── Mock next/server to capture `after` calls without replacing NextRequest/NextResponse ──
+vi.mock('next/server', async (importActual) => {
+  const actual = await importActual<typeof import('next/server')>();
+  return { ...actual, after: mockAfterFn };
+});
 
 const mockRlsClient = { auth: { getUser: mockGetUser }, from: mockFrom };
 const mockSecretClient = { from: mockSecretFrom };
@@ -220,6 +227,23 @@ describe('POST /api/crm/listings', () => {
     expect(deps.db).toBe(mockRlsClient);
     expect(deps.extract).toBe(mockExtract);
     expect(deps.geocode).toBe(mockGeocode);
+  });
+
+  it('passes a scheduleBackground dep that wraps after() (AIN-95 nickname generation)', async () => {
+    mockAddListing.mockResolvedValue({ listingId: ROW.id, alreadySaved: false, confidence: 0.9 });
+    mockAfterFn.mockClear();
+
+    await POST(postRequest({ sourceUrl: SOURCE_URL }));
+
+    const [, deps] = mockAddListing.mock.calls[0]!;
+    expect(typeof deps.scheduleBackground).toBe('function');
+
+    // Invoking scheduleBackground with a task must hand it to after(), not
+    // execute it directly.
+    const task = vi.fn().mockResolvedValue(undefined);
+    deps.scheduleBackground(task);
+    expect(mockAfterFn).toHaveBeenCalledWith(task);
+    expect(task).not.toHaveBeenCalled();
   });
 
   it('returns 200 (not 201) when the listing was already saved', async () => {

@@ -68,6 +68,13 @@ export interface UseCrmChat {
   readonly pending: boolean;
   /** Name of the tool currently executing server-side (real mode only). */
   readonly pendingTool: string | null;
+  /**
+   * Propagate a successful inline rename (UnitDetailDrawer's `onRenamed`) into
+   * the thread: the `saved-unit` message carrying that unit gets its
+   * `nickname` / display building immutably updated in place, so the card
+   * re-renders with the new name without a reload or refetch (AIN-95 follow-up).
+   */
+  renameUnit: (id: string, nickname: string) => void;
 }
 
 export function useCrmChat(): UseCrmChat {
@@ -96,6 +103,26 @@ export function useCrmChat(): UseCrmChat {
 
   const push = useCallback((msg: ChatMessage) => {
     setMessages((prev) => [...prev, msg]);
+  }, []);
+
+  const renameUnit = useCallback((id: string, nickname: string) => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.kind === 'saved-unit' && m.unit.id === id
+          ? {
+              ...m,
+              unit: {
+                ...m.unit,
+                nickname,
+                _proposed: {
+                  ...m.unit._proposed,
+                  unit: { ...m.unit._proposed.unit, building: nickname },
+                },
+              },
+            }
+          : m,
+      ),
+    );
   }, []);
 
   /** Insert-or-replace by id — used for the streaming assistant text bubble. */
@@ -276,5 +303,5 @@ export function useCrmChat(): UseCrmChat {
     [push, runMockTurn, runRealTurn],
   );
 
-  return { messages, send, pending, pendingTool };
+  return { messages, send, pending, pendingTool, renameUnit };
 }

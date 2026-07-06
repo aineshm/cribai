@@ -76,7 +76,7 @@ export async function rankCompare(
   // Phase 1 commute is neutral so coords aren't selected.
   const listingsResult = await (db
     .from('crm_listings')
-    .select('id, title, rent, bedrooms, bathrooms, sqft, amenities, status')
+    .select('id, title, nickname, rent, bedrooms, bathrooms, sqft, amenities, status')
     .eq('user_id', userId) as unknown as Promise<{ data: CrmListingRow[] | null; error: unknown }>);
 
   const { data: rawRows, error: listingsError } = listingsResult;
@@ -152,7 +152,7 @@ function scoreRow(
 
   return {
     listingId: row.id,
-    title: row.title ?? '',
+    title: row.nickname ?? row.title ?? '',
     score: totalScore,
     breakdown,
   };
@@ -438,7 +438,7 @@ function buildCompareResult(
 
   const compareRows: readonly CompareRow[] = matchedRows.map((r) => ({
     listingId: r.id,
-    title: r.title ?? '',
+    title: r.nickname ?? r.title ?? '',
     rent: r.rent,
     bedrooms: r.bedrooms,
     bathrooms: r.bathrooms,

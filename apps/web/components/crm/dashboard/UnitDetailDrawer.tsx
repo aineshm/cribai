@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { X, Check, DollarSign, Flag, Home, MapPin, HelpCircle, ExternalLink, Calendar, BookmarkCheck } from 'lucide-react';
+import { X, Check, DollarSign, Flag, Home, MapPin, HelpCircle, ExternalLink, Calendar, BookmarkCheck, Pencil } from 'lucide-react';
 import type { CrmListingRow, FirstSaveAnalysis } from '@campusnest/ai';
 import type { CrmUnit } from '@/lib/crm/proposed-types';
 import { crmClient } from '@/lib/crm-client';
@@ -47,15 +47,26 @@ const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 export function UnitDetailDrawer({
   unit,
   onClose,
+  onRenamed,
 }: {
   unit: CrmUnit | null;
   onClose: () => void;
+  /** Optional hook for a host that keeps its own list of units in sync (AIN-95). */
+  onRenamed?: (id: string, nickname: string) => void;
 }) {
   if (!unit) return null;
-  return <DrawerContent key={unit.id} unit={unit} onClose={onClose} />;
+  return <DrawerContent key={unit.id} unit={unit} onClose={onClose} onRenamed={onRenamed} />;
 }
 
-function DrawerContent({ unit, onClose }: { unit: CrmUnit; onClose: () => void }) {
+function DrawerContent({
+  unit,
+  onClose,
+  onRenamed,
+}: {
+  unit: CrmUnit;
+  onClose: () => void;
+  onRenamed?: (id: string, nickname: string) => void;
+}) {
   const { unit: u, amenitySplit, application } = unit._proposed;
   const photos = unit.photo_urls ?? [];
   const photo = photos[0] ?? '';
@@ -65,6 +76,68 @@ function DrawerContent({ unit, onClose }: { unit: CrmUnit; onClose: () => void }
   const [status, setStatus] = useState<CrmListingRow['status']>(unit.status);
   const [notes, setNotes] = useState<string>(unit.user_notes ?? '');
   const [docs, setDocs] = useState(application.documents.map((d) => ({ ...d })));
+
+  // Inline nickname rename (AIN-95): pencil → input → PATCH → local display
+  // update + optional host refetch hook. `displayName` is the source of truth
+  // for what's shown; it starts at the adapter's fallback (nickname ?? title
+  // ?? address ?? 'Saved listing', see to-crm-unit.ts) and only ever changes
+  // on a successful save.
+  const [displayName, setDisplayName] = useState<string>(u.building);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState<string>(u.building);
+  const [savingName, setSavingName] = useState(false);
+  const [renameError, setRenameError] = useState<string | null>(null);
+
+  const startRename = () => {
+    setNameDraft(displayName);
+    setRenameError(null);
+    setIsEditingName(true);
+  };
+
+  const cancelRename = () => {
+    setNameDraft(displayName);
+    setRenameError(null);
+    setIsEditingName(false);
+  };
+
+  const saveRename = async () => {
+    const trimmed = nameDraft.trim();
+    if (!trimmed || savingName) return;
+    setSavingName(true);
+    setRenameError(null);
+    try {
+      const response = await fetch(`/api/crm/listings/${encodeURIComponent(unit.id)}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ nickname: trimmed }),
+      });
+      if (!response.ok) {
+        let message = 'Failed to rename listing';
+        try {
+          const body: unknown = await response.json();
+          if (
+            body !== null &&
+            typeof body === 'object' &&
+            typeof (body as { error?: unknown }).error === 'string'
+          ) {
+            message = (body as { error: string }).error;
+          }
+        } catch {
+          // Non-JSON error body — keep the status fallback message.
+        }
+        throw new Error(message);
+      }
+      const body = (await response.json()) as { listing?: { nickname?: string | null } };
+      const savedName = body.listing?.nickname ?? trimmed;
+      setDisplayName(savedName);
+      setIsEditingName(false);
+      onRenamed?.(unit.id, savedName);
+    } catch (err: unknown) {
+      setRenameError(err instanceof Error ? err.message : 'Failed to rename listing');
+    } finally {
+      setSavingName(false);
+    }
+  };
 
   // Analysis tri-state: 'loading' → 'done' | 'error'
   const [analysisState, setAnalysisState] = useState<'loading' | 'done' | 'error'>('loading');
@@ -139,8 +212,72 @@ function DrawerContent({ unit, onClose }: { unit: CrmUnit; onClose: () => void }
               {u.unitLabel}
             </h2>
             <div className="mt-0.5 text-[0.78rem]" style={{ color: 'var(--surface-500)' }}>
-              {u.building}
-              {u.floorPlan ? ` · Floor plan ${u.floorPlan}` : ''}
+              {isEditingName ? (
+                <form
+                  className="flex items-center gap-1.5"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void saveRename();
+                  }}
+                >
+                  <input
+                    id="f-listing-name"
+                    aria-label="Listing name"
+                    type="text"
+                    value={nameDraft}
+                    autoFocus
+                    disabled={savingName}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        e.stopPropagation();
+                        cancelRename();
+                      }
+                    }}
+                    maxLength={60}
+                    className="min-w-0 flex-1 rounded-[8px] border bg-white px-2 py-1 text-[0.78rem] outline-none"
+                    style={{ borderColor: 'var(--surface-200)', color: 'var(--surface-900)' }}
+                  />
+                  <button
+                    type="submit"
+                    aria-label="Save name"
+                    disabled={savingName || nameDraft.trim().length === 0}
+                    className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md disabled:opacity-50"
+                    style={{ background: 'var(--surface-100)', color: 'var(--surface-600)' }}
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Cancel rename"
+                    disabled={savingName}
+                    onClick={cancelRename}
+                    className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md disabled:opacity-50"
+                    style={{ background: 'var(--surface-100)', color: 'var(--surface-600)' }}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </form>
+              ) : (
+                <span className="inline-flex items-center gap-1.5">
+                  <span data-testid="listing-display-name">{displayName}</span>
+                  {u.floorPlan ? <span>{` · Floor plan ${u.floorPlan}`}</span> : null}
+                  <button
+                    type="button"
+                    aria-label="Rename listing"
+                    onClick={startRename}
+                    className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md"
+                    style={{ color: 'var(--surface-400)' }}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              {renameError ? (
+                <div className="mt-1 text-[0.72rem]" style={{ color: 'var(--fair-bad)' }}>
+                  {renameError}
+                </div>
+              ) : null}
             </div>
           </div>
           <button

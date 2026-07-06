@@ -27,6 +27,7 @@ import type { ToolContext, ToolResult } from '../../tools/types';
 import { UserFacingToolError } from '../../tools/errors';
 import { runLlmTurn } from '../llm-turn';
 import type { ChatEvent } from '../../cribai';
+import type { SavedListContext } from '../../crm/saved-list-context';
 
 // Stub the executor so tool execution is deterministic + offline. The real
 // allowlist guard is re-imported for the guest-rejection test.
@@ -653,6 +654,56 @@ describe('runLlmTurn — surface scoping (Task 4)', () => {
 
     expect(captured.tools).toHaveLength(17);
     expect(captured.tools).toContain('search_listings');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AIN-91 — savedListContext threading (Task 6)
+// ---------------------------------------------------------------------------
+
+const SAVED_LISTING_ID = 'dddddddd-2222-4333-8444-555555555555';
+
+const SAMPLE_SAVED_LIST_CONTEXT: SavedListContext = {
+  listings: [
+    {
+      id: SAVED_LISTING_ID,
+      nickname: 'The Gorham Loft',
+      title: 'Spacious 2BR near campus',
+      address: '456 W Gorham St, Madison WI',
+      rent: 1100,
+      status: 'active',
+    },
+  ],
+  truncatedCount: 0,
+};
+
+describe('runLlmTurn — savedListContext threading (AIN-91)', () => {
+  it('crm turn with a savedListContext surfaces the listing id + nickname in captured.system', async () => {
+    const { model, captured } = makeCaptureModel();
+
+    await collect(
+      runLlmTurn(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        baseInput(model, { surface: 'crm', savedListContext: SAMPLE_SAVED_LIST_CONTEXT } as any),
+      ),
+    );
+
+    expect(captured.system).toContain(SAVED_LISTING_ID);
+    expect(captured.system).toContain('The Gorham Loft');
+  });
+
+  it('explore turn with the same savedListContext does NOT surface it (crm-gated)', async () => {
+    const { model, captured } = makeCaptureModel();
+
+    await collect(
+      runLlmTurn(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        baseInput(model, { savedListContext: SAMPLE_SAVED_LIST_CONTEXT } as any),
+      ),
+    );
+
+    expect(captured.system).not.toContain(SAVED_LISTING_ID);
+    expect(captured.system).not.toContain('The Gorham Loft');
   });
 });
 
