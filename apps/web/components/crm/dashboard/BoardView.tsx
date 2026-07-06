@@ -84,6 +84,27 @@ export function BoardView() {
   const openUnit = units.find((u) => u.id === openId) ?? null;
   const others = list ? list.members.filter((m) => m.id !== list.ownerId) : [];
 
+  // AIN-95 follow-up: propagate a successful inline rename to the local units
+  // list so the grid/pipeline/compare cards reflect the new name immediately,
+  // without a reload. Immutable update — never mutates the prior units array
+  // or unit object.
+  const handleRenamed = (id: string, nickname: string) => {
+    setUnits((prev) =>
+      prev.map((u) =>
+        u.id === id
+          ? {
+              ...u,
+              nickname,
+              _proposed: {
+                ...u._proposed,
+                unit: { ...u._proposed.unit, building: nickname },
+              },
+            }
+          : u,
+      ),
+    );
+  };
+
   const submitUrl = async () => {
     if (!url.trim() || adding) return;
     setAdding(true);
@@ -250,7 +271,7 @@ export function BoardView() {
         )
       ) : null}
 
-      <UnitDetailDrawer unit={openUnit} onClose={() => setOpenId(null)} />
+      <UnitDetailDrawer unit={openUnit} onClose={() => setOpenId(null)} onRenamed={handleRenamed} />
     </main>
   );
 }

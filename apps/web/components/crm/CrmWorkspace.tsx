@@ -33,7 +33,7 @@ import type { CrmUnit } from '@/lib/crm/proposed-types';
 const PLACEHOLDER = 'Paste a listing link, or ask…';
 
 export function CrmWorkspace() {
-  const { messages, send, pending } = useCrmChat();
+  const { messages, send, pending, renameUnit } = useCrmChat();
   const [draft, setDraft] = useState('');
   const [canvasOpen, setCanvasOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -166,7 +166,7 @@ export function CrmWorkspace() {
       ) : null}
 
       {/* Unit detail drawer — serves the chat thread only. BoardView/CanvasSheet each own their own drawer. */}
-      <UnitDetailDrawer unit={openUnit} onClose={() => setOpenId(null)} />
+      <UnitDetailDrawer unit={openUnit} onClose={() => setOpenId(null)} onRenamed={renameUnit} />
     </div>
   );
 }
