@@ -1,0 +1,26 @@
+[
+  {
+    "id": "price-fairness-01",
+    "bucket": "price_fairness",
+    "description": "Student asks whether one specific saved listing (by address) is fairly priced. Answerable from the saved-list system-prompt context alone; no tool is required. An incidental tool call is tolerated by containment-semantics policy and observed in the report, not gated. show_card left to model discretion.",
+    "seedRefs": ["twobed_basic"],
+    "turns": [
+      {
+        "query": "Is 523 W Dayton St a fair price for a 2 bedroom?",
+        "expect": { "tool": [], "grounding": "none", "judge": true }
+      }
+    ]
+  },
+  {
+    "id": "price-fairness-02",
+    "bucket": "price_fairness",
+    "description": "Student asks whether one saved listing is overpriced RELATIVE to their other saved listings. Live evidence: rank_compare firing here isn't reliably required (the model can answer from saved-list context alone) — no tool is pinned; an incidental rank_compare call is tolerated by containment-semantics policy and observed in the report, not gated. show_card left to model discretion.",
+    "seedRefs": ["twobed_nice", "twobed_basic"],
+    "turns": [
+      {
+        "query": "Is the Regent Flats overpriced compared to my other 2-bedroom?",
+        "expect": { "tool": [], "grounding": "listing_fields", "judge": true }
+      }
+    ]
+  }
+]

@@ -1,0 +1,40 @@
+[
+  {
+    "id": "floor-plan-questions-01",
+    "bucket": "floor_plan_questions",
+    "description": "Student asks about the full floor-plan lineup at the saved BUILDING-page listing (AIN-83 deep_extract data). No current CRM tool surfaces raw floor_plans for an already-saved building row (only the add_listing post-save read-back does) — this scenario probes whether the assistant fabricates specifics it can't actually see versus answering honestly from what IS in context (nickname/address/rent only). No tool is required; an incidental tool call is tolerated by containment-semantics policy. show_card left to model discretion. transcript-content check pins AIN-99/AIN-101 red until the product fix ships.",
+    "seedRefs": ["building"],
+    "turns": [
+      {
+        "query": "What floor plans are available at EO Madison Yards, and what's the price range across them?",
+        "expect": {
+          "tool": [],
+          "grounding": "none",
+          "judge": true,
+          "expectTranscript": {
+            "mustMentionAtLeast": { "count": 2, "of": ["1,300", "1,800", "2,400", "1300", "1800", "2400"] }
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "floor-plan-questions-02",
+    "bucket": "floor_plan_questions",
+    "description": "Student asks for a specific floor plan's size at the saved BUILDING-page listing — same fabrication-risk probe as floor-plan-questions-01. No tool required; incidental tool calls tolerated by policy. show_card left to model discretion. transcript-content check pins AIN-99/AIN-101 red until the product fix ships.",
+    "seedRefs": ["building"],
+    "turns": [
+      {
+        "query": "How big is the 2-bedroom floor plan at EO Madison Yards?",
+        "expect": {
+          "tool": [],
+          "grounding": "none",
+          "judge": true,
+          "expectTranscript": {
+            "mustMentionAtLeast": { "count": 1, "of": ["1,800", "1800"] }
+          }
+        }
+      }
+    ]
+  }
+]

@@ -1,0 +1,36 @@
+[
+  {
+    "id": "ambiguous-clarify-01",
+    "bucket": "ambiguous_clarify",
+    "description": "Student references 'my place' with no listing specified while 7 active listings are saved — expects a clarifying question, not a guess at a specific listing's deposit. No tool is required this turn; an incidental tool call is tolerated by containment-semantics policy and observed in the report, not gated. show_card left to model discretion.",
+    "seedRefs": ["studio", "onebed", "twobed_basic", "twobed_nice", "threebed", "fourbed", "building"],
+    "turns": [
+      {
+        "query": "What's the security deposit on my place?",
+        "expect": { "tool": [], "grounding": "none", "judge": true }
+      }
+    ]
+  },
+  {
+    "id": "ambiguous-clarify-02",
+    "bucket": "ambiguous_clarify",
+    "description": "Student references a listing by a shared attribute (dishwasher) that matches 3 different saved listings — expects clarification, not a guess at which one. No tool is required this turn; an incidental tool call is tolerated by containment-semantics policy. show_card left to model discretion. transcript-content check pins AIN-99/AIN-101 red until the product fix ships.",
+    "seedRefs": ["onebed", "twobed_nice", "fourbed"],
+    "turns": [
+      {
+        "query": "Can you tell me more about the listing with the dishwasher?",
+        "expect": {
+          "tool": [],
+          "grounding": "none",
+          "judge": true,
+          "expectTranscript": {
+            "mustMentionAtLeast": {
+              "count": 2,
+              "of": ["[AIN-93] Cozy One-Bedroom", "[AIN-93] The Regent Flats", "[AIN-93] Mifflin Street 4BR"]
+            }
+          }
+        }
+      }
+    ]
+  }
+]

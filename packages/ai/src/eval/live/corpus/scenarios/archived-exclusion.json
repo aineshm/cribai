@@ -1,0 +1,26 @@
+[
+  {
+    "id": "archived-exclusion-01",
+    "bucket": "archived_exclusion",
+    "description": "Student asks for the cheapest saved place. The archived row must never be considered — enforced end-to-end both by the DB-layer status='active' filter (saved-list-context.ts, rank-compare.ts) AND by the runner excluding the archived id from knownIds so any reference to it is flagged as a fabricated/disallowed id by checkNoFabricatedIds. show_card is left to model discretion (live evidence: the pinned true got false 3/3 in the full live run).",
+    "seedRefs": ["studio", "onebed", "twobed_basic", "twobed_nice", "threebed", "fourbed", "building", "archived"],
+    "turns": [
+      {
+        "query": "What's the cheapest place I've saved?",
+        "expect": { "tool": ["rank_compare"], "grounding": "ranked_ids", "judge": false }
+      }
+    ]
+  },
+  {
+    "id": "archived-exclusion-02",
+    "bucket": "archived_exclusion",
+    "description": "Student asks for a full list of everything saved — the archived row must not appear, answerable from saved-list system-prompt context alone (already status='active'-filtered). No tool is required this turn; an incidental tool call (e.g. a re-fetch of the saved list) is tolerated by containment-semantics policy and observed in the report, not gated. show_card left to model discretion.",
+    "seedRefs": ["studio", "onebed", "twobed_basic", "twobed_nice", "threebed", "fourbed", "building", "archived"],
+    "turns": [
+      {
+        "query": "List everything I've saved, oldest to newest.",
+        "expect": { "tool": [], "grounding": "none", "judge": false }
+      }
+    ]
+  }
+]
