@@ -5,7 +5,7 @@
  * SSE type the live route can emit plus a malformed-line skip case.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { parseSseStream, postTurn } from '../http-turn';
+import { parseSseStream, postTurn, TURN_TIMEOUT_MS } from '../http-turn';
 
 function sseBody(chunks: readonly string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -189,5 +189,60 @@ describe('postTurn', () => {
     expect(result.httpStatus).toBe(429);
     expect(result.events).toHaveLength(1);
     expect(result.events[0]).toMatchObject({ type: 'error' });
+  });
+
+  // CodeRabbit PR #123 fixes 4 + 5 — a per-turn timeout + catching fetch
+  // rejections so a network blip or a hung connection never throws out of
+  // `postTurn` uncaught; both degrade to the SAME non-200-style failure
+  // shape (`httpStatus: 0`) so every downstream check (`checkNoErrors`)
+  // treats them uniformly as a failed turn.
+  it('passes an AbortSignal.timeout(TURN_TIMEOUT_MS) to fetchImpl', async () => {
+    let capturedSignal: AbortSignal | undefined;
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      capturedSignal = init?.signal as AbortSignal | undefined;
+      return sseResponse(['data: {"type":"done"}\n\n']);
+    }) as unknown as typeof fetch;
+
+    await postTurn({ baseUrl: 'https://example.test', accessToken: 'tok', query: 'q', campusSlug: 'uw-madison', fetchImpl });
+
+    expect(capturedSignal).toBeInstanceOf(AbortSignal);
+    expect(TURN_TIMEOUT_MS).toBe(90_000);
+  });
+
+  it('returns a failed (non-200-style) turn result instead of throwing when fetchImpl aborts on timeout', async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+    }) as unknown as typeof fetch;
+
+    const result = await postTurn({
+      baseUrl: 'https://example.test',
+      accessToken: 'tok',
+      query: 'q',
+      campusSlug: 'uw-madison',
+      fetchImpl,
+    });
+
+    expect(result.httpStatus).toBe(0);
+    expect(result.events).toEqual([]);
+    expect(result.transcript).toMatch(/timeout/i);
+  });
+
+  it('returns a failed (non-200-style) turn result instead of throwing on a network error', async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new TypeError('fetch failed');
+    }) as unknown as typeof fetch;
+
+    const result = await postTurn({
+      baseUrl: 'https://example.test',
+      accessToken: 'tok',
+      query: 'q',
+      campusSlug: 'uw-madison',
+      fetchImpl,
+    });
+
+    expect(result.httpStatus).toBe(0);
+    expect(result.events).toEqual([]);
+    expect(result.transcript).toBe('fetch failed');
+    expect(result.requestId).toMatch(/^[0-9a-f-]{36}$/i);
   });
 });

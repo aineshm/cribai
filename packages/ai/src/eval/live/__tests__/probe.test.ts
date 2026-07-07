@@ -34,12 +34,49 @@ describe('probeRuntime', () => {
     ).rejects.toThrow(/llm_first/);
   });
 
-  it('throws when no metrics row was found at all (null)', async () => {
+  it('throws when no metrics row was found at all after exhausting the poll', async () => {
+    const fetchRuntimeForRequestId = vi.fn().mockResolvedValue(null);
+    const sleepFn = vi.fn().mockResolvedValue(undefined);
+
     await expect(
       probeRuntime({
         postProbeTurn: () => Promise.resolve(okResult()),
-        fetchRuntimeForRequestId: vi.fn().mockResolvedValue(null),
+        fetchRuntimeForRequestId,
+        sleepFn,
       }),
     ).rejects.toThrow(/aborting/);
+
+    // CodeRabbit PR #123 fix 6 — 3 attempts total (default), 2 sleeps between them.
+    expect(fetchRuntimeForRequestId).toHaveBeenCalledTimes(3);
+    expect(sleepFn).toHaveBeenCalledTimes(2);
+  });
+
+  it('polls past a null row that has not landed yet, then succeeds once it does (CodeRabbit PR #123 fix 6)', async () => {
+    const fetchRuntimeForRequestId = vi
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce('llm_first');
+    const sleepFn = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      probeRuntime({ postProbeTurn: () => Promise.resolve(okResult()), fetchRuntimeForRequestId, sleepFn }),
+    ).resolves.toBeUndefined();
+
+    expect(fetchRuntimeForRequestId).toHaveBeenCalledTimes(3);
+    expect(sleepFn).toHaveBeenCalledTimes(2);
+    expect(sleepFn).toHaveBeenNthCalledWith(1, 2000);
+  });
+
+  it('does NOT poll when the runtime is a non-null mismatch — fails fast', async () => {
+    const fetchRuntimeForRequestId = vi.fn().mockResolvedValue('deterministic');
+    const sleepFn = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      probeRuntime({ postProbeTurn: () => Promise.resolve(okResult()), fetchRuntimeForRequestId, sleepFn }),
+    ).rejects.toThrow(/llm_first/);
+
+    expect(fetchRuntimeForRequestId).toHaveBeenCalledTimes(1);
+    expect(sleepFn).not.toHaveBeenCalled();
   });
 });

@@ -22,6 +22,22 @@ export interface ResolveTargetConfigEnv {
   readonly AIN93_CONFIRM_TARGET?: string;
 }
 
+/** Hostnames that unambiguously mean "this points at a local dev server". */
+const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0']);
+
+/**
+ * `baseUrl` parse failures fall back to "not local" — an unparsable URL is
+ * caught separately (the fetch itself will fail loudly), not silently
+ * treated as a local-target match here.
+ */
+function isLocalHostname(baseUrl: string): boolean {
+  try {
+    return LOCAL_HOSTNAMES.has(new URL(baseUrl).hostname);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Resolve + validate the target base URL and confirmation flag. Throws with
  * an actionable message on any ambiguity — this guard is the whole safety
@@ -45,6 +61,27 @@ export function resolveTargetConfig(
         confirm ?? null,
       )}). This is a deliberate-prod posture: the harness never runs without an ` +
         'explicit, unambiguous target confirmation.',
+    );
+  }
+
+  // CodeRabbit PR #123 fix 3 — cross-check baseUrl against the confirmed
+  // target. A copy-paste mistake (leftover AIN93_CONFIRM_TARGET=prod from a
+  // previous run, pointed at a freshly-started localhost server, or vice
+  // versa) is exactly the class of error this deliberate-prod guard exists
+  // to catch — so a mismatch is a hard error, not a warning.
+  const local = isLocalHostname(baseUrl);
+  if (local && confirm !== 'local') {
+    throw new Error(
+      `AIN93_TARGET_BASE_URL (${baseUrl}) looks like localhost but AIN93_CONFIRM_TARGET is ` +
+        `'${confirm}'. A localhost baseUrl requires AIN93_CONFIRM_TARGET=local — refusing to run ` +
+        'against a mismatched target.',
+    );
+  }
+  if (!local && confirm !== 'prod') {
+    throw new Error(
+      `AIN93_TARGET_BASE_URL (${baseUrl}) is not a localhost URL but AIN93_CONFIRM_TARGET is ` +
+        `'${confirm}'. A non-localhost baseUrl requires AIN93_CONFIRM_TARGET=prod — refusing to ` +
+        'run against a mismatched target.',
     );
   }
 

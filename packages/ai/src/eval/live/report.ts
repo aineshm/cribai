@@ -22,6 +22,13 @@ export interface TurnRunResult {
   readonly hardChecks: TurnHardCheckResults;
   readonly hardChecksPassed: boolean;
   readonly throttled: boolean;
+  /**
+   * Persistent network/timeout failure (CodeRabbit PR #123 fix 7), distinct
+   * from `throttled` — always `false` when `throttled` is `true`. Optional
+   * so pre-existing `TurnRunResult` literals (tests, fixtures) don't need to
+   * be touched; undefined reads as "not a network failure".
+   */
+  readonly networkFailure?: boolean;
   /** Redacted assistant/tool-call excerpt for the failure report — never a raw header/token. */
   readonly transcriptExcerpt: string;
 }
@@ -96,7 +103,9 @@ export function aggregateLiveReport(
 function runVerdictLabel(run: ScenarioRunResult | undefined): string {
   if (!run) return '—';
   if (run.passed) return 'PASS';
-  return run.turns.some((t) => t.throttled) ? 'THROTTLED' : 'FAIL';
+  if (run.turns.some((t) => t.throttled)) return 'THROTTLED';
+  if (run.turns.some((t) => t.networkFailure)) return 'NETWORK_FAIL';
+  return 'FAIL';
 }
 
 function formatFailingRun(scenario: ScenarioReport, run: ScenarioRunResult): string[] {
@@ -105,7 +114,8 @@ function formatFailingRun(scenario: ScenarioReport, run: ScenarioRunResult): str
   lines.push(`### ${scenario.scenarioId} — run ${run.runIndex + 1}`);
   for (const turn of run.turns) {
     lines.push(`- query: ${JSON.stringify(turn.query)}`);
-    lines.push(`  http: ${turn.httpStatus}${turn.throttled ? ' (THROTTLED)' : ''}`);
+    const statusSuffix = turn.throttled ? ' (THROTTLED)' : turn.networkFailure ? ' (NETWORK_FAIL)' : '';
+    lines.push(`  http: ${turn.httpStatus}${statusSuffix}`);
     for (const [name, check] of Object.entries(turn.hardChecks)) {
       lines.push(`  - ${name}: ${check.pass ? 'pass' : 'FAIL'} — ${check.detail}`);
     }

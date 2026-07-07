@@ -58,6 +58,54 @@ describe('resolveTargetConfig', () => {
       }),
     ).toEqual({ baseUrl: 'https://cribai.app', target: 'prod' });
   });
+
+  // CodeRabbit PR #123 fix 3 — baseUrl/target cross-check. A mismatched pair
+  // (a localhost baseUrl confirmed as 'prod', or vice versa) is exactly the
+  // kind of copy-paste mistake this deliberate-prod guard exists to catch.
+  it('refuses a localhost baseUrl confirmed as prod', () => {
+    expect(() =>
+      resolveTargetConfig({
+        AIN93_TARGET_BASE_URL: 'http://localhost:3000',
+        AIN93_CONFIRM_TARGET: 'prod',
+      }),
+    ).toThrow(/localhost.*but AIN93_CONFIRM_TARGET is 'prod'/s);
+  });
+
+  it('refuses a 127.0.0.1 baseUrl confirmed as prod', () => {
+    expect(() =>
+      resolveTargetConfig({
+        AIN93_TARGET_BASE_URL: 'http://127.0.0.1:3000',
+        AIN93_CONFIRM_TARGET: 'prod',
+      }),
+    ).toThrow(/AIN93_CONFIRM_TARGET is 'prod'/);
+  });
+
+  it('refuses a 0.0.0.0 baseUrl confirmed as prod', () => {
+    expect(() =>
+      resolveTargetConfig({
+        AIN93_TARGET_BASE_URL: 'http://0.0.0.0:3000',
+        AIN93_CONFIRM_TARGET: 'prod',
+      }),
+    ).toThrow(/AIN93_CONFIRM_TARGET is 'prod'/);
+  });
+
+  it('refuses a non-localhost baseUrl confirmed as local', () => {
+    expect(() =>
+      resolveTargetConfig({
+        AIN93_TARGET_BASE_URL: 'https://cribai.app',
+        AIN93_CONFIRM_TARGET: 'local',
+      }),
+    ).toThrow(/is not a localhost URL.*but AIN93_CONFIRM_TARGET is 'local'/s);
+  });
+
+  it('still accepts a matching non-localhost/prod pair (regression)', () => {
+    expect(() =>
+      resolveTargetConfig({
+        AIN93_TARGET_BASE_URL: 'https://staging.cribai.app',
+        AIN93_CONFIRM_TARGET: 'prod',
+      }),
+    ).not.toThrow();
+  });
 });
 
 describe('resolveLiveCostCeilingUsd', () => {

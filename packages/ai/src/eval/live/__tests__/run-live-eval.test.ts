@@ -183,4 +183,69 @@ describe('runLiveEval — mocked-fetch happy path + forced failure', () => {
     expect(report.aborted).toBe(true);
     expect(report.scenarios).toHaveLength(1);
   });
+
+  // CodeRabbit PR #123 fix 8 — a throw mid-scenario (here: fetchLatencyRow
+  // rejecting, a real deps failure mode) must not skip the conversation /
+  // created-listing cleanup. The `add_listing` tool fires FIRST, so a
+  // listing id is captured before the throw — proving `deleteCreatedListings`
+  // still runs with that id even though the scenario never completes.
+  it('cleans up the conversation and any created listings even when a deps call throws mid-scenario', async () => {
+    const fetchImpl = vi.fn(async () =>
+      sseResponse([
+        { type: 'tool_call', name: 'add_listing', args: {} },
+        {
+          type: 'tool_result',
+          name: 'add_listing',
+          block: { type: 'text', content: 'Saved.' },
+          machineData: {
+            kind: 'add_listing',
+            result: { alreadySaved: false },
+            listing: { id: 'leaked-listing-id' },
+            show_card: true,
+          },
+        },
+        { type: 'text', content: 'Saved it for you.' },
+        { type: 'done' },
+      ]),
+    ) as unknown as typeof fetch;
+
+    const createConversation = vi.fn().mockResolvedValue('conv-leak');
+    const deleteConversation = vi.fn().mockResolvedValue(undefined);
+    const deleteCreatedListings = vi.fn().mockResolvedValue(undefined);
+    const fetchLatencyRow = vi.fn().mockRejectedValue(new Error('ai_request_metrics unreachable'));
+    const sleepFn = vi.fn().mockResolvedValue(undefined);
+
+    const scenario: LiveScenario = {
+      id: 'leak-test',
+      bucket: 'just_saved_followup',
+      description: 'Forces a throw mid-scenario (fetchLatencyRow) to prove cleanup still runs (fix 8).',
+      seedRefs: [],
+      turns: [
+        {
+          query: 'save this for me',
+          expect: { tool: ['add_listing'], show_card: true, grounding: 'none', judge: false },
+        },
+      ],
+    };
+
+    await expect(
+      runLiveEval({
+        scenarios: [scenario],
+        baseUrl: 'https://example.test',
+        accessToken: 'tok',
+        campusSlug: 'uw-madison',
+        seedIdsByKey: SEED_IDS_BY_KEY,
+        fetchImpl,
+        fetchLatencyRow,
+        createConversation,
+        deleteConversation,
+        deleteCreatedListings,
+        sleepFn,
+        runsPerScenario: 1,
+      }),
+    ).rejects.toThrow(/ai_request_metrics unreachable/);
+
+    expect(deleteConversation).toHaveBeenCalledWith('conv-leak');
+    expect(deleteCreatedListings).toHaveBeenCalledWith(['leaked-listing-id']);
+  });
 });

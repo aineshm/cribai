@@ -10,9 +10,14 @@
  *     carries only a computed score, nothing to diff against truth).
  *   - `'listing_fields'` — same id check, PLUS an exact numeric diff for
  *     every row/listing this turn's machineData can be matched to truth by
- *     id. A row whose id has NO truth match (e.g. a freshly `add_listing`-ed
- *     row from a just-saved scenario) is skipped, not failed — there is no
- *     truth for a row created during the run itself.
+ *     id AND that actually carries numeric fields (compare-shape
+ *     `rank_compare` rows, `add_listing` payloads). A row whose id has NO
+ *     truth match (e.g. a freshly `add_listing`-ed row from a just-saved
+ *     scenario) is skipped, not failed — there is no truth for a row created
+ *     during the run itself. A `rank`-shape `rank_compare` record (id +
+ *     score only, no numeric fields at all) gets the id check ONLY, even
+ *     under this mode — diffing its absent fields against truth would
+ *     false-fail every field against `null` (CodeRabbit PR #123 fix 1).
  *   - `'none'` — vacuous pass (the turn isn't expected to ground anything).
  */
 import type { SeedListingTruth } from '../seed-truth';
@@ -38,6 +43,15 @@ interface ListingLikeRecord {
    * failure.
    */
   readonly source: 'rank_compare' | 'add_listing';
+  /**
+   * True only for records that actually CARRY the numeric fields to diff
+   * against truth — compare-shape `rank_compare` rows and `add_listing`
+   * payloads. A `rank`-mode `rank_compare` record (`{ listingId, source }`
+   * only — see `md.result.ranked` below) carries nothing to diff: it must
+   * get the id check ONLY, even under `listing_fields` mode, or every
+   * numeric field false-fails against `null` (CodeRabbit PR #123 fix 1).
+   */
+  readonly hasNumericFields: boolean;
   readonly rent?: number | null;
   readonly bedrooms?: number | null;
   readonly bathrooms?: number | null;
@@ -55,6 +69,7 @@ function extractListingLikeRecords(
           records.push({
             listingId: row.listingId,
             source: 'rank_compare',
+            hasNumericFields: true,
             rent: row.rent,
             bedrooms: row.bedrooms,
             bathrooms: row.bathrooms,
@@ -63,13 +78,14 @@ function extractListingLikeRecords(
         }
       } else {
         for (const ranked of md.result.ranked) {
-          records.push({ listingId: ranked.listingId, source: 'rank_compare' });
+          records.push({ listingId: ranked.listingId, source: 'rank_compare', hasNumericFields: false });
         }
       }
     } else if (md.kind === 'add_listing' && md.listing) {
       records.push({
         listingId: md.listing.id,
         source: 'add_listing',
+        hasNumericFields: true,
         rent: md.listing.rent,
         bedrooms: md.listing.bedrooms,
         bathrooms: md.listing.bathrooms,
@@ -119,7 +135,7 @@ export function checkGrounding(input: GroundingInput): CheckResult {
       mismatches.push(`unknown listingId in ${record.source} result: ${record.listingId}`);
       continue;
     }
-    if (input.mode === 'listing_fields') {
+    if (input.mode === 'listing_fields' && record.hasNumericFields) {
       mismatches.push(...diffAgainstTruth(record, truth));
     }
   }

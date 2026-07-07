@@ -4,8 +4,8 @@
  * `runLiveEval` is the pure-ish orchestration core: every external effect
  * (HTTP, DB, judge, sleep) is injected, so the unit suite can dry-run it
  * with a mocked `fetch` and fake DB/judge callbacks — NO live network calls.
- * `main()` wires the real implementations and is the `pnpm eval:live` entry
- * point (recon fact 1-8 / plan decisions 1-9):
+ * The real implementations are wired by `run-live-eval-cli.ts`'s `main()`,
+ * the `pnpm eval:live` entry point (recon fact 1-8 / plan decisions 1-9):
  *
  *   1. probe turn — confirm the CRM surface is on the LLM-first runtime.
  *   2. seed check — resolve the 8 fixed truth-table rows to real DB ids
@@ -16,18 +16,15 @@
 import { randomUUID } from 'node:crypto';
 import { postTurn, type HistoryTurn, type TurnResult } from './http-turn';
 import { postTurnWithThrottleRetry } from './retry';
-import { probeRuntime } from './probe';
 import { extractAssistantText } from '../scorers';
 import { toChatEvents } from './checks/types';
 import { runTurnHardChecks, turnPassedHardChecks } from './checks';
 import { checkLatency, type LatencyMetricsRow } from './checks/latency';
 import { judgeConversation, type JudgeRubric } from './judge';
-import { loadLiveCorpus, type LiveScenario } from './corpus';
+import type { LiveScenario } from './corpus';
 import { SEED_LISTING_KEYS, SEED_LISTINGS, type SeedListingKey, type SeedListingTruth } from './seed-truth';
 import {
-  resolveTargetConfig,
   resolveLiveCostCeilingUsd,
-  resolveCampusSlug,
   MIN_TURN_SPACING_MS,
   MAX_THROTTLE_RETRIES,
   THROTTLE_BACKOFF_BASE_MS,
@@ -39,7 +36,6 @@ import {
   scenarioRunPassed,
   buildScenarioReport,
   aggregateLiveReport,
-  formatLiveReport,
   type TurnRunResult,
   type ScenarioRunResult,
   type ScenarioReport,
@@ -111,7 +107,7 @@ async function runOneTurn(args: {
   await args.sleepFn(args.minTurnSpacingMs);
 
   const requestId = randomUUID();
-  const { result, throttled } = await postTurnWithThrottleRetry({
+  const { result, throttled, networkFailure } = await postTurnWithThrottleRetry({
     maxRetries: args.maxThrottleRetries,
     backoffBaseMs: args.throttleBackoffBaseMs,
     sleepFn: args.sleepFn,
@@ -158,6 +154,7 @@ async function runOneTurn(args: {
     hardChecks,
     hardChecksPassed: turnPassedHardChecks(hardChecks),
     throttled,
+    networkFailure,
     transcriptExcerpt: assistantText.slice(0, 500),
   };
 
@@ -189,70 +186,80 @@ async function runOneScenarioRun(
   const history: HistoryTurn[] = [];
   let throttledTurnCount = 0;
 
-  for (const turn of scenario.turns) {
-    const { turnResult, throttled, assistantText, createdIds } = await runOneTurn({
-      turn,
-      conversationId,
-      history,
-      knownIds,
-      truthByListingId: ctx.truthByListingId,
-      deps: ctx.deps,
-      fetchImpl: ctx.fetchImpl,
-      sleepFn: ctx.sleepFn,
-      minTurnSpacingMs: ctx.minTurnSpacingMs,
-      maxThrottleRetries: ctx.maxThrottleRetries,
-      throttleBackoffBaseMs: ctx.throttleBackoffBaseMs,
+  // CodeRabbit PR #123 fix 8 — everything below can throw (a turn/deps call
+  // mid-loop, `fetchLatencyRow`, the judge's own try/catch only covers ITS
+  // call). Without this try/finally, a throw here skips
+  // `deleteConversation`/`deleteCreatedListings` entirely and leaks the row
+  // + any listings this run already created (`createdListingIds` is
+  // populated turn-by-turn as `add_listing` fires, BEFORE the throw that
+  // would otherwise strand them). The finally runs on every exit path —
+  // happy return AND a rethrown exception.
+  try {
+    for (const turn of scenario.turns) {
+      const { turnResult, throttled, assistantText, createdIds } = await runOneTurn({
+        turn,
+        conversationId,
+        history,
+        knownIds,
+        truthByListingId: ctx.truthByListingId,
+        deps: ctx.deps,
+        fetchImpl: ctx.fetchImpl,
+        sleepFn: ctx.sleepFn,
+        minTurnSpacingMs: ctx.minTurnSpacingMs,
+        maxThrottleRetries: ctx.maxThrottleRetries,
+        throttleBackoffBaseMs: ctx.throttleBackoffBaseMs,
+      });
+
+      if (throttled) throttledTurnCount += 1;
+      createdListingIds.push(...createdIds);
+      turns.push(turnResult);
+      transcriptParts.push(`user: ${turn.query}\nassistant: ${assistantText}`);
+      history.push({ role: 'user', content: turn.query });
+      history.push({ role: 'assistant', content: assistantText });
+
+      const latencyRow = await ctx.deps.fetchLatencyRow(turnResult.requestId);
+      if (latencyRow) latencyRows.push(latencyRow);
+    }
+
+    const latency = checkLatency({
+      rows: latencyRows,
+      totalBudgetMs: ctx.totalBudgetMs,
+      ttftBudgetMs: ctx.ttftBudgetMs,
+      throttledTurnCount,
     });
 
-    if (throttled) throttledTurnCount += 1;
-    createdListingIds.push(...createdIds);
-    turns.push(turnResult);
-    transcriptParts.push(`user: ${turn.query}\nassistant: ${assistantText}`);
-    history.push({ role: 'user', content: turn.query });
-    history.push({ role: 'assistant', content: assistantText });
+    const needsJudge = scenario.turns.some((t) => t.expect.judge);
+    let judgeVerdict: JudgeVerdict = 'not_judged';
+    let judgeReasoning: string | null = null;
+    let judgeCostUsd = 0;
 
-    const latencyRow = await ctx.deps.fetchLatencyRow(turnResult.requestId);
-    if (latencyRow) latencyRows.push(latencyRow);
-  }
-
-  const latency = checkLatency({
-    rows: latencyRows,
-    totalBudgetMs: ctx.totalBudgetMs,
-    ttftBudgetMs: ctx.ttftBudgetMs,
-    throttledTurnCount,
-  });
-
-  const needsJudge = scenario.turns.some((t) => t.expect.judge);
-  let judgeVerdict: JudgeVerdict = 'not_judged';
-  let judgeReasoning: string | null = null;
-  let judgeCostUsd = 0;
-
-  if (needsJudge) {
-    const judgeFn = ctx.deps.judge ?? judgeConversation;
-    try {
-      const rubric = await judgeFn({
-        scenarioId: scenario.id,
-        scenarioDescription: scenario.description,
-        transcriptText: transcriptParts.join('\n\n'),
-      });
-      judgeVerdict = rubric.verdict;
-      judgeReasoning = rubric.reasoning;
-      judgeCostUsd = ESTIMATED_JUDGE_CALL_COST_USD;
-    } catch (err) {
-      judgeVerdict = 'judge_error';
-      judgeReasoning = err instanceof Error ? err.message : String(err);
+    if (needsJudge) {
+      const judgeFn = ctx.deps.judge ?? judgeConversation;
+      try {
+        const rubric = await judgeFn({
+          scenarioId: scenario.id,
+          scenarioDescription: scenario.description,
+          transcriptText: transcriptParts.join('\n\n'),
+        });
+        judgeVerdict = rubric.verdict;
+        judgeReasoning = rubric.reasoning;
+        judgeCostUsd = ESTIMATED_JUDGE_CALL_COST_USD;
+      } catch (err) {
+        judgeVerdict = 'judge_error';
+        judgeReasoning = err instanceof Error ? err.message : String(err);
+      }
     }
+
+    const passed = scenarioRunPassed(turns, latency, judgeVerdict);
+
+    return {
+      run: { runIndex, turns, latency, judgeVerdict, judgeReasoning, passed },
+      judgeCostUsd,
+    };
+  } finally {
+    await ctx.deps.deleteConversation(conversationId);
+    if (createdListingIds.length > 0) await ctx.deps.deleteCreatedListings(createdListingIds);
   }
-
-  const passed = scenarioRunPassed(turns, latency, judgeVerdict);
-
-  await ctx.deps.deleteConversation(conversationId);
-  if (createdListingIds.length > 0) await ctx.deps.deleteCreatedListings(createdListingIds);
-
-  return {
-    run: { runIndex, turns, latency, judgeVerdict, judgeReasoning, passed },
-    judgeCostUsd,
-  };
 }
 
 /** Would running the next judge-bearing scenario run exceed the cost ceiling? */
@@ -305,96 +312,6 @@ export async function runLiveEval(deps: RunLiveEvalDeps): Promise<LiveEvalReport
   return aggregateLiveReport(scenarioReports, totalCostUsd, aborted);
 }
 
-// ---------------------------------------------------------------------------
-// CLI entry — `pnpm eval:live`
-// ---------------------------------------------------------------------------
-
-async function main(): Promise<void> {
-  const target = resolveTargetConfig();
-  const campusSlug = resolveCampusSlug();
-
-  const { provisionAndSignInTestUser } = await import('./auth');
-  const { createSecretClient } = await import('@campusnest/supabase/server');
-  const { resolveSeedListingIds, deleteCrmListingsByIds } = await import('./seed-cli');
-  const { createConversationRow, deleteConversationRow } = await import('./conversation');
-
-  const supabase = createSecretClient();
-  const user = await provisionAndSignInTestUser();
-
-  // Preflight 1: the 8 fixed truth rows must already be seeded.
-  const seedIdsByKey = await resolveSeedListingIds(supabase, user.id);
-
-  // Preflight 2: the CRM surface must be on the LLM-first runtime.
-  await probeRuntime({
-    postProbeTurn: () =>
-      postTurn({
-        baseUrl: target.baseUrl,
-        accessToken: user.accessToken,
-        query: 'hello',
-        campusSlug,
-      }),
-    fetchRuntimeForRequestId: async (requestId) => {
-      const { data } = await supabase
-        .from('ai_request_metrics')
-        .select('runtime')
-        .eq('request_id', requestId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      return (data as { runtime?: string } | null)?.runtime ?? null;
-    },
-  });
-
-  const report = await runLiveEval({
-    scenarios: loadLiveCorpus(),
-    baseUrl: target.baseUrl,
-    accessToken: user.accessToken,
-    campusSlug,
-    seedIdsByKey,
-    fetchLatencyRow: async (requestId) => {
-      const { data } = await supabase
-        .from('ai_request_metrics')
-        .select('request_id, request_received_at, first_model_token_at, request_completed_at')
-        .eq('request_id', requestId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (!data) return null;
-      const row = data as {
-        request_id: string;
-        request_received_at: string;
-        first_model_token_at: string | null;
-        request_completed_at: string;
-      };
-      return {
-        requestId: row.request_id,
-        requestReceivedAt: row.request_received_at,
-        firstModelTokenAt: row.first_model_token_at,
-        requestCompletedAt: row.request_completed_at,
-      };
-    },
-    createConversation: () => createConversationRow(supabase, { userId: user.id }),
-    deleteConversation: (id) => deleteConversationRow(supabase, id),
-    deleteCreatedListings: (ids) => deleteCrmListingsByIds(supabase, ids),
-  });
-
-  // eslint-disable-next-line no-console
-  console.log(formatLiveReport(report));
-
-  if (!report.passBarMet) {
-    process.exitCode = 1;
-  }
-}
-
-const isDirectRun =
-  typeof process !== 'undefined' &&
-  Array.isArray(process.argv) &&
-  /run-live-eval(\.[cm]?[jt]s)?$/.test(process.argv[1] ?? '');
-
-if (isDirectRun) {
-  main().catch((err) => {
-    // eslint-disable-next-line no-console
-    console.error('[ain93 eval:live] run failed:', err instanceof Error ? err.message : err);
-    process.exitCode = 1;
-  });
-}
+// The `pnpm eval:live` CLI entry (`main()` + real Supabase/auth wiring) lives
+// in `run-live-eval-cli.ts` — this file stays the pure-ish, unit-testable
+// orchestration core (see that file's header for the split rationale).

@@ -119,4 +119,15 @@ describe('checkGrounding — mode: listing_fields', () => {
     const result = checkGrounding({ events, mode: 'listing_fields', truthByListingId: TRUTH_MAP });
     expect(result.pass).toBe(false);
   });
+
+  it('passes a rank-shape (id-only) record with a valid known id — no field diff against null (CodeRabbit PR #123 fix 1)', () => {
+    // A `rank_compare` result in `mode: 'rank'` carries only `listingId` + a
+    // computed score — no rent/bedrooms/bathrooms/sqft at all. Reaching this
+    // record under `listing_fields` mode must NOT diff its (absent) numeric
+    // fields against truth — that would false-fail every field against null
+    // even though the id itself is perfectly valid.
+    const events = [rankResultEvent([{ listingId: DB_ID }])];
+    const result = checkGrounding({ events, mode: 'listing_fields', truthByListingId: TRUTH_MAP });
+    expect(result.pass).toBe(true);
+  });
 });

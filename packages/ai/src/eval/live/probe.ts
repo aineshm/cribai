@@ -8,14 +8,34 @@
  * the runtime isn't `llm_first` — every other check in this harness assumes
  * CRM tools are reachable, so a deterministic-runtime probe would make every
  * downstream failure misleading.
+ *
+ * The `ai_request_metrics` row lands ASYNCHRONOUSLY (CodeRabbit PR #123 fix
+ * 6) — a null read right after the probe turn completes just means the row
+ * hasn't been written yet, not that the runtime is wrong. A null result is
+ * polled up to `pollAttempts` times, `pollIntervalMs` apart, before giving
+ * up; a non-null MISMATCH (e.g. `'deterministic'`) fails immediately — that
+ * is a real answer, not a race.
  */
 import type { TurnResult } from './http-turn';
+
+/** Total reads attempted (the first read + retries) before giving up on a persistently null row. */
+export const PROBE_RUNTIME_POLL_ATTEMPTS = 3;
+/** Spacing between poll attempts. */
+export const PROBE_RUNTIME_POLL_INTERVAL_MS = 2000;
+
+async function defaultSleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export interface ProbeDeps {
   /** Pre-bound to post one trivial turn with `surface: 'crm'` against the target. */
   readonly postProbeTurn: () => Promise<TurnResult>;
   /** Look up `ai_request_metrics.runtime` for a given request id (null if the row hasn't landed yet / at all). */
   readonly fetchRuntimeForRequestId: (requestId: string) => Promise<string | null>;
+  /** DI seam for tests — defaults to a real `setTimeout`-based sleep. */
+  readonly sleepFn?: (ms: number) => Promise<void>;
+  readonly pollAttempts?: number;
+  readonly pollIntervalMs?: number;
 }
 
 export async function probeRuntime(deps: ProbeDeps): Promise<void> {
@@ -28,7 +48,17 @@ export async function probeRuntime(deps: ProbeDeps): Promise<void> {
     );
   }
 
-  const runtime = await deps.fetchRuntimeForRequestId(result.requestId);
+  const sleepFn = deps.sleepFn ?? defaultSleep;
+  const pollAttempts = deps.pollAttempts ?? PROBE_RUNTIME_POLL_ATTEMPTS;
+  const pollIntervalMs = deps.pollIntervalMs ?? PROBE_RUNTIME_POLL_INTERVAL_MS;
+
+  let runtime: string | null = null;
+  for (let attempt = 0; attempt < pollAttempts; attempt++) {
+    runtime = await deps.fetchRuntimeForRequestId(result.requestId);
+    if (runtime !== null) break;
+    if (attempt < pollAttempts - 1) await sleepFn(pollIntervalMs);
+  }
+
   if (runtime !== 'llm_first') {
     throw new Error(
       `AIN-93 probe: expected ai_request_metrics.runtime='llm_first' for the probe turn, got ` +

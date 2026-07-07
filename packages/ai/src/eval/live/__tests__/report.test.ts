@@ -193,4 +193,16 @@ describe('formatLiveReport', () => {
     const text = formatLiveReport(aggregateLiveReport([scenario], 0, false));
     expect(text).toContain('THROTTLED');
   });
+
+  it('labels a network-failed failing run distinctly from both THROTTLED and plain FAIL (CodeRabbit PR #123 fix 7)', () => {
+    const networkFailedTurn: TurnRunResult = { ...failingTurn(), throttled: false, networkFailure: true };
+    const scenario = buildScenarioReport('s1', 'b', [
+      runResult({ runIndex: 0, turns: [networkFailedTurn], passed: false }),
+      runResult({ runIndex: 1 }),
+      runResult({ runIndex: 2 }),
+    ]);
+    const text = formatLiveReport(aggregateLiveReport([scenario], 0, false));
+    expect(text).toContain('NETWORK_FAIL');
+    expect(text).not.toContain('THROTTLED');
+  });
 });

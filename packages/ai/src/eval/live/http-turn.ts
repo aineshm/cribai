@@ -11,6 +11,12 @@
  * `text | tool_call | tool_result | mission_* | done | error`. There is no
  * `[DONE]` sentinel — the stream simply ends. Malformed lines are skipped
  * rather than throwing, so one bad frame doesn't kill the whole turn.
+ *
+ * `postTurn` never throws (CodeRabbit PR #123 fixes 4 + 5): a per-turn
+ * `TURN_TIMEOUT_MS` abort AND any other fetch-layer rejection (network
+ * error, DNS failure, ...) both resolve to a `TurnResult` with
+ * `httpStatus: 0` instead of propagating, so a single flaky connection can't
+ * crash the harness mid-corpus.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -26,6 +32,13 @@ export interface LiveErrorEvent {
 export type LiveSseEvent = ChatEvent | LiveErrorEvent;
 
 const SSE_CONTENT_TYPE = 'text/event-stream';
+
+/**
+ * Per-turn timeout (CodeRabbit PR #123 fix 4), matching the live smoke's own
+ * budget — a hung `POST /api/ai/cribai` connection shouldn't hang the whole
+ * harness run indefinitely.
+ */
+export const TURN_TIMEOUT_MS = 90_000;
 
 // ---------------------------------------------------------------------------
 // SSE parsing
@@ -132,21 +145,34 @@ export async function postTurn(options: PostTurnOptions): Promise<TurnResult> {
   const requestId = options.requestId ?? randomUUID();
   const fetchImpl = options.fetchImpl ?? fetch;
 
-  const response = await fetchImpl(`${options.baseUrl}/api/ai/cribai`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${options.accessToken}`,
-      'x-request-id': requestId,
-    },
-    body: JSON.stringify({
-      query: options.query,
-      campusSlug: options.campusSlug,
-      ...(options.conversationId ? { conversationId: options.conversationId } : {}),
-      ...(options.history ? { history: options.history } : {}),
-      surface: CRM_SURFACE,
-    }),
-  });
+  // CodeRabbit PR #123 fixes 4 + 5 — bound the request to TURN_TIMEOUT_MS and
+  // catch ANY fetchImpl rejection (timeout abort, DNS failure, connection
+  // reset, ...). Both degrade to the same non-200-style failure result
+  // (`httpStatus: 0`) rather than throwing, so a network blip never crashes
+  // the harness mid-corpus — `checkNoErrors` already fails any non-200
+  // status, so this reads as an ordinary failed turn downstream.
+  let response: Response;
+  try {
+    response = await fetchImpl(`${options.baseUrl}/api/ai/cribai`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${options.accessToken}`,
+        'x-request-id': requestId,
+      },
+      body: JSON.stringify({
+        query: options.query,
+        campusSlug: options.campusSlug,
+        ...(options.conversationId ? { conversationId: options.conversationId } : {}),
+        ...(options.history ? { history: options.history } : {}),
+        surface: CRM_SURFACE,
+      }),
+      signal: AbortSignal.timeout(TURN_TIMEOUT_MS),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { requestId, httpStatus: 0, events: [], transcript: message };
+  }
 
   const contentType = response.headers.get('content-type') ?? '';
   if (!contentType.includes(SSE_CONTENT_TYPE) || !response.body) {

@@ -8,11 +8,25 @@
 import type { CrmMachineData } from '../../../crm';
 import type { LiveSseEvent } from '../http-turn';
 
+/**
+ * The only `kind` literals `CrmMachineData` can carry (CodeRabbit PR #123
+ * fix 2). Narrowing to this set — rather than "any object with a string
+ * `kind`" — stops an unrelated tool's `machineData`-shaped payload (or a
+ * future non-CRM `kind` string) from being misread as CRM data downstream.
+ */
+const CRM_MACHINE_DATA_KINDS = [
+  'add_listing',
+  'first_save_analysis',
+  'rank_compare',
+  'infer_profile',
+] as const;
+
 function isCrmMachineData(value: unknown): value is CrmMachineData {
+  if (typeof value !== 'object' || value === null) return false;
+  const kind = (value as { kind?: unknown }).kind;
   return (
-    typeof value === 'object' &&
-    value !== null &&
-    typeof (value as { kind?: unknown }).kind === 'string'
+    typeof kind === 'string' &&
+    (CRM_MACHINE_DATA_KINDS as readonly string[]).includes(kind)
   );
 }
 

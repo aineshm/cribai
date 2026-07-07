@@ -17,6 +17,12 @@ describe('checkNoErrors', () => {
     expect(result.detail).toMatch(/503/);
   });
 
+  it('fails on httpStatus 0 — the network-failure/timeout error-marker (CodeRabbit PR #123 fix 5)', () => {
+    const result = checkNoErrors({ events: [], httpStatus: 0 });
+    expect(result.pass).toBe(false);
+    expect(result.detail).toMatch(/0/);
+  });
+
   it('fails on an SSE error frame', () => {
     const events: LiveSseEvent[] = [{ type: 'error', message: 'quota exceeded' }];
     const result = checkNoErrors({ events, httpStatus: 200 });
