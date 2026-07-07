@@ -100,6 +100,37 @@ function makeCoordinatesWkt(lat: number, lng: number): string {
  * `coordinates` is omitted when no coords are available; the caller spreads
  * the result of this function and conditionally appends `coordinates`.
  */
+/**
+ * Build the `raw_extraction` insert value. Bare shape (pre-AIN-83) when the
+ * extraction carries no floor plans — an empty array counts as "none" so a
+ * building page whose deterministic parse found nothing degrades exactly
+ * like a single-unit save. When plans ARE present, seed
+ * `raw_extraction.deep_extract` (AIN-83 decision 5) so the UI has a
+ * per-plan breakdown instantly, without waiting on the ~10s crm_deep_extract
+ * mission — and so the feature survives the mission worker being down.
+ * `method: 'ingest_v1'` distinguishes this seed from the mission's own
+ * `'mission_v1'` write (`04-update-row.ts`), which later overwrites it with
+ * a richer version (crawled pages, discarded URLs) while preserving
+ * whichever floor_plans value is non-empty (never-wipe guard, Task 4).
+ */
+function buildRawExtraction(extracted: ExtractedListing): Record<string, unknown> {
+  const base: Record<string, unknown> = {
+    raw_json_ld: extracted.raw_json_ld ?? null,
+    raw_og: extracted.raw_og ?? null,
+    extraction_method: extracted.extraction_method,
+  };
+
+  if (extracted.floor_plans && extracted.floor_plans.length > 0) {
+    base['deep_extract'] = {
+      floor_plans: extracted.floor_plans,
+      price_is_from: true,
+      method: 'ingest_v1',
+    };
+  }
+
+  return base;
+}
+
 function mapToInsertRow(
   url: string,
   userId: string,
@@ -121,11 +152,7 @@ function mapToInsertRow(
     amenities: extracted.amenities ?? [],
     photo_urls: extracted.photos ?? [],
     extraction_confidence: confidenceToNumeric(extracted.extraction_confidence),
-    raw_extraction: {
-      raw_json_ld: extracted.raw_json_ld ?? null,
-      raw_og: extracted.raw_og ?? null,
-      extraction_method: extracted.extraction_method,
-    },
+    raw_extraction: buildRawExtraction(extracted),
   };
 
   // Conditionally add coordinates — omitting the key entirely when absent.

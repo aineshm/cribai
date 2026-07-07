@@ -65,6 +65,8 @@ export const UNITS: CrmUnit[] = [
     latitude: 43.0689,
     longitude: -89.4015,
     saved_at: '2026-06-08T14:22:00Z',
+    floorPlans: [],
+    priceIsFrom: false,
     _proposed: {
       unit: { building: 'Chapter at Madison', floorPlan: 'S1', unitLabel: 'Studio S1' },
       amenitySplit: {
@@ -108,6 +110,8 @@ export const UNITS: CrmUnit[] = [
     latitude: 43.0708,
     longitude: -89.3998,
     saved_at: '2026-06-06T14:22:00Z',
+    floorPlans: [],
+    priceIsFrom: false,
     _proposed: {
       unit: { building: 'Dayton Row', floorPlan: '2x1-A', unitLabel: '2 bed · 2x1-A' },
       amenitySplit: {
@@ -147,6 +151,8 @@ export const UNITS: CrmUnit[] = [
     latitude: 43.0752,
     longitude: -89.3889,
     saved_at: '2026-06-05T18:45:00Z',
+    floorPlans: [],
+    priceIsFrom: false,
     _proposed: {
       unit: { building: 'Lucky on State', floorPlan: '4x2-B', unitLabel: '4 bed · 4x2-B' },
       amenitySplit: {
@@ -186,6 +192,8 @@ export const UNITS: CrmUnit[] = [
     latitude: 43.0766,
     longitude: -89.3995,
     saved_at: '2026-05-30T11:02:00Z',
+    floorPlans: [],
+    priceIsFrom: false,
     _proposed: {
       unit: { building: 'The Langdon', floorPlan: '1BR-C', unitLabel: '1 bed · 1BR-C' },
       amenitySplit: {
@@ -229,6 +237,8 @@ export const UNITS: CrmUnit[] = [
     latitude: 43.0671,
     longitude: -89.4178,
     saved_at: '2026-05-28T16:30:00Z',
+    floorPlans: [],
+    priceIsFrom: false,
     _proposed: {
       unit: { building: 'Regent Place', floorPlan: '2x1.5', unitLabel: '2 bed · 2x1.5' },
       amenitySplit: {
@@ -268,6 +278,8 @@ export const UNITS: CrmUnit[] = [
     latitude: 43.0738,
     longitude: -89.3925,
     saved_at: '2026-05-25T13:15:00Z',
+    floorPlans: [],
+    priceIsFrom: false,
     _proposed: {
       unit: { building: 'Gilman Garden', floorPlan: 'Studio-G', unitLabel: 'Studio · Studio-G' },
       amenitySplit: {

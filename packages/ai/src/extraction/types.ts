@@ -11,6 +11,10 @@
  * paths fall short. Day 6 will add the LLM-clean rare path.
  */
 
+import type { FloorPlan } from './floor-plan';
+
+export type { FloorPlan } from './floor-plan';
+
 /**
  * The normalized listing shape returned by `extractListing`.
  *
@@ -25,6 +29,10 @@
  *    `crm_listings.extraction_confidence` numeric column accepts a 0..1
  *    score; the `addListing` tool is responsible for the string→numeric
  *    mapping. This module deliberately does not write to the DB.
+ *  - `floor_plans` (AIN-83) is populated ONLY by the deterministic Zillow
+ *    building-page enrichment pass (`extractZillowFloorPlans`, URL-gated in
+ *    `extract-from-html.ts`, independent of the JSON-LD/OG/DOM/LLM
+ *    escalation ladder above). Absent everywhere else.
  */
 export interface ExtractedListing {
   source_url: string;
@@ -44,6 +52,7 @@ export interface ExtractedListing {
   photos?: string[];
   amenities?: string[];
   available_from?: string;
+  floor_plans?: FloorPlan[];
   raw_json_ld?: Record<string, unknown>;
   raw_og?: Record<string, string>;
   extraction_method: ExtractionMethod;

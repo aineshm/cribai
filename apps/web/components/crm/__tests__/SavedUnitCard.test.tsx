@@ -25,4 +25,21 @@ describe('SavedUnitCard', () => {
     render(<SavedUnitCard unit={UNITS[0]!} />);
     expect(screen.queryByText(/added by/i)).not.toBeInTheDocument();
   });
+
+  // AIN-83 — honest "from" pricing for a building-page save whose rent is
+  // the cheapest-plan price, not one unit's actual rent.
+  describe('"from" pricing (AIN-83)', () => {
+    it('prefixes rent with "from" when priceIsFrom is true', () => {
+      const unit = { ...UNITS[0]!, priceIsFrom: true };
+      const { container } = render(<SavedUnitCard unit={unit} />);
+      expect(screen.getByText(/^from/i)).toBeInTheDocument();
+      expect(container.textContent).toMatch(/from\s*\$1,495/i);
+    });
+
+    it('does NOT show "from" when priceIsFrom is false (a real unit-level save)', () => {
+      const unit = { ...UNITS[0]!, priceIsFrom: false };
+      render(<SavedUnitCard unit={unit} />);
+      expect(screen.queryByText(/^from/i)).not.toBeInTheDocument();
+    });
+  });
 });

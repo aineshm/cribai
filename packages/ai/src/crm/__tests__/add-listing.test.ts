@@ -586,6 +586,70 @@ describe('addListing', () => {
       expect(rawExtraction['raw_og']).toEqual(lowConfidenceOgOnly.raw_og);
       expect(rawExtraction['extraction_method']).toBe('og');
     });
+
+    // -----------------------------------------------------------------------
+    // AIN-83 Task 3: ingest-time floor-plan seed. When save-time extraction
+    // returns floor_plans (a Zillow building-page save), the UI has plans
+    // instantly — no ~10s crm_deep_extract mission wait, and worker-down
+    // doesn't blank the feature. ONE canonical shape (raw_extraction.deep_extract),
+    // the mission later overwrites it with its richer version (method: 'mission_v1').
+    // -----------------------------------------------------------------------
+    describe('floor-plan seed (AIN-83)', () => {
+      const FLOOR_PLANS = [
+        { name: 'A11', bedrooms: 1, bathrooms: 1, rent_min: 1819, rent_max: 2118, sqft: 799 },
+        { name: 'S1', bedrooms: 0, bathrooms: 1, rent_min: 1825, rent_max: 1825, sqft: 547 },
+      ];
+
+      it('writes raw_extraction.deep_extract when floor_plans are present', async () => {
+        const tableBuilder = buildTableBuilder(null, 'building-id');
+        const deps = makeDeps({
+          extractedListing: { ...highConfidenceListing, floor_plans: FLOOR_PLANS },
+          tableBuilder,
+        });
+
+        await addListing(INPUT_URL, deps);
+
+        const row = tableBuilder.insert.mock.calls[0]![0] as Record<string, unknown>;
+        const rawExtraction = row['raw_extraction'] as Record<string, unknown>;
+        const deepExtract = rawExtraction['deep_extract'] as Record<string, unknown>;
+        expect(deepExtract).toBeDefined();
+        expect(deepExtract['floor_plans']).toEqual(FLOOR_PLANS);
+        expect(deepExtract['price_is_from']).toBe(true);
+        expect(deepExtract['method']).toBe('ingest_v1');
+      });
+
+      it('does NOT add a deep_extract key when floor_plans are absent (existing behavior pinned)', async () => {
+        const tableBuilder = buildTableBuilder(null, 'no-plans-id');
+        const deps = makeDeps({
+          extractedListing: highConfidenceListing, // no floor_plans field
+          tableBuilder,
+        });
+
+        await addListing(INPUT_URL, deps);
+
+        const row = tableBuilder.insert.mock.calls[0]![0] as Record<string, unknown>;
+        const rawExtraction = row['raw_extraction'] as Record<string, unknown>;
+        expect(rawExtraction).not.toHaveProperty('deep_extract');
+        // raw_extraction keeps exactly its pre-AIN-83 shape.
+        expect(Object.keys(rawExtraction).sort()).toEqual(
+          ['extraction_method', 'raw_json_ld', 'raw_og'].sort(),
+        );
+      });
+
+      it('does NOT add a deep_extract key when floor_plans is an empty array', async () => {
+        const tableBuilder = buildTableBuilder(null, 'empty-plans-id');
+        const deps = makeDeps({
+          extractedListing: { ...highConfidenceListing, floor_plans: [] },
+          tableBuilder,
+        });
+
+        await addListing(INPUT_URL, deps);
+
+        const row = tableBuilder.insert.mock.calls[0]![0] as Record<string, unknown>;
+        const rawExtraction = row['raw_extraction'] as Record<string, unknown>;
+        expect(rawExtraction).not.toHaveProperty('deep_extract');
+      });
+    });
   });
 
   // -------------------------------------------------------------------------

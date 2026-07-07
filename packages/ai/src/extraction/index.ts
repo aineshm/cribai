@@ -38,6 +38,7 @@ export {
   type ExtractListingOptions,
   type ExtractionErrorCode,
 } from './types';
+export { type FloorPlan } from './floor-plan';
 export { parseAllJsonLdBlocks, projectJsonLdEntity, extractFromJsonLd } from './json-ld';
 export { parseMetaTags, decodeHtmlEntities, extractFromOg } from './og';
 export { SsrfBlockedError, assertHttpScheme, assertPublicHost } from './ssrf-guard';

@@ -12,20 +12,22 @@ import {
   defaultCrmGenerate,
   type CrmGenerateObject,
 } from '../../../crm/generate';
+import {
+  FloorPlanSchema,
+  FloorPlansArraySchema,
+  FLOOR_PLAN_MAX_COUNT,
+  type FloorPlan,
+} from '../../../extraction/floor-plan';
+
+// Re-exported so existing callers (04-update-row.ts, tests) importing
+// `FloorPlan` from this module keep working — the shared definition now
+// lives in `extraction/floor-plan.ts` (AIN-83 Task 1), reused by the
+// deterministic Zillow projection (Task 2) and this LLM mission path.
+export type { FloorPlan } from '../../../extraction/floor-plan';
 
 // ---------------------------------------------------------------------------
 // Schemas
 // ---------------------------------------------------------------------------
-
-const FloorPlanSchema = z.object({
-  name: z.string().max(120),
-  bedrooms: z.number().min(0).max(20).nullish(),
-  bathrooms: z.number().min(0).max(20).nullish(),
-  rent_min: z.number().positive().max(50_000).nullish(),
-  rent_max: z.number().positive().max(50_000).nullish(),
-  sqft: z.number().positive().max(50_000).nullish(),
-  availability: z.string().max(80).nullish(),
-});
 
 export const DeepExtractSchema = z.object({
   title: z.string().max(200).nullish(),
@@ -37,11 +39,10 @@ export const DeepExtractSchema = z.object({
   address: z.string().max(300).nullish(),
   available_from: z.string().max(40).nullish(),
   amenities: z.array(z.string().max(80)).max(30).nullish(),
-  floor_plans: z.array(FloorPlanSchema).max(20).nullish(),
+  floor_plans: z.array(FloorPlanSchema).max(FLOOR_PLAN_MAX_COUNT).nullish(),
 });
 
 export type DeepExtract = z.infer<typeof DeepExtractSchema>;
-export type FloorPlan = z.infer<typeof FloorPlanSchema>;
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -85,6 +86,13 @@ function buildPrompt(
  * When floor_plans is present, ensure top-level rent/bedrooms/bathrooms/sqft
  * reflect the cheapest plan. The synthesize step enforces this — recompute
  * min and prefer it if they disagree (per plan spec in step 4.5).
+ *
+ * CodeRabbit PR #121 fix 1 (Major): callers MUST pass this the FINAL merged
+ * fields (post `mergeOntoBaseline`), never the raw LLM output. The merge can
+ * choose the deterministic baseline's floor_plans over the LLM's (baseline
+ * wins when non-empty — see `mergeOntoBaseline` below); deriving from the
+ * LLM's own (possibly-discarded) plan list would let a hallucinated rent
+ * reach the row even though no PERSISTED plan supports it.
  */
 function applyFloorPlanTopLevel(fields: DeepExtract): DeepExtract {
   const plans = fields.floor_plans;
@@ -148,6 +156,20 @@ function buildBaselineFromPages(
         (a): a is string => typeof a === 'string',
       );
     }
+    // AIN-83: floor_plans populated by crawl_source for Zillow building pages
+    // (Task 2's extractZillowFloorPlans, threaded through pages[].fields).
+    // First page with a non-empty array wins — same "landing page first"
+    // precedence as every other baseline field above.
+    //
+    // CodeRabbit PR #121 fix 3: validate rather than bare-cast. `pages[].fields`
+    // is untrusted (crawl_source output, not schema-checked at this seam) — a
+    // malformed shape must be dropped, not silently pushed through to the row.
+    if (baseline.floor_plans == null && Array.isArray(f['floor_plans']) && f['floor_plans'].length > 0) {
+      const parsedPlans = FloorPlansArraySchema.safeParse(f['floor_plans']);
+      if (parsedPlans.success) {
+        baseline.floor_plans = parsedPlans.data;
+      }
+    }
   }
   return baseline;
 }
@@ -171,7 +193,17 @@ function mergeOntoBaseline(llm: DeepExtract, baseline: DeepExtract): DeepExtract
     available_from: pick('available_from'),
     amenities:
       llm.amenities && llm.amenities.length > 0 ? llm.amenities : baseline.amenities ?? null,
-    floor_plans: llm.floor_plans ?? null,
+    // AIN-83 decision 4: the deterministic baseline WINS over the LLM here
+    // (the opposite precedence from every scalar field above) — exact
+    // structured numbers from __NEXT_DATA__ beat prose-mined guesses, and
+    // this also gives AIN-81 robustness for free: floor plans persist even
+    // when the LLM call throws (`fields = baseline` in the catch below).
+    // The LLM remains the only source for marketing sites with no
+    // structured blob (baseline empty).
+    floor_plans:
+      baseline.floor_plans && baseline.floor_plans.length > 0
+        ? baseline.floor_plans
+        : llm.floor_plans ?? null,
   };
 }
 
@@ -214,7 +246,11 @@ export const synthesizeStep: MissionStep = {
       });
       const parsed = DeepExtractSchema.safeParse(raw);
       if (parsed.success) {
-        fields = mergeOntoBaseline(applyFloorPlanTopLevel(parsed.data), baseline);
+        // CodeRabbit PR #121 fix 1: merge FIRST, then derive top-level fields
+        // from the FINAL floor_plans list — never from the LLM's raw output,
+        // which the merge may discard entirely in favor of the deterministic
+        // baseline.
+        fields = applyFloorPlanTopLevel(mergeOntoBaseline(parsed.data, baseline));
       }
     } catch {
       // LLM failure → keep the structured baseline (never throws)

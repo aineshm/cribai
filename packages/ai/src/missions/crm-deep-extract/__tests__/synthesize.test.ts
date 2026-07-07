@@ -192,6 +192,153 @@ describe('synthesize step', () => {
     });
   });
 
+  // -------------------------------------------------------------------------
+  // AIN-83 Task 4: deterministic floor_plans baseline wins over the LLM.
+  // The crawl_source step now populates pages[].fields.floor_plans for
+  // Zillow building pages (Task 2's extractZillowFloorPlans); those are
+  // EXACT numbers from __NEXT_DATA__ and must beat any LLM-mined guess.
+  // -------------------------------------------------------------------------
+  describe('deterministic floor_plans baseline (AIN-83)', () => {
+    const DETERMINISTIC_PLANS = [
+      { name: 'A11', bedrooms: 1, bathrooms: 1, rent_min: 1819, rent_max: 2118, sqft: 799 },
+      { name: 'S1', bedrooms: 0, bathrooms: 1, rent_min: 1825, rent_max: 1825, sqft: 547 },
+    ];
+
+    it('carries page-fields floor_plans into the baseline (first page with a non-empty array wins)', async () => {
+      const stubGenerate = vi.fn().mockRejectedValue(new Error('provider error'));
+      const { synthesizeStep } = await import('../steps/03-synthesize');
+
+      const pages = [
+        { url: 'https://www.zillow.com/apartments/x/', fields: { floor_plans: DETERMINISTIC_PLANS }, textExcerpt: '' },
+      ];
+      const ctx = makeCtx(pages);
+      (ctx.input as Record<string, unknown>).generate = stubGenerate;
+
+      const result = await synthesizeStep.run(ctx);
+      const f = result.output.fields as Record<string, unknown>;
+      expect(f.floor_plans).toEqual(DETERMINISTIC_PLANS);
+    });
+
+    it('ignores the LLM floor_plans when the deterministic baseline is non-empty (baseline wins)', async () => {
+      const llmPlans = [{ name: 'LLM-guessed plan', bedrooms: 3, rent_min: 500 }];
+      const stubGenerate = vi.fn().mockResolvedValue({ floor_plans: llmPlans });
+      const { synthesizeStep } = await import('../steps/03-synthesize');
+
+      const pages = [
+        { url: 'https://www.zillow.com/apartments/x/', fields: { floor_plans: DETERMINISTIC_PLANS }, textExcerpt: 'Studio from $899' },
+      ];
+      const ctx = makeCtx(pages);
+      (ctx.input as Record<string, unknown>).generate = stubGenerate;
+
+      const result = await synthesizeStep.run(ctx);
+      const f = result.output.fields as Record<string, unknown>;
+      expect(f.floor_plans).toEqual(DETERMINISTIC_PLANS);
+      expect(f.floor_plans).not.toEqual(llmPlans);
+    });
+
+    it('uses the LLM floor_plans when the baseline has none (marketing sites with no structured blob)', async () => {
+      const llmPlans = [{ name: 'Studio', bedrooms: 0, rent_min: 899 }];
+      const stubGenerate = vi.fn().mockResolvedValue({ floor_plans: llmPlans });
+      const { synthesizeStep } = await import('../steps/03-synthesize');
+
+      const pages = [
+        { url: 'https://x01oncampus.com/floor-plans', fields: {}, textExcerpt: 'Studio from $899' },
+      ];
+      const ctx = makeCtx(pages);
+      (ctx.input as Record<string, unknown>).generate = stubGenerate;
+
+      const result = await synthesizeStep.run(ctx);
+      const f = result.output.fields as Record<string, unknown>;
+      expect(f.floor_plans).toEqual(llmPlans);
+    });
+
+    it('AIN-81 robustness: deterministic floor_plans still persist when the LLM call throws', async () => {
+      const stubGenerate = vi.fn().mockRejectedValue(new Error('provider error'));
+      const { synthesizeStep } = await import('../steps/03-synthesize');
+
+      const pages = [
+        { url: 'https://www.zillow.com/apartments/x/', fields: { floor_plans: DETERMINISTIC_PLANS }, textExcerpt: '' },
+      ];
+      const ctx = makeCtx(pages);
+      (ctx.input as Record<string, unknown>).generate = stubGenerate;
+
+      const result = await synthesizeStep.run(ctx);
+      const f = result.output.fields as Record<string, unknown>;
+      expect(f.floor_plans).toEqual(DETERMINISTIC_PLANS);
+    });
+
+    // CodeRabbit PR #121 fix 1 (Major): the cheapest-plan top-level derivation
+    // must run on the FINAL merged floor_plans list, not the raw LLM output.
+    // The merge can pick the deterministic baseline over the LLM's floor_plans
+    // (as the test above proves) — deriving rent/bedrooms/bathrooms/sqft from
+    // the LLM's (discarded) plans before that merge lets an LLM-hallucinated
+    // number reach the row even though it matches NO persisted plan.
+    it('derives top-level fields from the FINAL merged floor_plans, not the raw (possibly-discarded) LLM output', async () => {
+      const llmPlans = [
+        { name: 'LLM-guessed plan', bedrooms: 3, bathrooms: 2, rent_min: 900, sqft: 1200 },
+      ];
+      // The LLM's own top-level fields agree with ITS cheapest plan (900) —
+      // but the deterministic baseline (cheapest = A11 @ 1819) wins the
+      // floor_plans merge. Final top-level fields must reflect the WINNING
+      // (baseline) plans, not the LLM's discarded 900/3bed/1200sqft.
+      const stubGenerate = vi.fn().mockResolvedValue({
+        floor_plans: llmPlans,
+        rent: 900,
+        bedrooms: 3,
+        bathrooms: 2,
+        sqft: 1200,
+      });
+      const { synthesizeStep } = await import('../steps/03-synthesize');
+
+      const pages = [
+        { url: 'https://www.zillow.com/apartments/x/', fields: { floor_plans: DETERMINISTIC_PLANS }, textExcerpt: 'plans' },
+      ];
+      const ctx = makeCtx(pages);
+      (ctx.input as Record<string, unknown>).generate = stubGenerate;
+
+      const result = await synthesizeStep.run(ctx);
+      const f = result.output.fields as Record<string, unknown>;
+
+      expect(f.floor_plans).toEqual(DETERMINISTIC_PLANS);
+      // Cheapest PERSISTED plan is A11 (rent_min 1819) — top-level fields
+      // must derive from that, never the LLM's hallucinated 900.
+      expect(f.rent).toBe(1819);
+      expect(f.bedrooms).toBe(1);
+      expect(f.bathrooms).toBe(1);
+      expect(f.sqft).toBe(799);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // CodeRabbit PR #121 fix 3: validate the baseline floor_plans instead of a
+  // bare cast. A malformed shape on page fields must be ignored, not passed
+  // through to the row.
+  // -------------------------------------------------------------------------
+  describe('baseline floor_plans validation (CodeRabbit PR #121 fix 3)', () => {
+    it('ignores a malformed floor_plans shape on page fields (baseline floor_plans stays undefined)', async () => {
+      const stubGenerate = vi.fn().mockRejectedValue(new Error('provider error'));
+      const { synthesizeStep } = await import('../steps/03-synthesize');
+
+      const pages = [
+        {
+          url: 'https://www.zillow.com/apartments/x/',
+          fields: {
+            // Malformed: `name` missing (required) and `rent_min` out of the
+            // schema's positive/max(50_000) range.
+            floor_plans: [{ bedrooms: 1, rent_min: -5 }],
+          },
+          textExcerpt: '',
+        },
+      ];
+      const ctx = makeCtx(pages);
+      (ctx.input as Record<string, unknown>).generate = stubGenerate;
+
+      const result = await synthesizeStep.run(ctx);
+      const f = result.output.fields as Record<string, unknown>;
+      expect(f.floor_plans).toBeUndefined();
+    });
+  });
+
   // AIN-75 Task 4: no-op on empty pages (blocked crawl path)
   it('returns empty fields without calling LLM when pages is empty (blocked crawl path)', async () => {
     const mockGenerate = vi.fn().mockResolvedValue(FIXTURE_STANDARD);

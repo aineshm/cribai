@@ -30,6 +30,7 @@ import { normalizeFields, inRange, NUMERIC_MAX } from './normalize';
 import { extractFromDom } from './dom';
 import { pruneHtml } from './prune-html';
 import { createLlmExtractor } from './llm-parse';
+import { extractZillowFloorPlans, isZillowBuildingUrl } from './sites/zillow';
 import {
   ExtractionError,
   type ExtractedFields,
@@ -511,6 +512,23 @@ export async function extractFromHtml(
   const extraction_method = deriveExtractionMethod(contributors);
   const extraction_confidence = computeConfidence(normalized, contributors);
 
+  // ── Enrichment: deterministic Zillow floor-plan parse (AIN-83) ─────────
+  // URL-gated and DELIBERATELY independent of the escalation ladder above:
+  // a Zillow building page satisfies `hasKeyFields` via JSON-LD alone (its
+  // JSON-LD carries a price + address), so Pass 2 (DOM — the layer that
+  // knows how to read `building.floorPlans[]`) never runs. This reads the
+  // same `html` regardless of what escalation already found, so a
+  // `/homedetails/` single-unit page never pays the extra parse.
+  let floor_plans: ReturnType<typeof extractZillowFloorPlans> | undefined;
+  if (source_domain === 'zillow.com' && !merged.floor_plans && isZillowBuildingUrl(finalUrl)) {
+    try {
+      const plans = extractZillowFloorPlans(html);
+      if (plans.length > 0) floor_plans = plans;
+    } catch {
+      // Never let floor-plan enrichment break the base extraction.
+    }
+  }
+
   return {
     source_url: sourceUrl,
     // codex P2: `source_domain` should reflect where the listing actually
@@ -522,6 +540,7 @@ export async function extractFromHtml(
     // DOM dispatch and the returned field key off the same value.
     source_domain,
     ...normalized,
+    ...(floor_plans ? { floor_plans } : {}),
     extraction_method,
     extraction_confidence,
   };
