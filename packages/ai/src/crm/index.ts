@@ -70,6 +70,13 @@ export { getCrmServiceClient } from './service-client';
 // Public types
 // ---------------------------------------------------------------------------
 
+// `DEEP_EXTRACT_ALIAS` is the PostgREST select alias shared by every
+// crm_listings read path that needs `CrmListingRow.deep_extract` (the
+// add-listing post-save read-back and the /api/crm/listings REST route) —
+// see its declaration in ./types for the full rationale (CodeRabbit PR #121
+// fix 4b).
+export { DEEP_EXTRACT_ALIAS } from './types';
+
 export type {
   // addListing
   AddListingDeps,

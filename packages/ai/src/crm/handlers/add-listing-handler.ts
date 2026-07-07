@@ -19,6 +19,7 @@ import { addListing, AddListingError } from '../add-listing';
 import { extractListing } from '../../extraction';
 import { geocodeAddress } from '../../tools/lib/geocode-address';
 import { addListingInput } from '../schemas';
+import { DEEP_EXTRACT_ALIAS } from '../types';
 import type { CrmListingRow } from '../types';
 import type { AddListingMachineData } from './types';
 
@@ -58,16 +59,11 @@ const CRM_LISTING_COLUMN_NAMES = [
   'saved_at',
 ] as const satisfies readonly (keyof CrmListingRow)[];
 
-/**
- * AIN-83: expose ONLY the deep_extract subtree (floor_plans / price_is_from)
- * via a PostgREST JSON-path alias — never `raw_extraction` wholesale (multi-KB
- * raw JSON-LD/OG blobs this SSE payload never needs). Kept as its OWN
- * constant (not folded into `CRM_LISTING_COLUMN_NAMES`) so that array stays
- * `satisfies (keyof CrmListingRow)[]`-checked against real column names —
- * an aliased select string isn't a literal column name.
- */
-const DEEP_EXTRACT_ALIAS = 'deep_extract:raw_extraction->deep_extract' as const;
-
+// `DEEP_EXTRACT_ALIAS` (imported above from `../types` — CodeRabbit PR #121
+// fix 4b) is kept as its own constant appended below rather than folded into
+// `CRM_LISTING_COLUMN_NAMES` so that array stays `satisfies
+// (keyof CrmListingRow)[]`-checked against real column names — an aliased
+// select string isn't a literal column name.
 const CRM_LISTING_COLUMNS = [...CRM_LISTING_COLUMN_NAMES, DEEP_EXTRACT_ALIAS].join(', ');
 
 /**

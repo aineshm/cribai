@@ -212,18 +212,33 @@ function projectBuilding(
 }
 
 /**
+ * Pull `initialReduxState.gdp.building` out of an already-parsed
+ * `componentProps` object. Pure — no HTML re-parse. Shared by
+ * `extractBuildingFromNextData` (below, which does the HTML → componentProps
+ * work for standalone callers) and `fromNextData` (which already has
+ * `componentProps` parsed locally and previously re-derived it from scratch
+ * via a redundant `extractNextData` call — CodeRabbit PR #121 fix 2). Returns
+ * `undefined` when the shape doesn't resolve to an object. Never throws.
+ */
+function buildingFromComponentProps(
+  componentProps: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  return asObject(asObject(asObject(componentProps.initialReduxState)?.gdp)?.building);
+}
+
+/**
  * Pull `componentProps.initialReduxState.gdp.building` out of a page's
- * `__NEXT_DATA__` blob (the /apartments/ and /b/ building shape). Shared by
- * `fromNextData` (below) and `extractZillowFloorPlans` (AIN-83) so both read
- * the exact same navigation path. Returns `undefined` when the blob is
- * absent, unparseable, or doesn't resolve to an object. Never throws.
+ * `__NEXT_DATA__` blob (the /apartments/ and /b/ building shape). Used by
+ * `extractZillowFloorPlans` (AIN-83), which only has the raw HTML to work
+ * from. Returns `undefined` when the blob is absent, unparseable, or doesn't
+ * resolve to an object. Never throws.
  */
 function extractBuildingFromNextData(html: string): Record<string, unknown> | undefined {
   const data = asObject(extractNextData(html));
   const pageProps = asObject(asObject(data?.props)?.pageProps);
   const componentProps = asObject(pageProps?.componentProps);
   if (!componentProps) return undefined;
-  return asObject(asObject(asObject(componentProps.initialReduxState)?.gdp)?.building);
+  return buildingFromComponentProps(componentProps);
 }
 
 /**
@@ -240,7 +255,7 @@ function fromNextData(html: string, sourceUrl: string): Partial<ExtractedFields>
     asObject(componentProps.property) ?? propertyFromGdpClientCache(componentProps);
   if (property) return projectProperty(property, sourceUrl);
 
-  const building = extractBuildingFromNextData(html);
+  const building = buildingFromComponentProps(componentProps);
   if (building) return projectBuilding(building, sourceUrl);
 
   return {};

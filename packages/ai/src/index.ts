@@ -144,6 +144,7 @@ export {
   RANK_COMPARE_DESCRIPTION,
   CRM_TOOL_NAMES,
   getCrmServiceClient,
+  DEEP_EXTRACT_ALIAS,
 } from './crm';
 export type {
   CrmToolName,

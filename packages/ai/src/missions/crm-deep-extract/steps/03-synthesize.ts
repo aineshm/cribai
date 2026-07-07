@@ -12,7 +12,12 @@ import {
   defaultCrmGenerate,
   type CrmGenerateObject,
 } from '../../../crm/generate';
-import { FloorPlanSchema, FLOOR_PLAN_MAX_COUNT, type FloorPlan } from '../../../extraction/floor-plan';
+import {
+  FloorPlanSchema,
+  FloorPlansArraySchema,
+  FLOOR_PLAN_MAX_COUNT,
+  type FloorPlan,
+} from '../../../extraction/floor-plan';
 
 // Re-exported so existing callers (04-update-row.ts, tests) importing
 // `FloorPlan` from this module keep working — the shared definition now
@@ -81,6 +86,13 @@ function buildPrompt(
  * When floor_plans is present, ensure top-level rent/bedrooms/bathrooms/sqft
  * reflect the cheapest plan. The synthesize step enforces this — recompute
  * min and prefer it if they disagree (per plan spec in step 4.5).
+ *
+ * CodeRabbit PR #121 fix 1 (Major): callers MUST pass this the FINAL merged
+ * fields (post `mergeOntoBaseline`), never the raw LLM output. The merge can
+ * choose the deterministic baseline's floor_plans over the LLM's (baseline
+ * wins when non-empty — see `mergeOntoBaseline` below); deriving from the
+ * LLM's own (possibly-discarded) plan list would let a hallucinated rent
+ * reach the row even though no PERSISTED plan supports it.
  */
 function applyFloorPlanTopLevel(fields: DeepExtract): DeepExtract {
   const plans = fields.floor_plans;
@@ -148,8 +160,15 @@ function buildBaselineFromPages(
     // (Task 2's extractZillowFloorPlans, threaded through pages[].fields).
     // First page with a non-empty array wins — same "landing page first"
     // precedence as every other baseline field above.
+    //
+    // CodeRabbit PR #121 fix 3: validate rather than bare-cast. `pages[].fields`
+    // is untrusted (crawl_source output, not schema-checked at this seam) — a
+    // malformed shape must be dropped, not silently pushed through to the row.
     if (baseline.floor_plans == null && Array.isArray(f['floor_plans']) && f['floor_plans'].length > 0) {
-      baseline.floor_plans = f['floor_plans'] as FloorPlan[];
+      const parsedPlans = FloorPlansArraySchema.safeParse(f['floor_plans']);
+      if (parsedPlans.success) {
+        baseline.floor_plans = parsedPlans.data;
+      }
     }
   }
   return baseline;
@@ -227,7 +246,11 @@ export const synthesizeStep: MissionStep = {
       });
       const parsed = DeepExtractSchema.safeParse(raw);
       if (parsed.success) {
-        fields = mergeOntoBaseline(applyFloorPlanTopLevel(parsed.data), baseline);
+        // CodeRabbit PR #121 fix 1: merge FIRST, then derive top-level fields
+        // from the FINAL floor_plans list — never from the LLM's raw output,
+        // which the merge may discard entirely in favor of the deterministic
+        // baseline.
+        fields = applyFloorPlanTopLevel(mergeOntoBaseline(parsed.data, baseline));
       }
     } catch {
       // LLM failure → keep the structured baseline (never throws)

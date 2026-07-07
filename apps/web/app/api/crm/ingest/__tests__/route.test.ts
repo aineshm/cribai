@@ -94,6 +94,10 @@ vi.mock('@campusnest/ai', () => {
     extractListingFromHtml: mockExtractListingFromHtml,
     geocodeAddress: mockGeocode,
     firstSaveAnalysis: mockFirstSaveAnalysis,
+    // CodeRabbit PR #121 fix 4b: MAX_SAVED_LISTINGS/LISTING_COLUMNS import
+    // from ../route (listings), which now imports the shared alias constant
+    // instead of a hardcoded literal — the mock must supply it.
+    DEEP_EXTRACT_ALIAS: 'deep_extract:raw_extraction->deep_extract',
   };
 });
 

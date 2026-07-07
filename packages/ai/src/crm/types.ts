@@ -91,17 +91,36 @@ export interface CrmListingRow {
   readonly saved_at?: string | null;
   /**
    * Deterministic building-page floor-plan enrichment (AIN-83). Read via the
-   * PostgREST JSON-path alias `deep_extract:raw_extraction->deep_extract`
-   * (never the whole `raw_extraction` blob — that's multi-KB raw JSON-LD/OG
-   * the browser never needs). Optional: only present when the select
-   * explicitly projects the alias. `null`/absent on legacy rows that
-   * predate this wave or haven't been through ingest/mission enrichment.
+   * PostgREST JSON-path alias `DEEP_EXTRACT_ALIAS` (never the whole
+   * `raw_extraction` blob — that's multi-KB raw JSON-LD/OG the browser never
+   * needs). Optional: only present when the select explicitly projects the
+   * alias. `null`/absent on legacy rows that predate this wave or haven't
+   * been through ingest/mission enrichment.
    */
   readonly deep_extract?: {
     readonly floor_plans?: readonly FloorPlan[] | null;
     readonly price_is_from?: boolean;
+    /**
+     * Which pipeline populated this subtree — e.g. `'ingest_v1'` (extension
+     * capture) or `'mission_v1'` (crm_deep_extract mission). Loose (`string`)
+     * rather than a closed union: this is a JSONB field written by more than
+     * one pipeline version, and a closed union would need editing here every
+     * time a new writer is added (CodeRabbit PR #121 fix 4a).
+     */
+    readonly method?: string;
   } | null;
 }
+
+/**
+ * PostgREST JSON-path alias projecting ONLY the `deep_extract` subtree of
+ * `raw_extraction` (AIN-83) — never the whole `raw_extraction` blob, which
+ * carries multi-KB raw JSON-LD/OG the reader never needs. Shared by every
+ * `crm_listings` read path that needs `CrmListingRow.deep_extract`
+ * (`handlers/add-listing-handler.ts`'s post-save read-back and the
+ * `/api/crm/listings` REST route) so the alias string and its rationale live
+ * in exactly ONE place (CodeRabbit PR #121 fix 4b).
+ */
+export const DEEP_EXTRACT_ALIAS = 'deep_extract:raw_extraction->deep_extract' as const;
 
 // ---------------------------------------------------------------------------
 // Fanout branch discriminant

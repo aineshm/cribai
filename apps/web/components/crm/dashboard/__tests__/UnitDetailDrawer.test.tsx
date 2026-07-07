@@ -144,8 +144,14 @@ describe('UnitDetailDrawer', () => {
 
     it('renders availability when present, omits it when null (no fabricated text)', () => {
       const unit = { ...UNITS[0]!, floorPlans: FLOOR_PLANS };
-      const { container } = render(<UnitDetailDrawer unit={unit} onClose={() => {}} />);
-      expect(container.textContent).toContain('2026-08-15');
+      render(<UnitDetailDrawer unit={unit} onClose={() => {}} />);
+      // S1 has an availability date — it must render.
+      const s1Row = screen.getByText('S1').closest('div');
+      expect(s1Row?.textContent).toContain('2026-08-15');
+      // A11 has availability: null — its row must show NO date-like text
+      // (no fabricated availability), scoped so S1's date doesn't leak in.
+      const a11Row = screen.getByText('A11').closest('div');
+      expect(a11Row?.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}/);
     });
 
     it('renders plan text as plain escaped text, not raw markup (XSS guard)', () => {

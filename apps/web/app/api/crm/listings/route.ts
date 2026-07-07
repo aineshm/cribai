@@ -18,6 +18,7 @@ import {
   AddListingError,
   extractListing,
   geocodeAddress,
+  DEEP_EXTRACT_ALIAS,
   type AddListingErrorCode,
   type ExtractedListing,
 } from '@campusnest/ai';
@@ -44,10 +45,11 @@ const LISTING_COLUMNS = [
   'status',
   'user_notes',
   'saved_at',
-  // AIN-83: expose ONLY the deep_extract subtree (floor_plans / price_is_from)
-  // via a PostgREST JSON-path alias — never `raw_extraction` wholesale, which
-  // holds multi-KB raw JSON-LD/OG blobs the browser never needs.
-  'deep_extract:raw_extraction->deep_extract',
+  // AIN-83: expose ONLY the deep_extract subtree (floor_plans / price_is_from
+  // / method) — see DEEP_EXTRACT_ALIAS's declaration in @campusnest/ai for
+  // the full rationale (CodeRabbit PR #121 fix 4b: this used to be a
+  // hardcoded duplicate of the same literal).
+  DEEP_EXTRACT_ALIAS,
 ].join(', ');
 
 const MAX_LISTINGS = 200;

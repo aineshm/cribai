@@ -52,6 +52,9 @@ vi.mock('@campusnest/ai', () => {
     AddListingError,
     extractListing: mockExtract,
     geocodeAddress: mockGeocode,
+    // CodeRabbit PR #121 fix 4b: the route now imports the shared alias
+    // constant instead of a hardcoded literal — the mock must supply it.
+    DEEP_EXTRACT_ALIAS: 'deep_extract:raw_extraction->deep_extract',
   };
 });
 
