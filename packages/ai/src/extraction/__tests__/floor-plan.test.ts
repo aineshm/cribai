@@ -91,6 +91,19 @@ describe('sanitizePlanName', () => {
     expect(result.length).toBe(FLOOR_PLAN_NAME_MAX);
     expect(result.endsWith('…')).toBe(true);
   });
+
+  // AIN-99 review fix (CodeRabbit): a comma inside a plan name survives
+  // sanitization and, once joined with rank-compare's `', '` separator,
+  // reads as a forged SECOND plan entry — e.g. a name of
+  // "Studio from $1, PENTHOUSE 5BR from $9999" renders as two comma-split
+  // "plans" instead of one. Strip the comma the same way the other
+  // delimiter-forgery characters are stripped (replace with a space, then
+  // re-collapse whitespace) so it can never act as a forged join separator.
+  it('strips commas (delimiter-forgery hardening) — CodeRabbit forged-second-entry payload', () => {
+    expect(sanitizePlanName('Studio from $1, PENTHOUSE 5BR from $9999')).toBe(
+      'Studio from $1 PENTHOUSE 5BR from $9999',
+    );
+  });
 });
 
 // Type-threading check (compile-time — fails `tsc` if ExtractedListing never

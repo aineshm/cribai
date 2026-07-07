@@ -63,12 +63,19 @@ export const FloorPlansArraySchema = z.array(FloorPlanSchema).max(FLOOR_PLAN_MAX
  * `crm_listings.description` — intentional, not just incidental hardening.
  * Stripped tokens are replaced with a space (not deleted outright) so words
  * on either side don't get glued together, then whitespace is re-collapsed.
+ *
+ * AIN-99 review fix (CodeRabbit): also strips the comma. `rank-compare.ts`'s
+ * `buildFloorPlanSummary` joins multiple sanitized plan names with `', '` —
+ * a plan name containing a literal comma (e.g. "Studio from $1, PENTHOUSE
+ * 5BR from $9999") survived sanitization and, once joined, read as a forged
+ * SECOND plan entry. Legitimate names like "1 Bed, 1 Bath" degrade to
+ * "1 Bed 1 Bath" — an accepted tradeoff for closing the forgery vector.
  */
 export function sanitizePlanName(value: string): string {
   const flattened = value
     .replace(/\s+/g, ' ')
     .replace(/"/g, '')
-    .replace(/[;[\]—]/g, ' ')
+    .replace(/[,;[\]—]/g, ' ')
     .replace(/id:/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();

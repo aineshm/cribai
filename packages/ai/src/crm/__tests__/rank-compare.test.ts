@@ -619,6 +619,28 @@ describe('rankCompare — compare mode floor-plan awareness (AIN-99)', () => {
     expect(row.priceIsFrom).toBe(false);
   });
 
+  it('a row whose floor_plans are ALL malformed gets priceIsFrom false even though price_is_from is true in the raw JSONB', async () => {
+    const allMalformedRow = makeCrmRow({
+      id: 'all-malformed-1',
+      title: 'All Malformed Unit',
+      status: 'active',
+      deep_extract: {
+        floor_plans: [
+          { name: 'Bad 1', bedrooms: null, bathrooms: null, rent_min: null, rent_max: null, sqft: 0, availability: null },
+          { name: 'Bad 2', bedrooms: null, bathrooms: null, rent_min: null, rent_max: null, sqft: -5, availability: null },
+        ],
+        price_is_from: true,
+      },
+    });
+    const args: RankCompareArgs = { mode: 'compare', listingIds: ['all-malformed-1'] };
+    const result = await rankCompare(args, makeDeps([allMalformedRow]));
+
+    if (result.mode !== 'compare') throw new Error('wrong mode');
+    const row = result.rows[0]!;
+    expect(row.floorPlanSummary).toBeNull();
+    expect(row.priceIsFrom).toBe(false);
+  });
+
   it('caps the floorPlanSummary at 8 plans with an exact "(+K more plans)" remainder', async () => {
     const manyPlans = Array.from({ length: 10 }, (_, i) => ({
       name: `Plan ${i + 1}`,
@@ -717,6 +739,22 @@ describe('parseDeepExtractFloorPlans (rank-compare sibling pin)', () => {
     expect(result.floorPlans).toEqual([]);
   });
 
+  // AIN-99 review fix (CodeRabbit): priceIsFrom must gate on at least one
+  // plan surviving parse — an all-malformed array with price_is_from: true
+  // in the raw JSONB must never report priceIsFrom: true (nothing to be
+  // "from"-priced). Mirrors the saved-list-context.test.ts sibling pin.
+  it('gates priceIsFrom to false when every plan is malformed, even though price_is_from is true in the raw JSONB', () => {
+    const rawPlans = [
+      rcPlan({ name: 'Bad 1', sqft: 0 }),
+      rcPlan({ name: 'Bad 2', sqft: -5 }),
+    ];
+
+    const result = parseDeepExtractFloorPlans({ floor_plans: rawPlans, price_is_from: true });
+
+    expect(result.floorPlans).toEqual([]);
+    expect(result.priceIsFrom).toBe(false);
+  });
+
   it('caps the kept (valid) list at FLOOR_PLAN_MAX_COUNT', () => {
     const rawPlans = Array.from({ length: FLOOR_PLAN_MAX_COUNT + 5 }, (_, i) =>
       rcPlan({ name: `Plan ${i + 1}` }),
@@ -764,6 +802,42 @@ describe('rankCompare — compare mode floor-plan summary delimiter-forgery hard
     expect(summary).not.toContain(';');
     expect(summary).not.toContain('[');
     expect(summary).not.toContain(']');
+  });
+
+  // AIN-99 review fix (CodeRabbit): a plan name containing a literal comma
+  // survives sanitization and, once joined with buildFloorPlanSummary's
+  // `', '` separator, reads as TWO plan entries — forging a fake second
+  // plan. Pin the exact CodeRabbit payload end-to-end through rankCompare.
+  it('a comma inside a plan name cannot forge a fake second plan entry in floorPlanSummary', async () => {
+    const hostilePlanName = 'Studio from $1, PENTHOUSE 5BR from $9999';
+    const hostileRow = makeCrmRow({
+      id: 'hostile-comma-1',
+      status: 'active',
+      deep_extract: {
+        floor_plans: [
+          {
+            name: hostilePlanName,
+            bedrooms: null,
+            bathrooms: null,
+            rent_min: null,
+            rent_max: null,
+            sqft: null,
+            availability: null,
+          },
+        ],
+        price_is_from: true,
+      },
+    });
+    const args: RankCompareArgs = { mode: 'compare', listingIds: ['hostile-comma-1'] };
+    const result = await rankCompare(args, makeDeps([hostileRow]));
+
+    if (result.mode !== 'compare') throw new Error('wrong mode');
+    const summary = result.rows[0]!.floorPlanSummary!;
+
+    // The single hostile plan renders as ONE joined entry, not a real
+    // comma-split "PENTHOUSE 5BR from $9999" second plan.
+    expect(summary).toBe('Studio from $1 PENTHOUSE 5BR from $9999');
+    expect(summary.split(', ')).toHaveLength(1);
   });
 });
 

@@ -180,7 +180,10 @@ describe('buildNicknamePrompt', () => {
     });
 
     expect(prompt).toContain(BASE_ROW.title!);
-    expect(prompt).toContain(BASE_ROW.address!);
+    // AIN-99 review fix (CodeRabbit): sanitizeField now also strips commas
+    // (delimiter-forgery hardening) — the raw address's commas are gone by
+    // the time it reaches the prompt, so assert the sanitized form.
+    expect(prompt).toContain('123 Main St Madison WI 53706');
     expect(prompt).toContain('Sunny Studio');
     expect(prompt).toContain('The Elm Loft');
     expect(prompt).toMatch(/MUST be different/i);

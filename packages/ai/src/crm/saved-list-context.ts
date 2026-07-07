@@ -151,6 +151,14 @@ interface RawSavedListRow {
  * `deep_extract` → `{floorPlans, priceIsFrom}` parse for its own compact
  * plan-summary column (AIN-99 Task 2) — one parser, no third copy of the
  * same malformed-JSONB-degrades-safely logic.
+ *
+ * `priceIsFrom` is gated on `floorPlans.length > 0` in addition to the raw
+ * `price_is_from` flag (AIN-99 review fix, CodeRabbit): "from $X" only makes
+ * sense when at least one concrete floor plan survived parsing to back that
+ * price. Without the gate, an all-malformed `floor_plans` array (e.g. every
+ * entry failing `.positive()`) with `price_is_from: true` in the raw JSONB
+ * would report `priceIsFrom: true` alongside an empty `floorPlans` — a
+ * "from $X/mo" label with no floor-plan detail behind it.
  */
 export function parseDeepExtractFloorPlans(
   deepExtract: CrmListingRow['deep_extract'],
@@ -171,7 +179,7 @@ export function parseDeepExtractFloorPlans(
 
   return {
     floorPlans,
-    priceIsFrom: deepExtract?.price_is_from === true,
+    priceIsFrom: floorPlans.length > 0 && deepExtract?.price_is_from === true,
   };
 }
 
@@ -333,12 +341,20 @@ const SANITIZED_FIELD_MAX_LENGTH = 80;
  * Exported (not module-private) because `nickname.ts` reuses this exact
  * sanitizer for the same title/address fields before building its generation
  * prompt — same untrusted-source, same injection risk, one implementation.
+ *
+ * AIN-99 review fix (CodeRabbit): also strips the comma, mirroring the same
+ * fix in `sanitizePlanName` (extraction/floor-plan.ts). Defense-in-depth —
+ * this module's own `renderFloorPlansLine` joins with `'; '` (already
+ * stripped), but `renderFloorPlanEntry`'s availability field goes through
+ * `sanitizeField` too, so the comma is closed off there for consistency with
+ * the plan-name path. Legitimate values like "1 Bed, 1 Bath" degrade to
+ * "1 Bed 1 Bath" — an accepted tradeoff for closing the forgery vector.
  */
 export function sanitizeField(value: string): string {
   const flattened = value
     .replace(/\s+/g, ' ')
     .replace(/"/g, '')
-    .replace(/[;[\]—]/g, ' ')
+    .replace(/[,;[\]—]/g, ' ')
     .replace(/id:/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
