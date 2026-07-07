@@ -42,12 +42,20 @@ export type JudgeRubric = z.infer<typeof JudgeRubricSchema>;
 
 const JUDGE_FUNCTION_ID = 'eval.ain93.judge';
 
-/** Render the seed truth table as compact text the judge can ground against. */
+/**
+ * Render the seed truth table as compact text the judge can ground against.
+ * Includes amenities — live-smoke evidence (2026-07-07): with amenities
+ * omitted, the real judge scored every amenity tradeoff ("laundry vs
+ * dishwasher") as an unverifiable claim and failed grounding on GOOD
+ * answers. The truth text must carry every fact class the assistant
+ * legitimately cites.
+ */
 export function renderTruthTableForJudge(rows: readonly SeedListingTruth[] = seedListingsList()): string {
   return rows
     .map((r) => {
       const status = r.status === 'archived' ? ' [ARCHIVED — must never be recommended]' : '';
-      return `- "${r.nickname}" (${r.key}): $${r.rent}/mo, ${r.bedrooms}bd/${r.bathrooms}ba, ${r.sqft}sqft, ${r.address}${status}`;
+      const amenities = r.amenities.length > 0 ? `, amenities: ${r.amenities.join('/')}` : '';
+      return `- "${r.nickname}" (${r.key}): $${r.rent}/mo, ${r.bedrooms}bd/${r.bathrooms}ba, ${r.sqft}sqft, ${r.address}${amenities}${status}`;
     })
     .join('\n');
 }
@@ -57,7 +65,7 @@ const JUDGE_INSTRUCTIONS = `You are grading one conversation turn from a student
 Score honestly:
 - explicit_recommendation: true only if the assistant clearly picked/recommended a specific saved listing (or explicitly declined to pick with a stated reason), not merely described options.
 - tradeoffs_cited: the concrete tradeoffs actually named (e.g. "cheaper but smaller", "closer to campus but no parking"). A bare recommendation with NO cited tradeoff is a rubric violation — leave this empty and set explicit_recommendation accordingly.
-- grounded_in_saved_list: false if the assistant references a listing that is not in the student's saved list below, or misstates a saved listing's facts.
+- grounded_in_saved_list: false ONLY if the assistant names a listing that is not in the student's saved list below, or CONTRADICTS a fact stated below (wrong rent, wrong sqft, wrong amenity, recommending an archived listing). A detail the list below simply doesn't mention is NOT a grounding violation — do not penalize plausible elaboration that contradicts nothing.
 - clarified_instead_of_guessing: for an AMBIGUOUS ask (multiple saved listings could match, insufficient detail to safely pick), true means the assistant asked a clarifying question instead of guessing.
 - verdict: 'fail' whenever this turn was asking for a decision/recommendation and the assistant gave ONLY a summary with no explicit pick and no cited tradeoffs — a plain recap of the list is NOT a passing answer to "which one should I pick". Also 'fail' on any hallucinated listing or archived-listing recommendation.`;
 
