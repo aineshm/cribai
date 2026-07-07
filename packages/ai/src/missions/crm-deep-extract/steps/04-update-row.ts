@@ -55,6 +55,21 @@ function computeMinRentFromPlans(plans: FloorPlan[]): number | null {
 }
 
 /**
+ * Find the cheapest floor plan by rent_min (falling back to rent_max).
+ * Shared by the rent-override and the bed/bath/sqft backfill below — both
+ * need "which plan is cheapest", not just "what is the cheapest price".
+ */
+function findCheapestPlan(plans: FloorPlan[]): FloorPlan | null {
+  return plans.reduce<FloorPlan | null>((acc, p) => {
+    const price = p.rent_min ?? p.rent_max;
+    const accPrice = acc?.rent_min ?? acc?.rent_max;
+    if (price == null) return acc;
+    if (acc === null || accPrice == null || price < accPrice) return p;
+    return acc;
+  }, null);
+}
+
+/**
  * Build a floor-plan description summary for null description rows.
  * e.g. "Property-level save — 2 floor plans: Studio from $899, 2BR/2BA from $1,450."
  */
@@ -131,19 +146,21 @@ export const updateRowStep: MissionStep = {
       // Prefer computed min over synthesize output if they disagree
       if (computedMin !== null && (effectiveRent === null || computedMin < effectiveRent)) {
         effectiveRent = computedMin;
-        // Find the cheapest plan for bed/bath/sqft
-        const cheapest = (floorPlans as FloorPlan[]).reduce<FloorPlan | null>((acc, p) => {
-          const price = p.rent_min ?? p.rent_max;
-          const accPrice = acc?.rent_min ?? acc?.rent_max;
-          if (price == null) return acc;
-          if (acc === null || accPrice == null || price < accPrice) return p;
-          return acc;
-        }, null);
-        if (cheapest) {
-          effectiveBedrooms = cheapest.bedrooms ?? effectiveBedrooms;
-          effectiveBathrooms = cheapest.bathrooms ?? effectiveBathrooms;
-          effectiveSqft = cheapest.sqft ?? effectiveSqft;
-        }
+      }
+
+      // AIN-83 live-proof fix: the bed/bath/sqft backfill must NOT be gated
+      // on "computed min < effectiveRent" — in the normal deterministic case
+      // the baseline rent already EQUALS the cheapest plan's price (rent and
+      // floor_plans both derive from the same min-plan computation upstream),
+      // so that condition is false and the backfill silently never ran. Any
+      // non-empty floor_plans list should backfill the cheapest plan's
+      // bed/bath/sqft — fill-gap semantics (existing effective values win)
+      // are preserved via `?? `, matching every other field in this step.
+      const cheapest = findCheapestPlan(floorPlans as FloorPlan[]);
+      if (cheapest) {
+        effectiveBedrooms = effectiveBedrooms ?? cheapest.bedrooms ?? null;
+        effectiveBathrooms = effectiveBathrooms ?? cheapest.bathrooms ?? null;
+        effectiveSqft = effectiveSqft ?? cheapest.sqft ?? null;
       }
     }
 
