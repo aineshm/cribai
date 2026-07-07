@@ -287,6 +287,17 @@ function planAvailability(value: unknown): string | undefined {
 }
 
 /**
+ * Zillow uses `0` as a "no price" sentinel on plan-level `minPrice`/
+ * `maxPrice` (e.g. waitlist-only plans). The schema's `.positive()` would
+ * fail the whole plan for it — treat non-positive as absent instead so the
+ * plan survives with a null price.
+ */
+function positiveOrNull(value: unknown): number | null {
+  const n = coerceNumber(value);
+  return n !== undefined && n > 0 ? n : null;
+}
+
+/**
  * Project one `building.floorPlans[]` entry into the shared `FloorPlan`
  * shape. Returns `undefined` when the plan has no usable name or fails
  * schema validation (e.g. an out-of-range price) — a single malformed plan
@@ -300,9 +311,9 @@ function projectFloorPlan(plan: Record<string, unknown>): FloorPlan | undefined 
     name: sanitizePlanName(rawName),
     bedrooms: coerceNumber(plan.beds) ?? null,
     bathrooms: coerceNumber(plan.baths) ?? null,
-    rent_min: coerceNumber(plan.minPrice) ?? null,
-    rent_max: coerceNumber(plan.maxPrice) ?? null,
-    sqft: coerceNumber(plan.sqft) ?? null,
+    rent_min: positiveOrNull(plan.minPrice),
+    rent_max: positiveOrNull(plan.maxPrice),
+    sqft: positiveOrNull(plan.sqft),
     availability: planAvailability(plan.availableFrom) ?? null,
   };
   const parsed = FloorPlanSchema.safeParse(candidate);

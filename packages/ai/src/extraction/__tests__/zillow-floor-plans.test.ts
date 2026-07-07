@@ -143,6 +143,23 @@ describe('extractZillowFloorPlans — degrades gracefully', () => {
     expect(plans[0]!.name).toBe('A1');
   });
 
+  it('keeps a plan whose minPrice is the 0 "no price" sentinel (waitlist plan), nulling the price', () => {
+    const html = buildingPage({
+      buildingName: 'Waitlist Arms',
+      floorPlans: [
+        { name: 'W1', minPrice: 0, maxPrice: 0, beds: 2, baths: 2, sqft: 950 }, // waitlist — no price
+        { name: 'A1', minPrice: 1200, beds: 1, baths: 1, sqft: 700 },
+      ],
+    });
+    const plans = extractZillowFloorPlans(html);
+    expect(plans).toHaveLength(2);
+    const waitlist = plans.find((p) => p.name === 'W1')!;
+    expect(waitlist.rent_min).toBeNull();
+    expect(waitlist.rent_max).toBeNull();
+    expect(waitlist.bedrooms).toBe(2);
+    expect(waitlist.sqft).toBe(950);
+  });
+
   it('caps and cheapest-sorts a synthetic 41-plan building (array cap regression)', () => {
     const floorPlans = Array.from({ length: 41 }, (_, i) => ({
       name: `Plan ${i}`,
