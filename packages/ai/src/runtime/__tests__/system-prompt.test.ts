@@ -427,6 +427,24 @@ describe('CRM surface prompt', () => {
     expect(buildPersona('UW-Madison')).toBe(buildPersona('UW-Madison', undefined));
   });
 
+  it('CRM RULE #1 gains the AIN-100 attribute-resolution + complete-in-this-turn rules', () => {
+    const { cachedPrefix } = buildSystemPrompt(baseState(), ALICE, { surface: 'crm' });
+
+    // (a) resolve attribute/bed-count references against the saved list and
+    // NAME the resolved listing(s); never substitute a different one.
+    expect(cachedPrefix).toMatch(/NAME the listing/i);
+    expect(cachedPrefix).toMatch(/never substitute/i);
+    // (b) complete a comparison/answer THIS turn — never defer as a follow-up.
+    expect(cachedPrefix).toMatch(/THIS turn/);
+    expect(cachedPrefix).toMatch(/never offer/i);
+  });
+
+  it('explore RULE #1 (SEARCH_FIRST_RULE) is unaffected by the AIN-100 CRM-only addition', () => {
+    const { cachedPrefix } = buildSystemPrompt(baseState(), ALICE, {});
+    expect(cachedPrefix).toContain('SEARCH FIRST, ASK LATER');
+    expect(cachedPrefix).not.toMatch(/never substitute/i);
+  });
+
   it('CRM persona swaps the search workflow for the saved-list analysis workflow', () => {
     const crmPersona = buildPersona('UW-Madison', 'crm');
     expect(crmPersona).toContain('first_save_analysis');
