@@ -2,24 +2,24 @@
   {
     "id": "budget-constrained-compare-01",
     "bucket": "budget_constrained_compare",
-    "description": "Student asks the assistant to compare two saved 2-bedroom listings against an explicit budget ceiling.",
+    "description": "Student asks the assistant to compare two saved 2-bedroom listings against an explicit budget ceiling. show_card is left to model discretion (live evidence: pinning it flips across runs on the same query).",
     "seedRefs": ["twobed_basic", "twobed_nice"],
     "turns": [
       {
         "query": "Compare my two saved 2-bedroom places and tell me which fits a $1800/month budget.",
-        "expect": { "tool": ["rank_compare"], "show_card": true, "grounding": "listing_fields", "judge": true }
+        "expect": { "tool": ["rank_compare"], "grounding": "listing_fields", "judge": true }
       }
     ]
   },
   {
     "id": "budget-constrained-compare-02",
     "bucket": "budget_constrained_compare",
-    "description": "Student asks which of two saved group houses is the better deal per bedroom.",
+    "description": "Student asks which of two saved group houses is the better deal per bedroom. show_card left to model discretion.",
     "seedRefs": ["threebed", "fourbed"],
     "turns": [
       {
         "query": "Between the 3-bedroom and the 4-bedroom I saved, which is the better deal per bedroom?",
-        "expect": { "tool": ["rank_compare"], "show_card": true, "grounding": "listing_fields", "judge": true }
+        "expect": { "tool": ["rank_compare"], "grounding": "listing_fields", "judge": true }
       }
     ]
   }

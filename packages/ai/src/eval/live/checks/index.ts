@@ -28,6 +28,7 @@ export interface TurnHardCheckInput {
   readonly events: readonly LiveSseEvent[];
   readonly httpStatus: number;
   readonly expectedTools: readonly string[];
+  readonly forbiddenTools?: readonly string[];
   readonly knownIds: ReadonlySet<string>;
   readonly groundingMode: GroundingMode;
   readonly truthByListingId: ReadonlyMap<string, SeedListingTruth>;
@@ -49,6 +50,7 @@ export function runTurnHardChecks(input: TurnHardCheckInput): TurnHardCheckResul
     toolExpectation: checkToolExpectation({
       events: input.events,
       expectedTools: input.expectedTools,
+      forbiddenTools: input.forbiddenTools,
     }),
     noFabricatedIds: checkNoFabricatedIds({ events: input.events, knownIds: input.knownIds }),
     grounding: checkGrounding({

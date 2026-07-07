@@ -115,4 +115,35 @@ describe('judgeConversation', () => {
       }),
     ).rejects.toThrow(/NoObjectGeneratedError/);
   });
+
+  it('instructs the judge that live Google-tool claims (reviews/ratings/landlord/neighborhood) are not in the saved-list table and must not be penalized for grounding unless they contradict it (live-run finding)', async () => {
+    const generate = vi.fn().mockResolvedValue(VALID_RECOMMENDATION);
+
+    await judgeConversation({
+      scenarioId: 's1',
+      scenarioDescription: 'desc',
+      transcriptText: 'transcript',
+      generate,
+    });
+
+    const call = generate.mock.calls[0]![0];
+    expect(call.prompt).toMatch(/Google-data tools/i);
+    expect(call.prompt).toMatch(/reviews|ratings|landlord|neighborhood/i);
+    expect(call.prompt).toMatch(/contradict/i);
+  });
+
+  it('instructs the judge that a complete informational answer with no pick is a PASS unless the user asked for a decision between listings (live-run finding)', async () => {
+    const generate = vi.fn().mockResolvedValue(VALID_RECOMMENDATION);
+
+    await judgeConversation({
+      scenarioId: 's1',
+      scenarioDescription: 'desc',
+      transcriptText: 'transcript',
+      generate,
+    });
+
+    const call = generate.mock.calls[0]![0];
+    expect(call.prompt).toMatch(/INFORMATIONAL ask/);
+    expect(call.prompt).toMatch(/no-pick-fails rule applies ONLY/i);
+  });
 });

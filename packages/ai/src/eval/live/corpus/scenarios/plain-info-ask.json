@@ -2,24 +2,24 @@
   {
     "id": "plain-info-ask-01",
     "bucket": "plain_info_ask",
-    "description": "General housing-knowledge question unrelated to any specific saved listing — no CRM tool call, no card.",
+    "description": "General housing-knowledge question unrelated to any specific saved listing. No tool required; an incidental tool call is tolerated by containment-semantics policy and observed in the report, not gated. show_card left to model discretion.",
     "seedRefs": [],
     "turns": [
       {
         "query": "What's a reasonable rent-to-income ratio for a student budget?",
-        "expect": { "tool": [], "show_card": false, "grounding": "none", "judge": false }
+        "expect": { "tool": [], "grounding": "none", "judge": false }
       }
     ]
   },
   {
     "id": "plain-info-ask-02",
     "bucket": "plain_info_ask",
-    "description": "General leasing-process question unrelated to any specific saved listing — no CRM tool call, no card.",
+    "description": "General leasing-process question unrelated to any specific saved listing. No tool required; incidental tool calls tolerated by policy. show_card left to model discretion.",
     "seedRefs": [],
     "turns": [
       {
         "query": "What documents do I usually need to apply for an apartment?",
-        "expect": { "tool": [], "show_card": false, "grounding": "none", "judge": false }
+        "expect": { "tool": [], "grounding": "none", "judge": false }
       }
     ]
   }

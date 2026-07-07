@@ -50,9 +50,9 @@ describe('isolation — at least one scenario exercises each hard criterion prim
     expect(allTurns.some((t) => t.expect.grounding === 'listing_fields')).toBe(true);
   });
 
-  it('show_card: both true and false expectations are exercised', () => {
+  it('show_card: pinned true only where the query removes model discretion (pick-for-me-02); every other turn is left unset (adjudicated live-run fix — pinning flipped 3/3 on archived-exclusion)', () => {
     expect(allTurns.some((t) => t.expect.show_card === true)).toBe(true);
-    expect(allTurns.some((t) => t.expect.show_card === false)).toBe(true);
+    expect(allTurns.filter((t) => t.expect.show_card === undefined).length).toBeGreaterThan(1);
   });
 
   it('archived-exclusion bucket scenarios reference the archived seed row (fabricated-ids isolation)', () => {

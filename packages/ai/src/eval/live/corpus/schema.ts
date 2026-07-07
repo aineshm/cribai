@@ -32,8 +32,15 @@ const GROUNDING_MODES = ['ranked_ids', 'listing_fields', 'none'] as const;
 export type GroundingModeName = (typeof GROUNDING_MODES)[number];
 
 export const liveTurnExpectationSchema = z.object({
-  /** Ordered exact tool-call sequence expected this turn. Empty = no CRM tool call expected. */
+  /**
+   * Required tool names that must appear, in this relative order, within the
+   * turn's actual tool-call sequence (subsequence/containment match — extra
+   * tools are always allowed and never fail the check; see
+   * `checks/tool-expectation.ts`). Empty = no requirement.
+   */
   tool: z.array(z.string()).default([]),
+  /** Tool names that must never appear this turn, regardless of `tool`. Absent = no forbidden-tool constraint. */
+  forbiddenTools: z.array(z.string()).optional(),
   /** The `show_card` contract for this turn's machineData, if any CRM tool fires. */
   show_card: z.boolean().optional(),
   grounding: z.enum(GROUNDING_MODES).default('none'),

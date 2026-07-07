@@ -141,6 +141,7 @@ async function runOneTurn(args: {
     events: result.events,
     httpStatus: result.httpStatus,
     expectedTools: turn.expect.tool,
+    forbiddenTools: turn.expect.forbiddenTools,
     knownIds,
     groundingMode: turn.expect.grounding,
     truthByListingId,
