@@ -33,7 +33,17 @@ import type {
   CompareRow,
   CrmListingRow,
   InferredProfile,
+  FloorPlan,
 } from './types';
+import { DEEP_EXTRACT_ALIAS } from './types';
+// AIN-99 Task 2: reuse the SAME deep_extract → {floorPlans, priceIsFrom}
+// parser saved-list-context.ts already uses (Task 1) — one parser, no third
+// copy of the malformed-JSONB-degrades-safely logic.
+import { parseDeepExtractFloorPlans } from './saved-list-context';
+// sanitizePlanName is deliberately NOT re-exported from the extraction
+// barrel (see that module's own header) — imported by path, same precedent
+// as saved-list-context.ts and the crm-deep-extract mission.
+import { sanitizePlanName } from '../extraction/floor-plan';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -76,7 +86,9 @@ export async function rankCompare(
   // Phase 1 commute is neutral so coords aren't selected.
   const listingsResult = await (db
     .from('crm_listings')
-    .select('id, title, nickname, rent, bedrooms, bathrooms, sqft, amenities, status')
+    .select(
+      `id, title, nickname, rent, bedrooms, bathrooms, sqft, amenities, status, ${DEEP_EXTRACT_ALIAS}`,
+    )
     .eq('user_id', userId) as unknown as Promise<{ data: CrmListingRow[] | null; error: unknown }>);
 
   const { data: rawRows, error: listingsError } = listingsResult;
@@ -436,15 +448,55 @@ function buildCompareResult(
     matchedRows = rows;
   }
 
-  const compareRows: readonly CompareRow[] = matchedRows.map((r) => ({
-    listingId: r.id,
-    title: r.nickname ?? r.title ?? '',
-    rent: r.rent,
-    bedrooms: r.bedrooms,
-    bathrooms: r.bathrooms,
-    sqft: r.sqft,
-    amenities: r.amenities ?? [],
-  }));
+  const compareRows: readonly CompareRow[] = matchedRows.map((r) => {
+    const { floorPlans, priceIsFrom } = parseDeepExtractFloorPlans(r.deep_extract);
+    return {
+      listingId: r.id,
+      title: r.nickname ?? r.title ?? '',
+      rent: r.rent,
+      bedrooms: r.bedrooms,
+      bathrooms: r.bathrooms,
+      sqft: r.sqft,
+      amenities: r.amenities ?? [],
+      floorPlanSummary: buildFloorPlanSummary(floorPlans),
+      priceIsFrom,
+    };
+  });
 
   return { mode: 'compare', rows: compareRows };
+}
+
+/**
+ * Max floor plans folded into a CompareRow's compact summary string.
+ * Distinct from — and intentionally lower-detail than —
+ * `saved-list-context.ts`'s per-listing block line: this summary feeds the
+ * comparison TABLE's modelContext, not the full saved-list narrative.
+ */
+const COMPARE_FLOOR_PLAN_SUMMARY_CAP = 8;
+
+/**
+ * Build a compact, sanitized floor-plan summary for a building-level
+ * CompareRow, e.g. "Studio from $1,050, 1BR from $1,300 (+2 more plans)".
+ * `null` for a plain (non-building) row with no floor plans — never drop a
+ * plan that has no price (AIN-83 sentinel lesson): a null rent_min plan
+ * still contributes its name, just no "from $".
+ *
+ * Adapted from the crm_deep_extract mission's `buildFloorPlanDescription`
+ * (missions/crm-deep-extract/steps/04-update-row.ts) — same "name + from $
+ * price" idiom, capped and sanitized for prompt injection (third-party page
+ * content), and reusing `sanitizePlanName` rather than a third copy.
+ */
+function buildFloorPlanSummary(plans: readonly FloorPlan[]): string | null {
+  if (plans.length === 0) return null;
+
+  const shown = plans.slice(0, COMPARE_FLOOR_PLAN_SUMMARY_CAP);
+  const remainder = plans.length - shown.length;
+  const parts = shown.map((p) => {
+    const name = sanitizePlanName(p.name);
+    const price = p.rent_min != null ? ` from $${p.rent_min.toLocaleString('en-US')}` : '';
+    return `${name}${price}`;
+  });
+  const remainderSuffix = remainder > 0 ? ` (+${remainder} more plans)` : '';
+
+  return `${parts.join(', ')}${remainderSuffix}`;
 }

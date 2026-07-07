@@ -60,6 +60,8 @@ const COMPARE: RankCompareResult = {
       bathrooms: 1,
       sqft: 880,
       amenities: ['Dishwasher'],
+      floorPlanSummary: null,
+      priceIsFrom: false,
     },
   ],
 };

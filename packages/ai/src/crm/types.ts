@@ -327,6 +327,19 @@ export interface CompareRow {
   readonly bathrooms: number | null;
   readonly sqft: number | null;
   readonly amenities: readonly string[];
+  /**
+   * Compact, sanitized summary of `deep_extract.floor_plans` for a
+   * building-level save (AIN-99 Task 2) — e.g. "Studio from $1,050, 1BR from
+   * $1,300 (+2 more plans)". `null` when the listing has no floor plans (a
+   * normal single-unit save). Never the full plan list — see
+   * `rank-compare.ts`'s `buildFloorPlanSummary`.
+   */
+  readonly floorPlanSummary: string | null;
+  /**
+   * Mirrors `deep_extract.price_is_from` — true when `rent` is the cheapest
+   * floor plan's price, not a single fixed rent. Defaults `false`.
+   */
+  readonly priceIsFrom: boolean;
 }
 
 /** Discriminated result of rankCompare. */
