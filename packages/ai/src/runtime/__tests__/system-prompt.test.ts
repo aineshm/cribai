@@ -480,6 +480,28 @@ describe('buildSystemPrompt — savedListContext (AIN-91)', () => {
     truncatedCount: 0,
   };
 
+  // AIN-99 Task 4: same fixture shape, but with floor plans — extends
+  // SAMPLE_CONTEXT rather than replacing it so the pre-AIN-99 no-plans
+  // assertions above stay meaningful (a no-plans listing must keep working).
+  const SAMPLE_CONTEXT_WITH_FLOOR_PLANS: SavedListContext = {
+    listings: [
+      {
+        id: SAVED_LISTING_ID,
+        nickname: 'EO Madison Yards',
+        title: 'Building save',
+        address: '123 University Ave, Madison WI',
+        rent: 1050,
+        status: 'active',
+        priceIsFrom: true,
+        floorPlans: [
+          { name: 'Studio', bedrooms: 0, bathrooms: 1, rent_min: 1050, rent_max: null, sqft: 410, availability: 'Available now' },
+          { name: '2 Bed 2 Bath', bedrooms: 2, bathrooms: 2, rent_min: 1800, rent_max: 1900, sqft: 1020, availability: 'Waitlist' },
+        ],
+      },
+    ],
+    truncatedCount: 0,
+  };
+
   it('includes the saved-listing block in dynamicSuffix for crm when context is provided', () => {
     const { dynamicSuffix } = buildSystemPrompt(baseState(), ALICE, {
       surface: 'crm',
@@ -487,6 +509,26 @@ describe('buildSystemPrompt — savedListContext (AIN-91)', () => {
     });
     expect(dynamicSuffix).toContain(SAVED_LISTING_ID);
     expect(dynamicSuffix).toContain('The Gorham Loft');
+  });
+
+  it('AIN-99: dynamicSuffix for crm renders the floor-plans line when the context carries plans', () => {
+    const { dynamicSuffix } = buildSystemPrompt(baseState(), ALICE, {
+      surface: 'crm',
+      savedListContext: SAMPLE_CONTEXT_WITH_FLOOR_PLANS,
+    });
+    expect(dynamicSuffix).toContain('EO Madison Yards');
+    expect(dynamicSuffix).toContain('from $1050/mo'); // top-level priceIsFrom prefix
+    expect(dynamicSuffix).toContain('floor plans');
+    expect(dynamicSuffix).toContain('Studio');
+    expect(dynamicSuffix).toContain('$1,800');
+  });
+
+  it('AIN-99: explore dynamicSuffix omits the floor-plans block even when the context carries plans', () => {
+    const { dynamicSuffix } = buildSystemPrompt(baseState(), ALICE, {
+      savedListContext: SAMPLE_CONTEXT_WITH_FLOOR_PLANS,
+    });
+    expect(dynamicSuffix).not.toContain('EO Madison Yards');
+    expect(dynamicSuffix).not.toContain('floor plans');
   });
 
   it('omits the block for the explore surface even when savedListContext is provided', () => {
@@ -518,5 +560,35 @@ describe('buildSystemPrompt — savedListContext (AIN-91)', () => {
       savedListContext: SAMPLE_CONTEXT,
     }).cachedPrefix;
     expect(exploreWith).toBe(exploreWithout);
+  });
+
+  it('AIN-99 Task 4: cachedPrefix stays byte-identical even when savedListContext carries floor plans, on BOTH surfaces', () => {
+    const crmWithout = buildSystemPrompt(baseState(), ALICE, { surface: 'crm' }).cachedPrefix;
+    const crmWithFloorPlans = buildSystemPrompt(baseState(), ALICE, {
+      surface: 'crm',
+      savedListContext: SAMPLE_CONTEXT_WITH_FLOOR_PLANS,
+    }).cachedPrefix;
+    expect(crmWithFloorPlans).toBe(crmWithout);
+
+    const exploreWithout = buildSystemPrompt(baseState(), ALICE, {}).cachedPrefix;
+    const exploreWithFloorPlans = buildSystemPrompt(baseState(), ALICE, {
+      savedListContext: SAMPLE_CONTEXT_WITH_FLOOR_PLANS,
+    }).cachedPrefix;
+    expect(exploreWithFloorPlans).toBe(exploreWithout);
+  });
+
+  it('AIN-99 Task 4: the explore-surface dynamic-suffix snapshots (no-selection/selected/compare/pending/guest) stay untouched by this CRM-only change', () => {
+    // Re-assert the exact snapshot-backed assertions from the "dynamic
+    // suffix" describe block above still hold — this wave only ever adds
+    // content to the CRM surface's savedListContext block, never to explore.
+    const noSelection = buildSystemPrompt(baseState(), ALICE).dynamicSuffix;
+    expect(noSelection).not.toContain('floor plans');
+    expect(noSelection).not.toContain("USER'S SAVED LISTINGS");
+
+    const selected = buildSystemPrompt(withSelection(LISTING_A), ALICE).dynamicSuffix;
+    expect(selected).not.toContain('floor plans');
+
+    const guest = buildSystemPrompt(baseState(), EMPTY_PROFILE_SNIPPET, { isGuest: true }).dynamicSuffix;
+    expect(guest).not.toContain('floor plans');
   });
 });
