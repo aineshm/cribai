@@ -384,6 +384,21 @@ describe('AIN-24 — campusName is a trust boundary (sanitized before interpolat
 // ---------------------------------------------------------------------------
 
 describe('CRM surface prompt', () => {
+  it('CRM cachedPrefix stays under the 6k-token budget (codex A3 — CRM-surface pin, AIN-99 review fix)', () => {
+    // The 6k-token budget pin above only covered the explore surface — the
+    // CRM surface builds a DIFFERENT cachedPrefix (excluded tools, swapped
+    // persona workflow, AIN-100 RULE #1 additions) that was never itself
+    // checked against the shared cache-prefix budget. Mirrors the explore
+    // pin's estimateTokens idiom and bound exactly.
+    const { cachedPrefix } = buildSystemPrompt(baseState(), ALICE, { surface: 'crm' });
+    const tokens = estimateTokens(cachedPrefix);
+    // eslint-disable-next-line no-console
+    console.log(
+      `[system-prompt] CRM cachedPrefix length=${cachedPrefix.length} chars ~= ${tokens} tokens`,
+    );
+    expect(tokens).toBeLessThanOrEqual(6000);
+  });
+
   it('CRM cachedPrefix omits the 4 excluded tools and search-first RULE #1', () => {
     const { cachedPrefix } = buildSystemPrompt(baseState(), ALICE, { surface: 'crm' });
     expect(cachedPrefix).not.toContain('### search_listings');

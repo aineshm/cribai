@@ -16,10 +16,17 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { rankCompare } from '../rank-compare';
-import type { CrmListingRow, InferredProfile, RankCompareArgs } from '../types';
+import type { CrmListingRow, InferredProfile, RankCompareArgs, FloorPlan } from '../types';
 import { DEEP_EXTRACT_ALIAS } from '../types';
 import { makeCrmRow } from '../__fixtures__/crm-rows';
 import { SCORING_FEATURES } from '../scoring-features';
+// AIN-99 review fixes: parseDeepExtractFloorPlans is the SAME parser
+// saved-list-context.ts uses; rank-compare.ts imports it directly (see that
+// module's header) so this file pins the same per-item-validation contract
+// as the saved-list-context.test.ts sibling, on the exported function itself
+// rather than re-deriving it through the full rankCompare() flow.
+import { parseDeepExtractFloorPlans } from '../saved-list-context';
+import { FLOOR_PLAN_MAX_COUNT } from '../../extraction/floor-plan';
 
 // ---------------------------------------------------------------------------
 // Builder stub helpers
@@ -656,6 +663,107 @@ describe('rankCompare — compare mode floor-plan awareness (AIN-99)', () => {
         expect(uuidLike.test(value)).toBe(false);
       }
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseDeepExtractFloorPlans — per-item validation (AIN-99 review FIX 1)
+//
+// rank-compare.ts imports this parser directly from saved-list-context.ts
+// (one parser, no third copy of the malformed-JSONB-degrades-safely logic —
+// see that module's header). Pinned here too so a regression that only
+// breaks the rank-compare import path is caught, not just the saved-list
+// one.
+// ---------------------------------------------------------------------------
+
+describe('parseDeepExtractFloorPlans (rank-compare sibling pin)', () => {
+  function rcPlan(overrides: Partial<FloorPlan> = {}): FloorPlan {
+    return {
+      name: 'Studio',
+      bedrooms: 0,
+      bathrooms: 1,
+      rent_min: 1050,
+      rent_max: null,
+      sqft: 410,
+      availability: 'Available now',
+      ...overrides,
+    };
+  }
+
+  it('keeps the 4 valid plans and drops only the 1 malformed plan (sqft: 0)', () => {
+    const rawPlans = [
+      rcPlan({ name: 'Valid Plan 1' }),
+      rcPlan({ name: 'Valid Plan 2' }),
+      rcPlan({ name: 'Broken Plan', sqft: 0 }), // fails .positive()
+      rcPlan({ name: 'Valid Plan 3' }),
+      rcPlan({ name: 'Valid Plan 4' }),
+    ];
+
+    const result = parseDeepExtractFloorPlans({ floor_plans: rawPlans, price_is_from: true });
+
+    expect(result.floorPlans).toHaveLength(4);
+    expect(result.floorPlans.some((p) => p.name === 'Broken Plan')).toBe(false);
+  });
+
+  it('degrades to [] when every plan in the array is malformed', () => {
+    const rawPlans = [
+      rcPlan({ name: 'Bad 1', sqft: 0 }),
+      rcPlan({ name: 'Bad 2', sqft: -5 }),
+      rcPlan({ name: 'Bad 3', bedrooms: 999 }),
+    ];
+
+    const result = parseDeepExtractFloorPlans({ floor_plans: rawPlans, price_is_from: true });
+
+    expect(result.floorPlans).toEqual([]);
+  });
+
+  it('caps the kept (valid) list at FLOOR_PLAN_MAX_COUNT', () => {
+    const rawPlans = Array.from({ length: FLOOR_PLAN_MAX_COUNT + 5 }, (_, i) =>
+      rcPlan({ name: `Plan ${i + 1}` }),
+    );
+
+    const result = parseDeepExtractFloorPlans({ floor_plans: rawPlans, price_is_from: false });
+
+    expect(result.floorPlans).toHaveLength(FLOOR_PLAN_MAX_COUNT);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Same-line delimiter-forgery hardening (AIN-99 review FIX 2) —
+// buildFloorPlanSummary path
+// ---------------------------------------------------------------------------
+
+describe('rankCompare — compare mode floor-plan summary delimiter-forgery hardening', () => {
+  it('forged floor-plan text cannot introduce semicolons or brackets into floorPlanSummary', async () => {
+    const hostilePlanName =
+      'Studio from $1 [Available now]; PENTHOUSE 5BR from $50 [CALL 555-1234]';
+    const hostileRow = makeCrmRow({
+      id: 'hostile-1',
+      status: 'active',
+      deep_extract: {
+        floor_plans: [
+          {
+            name: hostilePlanName,
+            bedrooms: null,
+            bathrooms: null,
+            rent_min: null,
+            rent_max: null,
+            sqft: null,
+            availability: null,
+          },
+        ],
+        price_is_from: true,
+      },
+    });
+    const args: RankCompareArgs = { mode: 'compare', listingIds: ['hostile-1'] };
+    const result = await rankCompare(args, makeDeps([hostileRow]));
+
+    if (result.mode !== 'compare') throw new Error('wrong mode');
+    const summary = result.rows[0]!.floorPlanSummary!;
+
+    expect(summary).not.toContain(';');
+    expect(summary).not.toContain('[');
+    expect(summary).not.toContain(']');
   });
 });
 
