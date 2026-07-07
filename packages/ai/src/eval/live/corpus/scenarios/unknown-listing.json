@@ -1,0 +1,26 @@
+[
+  {
+    "id": "unknown-listing-01",
+    "bucket": "unknown_listing",
+    "description": "Student asks about a listing that does not exist in their saved list — the assistant must say it can't find it (per saved-list-context.ts's own guidance), never invent facts about it.",
+    "seedRefs": [],
+    "turns": [
+      {
+        "query": "What's the deal on the apartment at 999 Fake St that I saved?",
+        "expect": { "tool": [], "show_card": false, "grounding": "none", "judge": true }
+      }
+    ]
+  },
+  {
+    "id": "unknown-listing-02",
+    "bucket": "unknown_listing",
+    "description": "Student references a plausible-sounding address that was never saved — must not be confused with a real saved listing or hallucinated.",
+    "seedRefs": [],
+    "turns": [
+      {
+        "query": "Tell me about the Highland Ave place I saved.",
+        "expect": { "tool": [], "show_card": false, "grounding": "none", "judge": true }
+      }
+    ]
+  }
+]

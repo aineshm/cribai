@@ -1,0 +1,26 @@
+[
+  {
+    "id": "what-to-ask-landlord-01",
+    "bucket": "what_to_ask_landlord",
+    "description": "Student asks what to ask the landlord before signing for a specific saved listing — a general-knowledge prose answer grounded in that listing's context, no CRM tool needed.",
+    "seedRefs": ["twobed_basic"],
+    "turns": [
+      {
+        "query": "What should I ask the landlord before signing for the Dayton Street place?",
+        "expect": { "tool": [], "show_card": false, "grounding": "none", "judge": true }
+      }
+    ]
+  },
+  {
+    "id": "what-to-ask-landlord-02",
+    "bucket": "what_to_ask_landlord",
+    "description": "Student asks what to check before touring a specific saved group house.",
+    "seedRefs": ["fourbed"],
+    "turns": [
+      {
+        "query": "What should I ask about or check before touring the Mifflin Street 4BR?",
+        "expect": { "tool": [], "show_card": false, "grounding": "none", "judge": true }
+      }
+    ]
+  }
+]

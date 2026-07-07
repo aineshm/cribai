@@ -1,0 +1,26 @@
+[
+  {
+    "id": "pick-for-me-01",
+    "bucket": "pick_for_me",
+    "description": "Student asks the assistant to pick one saved listing for them out of the full saved list.",
+    "seedRefs": ["studio", "onebed", "twobed_basic", "twobed_nice", "threebed", "fourbed", "building"],
+    "turns": [
+      {
+        "query": "Out of everything I've saved, which one should I pick?",
+        "expect": { "tool": ["rank_compare"], "show_card": true, "grounding": "ranked_ids", "judge": true }
+      }
+    ]
+  },
+  {
+    "id": "pick-for-me-02",
+    "bucket": "pick_for_me",
+    "description": "Student asks for a best-to-worst ranking of the saved list for themselves.",
+    "seedRefs": ["studio", "onebed", "twobed_basic", "twobed_nice", "threebed", "fourbed", "building"],
+    "turns": [
+      {
+        "query": "Rank my saved places from best to worst for me and tell me your top pick.",
+        "expect": { "tool": ["rank_compare"], "show_card": true, "grounding": "ranked_ids", "judge": true }
+      }
+    ]
+  }
+]

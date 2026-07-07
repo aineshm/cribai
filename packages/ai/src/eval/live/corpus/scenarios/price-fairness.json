@@ -1,0 +1,26 @@
+[
+  {
+    "id": "price-fairness-01",
+    "bucket": "price_fairness",
+    "description": "Student asks whether one specific saved listing (by address) is fairly priced. Answerable from the saved-list system-prompt context alone — no tool call expected.",
+    "seedRefs": ["twobed_basic"],
+    "turns": [
+      {
+        "query": "Is 523 W Dayton St a fair price for a 2 bedroom?",
+        "expect": { "tool": [], "show_card": false, "grounding": "none", "judge": true }
+      }
+    ]
+  },
+  {
+    "id": "price-fairness-02",
+    "bucket": "price_fairness",
+    "description": "Student asks whether one saved listing is overpriced RELATIVE to their other saved listings — a comparison, so rank_compare(compare) is the expected tool.",
+    "seedRefs": ["twobed_nice", "twobed_basic"],
+    "turns": [
+      {
+        "query": "Is the Regent Flats overpriced compared to my other 2-bedroom?",
+        "expect": { "tool": ["rank_compare"], "show_card": true, "grounding": "listing_fields", "judge": true }
+      }
+    ]
+  }
+]

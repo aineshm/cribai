@@ -1,0 +1,26 @@
+[
+  {
+    "id": "floor-plan-questions-01",
+    "bucket": "floor_plan_questions",
+    "description": "Student asks about the full floor-plan lineup at the saved BUILDING-page listing (AIN-83 deep_extract data). No current CRM tool surfaces raw floor_plans for an already-saved building row (only the add_listing post-save read-back does) — this scenario probes whether the assistant fabricates specifics it can't actually see versus answering honestly from what IS in context (nickname/address/rent only).",
+    "seedRefs": ["building"],
+    "turns": [
+      {
+        "query": "What floor plans are available at EO Madison Yards, and what's the price range across them?",
+        "expect": { "tool": [], "show_card": false, "grounding": "none", "judge": true }
+      }
+    ]
+  },
+  {
+    "id": "floor-plan-questions-02",
+    "bucket": "floor_plan_questions",
+    "description": "Student asks for a specific floor plan's size at the saved BUILDING-page listing — same fabrication-risk probe as floor-plan-questions-01.",
+    "seedRefs": ["building"],
+    "turns": [
+      {
+        "query": "How big is the 2-bedroom floor plan at EO Madison Yards?",
+        "expect": { "tool": [], "show_card": false, "grounding": "none", "judge": true }
+      }
+    ]
+  }
+]

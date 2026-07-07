@@ -1,0 +1,34 @@
+[
+  {
+    "id": "just-saved-followup-01",
+    "bucket": "just_saved_followup",
+    "description": "OPERATIONAL CAVEAT: turn 1 pastes a real external listing URL and depends on it still being live/parseable at run time — verify/replace this URL before each live run (add_listing does a REAL fetch; there is no fixture injection through the chat API). Turn 2 asks a grounded follow-up about the listing just saved (AIN-91 pattern). The row created by turn 1 must be deleted by the runner after this scenario completes.",
+    "seedRefs": [],
+    "turns": [
+      {
+        "query": "Save this listing for me: https://www.apartments.com/madison-wi/",
+        "expect": { "tool": ["add_listing"], "show_card": true, "grounding": "none", "judge": false }
+      },
+      {
+        "query": "Is the place I just saved a good deal?",
+        "expect": { "tool": [], "show_card": false, "grounding": "none", "judge": true }
+      }
+    ]
+  },
+  {
+    "id": "just-saved-followup-02",
+    "bucket": "just_saved_followup",
+    "description": "OPERATIONAL CAVEAT: same URL-freshness caveat as just-saved-followup-01 — verify/replace the URL before each live run. Turn 2 asks for a rent breakdown of the just-saved listing.",
+    "seedRefs": [],
+    "turns": [
+      {
+        "query": "Add this to my saved list: https://www.zillow.com/apartments/madison-wi/",
+        "expect": { "tool": ["add_listing"], "show_card": true, "grounding": "none", "judge": false }
+      },
+      {
+        "query": "What's the rent breakdown for what I just saved?",
+        "expect": { "tool": [], "show_card": false, "grounding": "none", "judge": true }
+      }
+    ]
+  }
+]

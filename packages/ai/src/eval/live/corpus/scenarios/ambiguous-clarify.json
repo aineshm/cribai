@@ -1,0 +1,26 @@
+[
+  {
+    "id": "ambiguous-clarify-01",
+    "bucket": "ambiguous_clarify",
+    "description": "Student references 'my place' with no listing specified while 7 active listings are saved — expects a clarifying question, not a guess at a specific listing's deposit.",
+    "seedRefs": ["studio", "onebed", "twobed_basic", "twobed_nice", "threebed", "fourbed", "building"],
+    "turns": [
+      {
+        "query": "What's the security deposit on my place?",
+        "expect": { "tool": [], "show_card": false, "grounding": "none", "judge": true }
+      }
+    ]
+  },
+  {
+    "id": "ambiguous-clarify-02",
+    "bucket": "ambiguous_clarify",
+    "description": "Student references a listing by a shared attribute (dishwasher) that matches 3 different saved listings — expects clarification, not a guess at which one.",
+    "seedRefs": ["onebed", "twobed_nice", "fourbed"],
+    "turns": [
+      {
+        "query": "Can you tell me more about the listing with the dishwasher?",
+        "expect": { "tool": [], "show_card": false, "grounding": "none", "judge": true }
+      }
+    ]
+  }
+]
