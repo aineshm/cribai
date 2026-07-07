@@ -15,10 +15,11 @@
  * — the harness NEVER touches a row outside that fixture namespace, so a
  * real saved listing the account owns is never at risk.
  *
- * Run via: `pnpm eval:live -- seed|check|cleanup` (see `run-live-eval.ts`
- * for the combined `pnpm eval:live` entry, which calls `seed` implicitly
- * as a preflight — this file is also directly invocable for standalone
- * seed maintenance).
+ * Run via: `pnpm eval:live:seed -- seed|check|cleanup`. `pnpm eval:live`
+ * (`run-live-eval.ts`) does NOT call `seed` automatically — it only CHECKS
+ * that the fixture is already seeded (`resolveSeedListingIds`) and throws
+ * with this command if it isn't. Seeding is a deliberate, separate step so a
+ * live run never silently wipes/reseeds the fixture mid-flight.
  */
 
 import { pathToFileURL } from 'node:url';
@@ -60,6 +61,23 @@ export async function wipeFixtureRows(
     throw new Error(`AIN-93 seed-cli: wipe failed: ${error.message}`);
   }
   return count ?? 0;
+}
+
+/**
+ * Delete crm_listings rows created DURING a scenario run (e.g. an
+ * `add_listing` turn's new row in the just-saved-followup scenarios) by id.
+ * Scoped to `id IN (...)` only — never a status/user-wide delete — so it
+ * can't reach anything but the exact rows the run itself created.
+ */
+export async function deleteCrmListingsByIds(
+  supabase: SupabaseClient,
+  ids: readonly string[],
+): Promise<void> {
+  if (ids.length === 0) return;
+  const { error } = await supabase.from('crm_listings').delete().in('id', ids);
+  if (error) {
+    console.warn(`[ain93] failed to delete run-created crm_listings rows ${ids.join(', ')}: ${error.message}`);
+  }
 }
 
 function keyFromSourceUrl(sourceUrl: unknown): SeedListingKey | null {

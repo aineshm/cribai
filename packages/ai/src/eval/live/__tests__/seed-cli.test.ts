@@ -12,6 +12,7 @@ import {
   fetchFixtureRows,
   resolveSeedListingIds,
   diffSeedRow,
+  deleteCrmListingsByIds,
 } from '../seed-cli';
 import { SEED_LISTING_KEYS, SEED_LISTINGS, FIXTURE_URL_PREFIX } from '../seed-truth';
 
@@ -132,6 +133,34 @@ describe('fetchFixtureRows / resolveSeedListingIds', () => {
     }));
 
     await expect(resolveSeedListingIds(supabase, 'user-1')).rejects.toThrow(/archived/);
+  });
+});
+
+describe('deleteCrmListingsByIds', () => {
+  it('deletes by id list, scoped to IN (...) only', async () => {
+    const inSpy = vi.fn().mockResolvedValue({ error: null });
+    const deleteSpy = vi.fn().mockReturnValue({ in: inSpy });
+    const supabase = fakeSupabase((table) => {
+      expect(table).toBe('crm_listings');
+      return { delete: deleteSpy };
+    });
+
+    await deleteCrmListingsByIds(supabase, ['id-1', 'id-2']);
+
+    expect(inSpy).toHaveBeenCalledWith('id', ['id-1', 'id-2']);
+  });
+
+  it('is a no-op for an empty id list (no DB call)', async () => {
+    const supabase = fakeSupabase(() => ({ delete: vi.fn() }));
+    await deleteCrmListingsByIds(supabase, []);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('never throws — logs a warning on delete failure', async () => {
+    const supabase = fakeSupabase(() => ({
+      delete: vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ error: { message: 'nope' } }) }),
+    }));
+    await expect(deleteCrmListingsByIds(supabase, ['id-1'])).resolves.toBeUndefined();
   });
 });
 
