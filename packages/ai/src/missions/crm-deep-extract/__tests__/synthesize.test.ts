@@ -339,6 +339,59 @@ describe('synthesize step', () => {
     });
   });
 
+  // -------------------------------------------------------------------------
+  // AIN-83 live-proof finding: the Trinity Place mission's LLM call failed
+  // and the fallback fields never ran applyFloorPlanTopLevel, so top-level
+  // bedrooms/sqft stayed null even though the persisted floor_plans carried
+  // them (rent happened to already match via buildBaselineFromPages, masking
+  // the gap). Every path that produces the step's final `fields` must derive
+  // top-level rent/bedrooms/bathrooms/sqft from the cheapest floor plan.
+  // -------------------------------------------------------------------------
+  describe('cheapest-plan derivation on LLM-failure paths (AIN-83 live-proof fix)', () => {
+    const BASELINE_PLANS = [
+      { name: 'A11', bedrooms: 2, bathrooms: 1, rent_min: 1819, rent_max: 2118, sqft: 900 },
+      { name: 'S1', bedrooms: 0, bathrooms: 1, rent_min: 2200, rent_max: 2200, sqft: 547 },
+    ];
+
+    it('derives top-level bedrooms/sqft from the cheapest baseline plan when the LLM call throws', async () => {
+      const stubGenerate = vi.fn().mockRejectedValue(new Error('provider error'));
+      const { synthesizeStep } = await import('../steps/03-synthesize');
+
+      const pages = [
+        { url: 'https://www.zillow.com/apartments/x/', fields: { floor_plans: BASELINE_PLANS }, textExcerpt: '' },
+      ];
+      const ctx = makeCtx(pages);
+      (ctx.input as Record<string, unknown>).generate = stubGenerate;
+
+      const result = await synthesizeStep.run(ctx);
+      const f = result.output.fields as Record<string, unknown>;
+
+      expect(f.rent).toBe(1819);
+      expect(f.bedrooms).toBe(2);
+      expect(f.sqft).toBe(900);
+    });
+
+    it('derives top-level bedrooms/sqft from the cheapest baseline plan when the LLM output fails schema parse', async () => {
+      // Garbage shape: `rent` is a string, `bedrooms` exceeds the schema max —
+      // DeepExtractSchema.safeParse must fail, leaving `fields` at the baseline.
+      const stubGenerate = vi.fn().mockResolvedValue({ rent: 'not-a-number', bedrooms: 999 });
+      const { synthesizeStep } = await import('../steps/03-synthesize');
+
+      const pages = [
+        { url: 'https://www.zillow.com/apartments/x/', fields: { floor_plans: BASELINE_PLANS }, textExcerpt: 'plans' },
+      ];
+      const ctx = makeCtx(pages);
+      (ctx.input as Record<string, unknown>).generate = stubGenerate;
+
+      const result = await synthesizeStep.run(ctx);
+      const f = result.output.fields as Record<string, unknown>;
+
+      expect(f.rent).toBe(1819);
+      expect(f.bedrooms).toBe(2);
+      expect(f.sqft).toBe(900);
+    });
+  });
+
   // AIN-75 Task 4: no-op on empty pages (blocked crawl path)
   it('returns empty fields without calling LLM when pages is empty (blocked crawl path)', async () => {
     const mockGenerate = vi.fn().mockResolvedValue(FIXTURE_STANDARD);

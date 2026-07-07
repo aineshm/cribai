@@ -234,8 +234,16 @@ export const synthesizeStep: MissionStep = {
 
     // AIN-81: the structured json_ld/OG extraction from crawl_source is the
     // baseline. The LLM augments it; on LLM failure the baseline still ships.
+    //
+    // AIN-83 live-proof fix: `applyFloorPlanTopLevel` must run here too, not
+    // just on the parse-success path below. Both the catch path (LLM threw)
+    // and the parse-failure path (schema safeParse failed) fall through to
+    // this `fields` value unchanged — without the derivation, a baseline that
+    // carries floor_plans but no top-level bedrooms/sqft (e.g. crawl_source
+    // only populated floor_plans) ships nulls even though a persisted plan
+    // has the answer. No-op when there are no floor_plans.
     const baseline = buildBaselineFromPages(pages);
-    let fields: DeepExtract = baseline;
+    let fields: DeepExtract = applyFloorPlanTopLevel(baseline);
 
     try {
       const raw = await generate({

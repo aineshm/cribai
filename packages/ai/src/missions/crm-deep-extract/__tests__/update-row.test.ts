@@ -424,6 +424,140 @@ describe('update_row step', () => {
     expect(result.output.floorPlanCount).toBe(2);
   });
 
+  // AIN-83 live-proof finding: the cheapest-plan bedrooms/bathrooms/sqft
+  // backfill was gated on `computedMin < effectiveRent`, which is FALSE in
+  // the normal deterministic case where the baseline rent is already the
+  // cheapest plan's price (they're the same number — synthesize derives one
+  // from the other). That left bedrooms/bathrooms/sqft null on a fresh row
+  // even though the winning floor plan had the answer. The backfill must run
+  // whenever floorPlans is non-empty, independent of the rent comparison,
+  // and must still respect fill-gaps (never overwrite an existing value).
+  it('backfills bedrooms/bathrooms/sqft from the cheapest plan even when its rent equals the synthesized rent', async () => {
+    let capturedUpdatePayload: Record<string, unknown> | null = null;
+    const supabase = {
+      from: vi.fn(() => ({
+        update: vi.fn((payload: Record<string, unknown>) => {
+          capturedUpdatePayload = payload;
+          return {
+            eq: vi.fn(() => ({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            })),
+          };
+        }),
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: {
+                  id: 'listing-1',
+                  rent: null, bedrooms: null, bathrooms: null, sqft: null,
+                  address: null, description: null, title: null,
+                  available_from: null, amenities: [], extraction_confidence: 0.3,
+                  raw_extraction: {},
+                },
+                error: null,
+              }),
+            })),
+          })),
+        })),
+      })),
+    };
+
+    const { updateRowStep } = await import('../steps/04-update-row');
+
+    const ctx = makeCtx(
+      {
+        pages: [{ url: 'https://www.zillow.com/apartments/x/', fields: {}, textExcerpt: '' }],
+        discarded: [],
+        latitude: null,
+        longitude: null,
+        fields: {
+          rent: 3693,
+          floor_plans: [
+            { name: 'S1', bedrooms: 1, bathrooms: 1, rent_min: 3693, rent_max: 3693, sqft: 437 },
+          ],
+        },
+      },
+      supabase as unknown as ReturnType<typeof makeSupabase>,
+    );
+
+    const result = await updateRowStep.run(ctx);
+
+    expect(result.output.updatedFields).toContain('bedrooms');
+    expect(result.output.updatedFields).toContain('bathrooms');
+    expect(result.output.updatedFields).toContain('sqft');
+
+    expect(capturedUpdatePayload).not.toBeNull();
+    expect(capturedUpdatePayload!['bedrooms']).toBe(1);
+    expect(capturedUpdatePayload!['bathrooms']).toBe(1);
+    expect(capturedUpdatePayload!['sqft']).toBe(437);
+  });
+
+  it('does not overwrite an existing bedrooms value with the cheapest-plan backfill (fill-gaps preserved)', async () => {
+    let capturedUpdatePayload: Record<string, unknown> | null = null;
+    const supabase = {
+      from: vi.fn(() => ({
+        update: vi.fn((payload: Record<string, unknown>) => {
+          capturedUpdatePayload = payload;
+          return {
+            eq: vi.fn(() => ({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            })),
+          };
+        }),
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: {
+                  id: 'listing-1',
+                  rent: null,
+                  bedrooms: 4, // existing non-null — must NOT be overwritten
+                  bathrooms: null,
+                  sqft: null,
+                  address: null,
+                  description: null,
+                  title: null,
+                  available_from: null,
+                  amenities: [],
+                  extraction_confidence: 0.3,
+                  raw_extraction: {},
+                },
+                error: null,
+              }),
+            })),
+          })),
+        })),
+      })),
+    };
+
+    const { updateRowStep } = await import('../steps/04-update-row');
+
+    const ctx = makeCtx(
+      {
+        pages: [{ url: 'https://www.zillow.com/apartments/x/', fields: {}, textExcerpt: '' }],
+        discarded: [],
+        latitude: null,
+        longitude: null,
+        fields: {
+          rent: 3693,
+          floor_plans: [
+            { name: 'S1', bedrooms: 1, bathrooms: 1, rent_min: 3693, rent_max: 3693, sqft: 437 },
+          ],
+        },
+      },
+      supabase as unknown as ReturnType<typeof makeSupabase>,
+    );
+
+    await updateRowStep.run(ctx);
+
+    expect(capturedUpdatePayload).not.toBeNull();
+    expect(capturedUpdatePayload!['bedrooms']).toBeUndefined();
+    // bathrooms/sqft were null on the row — those still fill.
+    expect(capturedUpdatePayload!['bathrooms']).toBe(1);
+    expect(capturedUpdatePayload!['sqft']).toBe(437);
+  });
+
   it('never overwrites non-null existing values (fill-gaps)', async () => {
     // Supabase returns a row with existing rent = 1350
     const updateMock = makeUpdateMock();
