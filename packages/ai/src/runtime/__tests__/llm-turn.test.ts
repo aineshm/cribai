@@ -672,6 +672,8 @@ const SAMPLE_SAVED_LIST_CONTEXT: SavedListContext = {
       address: '456 W Gorham St, Madison WI',
       rent: 1100,
       status: 'active',
+      floorPlans: [],
+      priceIsFrom: false,
     },
   ],
   truncatedCount: 0,

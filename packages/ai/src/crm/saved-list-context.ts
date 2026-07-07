@@ -37,7 +37,14 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { CrmListingRow } from './types';
+import type { CrmListingRow, FloorPlan } from './types';
+import { DEEP_EXTRACT_ALIAS } from './types';
+// AIN-99: sanitizePlanName + FloorPlansArraySchema live in extraction/floor-plan.ts
+// and are deliberately NOT re-exported from the extraction barrel (see that
+// module's own header) — crm-internal callers import them by path, same
+// precedent as the mission's buildFloorPlanDescription in
+// missions/crm-deep-extract/steps/04-update-row.ts.
+import { sanitizePlanName, FloorPlansArraySchema } from '../extraction/floor-plan';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -51,6 +58,15 @@ import type { CrmListingRow } from './types';
  * the model explicitly (see `renderSavedListingsBlock`).
  */
 export const PROMPT_CONTEXT_LISTING_CAP = 25;
+
+/**
+ * Max floor plans rendered per listing in the block (AIN-99). Distinct from
+ * `FLOOR_PLAN_MAX_COUNT` (extraction/floor-plan.ts, 40) — that's the storage
+ * cap; this is the prompt-rendering cap. A listing with more than this many
+ * plans gets an exact `(+K more plans)` remainder note, mirroring the
+ * block's own listing-level truncation idiom (see `truncatedCount`).
+ */
+export const FLOOR_PLANS_PER_LISTING_CAP = 8;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -68,6 +84,20 @@ export interface SavedListingSummary {
   readonly address: string | null;
   readonly rent: number | null;
   readonly status: CrmListingRow['status'];
+  /**
+   * Deterministic building-page floor-plan enrichment (AIN-83), surfaced into
+   * the prompt block (AIN-99) — CRM chat previously had no read path onto
+   * `deep_extract.floor_plans` at all. Always `[]` when the listing has no
+   * plans, the fetch degraded, or `deep_extract` is malformed/missing —
+   * never `null`/`undefined`, so callers never need an extra nullish check.
+   */
+  readonly floorPlans: readonly FloorPlan[];
+  /**
+   * Mirrors `deep_extract.price_is_from` — true when `rent` is the cheapest
+   * floor plan's price on a multi-unit building save, not a single fixed
+   * rent. Defaults `false` (never inferred true from malformed data).
+   */
+  readonly priceIsFrom: boolean;
 }
 
 /** Result of fetching the user's saved-listing prompt context. */
@@ -83,6 +113,72 @@ export interface SavedListContext {
 
 /** Empty context returned whenever the fetch degrades (never thrown). */
 const EMPTY_CONTEXT: SavedListContext = { listings: [], truncatedCount: 0 };
+
+/**
+ * Raw pre-mapping row shape returned by the select — id/nickname/title/
+ * address/rent/status plus the `DEEP_EXTRACT_ALIAS` subtree. Distinct from
+ * `SavedListingSummary`, which additionally carries the COMPUTED
+ * `floorPlans`/`priceIsFrom` fields (derived from `deep_extract` below, not
+ * selected directly).
+ */
+interface RawSavedListRow {
+  readonly id: string;
+  readonly nickname: string | null;
+  readonly title: string | null;
+  readonly address: string | null;
+  readonly rent: number | null;
+  readonly status: CrmListingRow['status'];
+  readonly deep_extract?: CrmListingRow['deep_extract'];
+}
+
+/**
+ * Parse `deep_extract` into `{ floorPlans, priceIsFrom }`, degrading to
+ * `{ floorPlans: [], priceIsFrom: false }` on ANY malformed shape — a bad
+ * JSONB blob (wrong type, out-of-range values, corrupt row) must never
+ * throw or fail the chat turn, and must never silently drop the field it
+ * can't parse (see `EMPTY_CONTEXT`'s same silent-failure contract). Uses
+ * `FloorPlansArraySchema` (the same schema the extraction/mission pipelines
+ * validate against) for defensive re-validation of untrusted DB content —
+ * `safeParse` never throws.
+ *
+ * Exported (not module-private): `rank-compare.ts` needs the identical
+ * `deep_extract` → `{floorPlans, priceIsFrom}` parse for its own compact
+ * plan-summary column (AIN-99 Task 2) — one parser, no third copy of the
+ * same malformed-JSONB-degrades-safely logic.
+ */
+export function parseDeepExtractFloorPlans(
+  deepExtract: CrmListingRow['deep_extract'],
+): { readonly floorPlans: readonly FloorPlan[]; readonly priceIsFrom: boolean } {
+  const rawPlans = deepExtract?.floor_plans;
+  if (!Array.isArray(rawPlans) || rawPlans.length === 0) {
+    return { floorPlans: [], priceIsFrom: false };
+  }
+
+  const parsed = FloorPlansArraySchema.safeParse(rawPlans);
+  if (!parsed.success) {
+    return { floorPlans: [], priceIsFrom: false };
+  }
+
+  return {
+    floorPlans: parsed.data,
+    priceIsFrom: deepExtract?.price_is_from === true,
+  };
+}
+
+/** Map a raw select row into the prompt-ready `SavedListingSummary`. */
+function toSavedListingSummary(row: RawSavedListRow): SavedListingSummary {
+  const { floorPlans, priceIsFrom } = parseDeepExtractFloorPlans(row.deep_extract);
+  return {
+    id: row.id,
+    nickname: row.nickname,
+    title: row.title,
+    address: row.address,
+    rent: row.rent,
+    status: row.status,
+    floorPlans,
+    priceIsFrom,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Fetch (I/O)
@@ -108,12 +204,14 @@ export async function fetchSavedListContext(
     // with a directly-typed Promise via a single `as`.
     const result = await (db
       .from('crm_listings')
-      .select('id, nickname, title, address, rent, status', { count: 'exact' })
+      .select(`id, nickname, title, address, rent, status, ${DEEP_EXTRACT_ALIAS}`, {
+        count: 'exact',
+      })
       .eq('user_id', userId)
       .eq('status', 'active')
       .order('saved_at', { ascending: false })
       .range(0, PROMPT_CONTEXT_LISTING_CAP) as unknown as Promise<{
-      data: SavedListingSummary[] | null;
+      data: RawSavedListRow[] | null;
       count: number | null;
       error: unknown;
     }>);
@@ -126,7 +224,7 @@ export async function fetchSavedListContext(
     }
 
     const rows = data ?? [];
-    const listings = rows.slice(0, PROMPT_CONTEXT_LISTING_CAP);
+    const listings = rows.slice(0, PROMPT_CONTEXT_LISTING_CAP).map(toSavedListingSummary);
     // Prefer the exact count for truncation math; fall back to the fetched
     // row count if `count` is unexpectedly absent (defensive — supabase-js
     // always returns it when `{ count: 'exact' }` is requested).
@@ -155,7 +253,11 @@ const GUIDANCE =
   'Refer to these listings by their name (nickname or title) when talking to the user. ' +
   'When calling a tool that takes a listing id, pass the EXACT id shown here for that listing — ' +
   'NEVER invent or guess a listing id. ' +
-  "If the user references a listing that is not in this list, say you can't find it and ask them for the link or address.";
+  "If the user references a listing that is not in this list, say you can't find it and ask them for the link or address. " +
+  // AIN-101: ambiguous attribute/feature/nickname references must never be
+  // silently resolved to a guess — name the candidates and ask.
+  'If a reference by attribute, feature, or nickname (e.g. "the one with the dishwasher") matches ' +
+  'MORE THAN ONE saved listing, do not silently pick one — name the matching listings and ask the user which one they mean.';
 
 /**
  * Render the saved-listing prompt block. Pure — no I/O, safe to call with a
@@ -213,12 +315,64 @@ export function sanitizeField(value: string): string {
     : flattened;
 }
 
-/** Render one compact line for a single saved listing. */
+/** Render one compact line for a single saved listing, plus an optional floor-plans line. */
 function renderListingLine(listing: SavedListingSummary): string {
   const rawName = listing.nickname ?? listing.title ?? listing.address ?? 'Untitled';
   const rawAddress = listing.address ?? 'address unknown';
   const name = sanitizeField(rawName);
   const address = sanitizeField(rawAddress);
-  const rent = listing.rent != null ? String(listing.rent) : '?';
-  return `- "${name}" — ${address} — $${rent}/mo — id: ${listing.id}`;
+  const rentLabel =
+    listing.rent != null ? `${listing.priceIsFrom ? 'from $' : '$'}${listing.rent}/mo` : '$?/mo';
+  const header = `- "${name}" — ${address} — ${rentLabel} — id: ${listing.id}`;
+
+  const plansLine = renderFloorPlansLine(listing.floorPlans);
+  return plansLine ? `${header}\n${plansLine}` : header;
+}
+
+/**
+ * Render the compact per-listing floor-plans line, or `null` when the
+ * listing has none (the caller then emits nothing extra — a no-plans row
+ * stays byte-for-byte identical to the pre-AIN-99 output).
+ *
+ * Cap at `FLOOR_PLANS_PER_LISTING_CAP` plans + an exact `(+K more plans)`
+ * remainder, mirroring the block's own listing-level truncation idiom.
+ */
+function renderFloorPlansLine(plans: readonly FloorPlan[]): string | null {
+  if (plans.length === 0) return null;
+
+  const shown = plans.slice(0, FLOOR_PLANS_PER_LISTING_CAP);
+  const remainder = plans.length - shown.length;
+  const entries = shown.map(renderFloorPlanEntry).join('; ');
+  const remainderSuffix = remainder > 0 ? ` (+${remainder} more plans)` : '';
+
+  return `  floor plans (rent is "from" pricing): ${entries}${remainderSuffix}`;
+}
+
+/**
+ * Render one floor plan, e.g.
+ * `Studio (0bd/1ba, 410 sqft) from $1,050 [Available now]`.
+ *
+ * A `null` rent_min renders the plan name-only (never drop the plan — the
+ * AIN-83 0-price-sentinel lesson). Name and availability are third-party
+ * page content (injection vectors) — sanitized with the same sanitizers the
+ * rest of this module and the extraction pipeline already use, no third copy.
+ */
+function renderFloorPlanEntry(plan: FloorPlan): string {
+  const name = sanitizePlanName(plan.name);
+
+  const specParts: string[] = [];
+  if (plan.bedrooms != null || plan.bathrooms != null) {
+    const beds = plan.bedrooms != null ? `${plan.bedrooms}bd` : '?bd';
+    const baths = plan.bathrooms != null ? `${plan.bathrooms}ba` : '?ba';
+    specParts.push(`${beds}/${baths}`);
+  }
+  if (plan.sqft != null) {
+    specParts.push(`${plan.sqft.toLocaleString('en-US')} sqft`);
+  }
+  const specs = specParts.length > 0 ? ` (${specParts.join(', ')})` : '';
+
+  const price = plan.rent_min != null ? ` from $${plan.rent_min.toLocaleString('en-US')}` : '';
+  const availability = plan.availability ? ` [${sanitizeField(plan.availability)}]` : '';
+
+  return `${name}${specs}${price}${availability}`;
 }
