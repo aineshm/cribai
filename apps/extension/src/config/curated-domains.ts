@@ -35,7 +35,8 @@ export const CURATED_DOMAINS: readonly CuratedDomain[] = [
   },
   {
     hostSuffix: 'trulia.com',
-    isDetail: (u) => /^\/(p|home)\//.test(u.pathname),
+    // /building/ added AIN-102 (apartment-complex detail pages).
+    isDetail: (u) => /^\/(p|home|building)\//.test(u.pathname),
   },
   {
     hostSuffix: 'realtor.com',
@@ -43,7 +44,39 @@ export const CURATED_DOMAINS: readonly CuratedDomain[] = [
   },
   {
     hostSuffix: 'craigslist.org',
-    isDetail: (u) => /^\/apa\/d\//.test(u.pathname),
+    // Detail pages are a `/d/` segment preceded by 1-2 short (2-4 letter)
+    // lowercase path segments: the housing category (apa, roo, sub, ...)
+    // optionally prefixed by a sub-region code (e.g. sfc, eby, pen). This
+    // single shape covers every founder-observed sample without special-
+    // casing individual categories:
+    //   /apa/d/<slug>/<id>.html            (category only)
+    //   /sfc/apa/d/<slug>/<id>.html        (sub-region + category)
+    //   /sfc/roo/d/<slug>/<id>.html        (rooms/shared category)
+    //   /sfc/sub/d/<slug>/<id>.html        (sublets category)
+    //   /view/d/<slug>/<id>                (site-wide "view" shorthand —
+    //                                        "view" itself is 4 lowercase
+    //                                        letters, so it falls out of
+    //                                        the same generic shape)
+    // False-positive risk: a category/sub-region-shaped segment pair that
+    // happens to be followed by a literal "d/" segment that isn't actually
+    // a detail id. Not observed in practice; craigslist reserves "d" for
+    // detail permalinks. Explicitly rejected by this shape: /search/apa
+    // ("search" is 6 letters, exceeds the 2-4 letter cap) and bare category
+    // listings like /apa/ or /sfc/apa/ (no trailing /d/ segment).
+    isDetail: (u) => /^\/([a-z]{2,4}\/){1,2}d\//i.test(u.pathname),
+  },
+  {
+    hostSuffix: 'rentsfnow.com',
+    // Detail pages: /apartments/rental/<slug>[/]. AIN-102.
+    isDetail: (u) => /^\/apartments\/rental\/[^/]+\/?$/.test(u.pathname),
+  },
+  {
+    hostSuffix: 'avaloncommunities.com',
+    // Detail pages contain a literal /apartment/ path segment (the unit
+    // page nested under a community). Query params (furnished, moveInDate,
+    // leaseTerm, ...) live outside u.pathname so they don't affect this.
+    // AIN-102.
+    isDetail: (u) => /\/apartment\//.test(u.pathname),
   },
   // Marketing-site class (AIN-71's page class):
   // The whole site IS the property — every page is a detail page.
