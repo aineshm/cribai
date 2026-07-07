@@ -31,6 +31,27 @@ export type LiveEvalBucket = (typeof LIVE_EVAL_BUCKETS)[number];
 const GROUNDING_MODES = ['ranked_ids', 'listing_fields', 'none'] as const;
 export type GroundingModeName = (typeof GROUNDING_MODES)[number];
 
+/**
+ * AIN-99/AIN-101 pin — a hard, deterministic substring check over the turn's
+ * concatenated assistant text (see `checks/transcript-content.ts`). Exists
+ * because the LLM judge alone can't be trusted to catch a known real product
+ * gap deterministically: this makes the gate fail red on that gap every run,
+ * not just probabilistically. Both constraints are independently evaluated;
+ * omitting the field entirely is a vacuous pass.
+ */
+export const transcriptContentExpectationSchema = z.object({
+  /** Every one of these substrings (case-insensitive) must appear in the assistant text. */
+  mustMentionAll: z.array(z.string().min(1)).min(1).optional(),
+  /** At least `count` of the `of` substrings (case-insensitive) must appear. */
+  mustMentionAtLeast: z
+    .object({
+      count: z.number().int().positive(),
+      of: z.array(z.string().min(1)).min(1),
+    })
+    .optional(),
+});
+export type TranscriptContentExpectation = z.infer<typeof transcriptContentExpectationSchema>;
+
 export const liveTurnExpectationSchema = z.object({
   /**
    * Required tool names that must appear, in this relative order, within the
@@ -46,6 +67,8 @@ export const liveTurnExpectationSchema = z.object({
   grounding: z.enum(GROUNDING_MODES).default('none'),
   /** Whether this turn's transcript should go through the soft-criteria judge. */
   judge: z.boolean().default(false),
+  /** Optional hard, deterministic substring pins over this turn's assistant text (AIN-99/AIN-101). */
+  expectTranscript: transcriptContentExpectationSchema.optional(),
 });
 export type LiveTurnExpectation = z.infer<typeof liveTurnExpectationSchema>;
 

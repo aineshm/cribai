@@ -39,6 +39,7 @@ function passingTurn(query = 'q'): TurnRunResult {
       noFabricatedIds: passCheck('no_fabricated_ids'),
       grounding: passCheck('grounding'),
       showCard: passCheck('show_card'),
+      transcriptContent: passCheck('transcript_content'),
     },
     hardChecksPassed: true,
     throttled: false,
@@ -55,6 +56,7 @@ function failingTurn(): TurnRunResult {
       noFabricatedIds: passCheck('no_fabricated_ids'),
       grounding: passCheck('grounding'),
       showCard: passCheck('show_card'),
+      transcriptContent: passCheck('transcript_content'),
     },
     hardChecksPassed: false,
   };

@@ -146,6 +146,7 @@ async function runOneTurn(args: {
     groundingMode: turn.expect.grounding,
     truthByListingId,
     expectedShowCard: turn.expect.show_card,
+    expectTranscript: turn.expect.expectTranscript,
   });
 
   const assistantText = extractAssistantText(toChatEvents(result.events));

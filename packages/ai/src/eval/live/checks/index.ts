@@ -7,11 +7,13 @@
  */
 import type { SeedListingTruth } from '../seed-truth';
 import type { LiveSseEvent } from '../http-turn';
+import type { TranscriptContentExpectation } from '../corpus/schema';
 import { checkNoErrors } from './errors';
 import { checkToolExpectation } from './tool-expectation';
 import { checkNoFabricatedIds } from './fabricated-ids';
 import { checkGrounding, type GroundingMode } from './grounding';
 import { checkShowCard } from './show-card';
+import { checkTranscriptContent } from './transcript-content';
 import type { CheckResult } from './types';
 
 export { checkNoErrors, ERROR_TEXT_PATTERN } from './errors';
@@ -19,6 +21,7 @@ export { checkToolExpectation } from './tool-expectation';
 export { checkNoFabricatedIds } from './fabricated-ids';
 export { checkGrounding, type GroundingMode } from './grounding';
 export { checkShowCard } from './show-card';
+export { checkTranscriptContent } from './transcript-content';
 export { checkLatency, computeP95 } from './latency';
 export type { LatencyCheckInput, LatencyCheckResult, LatencyMetricsRow } from './latency';
 export { collectMachineData } from './machine-data';
@@ -33,6 +36,7 @@ export interface TurnHardCheckInput {
   readonly groundingMode: GroundingMode;
   readonly truthByListingId: ReadonlyMap<string, SeedListingTruth>;
   readonly expectedShowCard: boolean | undefined;
+  readonly expectTranscript?: TranscriptContentExpectation;
 }
 
 export interface TurnHardCheckResults {
@@ -41,6 +45,7 @@ export interface TurnHardCheckResults {
   readonly noFabricatedIds: CheckResult;
   readonly grounding: CheckResult;
   readonly showCard: CheckResult;
+  readonly transcriptContent: CheckResult;
 }
 
 /** Run every per-turn hard check. Order matters for the report, not for correctness. */
@@ -59,6 +64,10 @@ export function runTurnHardChecks(input: TurnHardCheckInput): TurnHardCheckResul
       truthByListingId: input.truthByListingId,
     }),
     showCard: checkShowCard({ events: input.events, expected: input.expectedShowCard }),
+    transcriptContent: checkTranscriptContent({
+      events: input.events,
+      expectation: input.expectTranscript,
+    }),
   };
 }
 
