@@ -81,6 +81,17 @@ const CASES: Array<[string, boolean]> = [
   ['https://sfbay.craigslist.org/sfc/apa/', false],
   // Craigslist homepage — must stay rejected
   ['https://www.craigslist.org/', false],
+  // Craigslist non-housing categories — must be rejected (review fix, AIN-102)
+  [
+    'https://sfbay.craigslist.org/jjj/d/software-engineer/123.html',
+    false,
+  ],
+  [
+    'https://sfbay.craigslist.org/sfc/sof/d/dev-job/123.html',
+    false,
+  ],
+  ['https://sfbay.craigslist.org/atq/d/vintage-lamp/123.html', false],
+  ['https://sfbay.craigslist.org/bik/d/road-bike/123.html', false],
   // Apartments.com building detail with unit fragment (AIN-102 founder sample)
   [
     'https://www.apartments.com/100-van-ness-san-francisco-ca/yv6dh0t/#cjzhjxg-2-unit',
@@ -102,6 +113,21 @@ const CASES: Array<[string, boolean]> = [
     'https://www.avaloncommunities.com/california/san-francisco-apartments/ava-nob-hill/',
     false,
   ],
+  // avaloncommunities.com non-detail pages containing an "apartment"-like
+  // segment that isn't the anchored /apartment/<UNIT-CODE>/ shape — must be
+  // rejected (review fix, AIN-102)
+  [
+    'https://www.avaloncommunities.com/blog/apartment/renting-tips-for-2026',
+    false,
+  ],
+  [
+    'https://www.avaloncommunities.com/california/san-francisco-apartments/ava-nob-hill/apartment-homes/',
+    false,
+  ],
+  ['https://www.avaloncommunities.com/', false],
+  // rentsfnow.com browse pages — plural /apartments/ must stay rejected (Fix 3, AIN-102)
+  ['https://www.rentsfnow.com/apartments/', false],
+  ['https://www.rentsfnow.com/apartments/rentals/foo', false],
   // Marketing-site class: every page is a property detail
   ['https://x01oncampus.com/floor-plans/', true],
   ['https://x01oncampus.com/', true],
