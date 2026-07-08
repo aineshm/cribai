@@ -180,11 +180,19 @@ export function MessagesPageClient({
   }
 
   function moveMissionToPast(missionId: string) {
+    const index = queueMissions.findIndex((mission) => mission.id === missionId);
+    const next = index === -1 ? null : (queueMissions[index + 1] ?? queueMissions[index - 1] ?? null);
+
     setArchivedMissionIds((prev) => (prev.includes(missionId) ? prev : [...prev, missionId]));
-    setTab('past');
+    selectMission(next);
   }
 
   function restoreMissionToQueue(missionId: string) {
+    // Unlike moveMissionToPast, restoring doesn't remove the mission from
+    // the visible set — it just reclassifies which tab it belongs to. The
+    // current selection (this same mission, if selected) stays valid and
+    // simply follows it back to the queue tab, so there's no orphaned
+    // selection to resolve here.
     setArchivedMissionIds((prev) => prev.filter((id) => id !== missionId));
     setTab('queue');
   }

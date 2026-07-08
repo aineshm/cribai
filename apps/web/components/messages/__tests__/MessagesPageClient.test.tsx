@@ -1,8 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MessagesPageClient } from '../MessagesPageClient';
-
-const selectMission = vi.fn();
 
 let mockedState: {
   missions: Array<Record<string, unknown>>;
@@ -11,6 +9,13 @@ let mockedState: {
   missions: [],
   selectedMission: null,
 };
+
+// Stateful stand-in for the real ConciergeProvider: calling selectMission
+// updates the mocked context value so the next render reflects the new
+// selection, matching how the real provider propagates selection changes.
+const selectMission = vi.fn((mission: Record<string, unknown> | null) => {
+  mockedState = { ...mockedState, selectedMission: mission };
+});
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
@@ -49,37 +54,94 @@ const pastMission = {
   logs: [],
 };
 
+function terminalMission(id: string, title: string, updatedAt: string) {
+  return {
+    id,
+    type: 'housing_search',
+    title,
+    status: 'completed',
+    listingTitle: '',
+    createdAt: '2026-03-01T10:00:00.000Z',
+    updatedAt,
+    summary: `${title} summary`,
+    logs: [],
+  };
+}
+
+const missionFirst = terminalMission('mission-first', 'First mission', '2026-03-05T10:00:00.000Z');
+const missionMiddle = terminalMission('mission-middle', 'Middle mission', '2026-03-06T10:00:00.000Z');
+const missionLast = terminalMission('mission-last', 'Last mission', '2026-03-07T10:00:00.000Z');
+
 describe('MessagesPageClient', () => {
   beforeEach(() => {
-    selectMission.mockReset();
+    selectMission.mockClear();
     mockedState = {
       missions: [activeMission, pastMission],
       selectedMission: null,
     };
   });
 
-  // TODO(2026-05-runtime-rebuild): rewrite for queued Mission UI.
-  // Tab membership is now archivedMissionIds-based (local state in MessagesPageClient),
-  // not status-based. The pastMission/activeMission mocks no longer drive tab placement;
-  // the test must instead exercise moveMissionToPast/restoreMissionToQueue to populate
-  // archivedMissionIds before asserting tab/selection behavior.
-  it.skip('switches to the past tab when a past mission is already selected in shared context', () => {
-    mockedState.selectedMission = pastMission;
+  it('archiving the middle queue item selects the next item and stays on the queue tab', () => {
+    mockedState = {
+      missions: [missionFirst, missionMiddle, missionLast],
+      selectedMission: missionMiddle,
+    };
 
     render(<MessagesPageClient searchParams={{}} />);
 
-    expect(screen.getByRole('button', { name: /^Past$/ })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: /^Queue/ })).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(screen.getByRole('button', { name: 'Move To Past' }));
+
+    expect(selectMission).toHaveBeenCalledWith(missionLast);
+    expect(screen.getByRole('button', { name: /^Queue/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /^Past/ })).toHaveAttribute('aria-pressed', 'false');
   });
 
-  // TODO(2026-05-runtime-rebuild): rewrite for queued Mission UI (see note above).
-  it.skip('clears the selection when the user switches to a tab that does not contain the selected mission', () => {
-    mockedState.selectedMission = pastMission;
+  it('archiving the last queue item selects the previous item and stays on the queue tab', () => {
+    mockedState = {
+      missions: [missionFirst, missionMiddle, missionLast],
+      selectedMission: missionLast,
+    };
 
     render(<MessagesPageClient searchParams={{}} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /^Queue/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Move To Past' }));
+
+    expect(selectMission).toHaveBeenCalledWith(missionMiddle);
+    expect(screen.getByRole('button', { name: /^Queue/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /^Past/ })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('archiving the only queue item clears the selection, stays on the queue tab, and renders the empty state', () => {
+    mockedState = {
+      missions: [missionFirst],
+      selectedMission: missionFirst,
+    };
+
+    render(<MessagesPageClient searchParams={{}} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move To Past' }));
 
     expect(selectMission).toHaveBeenCalledWith(null);
+    expect(screen.getByRole('button', { name: /^Queue/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /^Past/ })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByText('Queue is empty')).toBeInTheDocument();
+    expect(screen.getByText('Select a mission')).toBeInTheDocument();
+  });
+
+  it('shows the archived mission under the Past tab after Move To Past', () => {
+    mockedState = {
+      missions: [missionFirst, missionMiddle, missionLast],
+      selectedMission: missionMiddle,
+    };
+
+    render(<MessagesPageClient searchParams={{}} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move To Past' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Past/ }));
+
+    expect(screen.getByRole('button', { name: /^Past/ })).toHaveAttribute('aria-pressed', 'true');
+    const pastList = screen.getByText('Middle mission').closest('button');
+    expect(pastList).not.toBeNull();
+    expect(within(pastList as HTMLElement).getByText('Middle mission')).toBeInTheDocument();
   });
 });
