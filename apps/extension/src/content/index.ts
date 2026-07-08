@@ -14,7 +14,10 @@ import { findCuratedDomain, isDetailPage } from '../config/curated-domains';
 import { createSaveButton } from './save-button';
 import { capturePage } from './capture-page';
 import { createSavedResetController } from './saved-reset-timer';
+import { shouldRemount } from './navigation-compare';
+import { isExtensionContextAlive, safeSendMessage } from './runtime-guard';
 import type { SaveButtonState } from './state-machine';
+import type { PageCapture } from './capture-page';
 import type { SwResponse } from '../lib/messages';
 
 // ---------------------------------------------------------------------------
@@ -36,7 +39,35 @@ let unmountFn: (() => void) | null = null;
 /** Elevated so unmount() can cancel the in-flight analyzing timer on SPA nav. */
 let analyzingTimer: ReturnType<typeof setTimeout> | null = null;
 
+// ---------------------------------------------------------------------------
+// AIN-98: extension-context-invalidated teardown
+//
+// A reload/update/uninstall leaves this script running in any already-open
+// tab with a dead `chrome.runtime` — `sendMessage` throws synchronously and
+// nothing ever stopped the 1.5s poll interval before this guard. `teardown()`
+// is idempotent (safe to call from both the poll tick and either
+// `sendMessage` failure) and permanent: once stopped, this script never
+// mounts, polls, or sends a message again for the rest of the tab's life.
+// ---------------------------------------------------------------------------
+let stopped = false;
+/**
+ * Assigned once the poll interval starts (bootstrap, bottom of this file).
+ * Declared here (not `const` at the bootstrap site) so `teardown()` can
+ * reference it even if it fires from a synchronous `sendMessage` failure
+ * during the VERY FIRST `mount()` call, before the interval exists yet.
+ */
+let navIntervalId: ReturnType<typeof setInterval> | undefined;
+
+function teardown(): void {
+  if (stopped) return;
+  stopped = true;
+  if (navIntervalId !== undefined) clearInterval(navIntervalId);
+  unmount();
+}
+
 function mount(): void {
+  if (stopped) return; // AIN-98: extension context already invalidated — never mount again.
+
   const domain = findCuratedDomain(location.hostname);
   if (!domain || !isDetailPage(domain, new URL(location.href))) {
     return;
@@ -72,9 +103,10 @@ function mount(): void {
   };
 
   // Check if already saved
-  chrome.runtime.sendMessage(
+  safeSendMessage<{ type: 'CHECK_SAVED'; sourceUrl: string }, SwResponse | undefined>(
+    chrome.runtime,
     { type: 'CHECK_SAVED', sourceUrl: location.href },
-    (response: SwResponse | undefined) => {
+    (response) => {
       if (!response) return;
       if (response.type === 'AUTH_REQUIRED') {
         state = 'signed_out';
@@ -92,6 +124,7 @@ function mount(): void {
         else handle.setHref(null);
       }
     },
+    teardown,
   );
 
   function handleClick(): void {
@@ -116,7 +149,8 @@ function mount(): void {
     }, 3_000);
 
     const capture = capturePage(document, location);
-    chrome.runtime.sendMessage(
+    safeSendMessage<{ type: 'CONTENT_SAVE_LISTING' } & PageCapture, SwResponse | undefined>(
+      chrome.runtime,
       {
         type: 'CONTENT_SAVE_LISTING',
         html: capture.html,
@@ -125,7 +159,7 @@ function mount(): void {
         innerText: capture.innerText,
         iframes: capture.iframes,
       },
-      (response: SwResponse | undefined) => {
+      (response) => {
         if (analyzingTimer !== null) {
           clearTimeout(analyzingTimer);
           analyzingTimer = null;
@@ -169,6 +203,7 @@ function mount(): void {
         state = 'error';
         handle.setView(state, 'Unexpected response — please try again.', undefined);
       },
+      teardown,
     );
   }
 }
@@ -181,8 +216,28 @@ function unmount(): void {
 }
 
 function checkNavigation(): void {
+  // AIN-98: check FIRST, before touching location.href or the DOM — a
+  // reload/update/uninstall between ticks leaves this tab's `chrome.runtime`
+  // dead; tearing down here (idempotent) stops the interval permanently
+  // instead of polling (and potentially throwing) forever.
+  if (!isExtensionContextAlive(chrome.runtime)) {
+    teardown();
+    return;
+  }
+
   const newHref = location.href;
   if (newHref === currentHref) return;
+
+  // AIN-98: a hash-only change (e.g. clicking a unit anchor on a Zillow
+  // building page, `#udp-<zpid>`) is NOT a real navigation — the page's
+  // identity (origin+pathname+search) is unchanged, so the save button's
+  // state, the 7s saved-reset timer, and the in-flight analyzing timer must
+  // all survive it. Update the tracked href so a later hash-only diff still
+  // no-ops, but skip the unmount/remount dance entirely.
+  if (!shouldRemount(currentHref, newHref)) {
+    currentHref = newHref;
+    return;
+  }
   currentHref = newHref;
 
   const domain = findCuratedDomain(location.hostname);
@@ -196,6 +251,17 @@ function checkNavigation(): void {
 
 // Bootstrap
 mount();
-const navIntervalId = setInterval(checkNavigation, 1_500);
+// AIN-98 review fix (LOW): `mount()` can itself call `teardown()` synchronously
+// (its CHECK_SAVED `safeSendMessage` call hits a context already dead on the
+// very first tick — e.g. a stale tab from before this reload). `stopped` is
+// true by the time we get here, but `navIntervalId` doesn't exist yet, so
+// `teardown()`'s `clearInterval` was a no-op — starting the interval
+// unconditionally right after would create a poll loop `teardown()` can
+// never reach again (each tick's own `teardown()` call returns immediately
+// via the `if (stopped) return;` guard, without ever clearing THIS interval).
+// Only start polling when the context is confirmed still alive post-mount.
+if (!stopped) {
+  navIntervalId = setInterval(checkNavigation, 1_500);
+}
 // Clear the polling interval when the page is unloaded to avoid a leak.
 window.addEventListener('pagehide', () => clearInterval(navIntervalId), { once: true });

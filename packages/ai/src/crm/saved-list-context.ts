@@ -37,7 +37,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { CrmListingRow, FloorPlan } from './types';
+import type { CrmListingRow, FloorPlan, SelectedUnit } from './types';
 import { DEEP_EXTRACT_ALIAS } from './types';
 // AIN-99: sanitizePlanName + FloorPlansArraySchema live in extraction/floor-plan.ts
 // and are deliberately NOT re-exported from the extraction barrel (see that
@@ -45,6 +45,8 @@ import { DEEP_EXTRACT_ALIAS } from './types';
 // precedent as the mission's buildFloorPlanDescription in
 // missions/crm-deep-extract/steps/04-update-row.ts.
 import { sanitizePlanName, FloorPlanSchema, FLOOR_PLAN_MAX_COUNT } from '../extraction/floor-plan';
+// AIN-98: same import-by-path precedent as floor-plan.ts above.
+import { SelectedUnitSchema } from '../extraction/selected-unit';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -67,6 +69,14 @@ export const PROMPT_CONTEXT_LISTING_CAP = 25;
  * block's own listing-level truncation idiom (see `truncatedCount`).
  */
 export const FLOOR_PLANS_PER_LISTING_CAP = 8;
+
+/**
+ * Max units_of_interest entries rendered per listing in the block (AIN-98).
+ * Distinct from `SELECTED_UNIT_MAX_COUNT` (extraction/selected-unit.ts, 12)
+ * — that's the storage cap; this is the prompt-rendering cap, same idiom as
+ * `FLOOR_PLANS_PER_LISTING_CAP` above (exact `(+K more)` remainder note).
+ */
+export const UNITS_VIEWED_PER_LISTING_CAP = 5;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -98,6 +108,14 @@ export interface SavedListingSummary {
    * rent. Defaults `false` (never inferred true from malformed data).
    */
   readonly priceIsFrom: boolean;
+  /**
+   * Units the user viewed on this building before saving (AIN-98), surfaced
+   * from `deep_extract.units_of_interest` so chat can answer "what was that
+   * unit I looked at at Trinity?". Most-recent-last. Always `[]` when the
+   * listing has none, the fetch degraded, or `deep_extract` is
+   * malformed/missing — same never-null contract as `floorPlans` above.
+   */
+  readonly unitsOfInterest: readonly SelectedUnit[];
 }
 
 /** Result of fetching the user's saved-listing prompt context. */
@@ -183,9 +201,31 @@ export function parseDeepExtractFloorPlans(
   };
 }
 
+/**
+ * Parse `deep_extract.units_of_interest` into a validated `SelectedUnit[]`
+ * (AIN-98). Same per-item safeParse degradation policy as
+ * `parseDeepExtractFloorPlans` above — a non-array/missing value degrades to
+ * `[]`, and a malformed individual entry is dropped without zeroing its
+ * valid siblings. Never throws.
+ */
+export function parseDeepExtractUnitsOfInterest(
+  deepExtract: CrmListingRow['deep_extract'],
+): readonly SelectedUnit[] {
+  const raw = deepExtract?.units_of_interest;
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+
+  const units: SelectedUnit[] = [];
+  for (const rawUnit of raw) {
+    const parsed = SelectedUnitSchema.safeParse(rawUnit);
+    if (parsed.success) units.push(parsed.data);
+  }
+  return units;
+}
+
 /** Map a raw select row into the prompt-ready `SavedListingSummary`. */
 function toSavedListingSummary(row: RawSavedListRow): SavedListingSummary {
   const { floorPlans, priceIsFrom } = parseDeepExtractFloorPlans(row.deep_extract);
+  const unitsOfInterest = parseDeepExtractUnitsOfInterest(row.deep_extract);
   return {
     id: row.id,
     nickname: row.nickname,
@@ -195,6 +235,7 @@ function toSavedListingSummary(row: RawSavedListRow): SavedListingSummary {
     status: row.status,
     floorPlans,
     priceIsFrom,
+    unitsOfInterest,
   };
 }
 
@@ -392,7 +433,10 @@ function renderListingLine(listing: SavedListingSummary): string {
   const header = `- id: ${listing.id} — "${name}" — ${address} — ${rentLabel}`;
 
   const plansLine = renderFloorPlansLine(listing.floorPlans);
-  return plansLine ? `${header}\n${plansLine}` : header;
+  const unitsLine = renderUnitsViewedLine(listing.unitsOfInterest);
+  const extraLines = [plansLine, unitsLine].filter((line): line is string => line !== null);
+
+  return extraLines.length > 0 ? [header, ...extraLines].join('\n') : header;
 }
 
 /**
@@ -441,4 +485,59 @@ function renderFloorPlanEntry(plan: FloorPlan): string {
   const availability = plan.availability ? ` [${sanitizeField(plan.availability)}]` : '';
 
   return `${name}${specs}${price}${availability}`;
+}
+
+/**
+ * Render the compact per-listing "units viewed" line (AIN-98), or `null`
+ * when the listing has none — same shape/absence contract as
+ * `renderFloorPlansLine` (a no-units row stays byte-for-byte identical to
+ * the pre-AIN-98 output).
+ *
+ * Cap at `UNITS_VIEWED_PER_LISTING_CAP` entries + an exact `(+K more)`
+ * remainder. `units` is most-recent-last (the accumulator's own order), so
+ * capping takes the TAIL (`.slice(-CAP)`), not the head — the entries that
+ * matter most are the ones the user viewed most recently, and showing the
+ * oldest ones instead (review fix, AIN-98 adjudication: was `.slice(0,
+ * CAP)`) would hide exactly the unit a "what was that unit I just looked
+ * at?" question is asking about. Relative chronological order is preserved
+ * among the shown entries — not re-sorted, only trimmed from the front.
+ */
+function renderUnitsViewedLine(units: readonly SelectedUnit[]): string | null {
+  if (units.length === 0) return null;
+
+  const shown = units.slice(-UNITS_VIEWED_PER_LISTING_CAP);
+  const remainder = units.length - shown.length;
+  const entries = shown.map(renderUnitViewedEntry).join('; ');
+  const remainderSuffix = remainder > 0 ? ` (+${remainder} more)` : '';
+
+  return `  units viewed: ${entries}${remainderSuffix}`;
+}
+
+/**
+ * Render one viewed unit, e.g. `Unit 1405 (S1) $1,825`.
+ *
+ * `unit_number` and `plan_name` are third-party page content (injection
+ * vectors, same class as floor-plan names/listing nicknames) — sanitized
+ * through the SAME `sanitizeField`/`sanitizePlanName` this module and the
+ * extraction pipeline already use, no third copy. Falls back to
+ * `plan_name` when `unit_number` is absent, and to a generic label when
+ * both are absent (never drops the entry — mirrors the floor-plan
+ * null-price lesson: an unlabeled unit still carries useful price info).
+ *
+ * Review fix (polish, AIN-98 adjudication): whenever the rendered label IS a
+ * `plan_name` (unit_number absent), it goes through `sanitizePlanName` —
+ * the plan-name-specific sanitizer used everywhere else this module touches
+ * a plan name — not the generic `sanitizeField`. Previously only the
+ * parenthetical `(plan_name)` suffix used `sanitizePlanName`, so a
+ * unit_number-less entry's label sanitized through the wrong function.
+ */
+function renderUnitViewedEntry(unit: SelectedUnit): string {
+  const labelIsPlanName = !unit.unit_number && Boolean(unit.plan_name);
+  const rawLabel = unit.unit_number ?? unit.plan_name ?? 'a unit';
+  const label = labelIsPlanName ? sanitizePlanName(rawLabel) : sanitizeField(rawLabel);
+  const plan =
+    unit.unit_number && unit.plan_name ? ` (${sanitizePlanName(unit.plan_name)})` : '';
+  const price = unit.price != null ? ` $${unit.price.toLocaleString('en-US')}` : '';
+
+  return `${label}${plan}${price}`;
 }

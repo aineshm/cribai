@@ -151,7 +151,13 @@ function makeDeps(
 // Tests
 // ---------------------------------------------------------------------------
 
-const INPUT_URL = 'https://zillow.com/homedetails/123-main-st/123456789_zpid/';
+// AIN-98: no trailing slash — normalizeSourceUrl strips a single trailing
+// slash from non-root paths, so this fixture is written already-normalized.
+// That keeps every `row['source_url']).toBe(INPUT_URL)`-style assertion in
+// this file valid without needing to know about normalization; the
+// normalization contract itself is pinned separately in
+// add-listing-url-identity.test.ts.
+const INPUT_URL = 'https://zillow.com/homedetails/123-main-st/123456789_zpid';
 
 describe('addListing', () => {
   beforeEach(() => {
@@ -531,6 +537,7 @@ describe('addListing', () => {
         listingId: 'race-winner-id',
         alreadySaved: true,
         confidence: 0.6,
+        normalizedUrl: INPUT_URL,
       });
 
       // Same contract as the SELECT dedup path: no post-save hooks on an
@@ -646,6 +653,7 @@ describe('addListing', () => {
         listingId: 'resaved-after-archive-id',
         alreadySaved: false,
         confidence: 0.9,
+        normalizedUrl: INPUT_URL,
       });
 
       // A genuine new save — not the already-saved/race-recovery shape.

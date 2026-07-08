@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { X, Check, DollarSign, Flag, Home, MapPin, HelpCircle, ExternalLink, Calendar, BookmarkCheck, Pencil, Layers } from 'lucide-react';
-import type { CrmListingRow, FirstSaveAnalysis, FloorPlan } from '@campusnest/ai';
+import { X, Check, DollarSign, Flag, Home, MapPin, HelpCircle, ExternalLink, Calendar, BookmarkCheck, Pencil, Layers, Eye } from 'lucide-react';
+import type { CrmListingRow, FirstSaveAnalysis, FloorPlan, SelectedUnit } from '@campusnest/ai';
 import type { CrmUnit } from '@/lib/crm/proposed-types';
 import { crmClient } from '@/lib/crm-client';
 import { money, bedLabel } from '@/lib/crm/format';
@@ -69,6 +69,7 @@ function DrawerContent({
 }) {
   const { unit: u, amenitySplit, application } = unit._proposed;
   const floorPlans = unit.floorPlans;
+  const unitsOfInterest = unit.unitsOfInterest;
   const photos = unit.photo_urls ?? [];
   const photo = photos[0] ?? '';
 
@@ -454,6 +455,20 @@ function DrawerContent({
             </Block>
           ) : null}
 
+          {/* Units you viewed (AIN-98) — every accumulated units_of_interest
+              entry for a building save. Absent entirely when the row has
+              none (legacy rows, no unit fragment at save time). */}
+          {unitsOfInterest.length > 0 ? (
+            <Block>
+              <SectionLabel icon={<Eye className="h-[15px] w-[15px]" />} label="Units you viewed" />
+              <div className="flex flex-col">
+                {unitsOfInterest.map((viewedUnit, i) => (
+                  <UnitsViewedRow key={`${viewedUnit.zpid}-${i}`} unit={viewedUnit} />
+                ))}
+              </div>
+            </Block>
+          ) : null}
+
           {/* Application checklist */}
           <Block tinted>
             {showDeadline ? (
@@ -703,6 +718,44 @@ function FloorPlanRow({ plan }: { plan: FloorPlan }) {
       <div className="flex-shrink-0 whitespace-nowrap font-bold" style={{ color: 'var(--surface-900)' }}>
         {rent}
         {rent !== '—' ? <span className="font-medium" style={{ color: 'var(--surface-500)' }}>/mo</span> : null}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One read-only "unit you viewed" row (AIN-98): unit number — beds/baths —
+ * sqft, with price right-aligned. Plain React-escaped text throughout —
+ * `unit_number`/`plan_name` originate from a third-party listing page, same
+ * as FloorPlanRow above.
+ */
+function UnitsViewedRow({ unit }: { unit: SelectedUnit }) {
+  const label = unit.unit_number ?? unit.plan_name ?? 'Unit';
+  const specs = [bedLabel(unit.bedrooms ?? null), unit.bathrooms != null ? `${unit.bathrooms} bath` : null]
+    .filter((s): s is string => Boolean(s))
+    .join(' · ');
+  const sqft = unit.sqft != null ? `${unit.sqft.toLocaleString()} sqft` : null;
+  const price = unit.price != null ? money(unit.price) : '—';
+
+  return (
+    <div
+      className="flex items-center justify-between gap-3 border-t py-2 text-[0.8125rem] first:border-t-0 first:pt-0"
+      style={{ borderColor: 'var(--surface-100)' }}
+    >
+      <div className="min-w-0">
+        <span className="font-semibold" style={{ color: 'var(--surface-900)' }}>
+          {label}
+        </span>
+        {[specs, sqft, unit.availability].filter(Boolean).map((detail, i) => (
+          <span key={i} style={{ color: 'var(--surface-500)' }}>
+            {' '}
+            · {detail}
+          </span>
+        ))}
+      </div>
+      <div className="flex-shrink-0 whitespace-nowrap font-bold" style={{ color: 'var(--surface-900)' }}>
+        {price}
+        {price !== '—' ? <span className="font-medium" style={{ color: 'var(--surface-500)' }}>/mo</span> : null}
       </div>
     </div>
   );

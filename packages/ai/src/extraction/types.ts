@@ -12,8 +12,10 @@
  */
 
 import type { FloorPlan } from './floor-plan';
+import type { RawSelectedUnit } from './selected-unit';
 
 export type { FloorPlan } from './floor-plan';
+export type { RawSelectedUnit } from './selected-unit';
 
 /**
  * The normalized listing shape returned by `extractListing`.
@@ -33,6 +35,13 @@ export type { FloorPlan } from './floor-plan';
  *    building-page enrichment pass (`extractZillowFloorPlans`, URL-gated in
  *    `extract-from-html.ts`, independent of the JSON-LD/OG/DOM/LLM
  *    escalation ladder above). Absent everywhere else.
+ *  - `selected_unit` (AIN-98) is populated ONLY when a Zillow building-page
+ *    URL carries a `#udp-<zpid>` fragment matching a real unit
+ *    (`resolveZillowUnit`, URL-gated the same way as `floor_plans`, gated
+ *    independently of it). `addListing` stamps `viewed_at` and accumulates
+ *    it into `crm_listings.raw_extraction.deep_extract.units_of_interest`.
+ *    Absent everywhere else (no fragment, no match, non-Zillow, single-unit
+ *    page).
  */
 export interface ExtractedListing {
   source_url: string;
@@ -53,6 +62,7 @@ export interface ExtractedListing {
   amenities?: string[];
   available_from?: string;
   floor_plans?: FloorPlan[];
+  selected_unit?: RawSelectedUnit;
   raw_json_ld?: Record<string, unknown>;
   raw_og?: Record<string, string>;
   extraction_method: ExtractionMethod;

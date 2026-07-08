@@ -674,6 +674,7 @@ const SAMPLE_SAVED_LIST_CONTEXT: SavedListContext = {
       status: 'active',
       floorPlans: [],
       priceIsFrom: false,
+      unitsOfInterest: [],
     },
   ],
   truncatedCount: 0,

@@ -1,7 +1,8 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { Bed, Bath, MapPin, Check, Maximize2 } from 'lucide-react';
+import { Bed, Bath, MapPin, Check, Maximize2, Eye } from 'lucide-react';
+import type { SelectedUnit } from '@campusnest/ai';
 import type { CrmUnit, CrmListMember } from '@/lib/crm/proposed-types';
 import { money, bedLabel } from '@/lib/crm/format';
 import { StatusPill } from './ui/StatusPill';
@@ -161,6 +162,11 @@ export function SavedUnitCard({
         {/* Unit vs building amenities (reused primitive) */}
         <AmenitySplit split={amenitySplit} />
 
+        {/* AIN-98: the most recently viewed unit on this building, if any.
+            React text-node rendering escapes unit.unitsOfInterest[*].unit_number
+            (third-party page content) automatically — no dangerouslySetInnerHTML. */}
+        <UnitsViewedLine unitsOfInterest={unit.unitsOfInterest} />
+
         {/* Application affordance: status + deadline + attribution */}
         <div
           className="mt-3.5 flex flex-wrap items-center gap-2.5 border-t pt-3"
@@ -175,6 +181,33 @@ export function SavedUnitCard({
           {addedByMember ? <AddedBy member={addedByMember} /> : null}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * "You viewed Unit X — $Y" line (AIN-98) — surfaces the MOST RECENTLY
+ * viewed unit (the accumulator array is most-recent-last) when the user
+ * looked at a specific unit on a saved building before saving. Renders
+ * nothing when there's nothing to show (legacy row, single-unit save, no
+ * fragment was present at save time).
+ *
+ * `unit_number` and `price` are third-party page content — rendered as
+ * plain React text nodes (JSX auto-escapes), never dangerouslySetInnerHTML.
+ */
+function UnitsViewedLine({ unitsOfInterest }: { unitsOfInterest: readonly SelectedUnit[] }) {
+  if (unitsOfInterest.length === 0) return null;
+  const latest = unitsOfInterest[unitsOfInterest.length - 1]!;
+  const label = latest.unit_number ?? latest.plan_name ?? 'a unit';
+
+  return (
+    <div
+      className="mt-2.5 flex items-center gap-1.5 text-[0.8125rem] font-medium"
+      style={{ color: 'var(--surface-500)' }}
+    >
+      <Eye aria-hidden="true" className="h-3.5 w-3.5 flex-shrink-0" />
+      you viewed {label}
+      {latest.price != null ? ` — ${money(latest.price)}` : ''}
     </div>
   );
 }

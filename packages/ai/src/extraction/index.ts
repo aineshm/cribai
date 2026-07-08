@@ -39,6 +39,7 @@ export {
   type ExtractionErrorCode,
 } from './types';
 export { type FloorPlan } from './floor-plan';
+export { type SelectedUnit, type RawSelectedUnit } from './selected-unit';
 export { parseAllJsonLdBlocks, projectJsonLdEntity, extractFromJsonLd } from './json-ld';
 export { parseMetaTags, decodeHtmlEntities, extractFromOg } from './og';
 export { SsrfBlockedError, assertHttpScheme, assertPublicHost } from './ssrf-guard';

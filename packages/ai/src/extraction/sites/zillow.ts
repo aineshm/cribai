@@ -35,6 +35,7 @@ import {
   COUNT_RANGE,
 } from '../dom';
 import { FloorPlanSchema, FLOOR_PLAN_MAX_COUNT, sanitizePlanName, type FloorPlan } from '../floor-plan';
+import { RawSelectedUnitSchema, type RawSelectedUnit } from '../selected-unit';
 
 /**
  * Project a Zillow `property` object (legacy `componentProps.property` or a
@@ -361,6 +362,58 @@ export function extractZillowFloorPlans(html: string): FloorPlan[] {
   });
 
   return projected.slice(0, FLOOR_PLAN_MAX_COUNT);
+}
+
+/**
+ * Resolve a Zillow building page's `#udp-<zpid>` fragment to the specific
+ * unit the user was viewing (AIN-98 Task 2). Scans
+ * `building.floorPlans[].units[]` (the SAME blob `extractZillowFloorPlans`
+ * reads) for the unit whose `zpid` matches, and projects it into a
+ * `RawSelectedUnit` — the owning plan's (sanitized) `name` becomes
+ * `plan_name`.
+ *
+ * Deterministic and ingest-time only; never throws. Returns `null` when the
+ * page has no building blob, no plan's units carry the given zpid, or the
+ * matched unit fails schema validation (a single malformed unit degrades to
+ * "no unit resolved", never a thrown error — mirrors `projectFloorPlan`'s
+ * per-entry validation policy).
+ */
+export function resolveZillowUnit(html: string, zpid: string): RawSelectedUnit | null {
+  const building = extractBuildingFromNextData(html);
+  const floorPlans = Array.isArray(building?.floorPlans) ? building.floorPlans : [];
+
+  for (const rawPlan of floorPlans) {
+    const plan = asObject(rawPlan);
+    if (!plan) continue;
+    const units = Array.isArray(plan.units) ? plan.units : [];
+
+    for (const rawUnit of units) {
+      const unit = asObject(rawUnit);
+      if (!unit) continue;
+      const unitZpid = coerceString(unit.zpid);
+      if (unitZpid !== zpid) continue;
+
+      const rawPlanName = coerceString(plan.name);
+      const rawFloor = coerceString(unit.floor) ?? coerceNumber(unit.floor);
+
+      const candidate = {
+        zpid: unitZpid,
+        unit_number: coerceString(unit.unitNumber) ?? null,
+        plan_name: rawPlanName ? sanitizePlanName(rawPlanName) : null,
+        price: positiveOrNull(unit.price) ?? positiveOrNull(unit.baseRent),
+        bedrooms: coerceNumber(unit.beds) ?? null,
+        bathrooms: coerceNumber(unit.baths) ?? null,
+        sqft: positiveOrNull(unit.sqft),
+        floor: rawFloor !== undefined ? String(rawFloor) : null,
+        availability: planAvailability(unit.availableFrom) ?? planAvailability(plan.availableFrom) ?? null,
+      };
+
+      const parsed = RawSelectedUnitSchema.safeParse(candidate);
+      return parsed.success ? parsed.data : null;
+    }
+  }
+
+  return null;
 }
 
 function fromLabeledDom(html: string): Partial<ExtractedFields> {

@@ -407,6 +407,7 @@ describe('projectHistory', () => {
           ...ROW,
           floorPlans: [],
           priceIsFrom: false,
+          unitsOfInterest: [],
           _proposed: {
             unit: { building: 'Dayton Row · 2BR', floorPlan: '', unitLabel: '2 bed' },
             amenitySplit: { unit: [], building: [] },

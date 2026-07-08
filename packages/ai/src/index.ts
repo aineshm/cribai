@@ -167,6 +167,7 @@ export type {
   CompareRow,
   CrmListingRow,
   TrueCostInput,
+  SelectedUnit,
 } from './crm';
 // AIN-65 — handler machineData contracts, consumed by the CRM front end to
 // render structured cards straight from `tool_result` SSE events.
@@ -184,3 +185,9 @@ export type {
 // `runLlmTurn`.
 export { fetchSavedListContext, renderSavedListingsBlock, PROMPT_CONTEXT_LISTING_CAP } from './crm/saved-list-context';
 export type { SavedListContext, SavedListingSummary } from './crm/saved-list-context';
+
+// AIN-98 — source_url identity normalization. Imported directly by path
+// (same precedent as saved-list-context above) by `/api/crm/saved` (green-
+// button identity check) and `addListing` (dedup/insert/enqueue identity).
+export { normalizeSourceUrl, parseUnitFragment } from './crm/source-url';
+export type { ParsedUnitFragment } from './crm/source-url';

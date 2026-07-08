@@ -28,6 +28,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { normalizeSourceUrl } from '@campusnest/ai';
 import { resolveCrmAuthFromBearer } from '../_lib/auth';
 import { buildExtensionCorsHeaders } from '../_lib/extension-cors';
 import { sourceUrlSchema } from '../_lib/source-url-schema';
@@ -106,7 +107,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const sourceUrl = parsed.data;
+  // AIN-98: normalize BEFORE the query — the extension always sends
+  // Chrome's fragment-inclusive `location.href` (background/index.ts), so a
+  // unit-anchor variant (`#udp-<zpid>`) of a saved building must resolve to
+  // the SAME identity `addListing` stored, or the button never shows
+  // "already saved" on that anchor. See ../source-url.ts for the full
+  // normalization contract.
+  const sourceUrl = normalizeSourceUrl(parsed.data);
 
   // 4. Record the rate-limit slot after auth + validation pass
   _savedLimiter.record(auth.userId);

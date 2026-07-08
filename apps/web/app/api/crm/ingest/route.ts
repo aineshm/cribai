@@ -634,8 +634,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       await persistCapture(auth, result.listingId, capturedHtml);
 
       try {
+        // AIN-98: use the NORMALIZED url addListing resolved the save to
+        // (fragment/tracking-params stripped), not the raw sourceUrl — the
+        // mission's crawl_source step should key off the same identity the
+        // row itself was saved under. Falls back to sourceUrl defensively
+        // (normalizedUrl is always set on a real, non-dryRun save).
         enqueueResult = await Promise.race([
-          enqueueDeepExtract(auth, result.listingId, sourceUrl),
+          enqueueDeepExtract(auth, result.listingId, result.normalizedUrl ?? sourceUrl),
           new Promise<EnqueueResult>((resolve) =>
             setTimeout(() => resolve('failed'), 3_000),
           ),

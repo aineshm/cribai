@@ -141,18 +141,51 @@ describe('GET /api/crm/saved — saved: true', () => {
     expect(body.listingId).toBe('listing-xyz');
   });
 
-  it('queries crm_listings with user_id + source_url + neq archived', async () => {
+  it('queries crm_listings with user_id + NORMALIZED source_url + neq archived (AIN-98)', async () => {
     const qb = createQueryBuilder({ data: { id: 'listing-abc' }, error: null });
     mockFrom.mockReturnValue(qb);
 
+    // Trailing slash — normalizeSourceUrl strips it, so the query must use
+    // the normalized value, not the raw incoming sourceUrl.
     const sourceUrl = 'https://www.apartments.com/the-james-madison-wi/abc1234/';
     const req = makeRequest(sourceUrl, { bearer: 'valid-token' });
     await GET(req);
 
     expect(mockFrom).toHaveBeenCalledWith('crm_listings');
     expect(qb.eq).toHaveBeenCalledWith('user_id', 'u-saved-1');
-    expect(qb.eq).toHaveBeenCalledWith('source_url', sourceUrl);
+    expect(qb.eq).toHaveBeenCalledWith(
+      'source_url',
+      'https://www.apartments.com/the-james-madison-wi/abc1234',
+    );
     expect(qb.neq).toHaveBeenCalledWith('status', 'archived');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AIN-98 — URL identity normalization (green button on any unit anchor)
+// ---------------------------------------------------------------------------
+
+describe('GET /api/crm/saved — URL identity normalization (AIN-98)', () => {
+  it('a #udp-<zpid> unit-anchor variant of a saved building queries the SAME normalized identity as the bare URL', async () => {
+    const qb = createQueryBuilder({ data: { id: 'trinity-listing' }, error: null });
+    mockFrom.mockReturnValue(qb);
+
+    const unitAnchorUrl =
+      'https://www.zillow.com/homedetails/Trinity-Apts/Ch4m2W_zpid/#udp-463380384';
+    const req = makeRequest(unitAnchorUrl, { bearer: 'valid-token' });
+    const res = await GET(req);
+    const body = (await res.json()) as { saved: boolean; listingId: string };
+
+    expect(res.status).toBe(200);
+    expect(body.saved).toBe(true);
+    expect(qb.eq).toHaveBeenCalledWith(
+      'source_url',
+      'https://www.zillow.com/homedetails/Trinity-Apts/Ch4m2W_zpid',
+    );
+    // The fragment never reaches the query.
+    expect(qb.eq.mock.calls.some(([, value]) => typeof value === 'string' && value.includes('#'))).toBe(
+      false,
+    );
   });
 });
 
