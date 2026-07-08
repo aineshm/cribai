@@ -223,13 +223,29 @@ export const updateRowStep: MissionStep = {
     // LATER run that finds nothing this time (blocked re-fetch, or a
     // deterministic+LLM miss) must not null it out. `price_is_from` follows
     // the SAME plans, so it can never claim "from" pricing for an empty list.
-    const existingDeepExtract = (existingRaw as { deep_extract?: { floor_plans?: FloorPlan[] | null } })
-      .deep_extract;
+    const existingDeepExtract = (
+      existingRaw as {
+        deep_extract?: {
+          floor_plans?: FloorPlan[] | null;
+          units_of_interest?: unknown;
+        };
+      }
+    ).deep_extract;
     const persistedFloorPlans: FloorPlan[] | null =
       floorPlans && floorPlans.length > 0
         ? (floorPlans as FloorPlan[])
         : existingDeepExtract?.floor_plans ?? null;
     const persistedFloorPlanCount = persistedFloorPlans?.length ?? 0;
+
+    // AIN-98 never-wipe guard: units_of_interest is written ONLY by
+    // addListing's ingest-time seed/accumulation (Tasks 2-4) — this mission's
+    // own synthFields NEVER produce it (03-synthesize.ts has no unit-level
+    // concept). Every other deep_extract subfield below is a full rebuild
+    // (that's the point of a fresh mission run), but this one subtree must
+    // survive verbatim or a mission run silently erases what the user viewed
+    // at save time. Mirrors the floor_plans never-wipe guard immediately
+    // above — same shape, same rationale (AIN-83).
+    const persistedUnitsOfInterest = existingDeepExtract?.units_of_interest ?? null;
 
     update.raw_extraction = {
       ...existingRaw,
@@ -241,6 +257,7 @@ export const updateRowStep: MissionStep = {
         crawl_blocked: crawlBlocked,
         method: 'mission_v1',
         completed_at: new Date().toISOString(),
+        units_of_interest: persistedUnitsOfInterest,
       },
     };
     updatedFields.push('raw_extraction');

@@ -424,6 +424,178 @@ describe('update_row step', () => {
     expect(result.output.floorPlanCount).toBe(2);
   });
 
+  // ---------------------------------------------------------------------------
+  // AIN-98 Task 6: never-wipe guard for units_of_interest. The mission's
+  // `synthFields` (03-synthesize.ts) never produces units_of_interest — that
+  // subtree is written ONLY by addListing's ingest-time seed/accumulation
+  // (Tasks 2-4). Without an explicit carry-forward, the mission's wholesale
+  // `deep_extract` rebuild here would silently drop it on every mission run —
+  // the same class of bug floor_plans already fixed in AIN-83.
+  // ---------------------------------------------------------------------------
+  it('preserves existing raw_extraction.deep_extract.units_of_interest across a mission run (never-wipe guard)', async () => {
+    let capturedUpdatePayload: Record<string, unknown> | null = null;
+    const existingUnits = [
+      { zpid: '2056051402', unit_number: 'Unit 1405', plan_name: 'S1', price: 1825, viewed_at: '2026-07-18T07:00:00.000Z' },
+    ];
+    const supabase = {
+      from: vi.fn(() => ({
+        update: vi.fn((payload: Record<string, unknown>) => {
+          capturedUpdatePayload = payload;
+          return {
+            eq: vi.fn(() => ({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            })),
+          };
+        }),
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: {
+                  id: 'listing-1',
+                  rent: 1825, bedrooms: 0, bathrooms: 1, sqft: 547,
+                  address: '4702 Madison Yards Way', description: null, title: 'EO Madison Yards',
+                  available_from: null, amenities: [], extraction_confidence: 0.6,
+                  raw_extraction: {
+                    deep_extract: {
+                      floor_plans: [{ name: 'S1', bedrooms: 0, bathrooms: 1, rent_min: 1825, rent_max: 1825, sqft: 547 }],
+                      price_is_from: true,
+                      method: 'ingest_v1',
+                      units_of_interest: existingUnits,
+                    },
+                  },
+                },
+                error: null,
+              }),
+            })),
+          })),
+        })),
+      })),
+    };
+
+    const { updateRowStep } = await import('../steps/04-update-row');
+    const ctx = makeCtx(
+      {
+        // A normal mission run — synthesize never produces units_of_interest,
+        // it only ever comes from addListing's ingest-time write.
+        pages: [{ url: 'https://www.zillow.com/apartments/x/', fields: {}, textExcerpt: '' }],
+        discarded: [],
+        latitude: null,
+        longitude: null,
+        fields: {},
+      },
+      supabase as unknown as ReturnType<typeof makeSupabase>,
+    );
+
+    await updateRowStep.run(ctx);
+
+    expect(capturedUpdatePayload).not.toBeNull();
+    const raw = capturedUpdatePayload!['raw_extraction'] as Record<string, unknown>;
+    const deepExtract = raw['deep_extract'] as Record<string, unknown>;
+    expect(deepExtract['units_of_interest']).toEqual(existingUnits);
+    // Every other subfield still rebuilds normally alongside the preserved value.
+    expect(deepExtract['method']).toBe('mission_v1');
+  });
+
+  it('carries units_of_interest forward even when the run also DOES produce new floor_plans', async () => {
+    let capturedUpdatePayload: Record<string, unknown> | null = null;
+    const existingUnits = [
+      { zpid: 'zpid-1', viewed_at: '2026-07-01T00:00:00.000Z' },
+    ];
+    const newPlans = [{ name: 'A11', bedrooms: 1, bathrooms: 1, rent_min: 1819, rent_max: 2118, sqft: 799 }];
+    const supabase = {
+      from: vi.fn(() => ({
+        update: vi.fn((payload: Record<string, unknown>) => {
+          capturedUpdatePayload = payload;
+          return { eq: vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ error: null }) })) };
+        }),
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: {
+                  id: 'listing-1',
+                  rent: null, bedrooms: null, bathrooms: null, sqft: null,
+                  address: null, description: null, title: null,
+                  available_from: null, amenities: [], extraction_confidence: 0.3,
+                  raw_extraction: {
+                    deep_extract: { units_of_interest: existingUnits },
+                  },
+                },
+                error: null,
+              }),
+            })),
+          })),
+        })),
+      })),
+    };
+
+    const { updateRowStep } = await import('../steps/04-update-row');
+    const ctx = makeCtx(
+      {
+        pages: [{ url: 'https://www.zillow.com/apartments/x/', fields: {}, textExcerpt: '' }],
+        discarded: [],
+        latitude: null,
+        longitude: null,
+        fields: { floor_plans: newPlans, rent: 1819, address: '4702 Madison Yards Way' },
+      },
+      supabase as unknown as ReturnType<typeof makeSupabase>,
+    );
+
+    await updateRowStep.run(ctx);
+
+    const raw = capturedUpdatePayload!['raw_extraction'] as Record<string, unknown>;
+    const deepExtract = raw['deep_extract'] as Record<string, unknown>;
+    expect(deepExtract['units_of_interest']).toEqual(existingUnits);
+    expect(deepExtract['floor_plans']).toEqual(newPlans);
+  });
+
+  it('units_of_interest defaults to null (mirrors floor_plans) when the existing row never had any', async () => {
+    let capturedUpdatePayload: Record<string, unknown> | null = null;
+    const supabase = {
+      from: vi.fn(() => ({
+        update: vi.fn((payload: Record<string, unknown>) => {
+          capturedUpdatePayload = payload;
+          return { eq: vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ error: null }) })) };
+        }),
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: {
+                  id: 'listing-1',
+                  rent: null, bedrooms: null, bathrooms: null, sqft: null,
+                  address: null, description: null, title: null,
+                  available_from: null, amenities: [], extraction_confidence: 0.3,
+                  raw_extraction: {},
+                },
+                error: null,
+              }),
+            })),
+          })),
+        })),
+      })),
+    };
+
+    const { updateRowStep } = await import('../steps/04-update-row');
+    const ctx = makeCtx(
+      {
+        pages: [],
+        discarded: [],
+        latitude: null,
+        longitude: null,
+        fields: {},
+      },
+      supabase as unknown as ReturnType<typeof makeSupabase>,
+    );
+
+    await updateRowStep.run(ctx);
+
+    const raw = capturedUpdatePayload!['raw_extraction'] as Record<string, unknown>;
+    const deepExtract = raw['deep_extract'] as Record<string, unknown>;
+    expect(deepExtract['units_of_interest']).toBeNull();
+  });
+
   // AIN-83 live-proof finding: the cheapest-plan bedrooms/bathrooms/sqft
   // backfill was gated on `computedMin < effectiveRent`, which is FALSE in
   // the normal deterministic case where the baseline rent is already the
