@@ -251,4 +251,44 @@ describe('toCrmUnit', () => {
       expect(toCrmUnit(BASE_ROW, VIEWER_ID)._proposed.unit.floorPlan).toBe('');
     });
   });
+
+  // AIN-98 — units the user viewed on a saved building (Trinity motivating
+  // example: the save recorded a "from" price while the founder viewed a
+  // specific, pricier unit). Surfaced from deep_extract.units_of_interest,
+  // same never-fabricated contract as floorPlans above.
+  describe('units of interest (AIN-98)', () => {
+    const UNITS = [
+      { zpid: '111', unit_number: 'Unit 101', plan_name: 'S1', price: 1500, viewed_at: '2026-07-01T00:00:00.000Z' },
+      { zpid: '222', unit_number: 'Unit 504', plan_name: 'A2', price: 1800, viewed_at: '2026-07-18T07:00:00.000Z' },
+    ];
+
+    it('populates unitsOfInterest from deep_extract when present', () => {
+      const unit = toCrmUnit(
+        { ...BASE_ROW, deep_extract: { units_of_interest: UNITS } },
+        VIEWER_ID,
+      );
+      expect(unit.unitsOfInterest).toEqual(UNITS);
+    });
+
+    it('defaults to an empty array on a legacy row with no deep_extract', () => {
+      expect(toCrmUnit(BASE_ROW, VIEWER_ID).unitsOfInterest).toEqual([]);
+    });
+
+    it('defaults to an empty array when deep_extract is explicitly null', () => {
+      expect(toCrmUnit({ ...BASE_ROW, deep_extract: null }, VIEWER_ID).unitsOfInterest).toEqual([]);
+    });
+
+    it('defaults to an empty array when units_of_interest is null', () => {
+      const unit = toCrmUnit({ ...BASE_ROW, deep_extract: { units_of_interest: null } }, VIEWER_ID);
+      expect(unit.unitsOfInterest).toEqual([]);
+    });
+
+    it('defaults to an empty array when units_of_interest is malformed (not an array)', () => {
+      const unit = toCrmUnit(
+        { ...BASE_ROW, deep_extract: { units_of_interest: 'not-an-array' as unknown as never } },
+        VIEWER_ID,
+      );
+      expect(unit.unitsOfInterest).toEqual([]);
+    });
+  });
 });

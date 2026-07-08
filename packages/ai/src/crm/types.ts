@@ -15,14 +15,14 @@
  *   CrmGenerateObject                      ← ./generate (Vercel AI SDK seam)
  */
 
-import type { ExtractedListing, ExtractionErrorCode, FloorPlan } from '../extraction';
+import type { ExtractedListing, ExtractionErrorCode, FloorPlan, SelectedUnit } from '../extraction';
 import type { TrueCost } from '@campusnest/types';
 import type { GeocodeResult } from '../tools/lib/geocode-address';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CrmGenerateObject } from './generate';
 
 // Re-export the upstream types so consumers import from one place.
-export type { ExtractedListing, ExtractionErrorCode, TrueCost, GeocodeResult, FloorPlan };
+export type { ExtractedListing, ExtractionErrorCode, TrueCost, GeocodeResult, FloorPlan, SelectedUnit };
 export type { CrmGenerateObject } from './generate';
 
 /**
@@ -108,6 +108,16 @@ export interface CrmListingRow {
      * time a new writer is added (CodeRabbit PR #121 fix 4a).
      */
     readonly method?: string;
+    /**
+     * Accumulated Zillow units the user has viewed on this building
+     * (AIN-98) — most-recent-last, zpid-deduped, capped at
+     * `SELECTED_UNIT_MAX_COUNT` (12). Written by `addListing` (seed on
+     * insert, read-merge-write append on the dedup paths) and preserved
+     * verbatim by the crm_deep_extract mission's never-wipe guard.
+     * `null`/absent on legacy rows, single-unit saves, or any save where no
+     * `#udp-<zpid>` fragment was present.
+     */
+    readonly units_of_interest?: readonly SelectedUnit[] | null;
   } | null;
 }
 

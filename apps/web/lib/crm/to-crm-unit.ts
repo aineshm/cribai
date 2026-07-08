@@ -10,7 +10,7 @@
  *   - addedBy = the current viewer (collaboration is mock-only; every real row
  *     belongs to the viewer per RLS)
  */
-import type { CrmListingRow, FloorPlan } from '@campusnest/ai';
+import type { CrmListingRow, FloorPlan, SelectedUnit } from '@campusnest/ai';
 import type { ApplicationState, CrmUnit } from './proposed-types';
 
 /** crm_listings.status → application pipeline stage. */
@@ -61,12 +61,24 @@ function deriveFloorPlanLabel(floorPlans: readonly FloorPlan[]): string {
   return floorPlans.length === 1 ? floorPlans[0]!.name : '';
 }
 
+/**
+ * Units the user viewed on this building's page before saving (AIN-98),
+ * read from `deep_extract.units_of_interest`. Never fabricated — a
+ * malformed/non-array value (corrupt JSONB, wrong shape) degrades to `[]`,
+ * same contract as `floorPlans` above.
+ */
+function deriveUnitsOfInterest(units: unknown): readonly SelectedUnit[] {
+  return Array.isArray(units) ? (units as SelectedUnit[]) : [];
+}
+
 /** Build a CrmUnit from a contract row + the viewing user's id. Pure — never mutates the row. */
 export function toCrmUnit(row: CrmListingRow, viewerId: string): CrmUnit {
   // AIN-83: real per-plan breakdown, read from the deep_extract subtree
   // (never fabricated — absent/null degrades to "no plans").
   const floorPlans = row.deep_extract?.floor_plans ?? [];
   const priceIsFrom = row.deep_extract?.price_is_from ?? false;
+  // AIN-98: units the user viewed on this building before saving.
+  const unitsOfInterest = deriveUnitsOfInterest(row.deep_extract?.units_of_interest);
 
   return {
     ...row,
@@ -74,6 +86,7 @@ export function toCrmUnit(row: CrmListingRow, viewerId: string): CrmUnit {
     source_url: row.source_url != null && isHttpsUrl(row.source_url) ? row.source_url : null,
     floorPlans,
     priceIsFrom,
+    unitsOfInterest,
     _proposed: {
       unit: {
         building: row.nickname ?? row.title ?? row.address ?? 'Saved listing',

@@ -106,4 +106,5 @@ export type {
   ExtractionErrorCode,
   TrueCost,
   GeocodeResult,
+  SelectedUnit,
 } from './types';

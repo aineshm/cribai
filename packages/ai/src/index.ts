@@ -167,6 +167,7 @@ export type {
   CompareRow,
   CrmListingRow,
   TrueCostInput,
+  SelectedUnit,
 } from './crm';
 // AIN-65 — handler machineData contracts, consumed by the CRM front end to
 // render structured cards straight from `tool_result` SSE events.

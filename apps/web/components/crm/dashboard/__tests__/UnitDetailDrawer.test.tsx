@@ -165,6 +165,50 @@ describe('UnitDetailDrawer', () => {
     });
   });
 
+  // ---------------------------------------------------------------------------
+  // AIN-98: read-only "Units you viewed" block — every accumulated
+  // units_of_interest entry, next to Floor plans. Mirrors that section's own
+  // absence/XSS-guard tests.
+  // ---------------------------------------------------------------------------
+  describe('units you viewed section (AIN-98)', () => {
+    const UNITS_VIEWED = [
+      { zpid: '1', unit_number: 'Unit 101', plan_name: 'S1', price: 1500, bedrooms: 0, bathrooms: 1, sqft: 400, floor: null, availability: '2026-08-01', viewed_at: '2026-07-01T00:00:00.000Z' },
+      { zpid: '2', unit_number: 'Unit 504', plan_name: 'A2', price: 1800, bedrooms: 1, bathrooms: 1, sqft: 650, floor: null, availability: null, viewed_at: '2026-07-18T07:00:00.000Z' },
+    ];
+
+    it('renders nothing for a legacy row with no units viewed', () => {
+      render(<UnitDetailDrawer unit={UNITS[0]!} onClose={() => {}} />);
+      expect(screen.queryByText(/units you viewed/i)).not.toBeInTheDocument();
+    });
+
+    it('renders the "Units you viewed" section label when entries are present', () => {
+      const unit = { ...UNITS[0]!, unitsOfInterest: UNITS_VIEWED };
+      render(<UnitDetailDrawer unit={unit} onClose={() => {}} />);
+      expect(screen.getByText(/units you viewed/i)).toBeInTheDocument();
+    });
+
+    it('renders one row per unit with unit number and price', () => {
+      const unit = { ...UNITS[0]!, unitsOfInterest: UNITS_VIEWED };
+      const { container } = render(<UnitDetailDrawer unit={unit} onClose={() => {}} />);
+      expect(screen.getByText(/Unit 101/)).toBeInTheDocument();
+      expect(screen.getByText(/Unit 504/)).toBeInTheDocument();
+      expect(container.textContent).toMatch(/1,500/);
+      expect(container.textContent).toMatch(/1,800/);
+    });
+
+    it('renders plain escaped text, not raw markup (XSS guard)', () => {
+      const unit = {
+        ...UNITS[0]!,
+        unitsOfInterest: [
+          { zpid: '1', unit_number: '<img src=x onerror=alert(1)>', plan_name: null, price: 900, bedrooms: null, bathrooms: null, sqft: null, floor: null, availability: null, viewed_at: '2026-07-01T00:00:00.000Z' },
+        ],
+      };
+      const { container } = render(<UnitDetailDrawer unit={unit} onClose={() => {}} />);
+      expect(container.querySelector('img[onerror]')).toBeNull();
+      expect(screen.getByText(/<img src=x onerror=alert\(1\)>/)).toBeInTheDocument();
+    });
+  });
+
   it('renders steering question section label', () => {
     render(<UnitDetailDrawer unit={UNITS[0]!} onClose={() => {}} />);
     expect(screen.getByText(/question/i)).toBeInTheDocument();

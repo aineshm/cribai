@@ -1,7 +1,7 @@
 // PROPOSED EXTENSIONS — NOT in the @campusnest/ai contract. Mock-only until the
 // backend implements them (see engineering/mockups/crm-frontend/CONTRACT-DELTAS.md).
 
-import type { CrmListingRow, FloorPlan } from '@campusnest/ai';
+import type { CrmListingRow, FloorPlan, SelectedUnit } from '@campusnest/ai';
 
 export interface ApplicationDocument {
   readonly name: string;
@@ -52,4 +52,11 @@ export interface CrmUnit extends CrmListingRow {
    * `CrmListingRow.deep_extract.price_is_from`.
    */
   readonly priceIsFrom: boolean;
+  /**
+   * Units the user viewed on this building before saving (AIN-98),
+   * most-recent-last, derived from
+   * `CrmListingRow.deep_extract.units_of_interest`. Empty array (never
+   * fabricated) when the row has none.
+   */
+  readonly unitsOfInterest: readonly SelectedUnit[];
 }
