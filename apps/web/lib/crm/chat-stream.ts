@@ -232,9 +232,13 @@ function projectText(message: ChatMessage): string {
 /**
  * Text-project the rendered thread into history turns for the runtime route.
  * Whitespace-only turns are dropped (the route would discard them anyway).
+ * Client-seeded messages (`local: true` — e.g. the AIN-104.2 first-run
+ * intro) are dropped too: the model never said them, so they shouldn't
+ * round-trip back to it as if they were its own prior turn.
  */
 export function projectHistory(messages: readonly ChatMessage[]): readonly HistoryTurn[] {
   return messages
+    .filter((message) => !(message.kind === 'text' && message.local))
     .map((message) => ({ role: message.role, content: projectText(message) }))
     .filter((turn) => turn.content.trim().length > 0);
 }

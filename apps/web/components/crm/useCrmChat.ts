@@ -50,6 +50,16 @@ const CANNED_REPLY =
 
 const GENERIC_ERROR = 'Something went wrong. Please try again.';
 
+/**
+ * First-run intro (AIN-104.2): a client-seeded assistant message — never an
+ * LLM turn — shown once per browser the first time the CRM chat ever mounts
+ * with an empty thread. Copy is founder-locked verbatim; do not edit without
+ * a founder decision.
+ */
+const INTRO_SEEN_KEY = 'cribai.crm_intro_seen';
+const INTRO_MESSAGE =
+  'Hey — I\'m CribAI, your apartment-hunting copilot. Save listings from any site with the browser extension (or paste a link right here) and I\'ll pull out the details, check whether the rent is fair, and keep everything in one place. Once you\'ve saved a few, ask me things like *"rank my places"* or *"is the 2BR overpriced?"* — your saved apartments live in the My Apartments panel alongside this chat.';
+
 /** The CRM workspace is single-campus in v1 (PDR-003). */
 const CAMPUS_SLUG = 'uw-madison';
 
@@ -103,6 +113,23 @@ export function useCrmChat(): UseCrmChat {
 
   const push = useCallback((msg: ChatMessage) => {
     setMessages((prev) => [...prev, msg]);
+  }, []);
+
+  // First-run intro (AIN-104.2): seed once per browser, only onto a still-
+  // empty thread. SSR-safe (window guard) and private-mode-safe (localStorage
+  // access wrapped in try/catch — Safari private browsing throws on
+  // getItem/setItem) — either degrades to "don't seed", never a crash.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (messagesRef.current.length > 0) return;
+    try {
+      if (window.localStorage.getItem(INTRO_SEEN_KEY)) return;
+      window.localStorage.setItem(INTRO_SEEN_KEY, '1');
+    } catch {
+      return;
+    }
+    push({ id: nextId(), kind: 'text', role: 'assistant', text: INTRO_MESSAGE, local: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const renameUnit = useCallback((id: string, nickname: string) => {

@@ -77,6 +77,18 @@ function mockFetchOnce(response: Response): ReturnType<typeof vi.fn> {
   return fn;
 }
 
+/**
+ * Drop the AIN-104.2 first-run intro (a client-seeded `local` text message
+ * every fresh `useCrmChat()` mount pushes) from an assertion's view of the
+ * thread — it isn't a conversation turn, mirroring `projectHistory`'s own
+ * exclusion of it from the history sent to the runtime.
+ */
+function nonIntroMessages(
+  messages: ReturnType<typeof useCrmChat>['messages'],
+): ReturnType<typeof useCrmChat>['messages'] {
+  return messages.filter((m) => !(m.kind === 'text' && m.local));
+}
+
 beforeEach(() => {
   vi.stubEnv('NEXT_PUBLIC_CRM_MOCK', 'false');
 });
@@ -124,7 +136,7 @@ describe('useCrmChat — real runtime wiring', () => {
     });
     await waitFor(() => expect(result.current.pending).toBe(false));
 
-    const assistantTexts = result.current.messages.filter(
+    const assistantTexts = nonIntroMessages(result.current.messages).filter(
       (m) => m.kind === 'text' && m.role === 'assistant',
     );
     expect(assistantTexts).toHaveLength(1);
@@ -163,7 +175,7 @@ describe('useCrmChat — real runtime wiring', () => {
     });
     await waitFor(() => expect(result.current.pending).toBe(false));
 
-    const kinds = result.current.messages.map((m) => m.kind);
+    const kinds = nonIntroMessages(result.current.messages).map((m) => m.kind);
     expect(kinds).toEqual(['text', 'saved-unit', 'analysis', 'steering', 'text']);
 
     const saved = result.current.messages.find((m) => m.kind === 'saved-unit');
@@ -329,7 +341,12 @@ describe('useCrmChat — real runtime wiring', () => {
     await waitFor(() => expect(result.current.pending).toBe(false));
 
     // Only the user echo + the assistant text bubble — no mission artifacts.
-    expect(result.current.messages.map((m) => m.kind)).toEqual(['text', 'text']);
+    // (The AIN-104.2 first-run intro also seeds a leading `local` text
+    // message on mount — excluded here since it's not a turn either.)
+    expect(nonIntroMessages(result.current.messages).map((m) => m.kind)).toEqual([
+      'text',
+      'text',
+    ]);
   });
 
   it('sends the prior thread, text-projected, as history on follow-up turns', async () => {
@@ -418,7 +435,9 @@ describe('useCrmChat — real runtime wiring', () => {
     await act(async () => {
       await Promise.resolve();
     });
-    expect(result.current.messages.map((m) => m.role)).toEqual(['user']);
+    // (The AIN-104.2 first-run intro also seeds a leading `local` text
+    // message on mount — excluded here since it's not a turn either.)
+    expect(nonIntroMessages(result.current.messages).map((m) => m.role)).toEqual(['user']);
     expect(consoleError).not.toHaveBeenCalledWith('[crm-chat] turn failed:', expect.anything());
     consoleError.mockRestore();
   });
