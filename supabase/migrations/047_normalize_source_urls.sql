@@ -41,11 +41,31 @@
 --      non-archived rows: keep the EARLIEST `saved_at` row, copy
 --      nickname/user_notes/analysis/analyzed_at/raw_extraction from the
 --      duplicate onto the keeper ONLY where the keeper's own value is
---      null/empty, then delete the duplicate (cascades its
+--      null/empty (nickname/user_notes: empty-string counts as "missing" via
+--      NULLIF(btrim(...), '') — see the field-level raw_extraction merge
+--      helpers below), then delete the duplicate (cascades its
 --      crm_listing_captures row via FK).
 --   3. UPDATE every surviving row's source_url to its normalized value (now
 --      collision-free by construction), then re-run a 046-style duplicate
 --      guard as a final assert.
+--
+-- Review fix (MEDIUM, AIN-98 adjudication): the original merge used a
+-- whole-column `raw_extraction = COALESCE(keeper.raw_extraction,
+-- loser.raw_extraction)` — an all-or-nothing choice that drops the LOSER's
+-- entire raw_extraction (including any floor_plans/units_of_interest it
+-- carries) the instant the keeper has ANY raw_extraction at all, even if the
+-- keeper's own `deep_extract` is missing a subfield the loser actually has.
+-- Both live pairs today are apartments.com saves with no units_of_interest,
+-- but a future Zillow-fragment collision must not silently drop the loser's
+-- unit signal. `ain98_merge_raw_extraction` (below) instead keeps the
+-- keeper's raw_extraction as the base and fills ONLY `deep_extract.
+-- floor_plans` / `deep_extract.units_of_interest` from the loser when the
+-- keeper's own value is null/absent — mirroring the app-layer never-wipe
+-- guards in `add-listing.ts` and `04-update-row.ts`. When BOTH sides carry a
+-- units_of_interest array, they're merged (concat + zpid-dedupe + cap 12)
+-- rather than one clobbering the other — see `ain98_merge_units_of_interest`.
+-- Both helper functions are ONE-OFF for this migration's backfill only —
+-- dropped before COMMIT, not left in the schema.
 --
 -- Guard: RAISE EXCEPTION if any non-archived collision group has more than
 -- 2 members (the two known live pairs are both exactly 2; a 3+ group means
@@ -61,6 +81,14 @@
 -- precedent), immediately after re-verifying which duplicate pairs exist in
 -- prod at that time (this migration's guard will re-verify no group exceeds
 -- 2 members regardless).
+--
+-- Also adds (STEP 6, end of file) `crm_append_unit_of_interest` — a
+-- PERMANENT RPC function (not part of the one-time backfill) that replaces
+-- `enrichExistingListingWithUnit`'s read-merge-write in add-listing.ts with
+-- a single atomic UPDATE, closing a lost-update race on concurrent
+-- units_of_interest appends (Review fix, HIGH, AIN-98 adjudication). Kept in
+-- this file rather than a separate migration because it ships in the same
+-- PR/merge-gate window as the normalization work it's adjacent to.
 
 BEGIN;
 
@@ -105,7 +133,112 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
--- STEP 3: merge each 2-member collision group onto its earliest-saved row,
+-- STEP 3a: field-level deep_extract merge helpers (Review fix, MEDIUM,
+-- AIN-98 adjudication). One-off for this migration's backfill — DROPped
+-- before COMMIT below, never left as permanent schema surface.
+-- ---------------------------------------------------------------------------
+
+-- Concat loser-first then keeper (mirrors the TS accumulator's own
+-- "existing ++ newly-viewed" append order — see
+-- packages/ai/src/crm/add-listing.ts and the crm_append_unit_of_interest
+-- function further down this file), zpid-dedupe keeping the LAST occurrence
+-- in that concatenation (a zpid present in both arrays resolves to the
+-- KEEPER's entry, since keeper is concatenated second), then keep only the
+-- most-recent 12 (oldest dropped first) — same cap as
+-- SELECTED_UNIT_MAX_COUNT (packages/ai/src/extraction/selected-unit.ts).
+CREATE OR REPLACE FUNCTION public.ain98_merge_units_of_interest(
+  p_keeper_units jsonb,
+  p_loser_units jsonb
+)
+RETURNS jsonb
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT COALESCE(jsonb_agg(elem ORDER BY ord), '[]'::jsonb)
+  FROM (
+    SELECT elem, ord
+    FROM (
+      SELECT
+        elem,
+        ord,
+        row_number() OVER (PARTITION BY elem ->> 'zpid' ORDER BY ord DESC) AS rn
+      FROM jsonb_array_elements(
+        COALESCE(p_loser_units, '[]'::jsonb) || COALESCE(p_keeper_units, '[]'::jsonb)
+      ) WITH ORDINALITY AS t(elem, ord)
+    ) deduped
+    WHERE rn = 1
+    ORDER BY ord DESC
+    LIMIT 12
+  ) capped;
+$$;
+
+-- Field-level merge of one row's raw_extraction JSONB onto another's.
+-- Keeper's raw_extraction is the base (never wholesale replaced); within
+-- `deep_extract`, `floor_plans` and `units_of_interest` fill from the loser
+-- ONLY when the keeper's own value is null/absent — every other
+-- raw_extraction/deep_extract key on the keeper is untouched.
+CREATE OR REPLACE FUNCTION public.ain98_merge_raw_extraction(
+  p_keeper_raw jsonb,
+  p_loser_raw jsonb
+)
+RETURNS jsonb
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT CASE
+    -- Neither side has a deep_extract subtree — keeper's raw_extraction
+    -- (including NULL) wins outright. Matches the pre-fix whole-column
+    -- COALESCE semantics for the common (no deep_extract) case.
+    WHEN (p_keeper_raw -> 'deep_extract') IS NULL AND (p_loser_raw -> 'deep_extract') IS NULL
+      THEN COALESCE(p_keeper_raw, p_loser_raw)
+    ELSE
+      jsonb_set(
+        COALESCE(p_keeper_raw, p_loser_raw, '{}'::jsonb),
+        '{deep_extract}',
+        COALESCE(p_keeper_raw -> 'deep_extract', '{}'::jsonb)
+          -- Fill-gap: floor_plans only when the keeper's own is null/absent.
+          -- `jsonb_typeof(...) IS DISTINCT FROM 'array'` (not a plain `IS
+          -- NULL` check) is deliberate: `raw_extraction -> 'deep_extract' ->
+          -- 'floor_plans'` is explicitly stored as the JSONB literal `null`
+          -- (see 04-update-row.ts's never-wipe fallback, `?? null`), and `->`
+          -- returns that jsonb `null` value, NOT a SQL NULL — a plain `IS
+          -- NULL` check would miss it and never fill the gap.
+          || CASE
+               WHEN jsonb_typeof(p_keeper_raw -> 'deep_extract' -> 'floor_plans') IS DISTINCT FROM 'array'
+                 AND jsonb_typeof(p_loser_raw -> 'deep_extract' -> 'floor_plans') = 'array'
+                 THEN jsonb_build_object(
+                   'floor_plans', p_loser_raw -> 'deep_extract' -> 'floor_plans'
+                 )
+               ELSE '{}'::jsonb
+             END
+          -- units_of_interest: fill-gap when only one side has it; merge
+          -- (concat + zpid-dedupe + cap 12) when BOTH sides carry an array.
+          -- Same `jsonb_typeof(...) IS DISTINCT FROM 'array'` rationale as
+          -- floor_plans above.
+          || CASE
+               WHEN jsonb_typeof(p_keeper_raw -> 'deep_extract' -> 'units_of_interest') = 'array'
+                 AND jsonb_typeof(p_loser_raw -> 'deep_extract' -> 'units_of_interest') = 'array'
+                 THEN jsonb_build_object(
+                   'units_of_interest',
+                   public.ain98_merge_units_of_interest(
+                     p_keeper_raw -> 'deep_extract' -> 'units_of_interest',
+                     p_loser_raw -> 'deep_extract' -> 'units_of_interest'
+                   )
+                 )
+               WHEN jsonb_typeof(p_keeper_raw -> 'deep_extract' -> 'units_of_interest') IS DISTINCT FROM 'array'
+                 AND jsonb_typeof(p_loser_raw -> 'deep_extract' -> 'units_of_interest') = 'array'
+                 THEN jsonb_build_object(
+                   'units_of_interest', p_loser_raw -> 'deep_extract' -> 'units_of_interest'
+                 )
+               ELSE '{}'::jsonb
+             END,
+        true
+      )
+  END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- STEP 3b: merge each 2-member collision group onto its earliest-saved row,
 -- then delete the duplicate.
 -- ---------------------------------------------------------------------------
 WITH collisions AS (
@@ -137,17 +270,34 @@ losers AS (
 )
 -- Fill-gap merge: copy the loser's field onto the keeper ONLY where the
 -- keeper's own value is null/empty — never overwrites a keeper's real data.
+-- nickname/user_notes treat an empty (or all-whitespace) string as "missing"
+-- via NULLIF(btrim(...), '') — a keeper row with nickname = '' is not
+-- meaningfully "set", and should still receive the loser's real nickname
+-- (review fix, AIN-98 adjudication: the original COALESCE only backfilled
+-- NULL, silently keeping a blank nickname over the loser's real one).
+-- raw_extraction uses the field-level merge helpers above instead of a
+-- whole-column COALESCE — see the STEP 3a comment for why.
 UPDATE public.crm_listings AS keeper_row
 SET
-  nickname = COALESCE(keeper_row.nickname, loser_row.nickname),
-  user_notes = COALESCE(keeper_row.user_notes, loser_row.user_notes),
+  nickname = COALESCE(
+    NULLIF(btrim(keeper_row.nickname), ''),
+    NULLIF(btrim(loser_row.nickname), '')
+  ),
+  user_notes = COALESCE(
+    NULLIF(btrim(keeper_row.user_notes), ''),
+    NULLIF(btrim(loser_row.user_notes), '')
+  ),
   analysis = COALESCE(keeper_row.analysis, loser_row.analysis),
   analyzed_at = COALESCE(keeper_row.analyzed_at, loser_row.analyzed_at),
-  raw_extraction = COALESCE(keeper_row.raw_extraction, loser_row.raw_extraction)
+  raw_extraction = public.ain98_merge_raw_extraction(keeper_row.raw_extraction, loser_row.raw_extraction)
 FROM keepers k
 JOIN losers l ON l.user_id = k.user_id AND l.normalized_url = k.normalized_url
 JOIN public.crm_listings loser_row ON loser_row.id = l.id
 WHERE keeper_row.id = k.id;
+
+-- One-off helpers (STEP 3a) — not part of the permanent schema.
+DROP FUNCTION public.ain98_merge_raw_extraction(jsonb, jsonb);
+DROP FUNCTION public.ain98_merge_units_of_interest(jsonb, jsonb);
 
 -- Delete the losing duplicate rows (cascades crm_listing_captures via FK).
 DELETE FROM public.crm_listings
@@ -201,5 +351,91 @@ BEGIN
     RAISE EXCEPTION 'AIN-98 source_url normalization: % duplicate (user_id, source_url) pair(s) remain among non-archived rows AFTER the merge — expected zero. Investigate before committing this migration.', dup_count;
   END IF;
 END $$;
+
+-- ---------------------------------------------------------------------------
+-- STEP 6: crm_append_unit_of_interest — atomic accumulator append (Review
+-- fix, HIGH, AIN-98 adjudication). PERMANENT function (unlike the STEP 3a
+-- helpers) — this is the ongoing write path `addListing` calls on every
+-- already-saved dedup hit, not a one-off backfill step.
+--
+-- `enrichExistingListingWithUnit` (packages/ai/src/crm/add-listing.ts) used
+-- to append a newly-viewed unit onto an EXISTING row's
+-- raw_extraction.deep_extract.units_of_interest via a plain read-then-write:
+-- a SELECT to fetch the current array, JS-side append/dedupe/cap, then an
+-- UPDATE with the whole recomputed raw_extraction object. Two concurrent
+-- writers (a second rapid re-save of the same building, or this enrichment
+-- racing the crm_deep_extract mission's 04-update-row.ts write) can
+-- interleave between the SELECT and the UPDATE — the second writer's UPDATE
+-- silently overwrites the first's, losing whichever unit it appended (a
+-- classic lost-update / read-modify-write race).
+--
+-- This function replaces that read-merge-write with a SINGLE UPDATE whose
+-- SET expression references the row's OWN `raw_extraction` column directly
+-- — never a separate SELECT statement, never a joined alias to the same
+-- row. That's the standard Postgres idiom for atomic self-referencing
+-- updates (the same guarantee `UPDATE t SET n = n + 1 WHERE id = x` relies
+-- on): if two calls race on the same listing, the second call's row lock
+-- forces it to re-evaluate its SET expression against the FIRST call's
+-- already-committed value (Postgres's EvalPlanQual re-check) — there is no
+-- window where one call's UPDATE can read a pre-first-call snapshot of the
+-- array and stomp the first call's append.
+--
+-- SECURITY INVOKER (not DEFINER, deliberately): runs with the CALLING
+-- role's privileges, so the `crm_listings_update_own` RLS policy
+-- (`user_id = auth.uid()`, migration 037) still gates this UPDATE exactly
+-- as if the client had run it directly — this function grants no
+-- cross-user access, and needs no explicit user_id parameter/check.
+--
+-- Guard: no-op (0 rows affected — WHERE clause short-circuits) when p_unit
+-- is null or lacks a string 'zpid'. Mirrors `buildSelectedUnitEntry`'s
+-- "malformed unit degrades to nothing to append" contract in
+-- add-listing.ts — never throws, never partially writes.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.crm_append_unit_of_interest(
+  p_listing_id uuid,
+  p_unit jsonb
+)
+RETURNS void
+LANGUAGE sql
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+  UPDATE public.crm_listings
+  SET raw_extraction = jsonb_set(
+    COALESCE(raw_extraction, '{}'::jsonb),
+    '{deep_extract,units_of_interest}',
+    -- Dedupe-by-zpid (existing entries minus any matching p_unit's zpid),
+    -- append p_unit at the end, then keep only the most-recent 12 (oldest
+    -- dropped first) — mirrors appendSelectedUnit's semantics in
+    -- add-listing.ts (SELECTED_UNIT_MAX_COUNT, extraction/selected-unit.ts).
+    COALESCE(
+      (
+        SELECT jsonb_agg(elem ORDER BY ord)
+        FROM (
+          SELECT elem, ord
+          FROM jsonb_array_elements(
+            (
+              SELECT COALESCE(jsonb_agg(e ORDER BY o), '[]'::jsonb)
+              FROM jsonb_array_elements(
+                COALESCE(raw_extraction #> '{deep_extract,units_of_interest}', '[]'::jsonb)
+              ) WITH ORDINALITY AS existing(e, o)
+              WHERE e ->> 'zpid' IS DISTINCT FROM (p_unit ->> 'zpid')
+            ) || jsonb_build_array(p_unit)
+          ) WITH ORDINALITY AS t(elem, ord)
+          ORDER BY ord DESC
+          LIMIT 12
+        ) capped
+      ),
+      '[]'::jsonb
+    ),
+    true
+  )
+  WHERE id = p_listing_id
+    AND p_unit IS NOT NULL
+    AND jsonb_typeof(p_unit -> 'zpid') = 'string';
+$$;
+
+GRANT EXECUTE ON FUNCTION public.crm_append_unit_of_interest(uuid, jsonb) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.crm_append_unit_of_interest(uuid, jsonb) TO service_role;
 
 COMMIT;
