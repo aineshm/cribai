@@ -70,6 +70,39 @@ describe('renderTruthTableForJudge', () => {
     expect(text).toContain(SEED_LISTINGS.studio.nickname);
     expect(text).toContain(`$${SEED_LISTINGS.studio.rent}`);
   });
+
+  // ---------------------------------------------------------------------
+  // AIN-93 run-4 calibration gap (2026-07-07): the judge only ever saw the
+  // `building` row's top-level (cheapest-plan) fields, so every correct
+  // floor-plan answer read as a hallucination against the truth table. The
+  // truth table must render each row's `floorPlans`, not just top-level.
+  // ---------------------------------------------------------------------
+  it('renders the building row\'s floor plans (name, bd/ba, sqft, rent range, availability)', () => {
+    const text = renderTruthTableForJudge();
+
+    // All 4 seeded EO Madison Yards plans must be individually visible.
+    expect(text).toContain('1 Bed 1 Bath');
+    expect(text).toContain('2 Bed 2 Bath');
+    expect(text).toContain('3 Bed 2 Bath');
+    // bd/ba
+    expect(text).toContain('2bd/2ba');
+    // sqft
+    expect(text).toContain('1020sqft');
+    // rent_min-rent_max range (the 2BR and 1BR plans have a real range)
+    expect(text).toContain('$1,800');
+    expect(text).toContain('$1,900');
+    expect(text).toContain('$1,300');
+    expect(text).toContain('$1,350');
+    // availability
+    expect(text).toContain('2 left');
+    expect(text).toContain('Fall 2026');
+    expect(text).toContain('Waitlist');
+  });
+
+  it('does not render a floor-plans sub-block for rows with no floorPlans', () => {
+    const studioOnly = renderTruthTableForJudge([SEED_LISTINGS.studio]);
+    expect(studioOnly).not.toContain('floor plan');
+  });
 });
 
 describe('judgeConversation', () => {
@@ -145,5 +178,25 @@ describe('judgeConversation', () => {
     const call = generate.mock.calls[0]![0];
     expect(call.prompt).toMatch(/INFORMATIONAL ask/);
     expect(call.prompt).toMatch(/no-pick-fails rule applies ONLY/i);
+  });
+
+  // AIN-93 run-4 calibration gap: the judge graded correct floor-plan
+  // answers as hallucinations because a building row's plans weren't in the
+  // rendered truth table AND the rubric never told the judge floor plans are
+  // legitimate sub-options of one listing, not separate saved listings.
+  it('instructs the judge that a floor plan grounded in the truth table is not a hallucination, but is still part of ONE listing (live-run finding)', async () => {
+    const generate = vi.fn().mockResolvedValue(VALID_RECOMMENDATION);
+
+    await judgeConversation({
+      scenarioId: 's1',
+      scenarioDescription: 'desc',
+      transcriptText: 'transcript',
+      generate,
+    });
+
+    const call = generate.mock.calls[0]![0];
+    expect(call.prompt).toMatch(/multiple floor plans/i);
+    expect(call.prompt).toMatch(/not\s+.*hallucinat/i);
+    expect(call.prompt).toMatch(/not a separate saved listing/i);
   });
 });

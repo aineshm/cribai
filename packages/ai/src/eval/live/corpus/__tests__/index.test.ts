@@ -5,6 +5,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { loadLiveCorpus, liveCorpusByBucket, LIVE_EVAL_BUCKETS } from '../index';
+import { SEED_LISTINGS } from '../../seed-truth';
+import { sanitizeField } from '../../../../crm/saved-list-context';
 
 describe('loadLiveCorpus', () => {
   const scenarios = loadLiveCorpus();
@@ -66,6 +68,41 @@ describe('isolation — at least one scenario exercises each hard criterion prim
   it('judge: at least one turn is judged and at least one is not (isolates the judge gate)', () => {
     expect(allTurns.some((t) => t.expect.judge === true)).toBe(true);
     expect(allTurns.some((t) => t.expect.judge === false)).toBe(true);
+  });
+});
+
+describe('AIN-93 run-4 calibration gap: transcript-content pins must use SANITIZED nickname forms (PR #124 strips [ ] before the model ever sees them)', () => {
+  const scenarios = loadLiveCorpus();
+
+  it('no scenario expectTranscript pin still contains a literal bracketed "[AIN-93]" nickname form', () => {
+    for (const scenario of scenarios) {
+      for (const turn of scenario.turns) {
+        const expectation = turn.expect.expectTranscript;
+        if (!expectation) continue;
+        const allPins = [
+          ...(expectation.mustMentionAll ?? []),
+          ...(expectation.mustMentionAtLeast?.of ?? []),
+        ];
+        for (const pin of allPins) {
+          expect(pin, `${scenario.id}: "${pin}" must not contain a raw bracketed nickname`).not.toMatch(
+            /\[AIN-93\]/,
+          );
+        }
+      }
+    }
+  });
+
+  it('ambiguous-clarify-02 mustMentionAtLeast pins exactly the sanitizeField() output for the 3 dishwasher-matching seed nicknames', () => {
+    const scenario = scenarios.find((s) => s.id === 'ambiguous-clarify-02')!;
+    const expectation = scenario.turns[0]!.expect.expectTranscript!.mustMentionAtLeast!;
+
+    const expectedSanitized = [
+      sanitizeField(SEED_LISTINGS.onebed.nickname),
+      sanitizeField(SEED_LISTINGS.twobed_nice.nickname),
+      sanitizeField(SEED_LISTINGS.fourbed.nickname),
+    ];
+
+    expect(expectation.of).toEqual(expectedSanitized);
   });
 });
 
