@@ -4,6 +4,13 @@ import { afterEach, vi } from 'vitest';
 
 afterEach(() => {
   cleanup();
+  // Isolate localStorage across tests (e.g. the AIN-104.2 first-run intro
+  // flag) so one test's writes never leak into the next test's assertions.
+  try {
+    window.localStorage.clear();
+  } catch {
+    // localStorage unavailable in this environment — nothing to clear.
+  }
 });
 
 vi.mock('framer-motion', async () => {

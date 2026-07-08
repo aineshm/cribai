@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
 import { Building2, Send } from 'lucide-react';
-import { useIsMobile } from '@/hooks/use-is-mobile';
+import { useIsMobile, MOBILE_BREAKPOINT_PX } from '@/hooks/use-is-mobile';
 import { useCrmChat, type ChatMessage } from './useCrmChat';
 import { CrmCanvas } from './CrmCanvas';
 import { CanvasSheet } from './CanvasSheet';
@@ -35,9 +35,26 @@ const PLACEHOLDER = 'Paste a listing link, or ask…';
 export function CrmWorkspace() {
   const { messages, send, pending, renameUnit } = useCrmChat();
   const [draft, setDraft] = useState('');
-  const [canvasOpen, setCanvasOpen] = useState(false);
+  // AIN-104.1: open by default so a first-time visitor lands on chat + cards
+  // together. Desktop-only — the 60/40 split doesn't fit small viewports, so
+  // a one-time mount effect below closes it there. The toggle still works
+  // both ways afterward. This reads `matchMedia` directly (not via
+  // `useIsMobile`, whose own async state resolves through its own effect —
+  // chaining a second effect off of it wouldn't reliably settle within one
+  // render pass) so the correction lands before paint on mobile widths.
+  const [canvasOpen, setCanvasOpen] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
   const isMobile = useIsMobile();
+
+  const appliedMobileDefaultRef = useRef(false);
+  useEffect(() => {
+    if (appliedMobileDefaultRef.current) return;
+    appliedMobileDefaultRef.current = true;
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    if (window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX}px)`).matches) {
+      setCanvasOpen(false);
+    }
+  }, []);
 
   // Resolve the unit object from the messages list for the drawer.
   const openUnit: CrmUnit | null =
