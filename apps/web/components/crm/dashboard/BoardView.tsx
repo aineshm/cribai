@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { LayoutGrid, Columns3, KanbanSquare, Link2, ArrowRight, Share2 } from 'lucide-react';
 import type { RankCompareResult } from '@campusnest/ai';
+import { createClient } from '@campusnest/supabase/client';
 import type { CrmList, CrmUnit } from '@/lib/crm/proposed-types';
 import { crmClient } from '@/lib/crm-client';
 import { errorMessage } from '@/lib/crm/error-message';
+import { useCrmListingsRealtime } from '@/hooks/use-crm-listings-realtime';
 import { BranchState } from '../ui/BranchState';
 import { MemberAvatars } from '../ui/MemberAvatars';
 import { ApplicationPipeline } from './ApplicationPipeline';
@@ -44,23 +46,61 @@ export function BoardView() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [compareError, setCompareError] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
+  // Resolved once for the AIN-105 realtime subscription below. Wrapped in
+  // try/catch — createClient() throws synchronously when Supabase env vars
+  // are absent (e.g. component tests with no env configured); that degrades
+  // to no realtime subscription, never a crash.
   useEffect(() => {
     let alive = true;
+    (async () => {
+      try {
+        const supabase = createClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (alive) setUserId(session?.user.id ?? null);
+      } catch {
+        // No Supabase env in this render context — realtime stays off.
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Shared by the mount fetch AND every AIN-105 realtime-triggered refetch
+  // below — a single ref flipped false on unmount guards every in-flight
+  // call, not just whichever one happened to be "the" effect's cleanup.
+  const aliveRef = useRef(true);
+  useEffect(
+    () => () => {
+      aliveRef.current = false;
+    },
+    [],
+  );
+
+  const fetchListAndUnits = useCallback(() => {
     Promise.all([crmClient.getList(), crmClient.listUnits()])
       .then(([l, u]) => {
-        if (!alive) return;
+        if (!aliveRef.current) return;
         setList(l);
         setUnits(u);
         setLoadError(null);
       })
       .catch((err: unknown) => {
-        if (alive) setLoadError(errorMessage(err));
+        if (aliveRef.current) setLoadError(errorMessage(err));
       });
-    return () => {
-      alive = false;
-    };
   }, []);
+
+  useEffect(() => {
+    fetchListAndUnits();
+  }, [fetchListAndUnits]);
+
+  // AIN-105: a save from the extension (or any other client) while this
+  // dashboard is open streams in without needing a manual reopen/reload.
+  useCrmListingsRealtime(userId, fetchListAndUnits);
 
   // Compare data loads lazily the first time its tab is opened.
   useEffect(() => {
