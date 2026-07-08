@@ -29,6 +29,8 @@
         "*://*.trulia.com/*",
         "*://*.realtor.com/*",
         "*://*.craigslist.org/*",
+        "*://*.rentsfnow.com/*",
+        "*://*.avaloncommunities.com/*",
         "*://x01oncampus.com/*",
         "*://www.x01oncampus.com/*"
       ],
