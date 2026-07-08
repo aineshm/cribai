@@ -384,6 +384,21 @@ describe('AIN-24 — campusName is a trust boundary (sanitized before interpolat
 // ---------------------------------------------------------------------------
 
 describe('CRM surface prompt', () => {
+  it('CRM cachedPrefix stays under the 6k-token budget (codex A3 — CRM-surface pin, AIN-99 review fix)', () => {
+    // The 6k-token budget pin above only covered the explore surface — the
+    // CRM surface builds a DIFFERENT cachedPrefix (excluded tools, swapped
+    // persona workflow, AIN-100 RULE #1 additions) that was never itself
+    // checked against the shared cache-prefix budget. Mirrors the explore
+    // pin's estimateTokens idiom and bound exactly.
+    const { cachedPrefix } = buildSystemPrompt(baseState(), ALICE, { surface: 'crm' });
+    const tokens = estimateTokens(cachedPrefix);
+    // eslint-disable-next-line no-console
+    console.log(
+      `[system-prompt] CRM cachedPrefix length=${cachedPrefix.length} chars ~= ${tokens} tokens`,
+    );
+    expect(tokens).toBeLessThanOrEqual(6000);
+  });
+
   it('CRM cachedPrefix omits the 4 excluded tools and search-first RULE #1', () => {
     const { cachedPrefix } = buildSystemPrompt(baseState(), ALICE, { surface: 'crm' });
     expect(cachedPrefix).not.toContain('### search_listings');
@@ -427,6 +442,24 @@ describe('CRM surface prompt', () => {
     expect(buildPersona('UW-Madison')).toBe(buildPersona('UW-Madison', undefined));
   });
 
+  it('CRM RULE #1 gains the AIN-100 attribute-resolution + complete-in-this-turn rules', () => {
+    const { cachedPrefix } = buildSystemPrompt(baseState(), ALICE, { surface: 'crm' });
+
+    // (a) resolve attribute/bed-count references against the saved list and
+    // NAME the resolved listing(s); never substitute a different one.
+    expect(cachedPrefix).toMatch(/NAME the listing/i);
+    expect(cachedPrefix).toMatch(/never substitute/i);
+    // (b) complete a comparison/answer THIS turn — never defer as a follow-up.
+    expect(cachedPrefix).toMatch(/THIS turn/);
+    expect(cachedPrefix).toMatch(/never offer/i);
+  });
+
+  it('explore RULE #1 (SEARCH_FIRST_RULE) is unaffected by the AIN-100 CRM-only addition', () => {
+    const { cachedPrefix } = buildSystemPrompt(baseState(), ALICE, {});
+    expect(cachedPrefix).toContain('SEARCH FIRST, ASK LATER');
+    expect(cachedPrefix).not.toMatch(/never substitute/i);
+  });
+
   it('CRM persona swaps the search workflow for the saved-list analysis workflow', () => {
     const crmPersona = buildPersona('UW-Madison', 'crm');
     expect(crmPersona).toContain('first_save_analysis');
@@ -455,6 +488,30 @@ describe('buildSystemPrompt — savedListContext (AIN-91)', () => {
         address: '456 W Gorham St, Madison WI',
         rent: 1100,
         status: 'active',
+        floorPlans: [],
+        priceIsFrom: false,
+      },
+    ],
+    truncatedCount: 0,
+  };
+
+  // AIN-99 Task 4: same fixture shape, but with floor plans — extends
+  // SAMPLE_CONTEXT rather than replacing it so the pre-AIN-99 no-plans
+  // assertions above stay meaningful (a no-plans listing must keep working).
+  const SAMPLE_CONTEXT_WITH_FLOOR_PLANS: SavedListContext = {
+    listings: [
+      {
+        id: SAVED_LISTING_ID,
+        nickname: 'EO Madison Yards',
+        title: 'Building save',
+        address: '123 University Ave, Madison WI',
+        rent: 1050,
+        status: 'active',
+        priceIsFrom: true,
+        floorPlans: [
+          { name: 'Studio', bedrooms: 0, bathrooms: 1, rent_min: 1050, rent_max: null, sqft: 410, availability: 'Available now' },
+          { name: '2 Bed 2 Bath', bedrooms: 2, bathrooms: 2, rent_min: 1800, rent_max: 1900, sqft: 1020, availability: 'Waitlist' },
+        ],
       },
     ],
     truncatedCount: 0,
@@ -467,6 +524,26 @@ describe('buildSystemPrompt — savedListContext (AIN-91)', () => {
     });
     expect(dynamicSuffix).toContain(SAVED_LISTING_ID);
     expect(dynamicSuffix).toContain('The Gorham Loft');
+  });
+
+  it('AIN-99: dynamicSuffix for crm renders the floor-plans line when the context carries plans', () => {
+    const { dynamicSuffix } = buildSystemPrompt(baseState(), ALICE, {
+      surface: 'crm',
+      savedListContext: SAMPLE_CONTEXT_WITH_FLOOR_PLANS,
+    });
+    expect(dynamicSuffix).toContain('EO Madison Yards');
+    expect(dynamicSuffix).toContain('from $1050/mo'); // top-level priceIsFrom prefix
+    expect(dynamicSuffix).toContain('floor plans');
+    expect(dynamicSuffix).toContain('Studio');
+    expect(dynamicSuffix).toContain('$1,800');
+  });
+
+  it('AIN-99: explore dynamicSuffix omits the floor-plans block even when the context carries plans', () => {
+    const { dynamicSuffix } = buildSystemPrompt(baseState(), ALICE, {
+      savedListContext: SAMPLE_CONTEXT_WITH_FLOOR_PLANS,
+    });
+    expect(dynamicSuffix).not.toContain('EO Madison Yards');
+    expect(dynamicSuffix).not.toContain('floor plans');
   });
 
   it('omits the block for the explore surface even when savedListContext is provided', () => {
@@ -498,5 +575,35 @@ describe('buildSystemPrompt — savedListContext (AIN-91)', () => {
       savedListContext: SAMPLE_CONTEXT,
     }).cachedPrefix;
     expect(exploreWith).toBe(exploreWithout);
+  });
+
+  it('AIN-99 Task 4: cachedPrefix stays byte-identical even when savedListContext carries floor plans, on BOTH surfaces', () => {
+    const crmWithout = buildSystemPrompt(baseState(), ALICE, { surface: 'crm' }).cachedPrefix;
+    const crmWithFloorPlans = buildSystemPrompt(baseState(), ALICE, {
+      surface: 'crm',
+      savedListContext: SAMPLE_CONTEXT_WITH_FLOOR_PLANS,
+    }).cachedPrefix;
+    expect(crmWithFloorPlans).toBe(crmWithout);
+
+    const exploreWithout = buildSystemPrompt(baseState(), ALICE, {}).cachedPrefix;
+    const exploreWithFloorPlans = buildSystemPrompt(baseState(), ALICE, {
+      savedListContext: SAMPLE_CONTEXT_WITH_FLOOR_PLANS,
+    }).cachedPrefix;
+    expect(exploreWithFloorPlans).toBe(exploreWithout);
+  });
+
+  it('AIN-99 Task 4: the explore-surface dynamic-suffix snapshots (no-selection/selected/compare/pending/guest) stay untouched by this CRM-only change', () => {
+    // Re-assert the exact snapshot-backed assertions from the "dynamic
+    // suffix" describe block above still hold — this wave only ever adds
+    // content to the CRM surface's savedListContext block, never to explore.
+    const noSelection = buildSystemPrompt(baseState(), ALICE).dynamicSuffix;
+    expect(noSelection).not.toContain('floor plans');
+    expect(noSelection).not.toContain("USER'S SAVED LISTINGS");
+
+    const selected = buildSystemPrompt(withSelection(LISTING_A), ALICE).dynamicSuffix;
+    expect(selected).not.toContain('floor plans');
+
+    const guest = buildSystemPrompt(baseState(), EMPTY_PROFILE_SNIPPET, { isGuest: true }).dynamicSuffix;
+    expect(guest).not.toContain('floor plans');
   });
 });

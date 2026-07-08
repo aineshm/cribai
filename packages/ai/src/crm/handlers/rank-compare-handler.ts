@@ -48,6 +48,24 @@ function formatRankResult(ranked: readonly RankedListing[]): { modelContext: str
   return { modelContext, content };
 }
 
+/**
+ * Render one CompareRow's table cells. `honest` gates the AIN-99/100 "from
+ * $" rent prefix — kept OFF for the UI-facing `content` string (no UI change;
+ * RankCompareTable owns table polish per AIN-88) and ON for `modelContext`.
+ */
+function formatCompareRowCells(r: CompareRow, honest: boolean): string {
+  const amenities = r.amenities.length > 0 ? r.amenities.slice(0, 3).join(', ') : '—';
+  const rentPrefix = honest && r.priceIsFrom ? 'from $' : '$';
+  return [
+    r.title || r.listingId,
+    r.rent != null ? `${rentPrefix}${r.rent}` : '—',
+    r.bedrooms != null ? String(r.bedrooms) : '—',
+    r.bathrooms != null ? String(r.bathrooms) : '—',
+    r.sqft != null ? String(r.sqft) : '—',
+    amenities,
+  ].join(' | ');
+}
+
 function formatCompareResult(rows: readonly CompareRow[]): { modelContext: string; content: string } {
   if (rows.length === 0) {
     return {
@@ -59,20 +77,26 @@ function formatCompareResult(rows: readonly CompareRow[]): { modelContext: strin
   const header = ['Listing', 'Rent', 'Beds', 'Baths', 'Sqft', 'Amenities'].join(' | ');
   const separator = '---';
 
-  const dataLines = rows.map((r) => {
-    const amenities = r.amenities.length > 0 ? r.amenities.slice(0, 3).join(', ') : '—';
-    return [
-      r.title || r.listingId,
-      r.rent != null ? `$${r.rent}` : '—',
-      r.bedrooms != null ? String(r.bedrooms) : '—',
-      r.bathrooms != null ? String(r.bathrooms) : '—',
-      r.sqft != null ? String(r.sqft) : '—',
-      amenities,
-    ].join(' | ');
-  });
-
-  const modelContext = ['Side-by-side comparison:', header, separator, ...dataLines, '', 'INSTRUCTIONS: Present this comparison table to the user.'].join('\n');
+  // UI-facing content — byte-identical formatting to before AIN-99 (no UI change).
+  const dataLines = rows.map((r) => formatCompareRowCells(r, false));
   const content = ['**Listing Comparison**', '', header, separator, ...dataLines].join('\n');
+
+  // Model-context-only rent honesty + floor-plan summaries (AIN-99/100 part
+  // b): a building-level save's rent is the CHEAPEST plan, not a fixed
+  // single-unit rent — the model must not quote it as one, and it already
+  // has what it needs to answer without deflecting to a follow-up turn.
+  const modelContextLines = rows.map((r) => {
+    const line = formatCompareRowCells(r, true);
+    return r.floorPlanSummary ? `${line}\n  floor plans: ${r.floorPlanSummary}` : line;
+  });
+  const modelContext = [
+    'Side-by-side comparison:',
+    header,
+    separator,
+    ...modelContextLines,
+    '',
+    'INSTRUCTIONS: Present this comparison table to the user. Where rent shows "from $", say so explicitly — that is the cheapest floor plan, not a fixed single-unit rent.',
+  ].join('\n');
 
   return { modelContext, content };
 }

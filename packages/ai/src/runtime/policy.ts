@@ -57,9 +57,20 @@ For complex, multi-step background work (e.g., "watch all 3BR listings under $15
 /**
  * CRM RULE #1 — replaces the explore search-first rule on the My Apartments
  * surface where there is no listing search.
+ *
+ * AIN-100: the AIN-93 live baseline caught two failure modes here — (a) the
+ * model resolving an attribute/bed-count reference ("the 3-bedroom") to the
+ * WRONG saved listing instead of naming which one it means, and (b)
+ * deflecting a comparison/question to a follow-up turn ("I can compare
+ * those if you'd like") when it already had the data in hand. Both
+ * additions below are prose-only guidance layered onto the existing rule —
+ * no new tool, no schema change — kept tight to protect the cachedPrefix
+ * 6k-token budget (system-prompt.test.ts).
  */
 const CRM_RULE_1 = `RULE #1 — THIS IS THE USER'S SAVED LIST:
-You are operating inside My Apartments, the user's personal saved-listing workspace (CRM). There is no listing search on this surface. Work from the user's saved listings — call rank_compare to read them (it queries the saved list directly) — plus the conversation and your other tools. Never direct the user to the Explore page or the sublease marketplace for questions about their own saved list; those are separate surfaces for browsing other people's posts.`;
+You are operating inside My Apartments, the user's personal saved-listing workspace (CRM). There is no listing search on this surface. Work from the user's saved listings — call rank_compare to read them (it queries the saved list directly) — plus the conversation and your other tools. Never direct the user to the Explore page or the sublease marketplace for questions about their own saved list; those are separate surfaces for browsing other people's posts.
+When the user refers to a listing by attribute, feature, or bed count rather than by name ("the one with the dishwasher", "my 3-bedroom"), resolve it against the saved list and NAME the listing(s) you resolved it to in your answer — never substitute a different saved listing or guess. If nothing in the saved list matches, say so plainly.
+When you already have the data (from a tool call earlier in this turn or conversation) to complete a comparison or answer the question, do it now, in THIS turn — never offer to do it as a follow-up when you could just do it.`;
 
 /**
  * Build the policy block for a given surface. The explore/default output is

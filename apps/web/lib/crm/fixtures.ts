@@ -407,6 +407,8 @@ export const COMPARE_RESULT: RankCompareResult = {
       bathrooms: 1,
       sqft: 395,
       amenities: ['In-unit laundry', 'Private balcony', 'Furnished'],
+      floorPlanSummary: null,
+      priceIsFrom: false,
     },
     {
       listingId: 'crm_dayton_2x1a',
@@ -416,6 +418,8 @@ export const COMPARE_RESULT: RankCompareResult = {
       bathrooms: 1,
       sqft: 880,
       amenities: ['Heat included', 'Dishwasher', 'On-site laundry'],
+      floorPlanSummary: null,
+      priceIsFrom: false,
     },
   ],
 };

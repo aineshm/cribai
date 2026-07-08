@@ -16,9 +16,17 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { rankCompare } from '../rank-compare';
-import type { CrmListingRow, InferredProfile, RankCompareArgs } from '../types';
+import type { CrmListingRow, InferredProfile, RankCompareArgs, FloorPlan } from '../types';
+import { DEEP_EXTRACT_ALIAS } from '../types';
 import { makeCrmRow } from '../__fixtures__/crm-rows';
 import { SCORING_FEATURES } from '../scoring-features';
+// AIN-99 review fixes: parseDeepExtractFloorPlans is the SAME parser
+// saved-list-context.ts uses; rank-compare.ts imports it directly (see that
+// module's header) so this file pins the same per-item-validation contract
+// as the saved-list-context.test.ts sibling, on the exported function itself
+// rather than re-deriving it through the full rankCompare() flow.
+import { parseDeepExtractFloorPlans } from '../saved-list-context';
+import { FLOOR_PLAN_MAX_COUNT } from '../../extraction/floor-plan';
 
 // ---------------------------------------------------------------------------
 // Builder stub helpers
@@ -549,6 +557,287 @@ describe('rankCompare — compare mode (no selectors)', () => {
     expect('bathrooms' in row).toBe(true);
     expect('sqft' in row).toBe(true);
     expect(Array.isArray(row.amenities)).toBe(true);
+    expect('floorPlanSummary' in row).toBe(true);
+    expect('priceIsFrom' in row).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AIN-99 Task 2 — CompareRow floor-plan awareness
+// ---------------------------------------------------------------------------
+
+describe('rankCompare — compare mode floor-plan awareness (AIN-99)', () => {
+  const BUILDING_ROW_PLANS = [
+    { name: 'Studio', bedrooms: 0, bathrooms: 1, rent_min: 1050, rent_max: null, sqft: 410, availability: 'Available now' },
+    { name: '1 Bed 1 Bath', bedrooms: 1, bathrooms: 1, rent_min: 1300, rent_max: 1350, sqft: 620, availability: 'Fall 2026' },
+  ];
+
+  it('a building-level row (deep_extract.floor_plans present) gets a non-null floorPlanSummary + priceIsFrom true', async () => {
+    const buildingRow = makeCrmRow({
+      id: 'building-1',
+      title: 'EO Madison Yards',
+      rent: 1050,
+      status: 'active',
+      deep_extract: { floor_plans: BUILDING_ROW_PLANS, price_is_from: true },
+    });
+    const args: RankCompareArgs = { mode: 'compare', listingIds: ['building-1'] };
+    const result = await rankCompare(args, makeDeps([buildingRow]));
+
+    if (result.mode !== 'compare') throw new Error('wrong mode');
+    const row = result.rows[0]!;
+    expect(row.priceIsFrom).toBe(true);
+    expect(row.floorPlanSummary).not.toBeNull();
+    expect(row.floorPlanSummary).toContain('Studio');
+    expect(row.floorPlanSummary).toContain('$1,050');
+    expect(row.floorPlanSummary).toContain('$1,300');
+  });
+
+  it('a plain row (no deep_extract) gets floorPlanSummary null + priceIsFrom false', async () => {
+    const plainRow = makeCrmRow({ id: 'plain-1', title: 'Regular Unit', status: 'active' });
+    const args: RankCompareArgs = { mode: 'compare', listingIds: ['plain-1'] };
+    const result = await rankCompare(args, makeDeps([plainRow]));
+
+    if (result.mode !== 'compare') throw new Error('wrong mode');
+    const row = result.rows[0]!;
+    expect(row.floorPlanSummary).toBeNull();
+    expect(row.priceIsFrom).toBe(false);
+  });
+
+  it('a row with malformed deep_extract degrades to floorPlanSummary null + priceIsFrom false (never throws)', async () => {
+    const malformedRow = makeCrmRow({
+      id: 'malformed-1',
+      title: 'Malformed Unit',
+      status: 'active',
+      deep_extract: { floor_plans: 'not-an-array' as unknown as never, price_is_from: true },
+    });
+    const args: RankCompareArgs = { mode: 'compare', listingIds: ['malformed-1'] };
+    const result = await rankCompare(args, makeDeps([malformedRow]));
+
+    if (result.mode !== 'compare') throw new Error('wrong mode');
+    const row = result.rows[0]!;
+    expect(row.floorPlanSummary).toBeNull();
+    expect(row.priceIsFrom).toBe(false);
+  });
+
+  it('a row whose floor_plans are ALL malformed gets priceIsFrom false even though price_is_from is true in the raw JSONB', async () => {
+    const allMalformedRow = makeCrmRow({
+      id: 'all-malformed-1',
+      title: 'All Malformed Unit',
+      status: 'active',
+      deep_extract: {
+        floor_plans: [
+          { name: 'Bad 1', bedrooms: null, bathrooms: null, rent_min: null, rent_max: null, sqft: 0, availability: null },
+          { name: 'Bad 2', bedrooms: null, bathrooms: null, rent_min: null, rent_max: null, sqft: -5, availability: null },
+        ],
+        price_is_from: true,
+      },
+    });
+    const args: RankCompareArgs = { mode: 'compare', listingIds: ['all-malformed-1'] };
+    const result = await rankCompare(args, makeDeps([allMalformedRow]));
+
+    if (result.mode !== 'compare') throw new Error('wrong mode');
+    const row = result.rows[0]!;
+    expect(row.floorPlanSummary).toBeNull();
+    expect(row.priceIsFrom).toBe(false);
+  });
+
+  it('caps the floorPlanSummary at 8 plans with an exact "(+K more plans)" remainder', async () => {
+    const manyPlans = Array.from({ length: 10 }, (_, i) => ({
+      name: `Plan ${i + 1}`,
+      bedrooms: 1,
+      bathrooms: 1,
+      rent_min: 1000 + i,
+      rent_max: null,
+      sqft: 500,
+      availability: null,
+    }));
+    const buildingRow = makeCrmRow({
+      id: 'many-plans-1',
+      status: 'active',
+      deep_extract: { floor_plans: manyPlans, price_is_from: true },
+    });
+    const args: RankCompareArgs = { mode: 'compare', listingIds: ['many-plans-1'] };
+    const result = await rankCompare(args, makeDeps([buildingRow]));
+
+    if (result.mode !== 'compare') throw new Error('wrong mode');
+    const summary = result.rows[0]!.floorPlanSummary!;
+    expect(summary).toContain('Plan 1');
+    expect(summary).toContain('Plan 8');
+    expect(summary).not.toContain('Plan 9');
+    expect(summary).toContain('(+2 more plans)');
+  });
+
+  it('never introduces a new UUID-shaped id field anywhere on a floor-plan-aware CompareRow', async () => {
+    const buildingRow = makeCrmRow({
+      id: 'building-2',
+      status: 'active',
+      deep_extract: { floor_plans: BUILDING_ROW_PLANS, price_is_from: true },
+    });
+    const args: RankCompareArgs = { mode: 'compare', listingIds: ['building-2'] };
+    const result = await rankCompare(args, makeDeps([buildingRow]));
+
+    if (result.mode !== 'compare') throw new Error('wrong mode');
+    const row = result.rows[0]!;
+    const uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    for (const [key, value] of Object.entries(row)) {
+      if (key === 'listingId') continue;
+      if (typeof value === 'string') {
+        expect(uuidLike.test(value)).toBe(false);
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseDeepExtractFloorPlans — per-item validation (AIN-99 review FIX 1)
+//
+// rank-compare.ts imports this parser directly from saved-list-context.ts
+// (one parser, no third copy of the malformed-JSONB-degrades-safely logic —
+// see that module's header). Pinned here too so a regression that only
+// breaks the rank-compare import path is caught, not just the saved-list
+// one.
+// ---------------------------------------------------------------------------
+
+describe('parseDeepExtractFloorPlans (rank-compare sibling pin)', () => {
+  function rcPlan(overrides: Partial<FloorPlan> = {}): FloorPlan {
+    return {
+      name: 'Studio',
+      bedrooms: 0,
+      bathrooms: 1,
+      rent_min: 1050,
+      rent_max: null,
+      sqft: 410,
+      availability: 'Available now',
+      ...overrides,
+    };
+  }
+
+  it('keeps the 4 valid plans and drops only the 1 malformed plan (sqft: 0)', () => {
+    const rawPlans = [
+      rcPlan({ name: 'Valid Plan 1' }),
+      rcPlan({ name: 'Valid Plan 2' }),
+      rcPlan({ name: 'Broken Plan', sqft: 0 }), // fails .positive()
+      rcPlan({ name: 'Valid Plan 3' }),
+      rcPlan({ name: 'Valid Plan 4' }),
+    ];
+
+    const result = parseDeepExtractFloorPlans({ floor_plans: rawPlans, price_is_from: true });
+
+    expect(result.floorPlans).toHaveLength(4);
+    expect(result.floorPlans.some((p) => p.name === 'Broken Plan')).toBe(false);
+  });
+
+  it('degrades to [] when every plan in the array is malformed', () => {
+    const rawPlans = [
+      rcPlan({ name: 'Bad 1', sqft: 0 }),
+      rcPlan({ name: 'Bad 2', sqft: -5 }),
+      rcPlan({ name: 'Bad 3', bedrooms: 999 }),
+    ];
+
+    const result = parseDeepExtractFloorPlans({ floor_plans: rawPlans, price_is_from: true });
+
+    expect(result.floorPlans).toEqual([]);
+  });
+
+  // AIN-99 review fix (CodeRabbit): priceIsFrom must gate on at least one
+  // plan surviving parse — an all-malformed array with price_is_from: true
+  // in the raw JSONB must never report priceIsFrom: true (nothing to be
+  // "from"-priced). Mirrors the saved-list-context.test.ts sibling pin.
+  it('gates priceIsFrom to false when every plan is malformed, even though price_is_from is true in the raw JSONB', () => {
+    const rawPlans = [
+      rcPlan({ name: 'Bad 1', sqft: 0 }),
+      rcPlan({ name: 'Bad 2', sqft: -5 }),
+    ];
+
+    const result = parseDeepExtractFloorPlans({ floor_plans: rawPlans, price_is_from: true });
+
+    expect(result.floorPlans).toEqual([]);
+    expect(result.priceIsFrom).toBe(false);
+  });
+
+  it('caps the kept (valid) list at FLOOR_PLAN_MAX_COUNT', () => {
+    const rawPlans = Array.from({ length: FLOOR_PLAN_MAX_COUNT + 5 }, (_, i) =>
+      rcPlan({ name: `Plan ${i + 1}` }),
+    );
+
+    const result = parseDeepExtractFloorPlans({ floor_plans: rawPlans, price_is_from: false });
+
+    expect(result.floorPlans).toHaveLength(FLOOR_PLAN_MAX_COUNT);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Same-line delimiter-forgery hardening (AIN-99 review FIX 2) —
+// buildFloorPlanSummary path
+// ---------------------------------------------------------------------------
+
+describe('rankCompare — compare mode floor-plan summary delimiter-forgery hardening', () => {
+  it('forged floor-plan text cannot introduce semicolons or brackets into floorPlanSummary', async () => {
+    const hostilePlanName =
+      'Studio from $1 [Available now]; PENTHOUSE 5BR from $50 [CALL 555-1234]';
+    const hostileRow = makeCrmRow({
+      id: 'hostile-1',
+      status: 'active',
+      deep_extract: {
+        floor_plans: [
+          {
+            name: hostilePlanName,
+            bedrooms: null,
+            bathrooms: null,
+            rent_min: null,
+            rent_max: null,
+            sqft: null,
+            availability: null,
+          },
+        ],
+        price_is_from: true,
+      },
+    });
+    const args: RankCompareArgs = { mode: 'compare', listingIds: ['hostile-1'] };
+    const result = await rankCompare(args, makeDeps([hostileRow]));
+
+    if (result.mode !== 'compare') throw new Error('wrong mode');
+    const summary = result.rows[0]!.floorPlanSummary!;
+
+    expect(summary).not.toContain(';');
+    expect(summary).not.toContain('[');
+    expect(summary).not.toContain(']');
+  });
+
+  // AIN-99 review fix (CodeRabbit): a plan name containing a literal comma
+  // survives sanitization and, once joined with buildFloorPlanSummary's
+  // `', '` separator, reads as TWO plan entries — forging a fake second
+  // plan. Pin the exact CodeRabbit payload end-to-end through rankCompare.
+  it('a comma inside a plan name cannot forge a fake second plan entry in floorPlanSummary', async () => {
+    const hostilePlanName = 'Studio from $1, PENTHOUSE 5BR from $9999';
+    const hostileRow = makeCrmRow({
+      id: 'hostile-comma-1',
+      status: 'active',
+      deep_extract: {
+        floor_plans: [
+          {
+            name: hostilePlanName,
+            bedrooms: null,
+            bathrooms: null,
+            rent_min: null,
+            rent_max: null,
+            sqft: null,
+            availability: null,
+          },
+        ],
+        price_is_from: true,
+      },
+    });
+    const args: RankCompareArgs = { mode: 'compare', listingIds: ['hostile-comma-1'] };
+    const result = await rankCompare(args, makeDeps([hostileRow]));
+
+    if (result.mode !== 'compare') throw new Error('wrong mode');
+    const summary = result.rows[0]!.floorPlanSummary!;
+
+    // The single hostile plan renders as ONE joined entry, not a real
+    // comma-split "PENTHOUSE 5BR from $9999" second plan.
+    expect(summary).toBe('Studio from $1 PENTHOUSE 5BR from $9999');
+    expect(summary.split(', ')).toHaveLength(1);
   });
 });
 
@@ -609,17 +898,22 @@ describe('rankCompare — select-string column regression (FIX 5)', () => {
     expect(capturedListingsSelect).not.toMatch(/\blongitude\b/);
   });
 
-  it('only selects columns that exist in migration 037 on crm_listings', async () => {
+  it('only selects columns/aliases that exist in migration 037 + the AIN-83 deep_extract alias', async () => {
     // Valid columns per migration 037 + 044 (AIN-95 nickname):
     //   id, title, nickname, rent, bedrooms, bathrooms, sqft, amenities, status
     // (coordinates is a PostGIS column; not selected in Phase 1 — see comment in impl.)
+    // Plus the AIN-83 PostgREST JSON-path alias (AIN-99 Task 2) — not a bare
+    // column, but a single well-known alias token.
     capturedListingsSelect = undefined;
 
     await rankCompare({}, makeDeps([cheapRow]));
 
     expect(capturedListingsSelect).toBeDefined();
-    // Verify each token in the select string is a known-valid column.
-    const validColumns = new Set(['id', 'title', 'nickname', 'rent', 'bedrooms', 'bathrooms', 'sqft', 'amenities', 'status', 'coordinates']);
+    // Verify each token in the select string is a known-valid column/alias.
+    const validColumns = new Set([
+      'id', 'title', 'nickname', 'rent', 'bedrooms', 'bathrooms', 'sqft', 'amenities', 'status', 'coordinates',
+      DEEP_EXTRACT_ALIAS,
+    ]);
     const requested = (capturedListingsSelect ?? '').split(',').map((c) => c.trim());
     for (const col of requested) {
       expect(validColumns.has(col)).toBe(true);
@@ -632,6 +926,14 @@ describe('rankCompare — select-string column regression (FIX 5)', () => {
     await rankCompare({}, makeDeps([cheapRow]));
 
     expect(capturedListingsSelect).toMatch(/\bnickname\b/);
+  });
+
+  it('requests the DEEP_EXTRACT_ALIAS (AIN-99 floor-plan awareness)', async () => {
+    capturedListingsSelect = undefined;
+
+    await rankCompare({}, makeDeps([cheapRow]));
+
+    expect(capturedListingsSelect).toContain(DEEP_EXTRACT_ALIAS);
   });
 });
 

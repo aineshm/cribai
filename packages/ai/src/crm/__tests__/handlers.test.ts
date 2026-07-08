@@ -515,8 +515,8 @@ describe('rankCompareHandler', () => {
     const rcResult: RankCompareResult = {
       mode: 'compare',
       rows: [
-        { listingId: 'id1', title: 'Listing A', rent: 1200, bedrooms: 2, bathrooms: 1, sqft: 800, amenities: ['gym'] },
-        { listingId: 'id2', title: 'Listing B', rent: 1400, bedrooms: 3, bathrooms: 2, sqft: 1000, amenities: [] },
+        { listingId: 'id1', title: 'Listing A', rent: 1200, bedrooms: 2, bathrooms: 1, sqft: 800, amenities: ['gym'], floorPlanSummary: null, priceIsFrom: false },
+        { listingId: 'id2', title: 'Listing B', rent: 1400, bedrooms: 3, bathrooms: 2, sqft: 1000, amenities: [], floorPlanSummary: null, priceIsFrom: false },
       ],
     };
     mockRankCompare.mockResolvedValueOnce(rcResult);
@@ -588,8 +588,8 @@ describe('rankCompareHandler', () => {
     const rcResult: RankCompareResult = {
       mode: 'compare',
       rows: [
-        { listingId: 'id1', title: 'Place A', rent: 1100, bedrooms: 2, bathrooms: 1, sqft: 750, amenities: [] },
-        { listingId: 'id2', title: 'Place B', rent: 1300, bedrooms: 3, bathrooms: 2, sqft: 950, amenities: ['gym'] },
+        { listingId: 'id1', title: 'Place A', rent: 1100, bedrooms: 2, bathrooms: 1, sqft: 750, amenities: [], floorPlanSummary: null, priceIsFrom: false },
+        { listingId: 'id2', title: 'Place B', rent: 1300, bedrooms: 3, bathrooms: 2, sqft: 950, amenities: ['gym'], floorPlanSummary: null, priceIsFrom: false },
       ],
     };
     mockRankCompare.mockResolvedValueOnce(rcResult);
@@ -601,6 +601,66 @@ describe('rankCompareHandler', () => {
     expect(result.modelContext).toContain('1100');
     expect(result.modelContext).toContain('1300');
     assertTextBlock(result);
+  });
+
+  it('AIN-99/100: modelContext carries "from $" honesty + the floor-plan summary for a building row; the UI content is unchanged', async () => {
+    const ctx = makeContext();
+    const rcResult: RankCompareResult = {
+      mode: 'compare',
+      rows: [
+        {
+          listingId: 'id1',
+          title: 'EO Madison Yards',
+          rent: 1050,
+          bedrooms: null,
+          bathrooms: null,
+          sqft: null,
+          amenities: [],
+          floorPlanSummary: 'Studio from $1,050, 1 Bed 1 Bath from $1,300',
+          priceIsFrom: true,
+        },
+      ],
+    };
+    mockRankCompare.mockResolvedValueOnce(rcResult);
+
+    const result = await rankCompareHandler({ mode: 'compare' }, ctx);
+
+    expect(result.modelContext).toContain('from $1050');
+    expect(result.modelContext).toContain('Studio from $1,050, 1 Bed 1 Bath from $1,300');
+
+    // No UI/component change (RankCompareTable owns table polish — AIN-88):
+    // the clientBlock text stays exactly what it was before this wave.
+    if (result.clientBlock.type === 'text') {
+      expect(result.clientBlock.content).not.toContain('from $');
+      expect(result.clientBlock.content).not.toContain('floor plans');
+    }
+  });
+
+  it('AIN-99/100: modelContext for a plain row (priceIsFrom false) has no "from $" and no floor-plans line', async () => {
+    const ctx = makeContext();
+    const rcResult: RankCompareResult = {
+      mode: 'compare',
+      rows: [
+        {
+          listingId: 'id1',
+          title: 'Plain Unit',
+          rent: 1100,
+          bedrooms: 2,
+          bathrooms: 1,
+          sqft: 750,
+          amenities: [],
+          floorPlanSummary: null,
+          priceIsFrom: false,
+        },
+      ],
+    };
+    mockRankCompare.mockResolvedValueOnce(rcResult);
+
+    const result = await rankCompareHandler({ mode: 'compare' }, ctx);
+
+    expect(result.modelContext).toContain('$1100');
+    expect(result.modelContext).not.toContain('from $1100');
+    expect(result.modelContext).not.toContain('floor plans');
   });
 
   it('returns graceful ToolResult when core throws', async () => {
@@ -833,7 +893,7 @@ describe('machineData emission (AIN-65)', () => {
       const ctx = makeContext();
       const rcResult: RankCompareResult = {
         mode: 'compare',
-        rows: [{ listingId: 'id1', title: 'Place A', rent: 1100, bedrooms: 2, bathrooms: 1, sqft: 750, amenities: [] }],
+        rows: [{ listingId: 'id1', title: 'Place A', rent: 1100, bedrooms: 2, bathrooms: 1, sqft: 750, amenities: [], floorPlanSummary: null, priceIsFrom: false }],
       };
       mockRankCompare.mockResolvedValueOnce(rcResult);
 
