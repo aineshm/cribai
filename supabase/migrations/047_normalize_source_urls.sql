@@ -300,11 +300,20 @@ DROP FUNCTION public.ain98_merge_raw_extraction(jsonb, jsonb);
 DROP FUNCTION public.ain98_merge_units_of_interest(jsonb, jsonb);
 
 -- Delete the losing duplicate rows (cascades crm_listing_captures via FK).
+-- NOTE: `collisions` above is a CTE scoped to the UPDATE statement only, so
+-- the same grouping is inlined here (CodeRabbit Critical, AIN-98 adjudication:
+-- referencing the CTE from this separate statement would fail at apply time).
 DELETE FROM public.crm_listings
 WHERE id IN (
   SELECT n.id
   FROM ain98_normalized n
-  JOIN collisions c ON c.user_id = n.user_id AND c.normalized_url = n.normalized_url
+  JOIN (
+    SELECT user_id, normalized_url
+    FROM ain98_normalized
+    WHERE status <> 'archived'
+    GROUP BY user_id, normalized_url
+    HAVING count(*) = 2
+  ) c ON c.user_id = n.user_id AND c.normalized_url = n.normalized_url
   WHERE n.status <> 'archived'
     AND n.id NOT IN (
       SELECT id FROM (

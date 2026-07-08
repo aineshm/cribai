@@ -187,8 +187,10 @@ async function enrichExistingListingWithUnit(
       p_listing_id: listingId,
       p_unit: nextEntry,
     });
-  } catch {
-    // Enrichment failure must never fail the save.
+  } catch (error) {
+    // Enrichment failure must never fail the save — but a systematic RPC
+    // failure (e.g. migration 047 not yet applied) should be diagnosable.
+    console.warn('[crm] crm_append_unit_of_interest failed for listing', listingId, error);
   }
 }
 
@@ -365,7 +367,7 @@ export async function addListing(
 
   if (dedupResult.data) {
     // AIN-98: accumulate the newly-viewed unit (if any) onto the EXISTING
-    // row before returning — read-merge-write, never fails the save.
+    // row before returning — atomic RPC append, never fails the save.
     await enrichExistingListingWithUnit(deps, dedupResult.data.id, extracted.selected_unit);
     return toAlreadySavedResult(dedupResult.data, extracted, normalizedUrl);
   }
