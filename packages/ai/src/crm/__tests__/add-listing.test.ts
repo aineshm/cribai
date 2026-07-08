@@ -474,9 +474,11 @@ describe('addListing', () => {
   // -------------------------------------------------------------------------
 
   describe('DB insert error', () => {
-    it('throws AddListingError with db_error code when insert fails', async () => {
+    it('throws AddListingError with db_error code when insert fails (non-23505)', async () => {
       const onSaved = vi.fn();
-      const dbError = { message: 'constraint violation', code: '23505' };
+      // A generic DB error (not a unique-violation) — must still hard-fail,
+      // not be swallowed into an already-saved response.
+      const dbError = { message: 'connection reset', code: '08006' };
       const tableBuilder = buildTableBuilder(null, 'irrelevant', dbError);
       const deps = makeDeps({ tableBuilder, onSaved });
 
@@ -489,6 +491,118 @@ describe('addListing', () => {
 
       // onSaved must NOT be called when insert fails
       expect(onSaved).not.toHaveBeenCalled();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // AIN-98: 23505 unique-violation race — the migration 046 dedup index
+  // means a concurrent double-save can now fail the INSERT with 23505
+  // instead of both racing past the earlier SELECT dedup. That must resolve
+  // to the SAME "already saved" response shape the SELECT path returns, not
+  // a thrown error.
+  // -------------------------------------------------------------------------
+
+  describe('23505 unique-violation race (AIN-98)', () => {
+    it('resolves to the same already-saved shape as the SELECT dedup path', async () => {
+      const raceWinnerRow = { id: 'race-winner-id', extraction_confidence: 0.6 };
+      const tableBuilder = buildTableBuilder(null); // first SELECT finds nothing → insert proceeds
+      // The dedup SELECT chain's maybeSingle is called twice in this
+      // scenario: once before the insert (finds nothing, race not yet
+      // landed) and once again as race-recovery after the 23505 (finds the
+      // concurrent insert's winning row).
+      tableBuilder._dedupChain.maybeSingle
+        .mockReset()
+        .mockResolvedValueOnce({ data: null, error: null })
+        .mockResolvedValueOnce({ data: raceWinnerRow, error: null });
+
+      const insertError = { message: 'duplicate key value violates unique constraint', code: '23505' };
+      tableBuilder._insertSelectChain.single.mockReset().mockResolvedValueOnce({
+        data: null,
+        error: insertError,
+      });
+
+      const onSaved = vi.fn();
+      const scheduleBackground = vi.fn();
+      const deps = makeDeps({ tableBuilder, onSaved, scheduleBackground });
+
+      const result = await addListing(INPUT_URL, deps);
+
+      expect(result).toEqual({
+        listingId: 'race-winner-id',
+        alreadySaved: true,
+        confidence: 0.6,
+      });
+
+      // Same contract as the SELECT dedup path: no post-save hooks on an
+      // already-saved response.
+      expect(onSaved).not.toHaveBeenCalled();
+      expect(scheduleBackground).not.toHaveBeenCalled();
+      expect(generateListingNickname).not.toHaveBeenCalled();
+    });
+
+    it('uses the extracted confidence when the race-recovery row has null extraction_confidence', async () => {
+      const raceWinnerRow = { id: 'race-winner-id', extraction_confidence: null };
+      const tableBuilder = buildTableBuilder(null);
+      tableBuilder._dedupChain.maybeSingle
+        .mockReset()
+        .mockResolvedValueOnce({ data: null, error: null })
+        .mockResolvedValueOnce({ data: raceWinnerRow, error: null });
+
+      const insertError = { code: '23505', message: 'duplicate key' };
+      tableBuilder._insertSelectChain.single.mockReset().mockResolvedValueOnce({
+        data: null,
+        error: insertError,
+      });
+
+      const deps = makeDeps({ tableBuilder }); // highConfidenceListing → 0.9
+
+      const result = await addListing(INPUT_URL, deps);
+
+      expect(result.alreadySaved).toBe(true);
+      expect(result.confidence).toBe(0.9);
+    });
+
+    it('still throws AddListingError(db_error) if the race-recovery SELECT itself errors', async () => {
+      const tableBuilder = buildTableBuilder(null);
+      const raceRecoveryError = { message: 'connection lost', code: 'PGRST301' };
+      tableBuilder._dedupChain.maybeSingle
+        .mockReset()
+        .mockResolvedValueOnce({ data: null, error: null })
+        .mockResolvedValueOnce({ data: null, error: raceRecoveryError });
+
+      const insertError = { code: '23505', message: 'duplicate key' };
+      tableBuilder._insertSelectChain.single.mockReset().mockResolvedValueOnce({
+        data: null,
+        error: insertError,
+      });
+
+      const deps = makeDeps({ tableBuilder });
+
+      await expect(addListing(INPUT_URL, deps)).rejects.toSatisfy(
+        (err: unknown) => err instanceof AddListingError && err.code === 'db_error',
+      );
+    });
+
+    it('still throws AddListingError(db_error) if the race-recovery SELECT finds no row', async () => {
+      // Shouldn't happen in practice (the row that won the race must exist),
+      // but must never silently swallow — degrade to the generic db error.
+      const tableBuilder = buildTableBuilder(null);
+      tableBuilder._dedupChain.maybeSingle
+        .mockReset()
+        .mockResolvedValueOnce({ data: null, error: null })
+        .mockResolvedValueOnce({ data: null, error: null });
+
+      const insertError = { code: '23505', message: 'duplicate key' };
+      tableBuilder._insertSelectChain.single.mockReset().mockResolvedValueOnce({
+        data: null,
+        error: insertError,
+      });
+
+      const deps = makeDeps({ tableBuilder });
+
+      await expect(addListing(INPUT_URL, deps)).rejects.toSatisfy(
+        (err: unknown) => err instanceof AddListingError && err.code === 'db_error',
+      );
     });
   });
 
