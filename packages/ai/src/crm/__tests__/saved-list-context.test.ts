@@ -908,4 +908,30 @@ describe('renderSavedListingsBlock', () => {
       expect(block).toMatch(/line-initial ["'“]?id:/i);
     });
   });
+
+  // -------------------------------------------------------------------------
+  // AIN-93 run-4 regression (2026-07-07): 5/6 comparison-bucket runs paired a
+  // saved BUILDING listing's floor plan with a different bed-count in place
+  // of the actual saved listing the user meant (e.g. "compare my two saved
+  // 2-bedroom places" pulled in EO Madison Yards' 2BR FLOOR PLAN instead of
+  // Dayton Street Duplex + The Regent Flats, the two ACTUAL saved 2BR
+  // listings). GUIDANCE must tell the model floor plans are options WITHIN
+  // one listing, never a stand-in for a different saved listing.
+  // -------------------------------------------------------------------------
+  describe('AIN-93 run-4: floor-plan-vs-saved-listing substitution guidance', () => {
+    it('GUIDANCE states a floor plan is an option within its ONE listing, never a separate saved listing', () => {
+      const block = renderSavedListingsBlock(ctx([summary()]));
+
+      expect(block).toMatch(/floor plans? listed under a saved building/i);
+      expect(block).toMatch(/within that one listing/i);
+      expect(block).toMatch(/never treat a floor plan as a separate saved listing/i);
+    });
+
+    it('GUIDANCE instructs resolving bedroom-count references against each listing\'s OWN configuration, and saying so instead of substituting a floor plan', () => {
+      const block = renderSavedListingsBlock(ctx([summary()]));
+
+      expect(block).toMatch(/resolve against each listing.s own bed.bath configuration/i);
+      expect(block).toMatch(/say so explicitly instead of substituting/i);
+    });
+  });
 });
