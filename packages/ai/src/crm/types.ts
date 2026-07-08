@@ -179,6 +179,16 @@ export interface AddListingResult {
   readonly alreadySaved: boolean;
   /** Numeric confidence (0..1) mapped from extraction_confidence string. */
   readonly confidence: number;
+  /**
+   * The normalized `source_url` this save resolved to (AIN-98) —
+   * `normalizeSourceUrl(url)`. Callers that separately reference the saved
+   * URL after `addListing` returns (e.g. the ingest route's
+   * `crm_deep_extract` mission enqueue) should use this value, not the raw
+   * input URL, so every downstream reference shares the same identity.
+   * Absent on the `dryRun` synthetic-success path (no real row, no real
+   * URL to normalize).
+   */
+  readonly normalizedUrl?: string;
 }
 
 /** All error codes addListing can surface (extraction codes + DB). */

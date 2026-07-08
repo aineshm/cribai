@@ -25,6 +25,13 @@ import { randomUUID } from 'node:crypto';
 import { ExtractionError } from '../extraction';
 import { confidenceToNumeric } from './confidence';
 import { generateListingNickname } from './nickname';
+import { normalizeSourceUrl } from './source-url';
+import {
+  SelectedUnitSchema,
+  SELECTED_UNIT_MAX_COUNT,
+  type RawSelectedUnit,
+  type SelectedUnit,
+} from '../extraction/selected-unit';
 import type {
   AddListingDeps,
   AddListingResult,
@@ -113,6 +120,51 @@ function makeCoordinatesWkt(lat: number, lng: number): string {
  * a richer version (crawled pages, discarded URLs) while preserving
  * whichever floor_plans value is non-empty (never-wipe guard, Task 4).
  */
+/**
+ * Stamp `viewed_at` onto a raw unit projection and validate it against
+ * `SelectedUnitSchema`. Returns `null` when `raw` is absent or fails
+ * validation (never throws) — a malformed unit degrades to "nothing to
+ * seed/append", exactly like a malformed floor plan degrades to "drop this
+ * one entry" elsewhere in the extraction layer.
+ */
+function buildSelectedUnitEntry(raw: RawSelectedUnit | undefined): SelectedUnit | null {
+  if (!raw) return null;
+  const candidate = { ...raw, viewed_at: new Date().toISOString() };
+  const parsed = SelectedUnitSchema.safeParse(candidate);
+  return parsed.success ? parsed.data : null;
+}
+
+/**
+ * Keep only the entries of `raw` that pass `SelectedUnitSchema` — a
+ * malformed JSONB blob (wrong shape, corrupt row) degrades to dropping just
+ * the bad entries, never throwing (mirrors
+ * `saved-list-context.ts`'s `parseDeepExtractFloorPlans`).
+ */
+function keepValidSelectedUnits(raw: unknown): SelectedUnit[] {
+  if (!Array.isArray(raw)) return [];
+  const kept: SelectedUnit[] = [];
+  for (const item of raw) {
+    const parsed = SelectedUnitSchema.safeParse(item);
+    if (parsed.success) kept.push(parsed.data);
+  }
+  return kept;
+}
+
+/**
+ * Append `next` onto `existing`, deduping by zpid (a re-view of the same
+ * unit moves it to the end instead of duplicating) and capping at
+ * `SELECTED_UNIT_MAX_COUNT` (dropping the OLDEST entries first — the array
+ * is most-recent-last). Returns a new array — never mutates `existing`.
+ */
+function appendSelectedUnit(
+  existing: readonly SelectedUnit[],
+  next: SelectedUnit,
+): SelectedUnit[] {
+  const withoutDuplicate = existing.filter((unit) => unit.zpid !== next.zpid);
+  const appended = [...withoutDuplicate, next];
+  return appended.slice(-SELECTED_UNIT_MAX_COUNT);
+}
+
 function buildRawExtraction(extracted: ExtractedListing): Record<string, unknown> {
   const base: Record<string, unknown> = {
     raw_json_ld: extracted.raw_json_ld ?? null,
@@ -120,15 +172,74 @@ function buildRawExtraction(extracted: ExtractedListing): Record<string, unknown
     extraction_method: extracted.extraction_method,
   };
 
-  if (extracted.floor_plans && extracted.floor_plans.length > 0) {
+  const hasFloorPlans = Boolean(extracted.floor_plans && extracted.floor_plans.length > 0);
+  const selectedUnitEntry = buildSelectedUnitEntry(extracted.selected_unit);
+
+  if (hasFloorPlans || selectedUnitEntry) {
     base['deep_extract'] = {
-      floor_plans: extracted.floor_plans,
-      price_is_from: true,
+      ...(hasFloorPlans ? { floor_plans: extracted.floor_plans, price_is_from: true } : {}),
+      ...(selectedUnitEntry ? { units_of_interest: [selectedUnitEntry] } : {}),
       method: 'ingest_v1',
     };
   }
 
   return base;
+}
+
+/**
+ * Read-merge-write a newly-viewed unit into an EXISTING row's
+ * `raw_extraction.deep_extract.units_of_interest` (AIN-98) — the dedup path
+ * (both the fast SELECT hit and the 23505 race-recovery hit) never inserts a
+ * new row, so the only way to record "the user also looked at unit X on
+ * this building" is an UPDATE against the row that already exists.
+ *
+ * Never-wipe: every other `deep_extract` key on the existing row is
+ * preserved verbatim. Never fails the save: any read/parse/update error is
+ * swallowed — enrichment is a nice-to-have, not part of the save contract.
+ */
+async function enrichExistingListingWithUnit(
+  deps: AddListingDeps,
+  listingId: string,
+  rawUnit: RawSelectedUnit | undefined,
+): Promise<void> {
+  const nextEntry = buildSelectedUnitEntry(rawUnit);
+  if (!nextEntry) return;
+
+  try {
+    const { data, error } = await deps.db
+      .from('crm_listings')
+      .select('raw_extraction')
+      .eq('id', listingId)
+      .eq('user_id', deps.userId)
+      .maybeSingle();
+
+    if (error || !data) return;
+
+    const existingRaw =
+      ((data as { raw_extraction: Record<string, unknown> | null }).raw_extraction ?? {}) as Record<
+        string,
+        unknown
+      >;
+    const existingDeepExtract = (existingRaw['deep_extract'] ?? {}) as Record<string, unknown>;
+    const existingUnits = keepValidSelectedUnits(existingDeepExtract['units_of_interest']);
+    const nextUnits = appendSelectedUnit(existingUnits, nextEntry);
+
+    const nextRaw = {
+      ...existingRaw,
+      deep_extract: {
+        ...existingDeepExtract,
+        units_of_interest: nextUnits,
+      },
+    };
+
+    await deps.db
+      .from('crm_listings')
+      .update({ raw_extraction: nextRaw })
+      .eq('id', listingId)
+      .eq('user_id', deps.userId);
+  } catch {
+    // Enrichment failure must never fail the save.
+  }
 }
 
 /**
@@ -168,12 +279,14 @@ async function selectExistingListing(
 function toAlreadySavedResult(
   existing: { id: string; extraction_confidence: number | null },
   extracted: ExtractedListing,
+  normalizedUrl: string,
 ): AddListingResult {
   return {
     listingId: existing.id,
     alreadySaved: true,
     confidence:
       existing.extraction_confidence ?? confidenceToNumeric(extracted.extraction_confidence),
+    normalizedUrl,
   };
 }
 
@@ -278,9 +391,19 @@ export async function addListing(
   }
 
   // -------------------------------------------------------------------------
+  // AIN-98: normalize the URL BEFORE any dedup/insert use. `url` (the raw,
+  // possibly fragment-bearing input) was already handed to `deps.extract`
+  // above — extraction reads the fragment for unit resolution before it's
+  // gone. Every DB use below (dedup SELECT, INSERT, race recovery) uses
+  // `normalizedUrl` so fragment/tracking-param/trailing-slash variants of
+  // the same listing collapse onto one (user_id, source_url) identity.
+  // -------------------------------------------------------------------------
+  const normalizedUrl = normalizeSourceUrl(url);
+
+  // -------------------------------------------------------------------------
   // Step 2: Dedup — query for a non-archived row with the same user_id + url
   // -------------------------------------------------------------------------
-  const dedupResult = await selectExistingListing(deps, url);
+  const dedupResult = await selectExistingListing(deps, normalizedUrl);
 
   if (dedupResult.error) {
     throw new AddListingError(
@@ -291,7 +414,10 @@ export async function addListing(
   }
 
   if (dedupResult.data) {
-    return toAlreadySavedResult(dedupResult.data, extracted);
+    // AIN-98: accumulate the newly-viewed unit (if any) onto the EXISTING
+    // row before returning — read-merge-write, never fails the save.
+    await enrichExistingListingWithUnit(deps, dedupResult.data.id, extracted.selected_unit);
+    return toAlreadySavedResult(dedupResult.data, extracted, normalizedUrl);
   }
 
   // -------------------------------------------------------------------------
@@ -321,7 +447,7 @@ export async function addListing(
   // -------------------------------------------------------------------------
   // Step 4: Insert
   // -------------------------------------------------------------------------
-  const row = mapToInsertRow(url, deps.userId, extracted, coordinates);
+  const row = mapToInsertRow(normalizedUrl, deps.userId, extracted, coordinates);
 
   const insertResult = await deps.db
     .from('crm_listings')
@@ -339,9 +465,13 @@ export async function addListing(
     // up nothing, fall through to the generic db_error below.
     const errorCode = (insertResult.error as { code?: string } | null)?.code;
     if (errorCode === '23505') {
-      const raceResult = await selectExistingListing(deps, url);
+      const raceResult = await selectExistingListing(deps, normalizedUrl);
       if (!raceResult.error && raceResult.data) {
-        return toAlreadySavedResult(raceResult.data, extracted);
+        // AIN-98: same accumulation as the fast-dedup path above — the row
+        // that won the race is the "existing" row from this call's point of
+        // view.
+        await enrichExistingListingWithUnit(deps, raceResult.data.id, extracted.selected_unit);
+        return toAlreadySavedResult(raceResult.data, extracted, normalizedUrl);
       }
     }
 
@@ -406,5 +536,6 @@ export async function addListing(
     listingId,
     alreadySaved: false,
     confidence: confidenceToNumeric(extracted.extraction_confidence),
+    normalizedUrl,
   };
 }
