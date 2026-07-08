@@ -30,7 +30,8 @@ import { normalizeFields, inRange, NUMERIC_MAX } from './normalize';
 import { extractFromDom } from './dom';
 import { pruneHtml } from './prune-html';
 import { createLlmExtractor } from './llm-parse';
-import { extractZillowFloorPlans, isZillowBuildingUrl } from './sites/zillow';
+import { extractZillowFloorPlans, isZillowBuildingUrl, resolveZillowUnit } from './sites/zillow';
+import { parseUnitFragment } from '../crm/source-url';
 import {
   ExtractionError,
   type ExtractedFields,
@@ -520,12 +521,34 @@ export async function extractFromHtml(
   // same `html` regardless of what escalation already found, so a
   // `/homedetails/` single-unit page never pays the extra parse.
   let floor_plans: ReturnType<typeof extractZillowFloorPlans> | undefined;
-  if (source_domain === 'zillow.com' && !merged.floor_plans && isZillowBuildingUrl(finalUrl)) {
+  const isZillowBuilding =
+    source_domain === 'zillow.com' && isZillowBuildingUrl(finalUrl);
+  if (isZillowBuilding && !merged.floor_plans) {
     try {
       const plans = extractZillowFloorPlans(html);
       if (plans.length > 0) floor_plans = plans;
     } catch {
       // Never let floor-plan enrichment break the base extraction.
+    }
+  }
+
+  // ── Enrichment: unit-of-interest resolution (AIN-98) ───────────────────
+  // Independent of the floor_plans block above (a plan can fail
+  // FloorPlanSchema validation while its raw units[] still resolves fine).
+  // `finalUrl` is the fragment-inclusive URL the extension/caller supplied —
+  // `#udp-<zpid>` is Zillow's own unit-selection signal. Fragment stripping
+  // for the STORED source_url happens downstream in addListing/normalization,
+  // never here.
+  let selected_unit: ReturnType<typeof resolveZillowUnit> | undefined;
+  if (isZillowBuilding) {
+    const parsedFragment = parseUnitFragment(finalUrl);
+    if (parsedFragment?.kind === 'zillow_udp') {
+      try {
+        const unit = resolveZillowUnit(html, parsedFragment.zpid);
+        if (unit) selected_unit = unit;
+      } catch {
+        // Never let unit resolution break the base extraction.
+      }
     }
   }
 
@@ -541,6 +564,7 @@ export async function extractFromHtml(
     source_domain,
     ...normalized,
     ...(floor_plans ? { floor_plans } : {}),
+    ...(selected_unit ? { selected_unit } : {}),
     extraction_method,
     extraction_confidence,
   };
