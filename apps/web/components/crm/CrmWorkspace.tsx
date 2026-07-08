@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
 import { Building2, Send } from 'lucide-react';
-import { useIsMobile } from '@/hooks/use-is-mobile';
+import { useIsMobile, MOBILE_BREAKPOINT_PX } from '@/hooks/use-is-mobile';
 import { useCrmChat, type ChatMessage } from './useCrmChat';
 import { CrmCanvas } from './CrmCanvas';
 import { CanvasSheet } from './CanvasSheet';
@@ -35,9 +35,31 @@ const PLACEHOLDER = 'Paste a listing link, or ask…';
 export function CrmWorkspace() {
   const { messages, send, pending, renameUnit } = useCrmChat();
   const [draft, setDraft] = useState('');
-  const [canvasOpen, setCanvasOpen] = useState(false);
+  // AIN-104.1: open by default so a first-time visitor lands on chat + cards
+  // together. Desktop-only — the 60/40 split doesn't fit small viewports, so
+  // a one-time mount effect below closes it there. The toggle still works
+  // both ways afterward. This reads `matchMedia` directly (not via
+  // `useIsMobile`, whose own async state resolves through its own effect —
+  // chaining a second effect off of it wouldn't reliably settle within one
+  // render pass). Review fix: effects still only run AFTER paint, so this JS
+  // correction alone cannot prevent a first-paint flash on mobile — the
+  // canvas pane below carries the same `max-[980px]:hidden` CSS gate the
+  // chat pane already uses, so the browser hides it immediately regardless
+  // of when this effect settles. This state's job is just keeping the
+  // toggle's boolean coherent for later interactions.
+  const [canvasOpen, setCanvasOpen] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
   const isMobile = useIsMobile();
+
+  const appliedMobileDefaultRef = useRef(false);
+  useEffect(() => {
+    if (appliedMobileDefaultRef.current) return;
+    appliedMobileDefaultRef.current = true;
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    if (window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX}px)`).matches) {
+      setCanvasOpen(false);
+    }
+  }, []);
 
   // Resolve the unit object from the messages list for the drawer.
   const openUnit: CrmUnit | null =
@@ -152,9 +174,16 @@ export function CrmWorkspace() {
 
         {/* Desktop canvas pane — conditionally MOUNTED (absent from DOM when
             closed). Only one canvas instance ever mounts: the desktop pane OR
-            the mobile sheet, never both. */}
+            the mobile sheet, never both. Review fix: `max-[980px]:hidden`
+            mirrors the chat pane's own CSS gate above — the mobile-close
+            correction above only runs in a post-paint effect, so without this
+            CSS gate a real mobile device would render a lone, full-width
+            canvas for one paint before the effect fires. */}
         {canvasOpen && !isMobile ? (
-          <section className="flex min-w-0 flex-[0_0_60%] flex-col">
+          <section
+            data-testid="crm-canvas-pane"
+            className="flex min-w-0 flex-[0_0_60%] flex-col max-[980px]:hidden"
+          >
             <CrmCanvas onClose={() => setCanvasOpen(false)} />
           </section>
         ) : null}

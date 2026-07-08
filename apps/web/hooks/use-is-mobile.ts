@@ -2,15 +2,17 @@
 
 import { useEffect, useState } from 'react';
 
+/** The breakpoint at which `CrmWorkspace` collapses its 40/60 split. */
+export const MOBILE_BREAKPOINT_PX = 980;
+
 /**
  * SSR-safe "is this a mobile viewport?" hook.
  *
  * Initializes to `false` (desktop) so the server render and the client's first
  * render agree — no hydration mismatch. After mount it subscribes to a
- * `matchMedia` query and updates. The default breakpoint (980px) matches the
- * point at which `CrmWorkspace` collapses its 40/60 split.
+ * `matchMedia` query and updates.
  */
-export function useIsMobile(maxWidthPx = 980): boolean {
+export function useIsMobile(maxWidthPx = MOBILE_BREAKPOINT_PX): boolean {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {

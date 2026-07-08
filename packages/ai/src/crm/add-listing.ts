@@ -131,6 +131,52 @@ function buildRawExtraction(extracted: ExtractedListing): Record<string, unknown
   return base;
 }
 
+/**
+ * Run the dedup SELECT: the most-recent non-archived row for this user_id +
+ * source_url, if any. Shared by Step 2's fast-path dedup and the AIN-98
+ * 23505 race-recovery lookup in Step 4 — a concurrent insert can beat us
+ * past Step 2's check, so the unique-violation error means a re-run of this
+ * identical query to find the row that won the race.
+ *
+ * FIX 4 (still applies here): .order('saved_at', {ascending:false}).limit(1)
+ * ensures at most one row comes back even if a declined + active row somehow
+ * coexist, so .maybeSingle() never hard-fails with PGRST116.
+ */
+async function selectExistingListing(
+  deps: AddListingDeps,
+  url: string,
+): Promise<{
+  data: { id: string; extraction_confidence: number | null } | null;
+  error: unknown;
+}> {
+  const result = await deps.db
+    .from('crm_listings')
+    .select('id, extraction_confidence')
+    .eq('user_id', deps.userId)
+    .eq('source_url', url)
+    .neq('status', 'archived')
+    .order('saved_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return {
+    data: result.data as { id: string; extraction_confidence: number | null } | null,
+    error: result.error,
+  };
+}
+
+/** Map an existing row to the "already saved" result shape (dedup + race-recovery). */
+function toAlreadySavedResult(
+  existing: { id: string; extraction_confidence: number | null },
+  extracted: ExtractedListing,
+): AddListingResult {
+  return {
+    listingId: existing.id,
+    alreadySaved: true,
+    confidence:
+      existing.extraction_confidence ?? confidenceToNumeric(extracted.extraction_confidence),
+  };
+}
+
 function mapToInsertRow(
   url: string,
   userId: string,
@@ -233,21 +279,8 @@ export async function addListing(
 
   // -------------------------------------------------------------------------
   // Step 2: Dedup — query for a non-archived row with the same user_id + url
-  //
-  // FIX 4: The migration 037 index on (user_id, source_url) is NON-UNIQUE, so a
-  // declined + active row can both exist for the same URL (PGRST116 from .maybeSingle()
-  // would hard-fail). Adding .order('saved_at', {ascending:false}).limit(1) ensures
-  // we always return at most one row (the most-recent non-archived one) without error.
   // -------------------------------------------------------------------------
-  const dedupResult = await deps.db
-    .from('crm_listings')
-    .select('id, extraction_confidence')
-    .eq('user_id', deps.userId)
-    .eq('source_url', url)
-    .neq('status', 'archived')
-    .order('saved_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const dedupResult = await selectExistingListing(deps, url);
 
   if (dedupResult.error) {
     throw new AddListingError(
@@ -258,14 +291,7 @@ export async function addListing(
   }
 
   if (dedupResult.data) {
-    const existing = dedupResult.data as { id: string; extraction_confidence: number | null };
-    return {
-      listingId: existing.id,
-      alreadySaved: true,
-      confidence:
-        existing.extraction_confidence ??
-        confidenceToNumeric(extracted.extraction_confidence),
-    };
+    return toAlreadySavedResult(dedupResult.data, extracted);
   }
 
   // -------------------------------------------------------------------------
@@ -304,6 +330,21 @@ export async function addListing(
     .single();
 
   if (insertResult.error) {
+    // AIN-98: migration 046 adds a unique (user_id, source_url) index, so a
+    // concurrent double-save that both passed Step 2's SELECT dedup now
+    // fails one of the two INSERTs with 23505 instead of landing a duplicate
+    // row. Treat that race exactly like the Step 2 dedup path — re-run the
+    // same SELECT to find the row that won, and return it as already saved.
+    // Never silently swallow: if the recovery lookup itself errors or turns
+    // up nothing, fall through to the generic db_error below.
+    const errorCode = (insertResult.error as { code?: string } | null)?.code;
+    if (errorCode === '23505') {
+      const raceResult = await selectExistingListing(deps, url);
+      if (!raceResult.error && raceResult.data) {
+        return toAlreadySavedResult(raceResult.data, extracted);
+      }
+    }
+
     throw new AddListingError(
       'db_error',
       "I couldn't save that listing. Please try again.",

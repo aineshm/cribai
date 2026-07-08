@@ -13,6 +13,7 @@
 import { findCuratedDomain, isDetailPage } from '../config/curated-domains';
 import { createSaveButton } from './save-button';
 import { capturePage } from './capture-page';
+import { createSavedResetController } from './saved-reset-timer';
 import type { SaveButtonState } from './state-machine';
 import type { SwResponse } from '../lib/messages';
 
@@ -47,12 +48,26 @@ function mount(): void {
   let deepLinkUrl: string | undefined;
 
   const handle = createSaveButton(document, handleClick);
+
+  // AIN-98: the post-save "Added to CribAI" state auto-reverts to resting
+  // after ~7s instead of staying pinned indefinitely. Re-checks `state` in
+  // case something else already moved it on (defensive, mirrors the
+  // analyzingTimer guard below) — never fires onto a stale view.
+  const savedResetController = createSavedResetController(() => {
+    if (state !== 'saved') return;
+    state = 'idle';
+    deepLinkUrl = undefined;
+    handle.setView(state, undefined, undefined);
+    handle.setHref(null);
+  });
+
   unmountFn = () => {
     // Cancel any pending analyzing timer so it doesn't fire after we unmount.
     if (analyzingTimer !== null) {
       clearTimeout(analyzingTimer);
       analyzingTimer = null;
     }
+    savedResetController.cancel();
     handle.unmount();
   };
 
@@ -141,6 +156,7 @@ function mount(): void {
           handle.setView(state, undefined, { deepScanQueued: response.deepScanQueued });
           if (deepLinkUrl) handle.setHref(deepLinkUrl);
           else handle.setHref(null);
+          savedResetController.schedule();
           return;
         }
 

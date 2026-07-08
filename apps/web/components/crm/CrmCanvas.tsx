@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { List, BarChart3, Columns3, PanelLeftClose, Share2 } from 'lucide-react';
 import type { RankCompareResult } from '@campusnest/ai';
+import { createClient } from '@campusnest/supabase/client';
 import type { CrmList, CrmListMember, CrmUnit } from '@/lib/crm/proposed-types';
 import { crmClient } from '@/lib/crm-client';
 import { errorMessage } from '@/lib/crm/error-message';
+import { useCrmListingsRealtime } from '@/hooks/use-crm-listings-realtime';
 import { BranchState } from './ui/BranchState';
 import { MemberAvatars } from './ui/MemberAvatars';
 import { SavedUnitCard } from './SavedUnitCard';
@@ -43,35 +45,71 @@ export function CrmCanvas({ onClose }: { onClose?: () => void }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [rankError, setRankError] = useState<string | null>(null);
   const [compareError, setCompareError] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Shared by the mount fetch AND every AIN-105 realtime-triggered refetch
+  // below — a single ref flipped false on unmount guards every in-flight
+  // call, not just whichever one happened to be "the" effect's cleanup.
+  const aliveRef = useRef(true);
+  useEffect(
+    () => () => {
+      aliveRef.current = false;
+    },
+    [],
+  );
+
+  // Resolved once for the AIN-105 realtime subscription below. Wrapped in
+  // try/catch — createClient() throws synchronously when Supabase env vars
+  // are absent (e.g. component tests with no env configured); that degrades
+  // to no realtime subscription, never a crash.
+  useEffect(() => {
+    (async () => {
+      try {
+        const supabase = createClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (aliveRef.current) setUserId(session?.user.id ?? null);
+      } catch {
+        // No Supabase env in this render context — realtime stays off.
+      }
+    })();
+  }, []);
 
   // list+units are the canvas's required data; rank is its own tab and must
   // not blank the listings when only ranking fails (review M1, AIN-61).
-  useEffect(() => {
-    let alive = true;
+  const fetchListAndUnits = useCallback(() => {
     Promise.all([crmClient.getList(), crmClient.listUnits()])
       .then(([l, u]) => {
-        if (!alive) return;
+        if (!aliveRef.current) return;
         setList(l);
         setUnits(u);
         setLoadError(null);
       })
       .catch((err: unknown) => {
-        if (alive) setLoadError(errorMessage(err));
+        if (aliveRef.current) setLoadError(errorMessage(err));
       });
+  }, []);
+
+  useEffect(() => {
+    fetchListAndUnits();
     crmClient
       .rank('rank')
       .then((r) => {
-        if (!alive) return;
+        if (!aliveRef.current) return;
         setRank(r);
         setRankError(null);
       })
       .catch((err: unknown) => {
-        if (alive) setRankError(errorMessage(err));
+        if (aliveRef.current) setRankError(errorMessage(err));
       });
-    return () => {
-      alive = false;
-    };
-  }, []);
+  }, [fetchListAndUnits]);
+
+  // AIN-105: a save from the extension (or any other client) while the
+  // canvas is open streams into the List tab without needing a manual
+  // reopen — scoped to list+units per the plan; rank/compare stay on their
+  // own lazy-load effects.
+  useCrmListingsRealtime(userId, fetchListAndUnits);
 
   // Compare data loads lazily the first time its tab is opened.
   useEffect(() => {
