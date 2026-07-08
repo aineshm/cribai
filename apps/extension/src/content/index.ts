@@ -251,6 +251,17 @@ function checkNavigation(): void {
 
 // Bootstrap
 mount();
-navIntervalId = setInterval(checkNavigation, 1_500);
+// AIN-98 review fix (LOW): `mount()` can itself call `teardown()` synchronously
+// (its CHECK_SAVED `safeSendMessage` call hits a context already dead on the
+// very first tick — e.g. a stale tab from before this reload). `stopped` is
+// true by the time we get here, but `navIntervalId` doesn't exist yet, so
+// `teardown()`'s `clearInterval` was a no-op — starting the interval
+// unconditionally right after would create a poll loop `teardown()` can
+// never reach again (each tick's own `teardown()` call returns immediately
+// via the `if (stopped) return;` guard, without ever clearing THIS interval).
+// Only start polling when the context is confirmed still alive post-mount.
+if (!stopped) {
+  navIntervalId = setInterval(checkNavigation, 1_500);
+}
 // Clear the polling interval when the page is unloaded to avoid a leak.
 window.addEventListener('pagehide', () => clearInterval(navIntervalId), { once: true });
