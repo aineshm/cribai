@@ -446,5 +446,10 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.crm_append_unit_of_interest(uuid, jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.crm_append_unit_of_interest(uuid, jsonb) TO service_role;
+-- Postgres grants EXECUTE to PUBLIC by default on new functions — revoke it
+-- (and anon) so only the two intended roles can call this. Harmless either
+-- way (SECURITY INVOKER + RLS already gate the UPDATE), but grants should
+-- state intent. Applied to prod alongside the migration 2026-07-08.
+REVOKE EXECUTE ON FUNCTION public.crm_append_unit_of_interest(uuid, jsonb) FROM PUBLIC, anon;
 
 COMMIT;
