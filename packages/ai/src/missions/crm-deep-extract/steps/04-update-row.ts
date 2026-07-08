@@ -245,6 +245,27 @@ export const updateRowStep: MissionStep = {
     // survive verbatim or a mission run silently erases what the user viewed
     // at save time. Mirrors the floor_plans never-wipe guard immediately
     // above — same shape, same rationale (AIN-83).
+    //
+    // Fix 1c residual race window (Review, AIN-98 adjudication): `row` above
+    // was read at the TOP of this function (step 1), and the UPDATE below
+    // (step 5) is the very next I/O this function performs — everything in
+    // between is synchronous computation, no awaited call. So the window in
+    // which a concurrent write could land BETWEEN this read and this
+    // mission's own write is milliseconds wide, not the length of the whole
+    // mission (the crawl + LLM synthesis in steps 01-03 already happened
+    // before this step started). `enrichExistingListingWithUnit`'s own
+    // append (add-listing.ts) no longer has an analogous window — it's now a
+    // single atomic `crm_append_unit_of_interest` UPDATE (migration 047) that
+    // can't lose to itself. The ONLY residual risk here is a second
+    // `crm_append_unit_of_interest` call landing in that same few-millisecond
+    // gap: this step would still carry forward the value it read at its own
+    // step-start, silently dropping that one concurrent append. Accepted —
+    // this mission runs once per listing (not concurrently with itself), and
+    // a unit-view arriving in a multi-millisecond window during someone
+    // else's already-running deep-extract mission is a rare enough
+    // coincidence that closing it would require this step to also read
+    // units_of_interest atomically via SQL rather than through `ctx.supabase`
+    // ORM chains — a larger refactor not undertaken here.
     const persistedUnitsOfInterest = existingDeepExtract?.units_of_interest ?? null;
 
     update.raw_extraction = {

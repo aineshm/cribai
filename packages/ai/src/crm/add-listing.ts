@@ -28,7 +28,6 @@ import { generateListingNickname } from './nickname';
 import { normalizeSourceUrl } from './source-url';
 import {
   SelectedUnitSchema,
-  SELECTED_UNIT_MAX_COUNT,
   type RawSelectedUnit,
   type SelectedUnit,
 } from '../extraction/selected-unit';
@@ -134,37 +133,6 @@ function buildSelectedUnitEntry(raw: RawSelectedUnit | undefined): SelectedUnit 
   return parsed.success ? parsed.data : null;
 }
 
-/**
- * Keep only the entries of `raw` that pass `SelectedUnitSchema` — a
- * malformed JSONB blob (wrong shape, corrupt row) degrades to dropping just
- * the bad entries, never throwing (mirrors
- * `saved-list-context.ts`'s `parseDeepExtractFloorPlans`).
- */
-function keepValidSelectedUnits(raw: unknown): SelectedUnit[] {
-  if (!Array.isArray(raw)) return [];
-  const kept: SelectedUnit[] = [];
-  for (const item of raw) {
-    const parsed = SelectedUnitSchema.safeParse(item);
-    if (parsed.success) kept.push(parsed.data);
-  }
-  return kept;
-}
-
-/**
- * Append `next` onto `existing`, deduping by zpid (a re-view of the same
- * unit moves it to the end instead of duplicating) and capping at
- * `SELECTED_UNIT_MAX_COUNT` (dropping the OLDEST entries first — the array
- * is most-recent-last). Returns a new array — never mutates `existing`.
- */
-function appendSelectedUnit(
-  existing: readonly SelectedUnit[],
-  next: SelectedUnit,
-): SelectedUnit[] {
-  const withoutDuplicate = existing.filter((unit) => unit.zpid !== next.zpid);
-  const appended = [...withoutDuplicate, next];
-  return appended.slice(-SELECTED_UNIT_MAX_COUNT);
-}
-
 function buildRawExtraction(extracted: ExtractedListing): Record<string, unknown> {
   const base: Record<string, unknown> = {
     raw_json_ld: extracted.raw_json_ld ?? null,
@@ -187,15 +155,24 @@ function buildRawExtraction(extracted: ExtractedListing): Record<string, unknown
 }
 
 /**
- * Read-merge-write a newly-viewed unit into an EXISTING row's
+ * Accumulate a newly-viewed unit onto an EXISTING row's
  * `raw_extraction.deep_extract.units_of_interest` (AIN-98) — the dedup path
  * (both the fast SELECT hit and the 23505 race-recovery hit) never inserts a
  * new row, so the only way to record "the user also looked at unit X on
- * this building" is an UPDATE against the row that already exists.
+ * this building" is a write against the row that already exists.
  *
- * Never-wipe: every other `deep_extract` key on the existing row is
- * preserved verbatim. Never fails the save: any read/parse/update error is
- * swallowed — enrichment is a nice-to-have, not part of the save contract.
+ * Delegates the dedupe/append/cap entirely to the `crm_append_unit_of_interest`
+ * Postgres function (migration 047) via a single atomic UPDATE, rather than
+ * a JS-side read-merge-write (SELECT the array, mutate in JS, UPDATE the
+ * whole object) — the old approach had a lost-update race window between
+ * the SELECT and the UPDATE where a concurrent writer (a second rapid
+ * re-save, or the crm_deep_extract mission's `04-update-row.ts`) could drop
+ * the other's appended unit (Review fix, HIGH, AIN-98 adjudication). The SQL
+ * function's own comment documents why a single self-referencing UPDATE is
+ * race-free.
+ *
+ * Never fails the save: any RPC error (thrown or resolved) is swallowed —
+ * enrichment is a nice-to-have, not part of the save contract.
  */
 async function enrichExistingListingWithUnit(
   deps: AddListingDeps,
@@ -206,37 +183,10 @@ async function enrichExistingListingWithUnit(
   if (!nextEntry) return;
 
   try {
-    const { data, error } = await deps.db
-      .from('crm_listings')
-      .select('raw_extraction')
-      .eq('id', listingId)
-      .eq('user_id', deps.userId)
-      .maybeSingle();
-
-    if (error || !data) return;
-
-    const existingRaw =
-      ((data as { raw_extraction: Record<string, unknown> | null }).raw_extraction ?? {}) as Record<
-        string,
-        unknown
-      >;
-    const existingDeepExtract = (existingRaw['deep_extract'] ?? {}) as Record<string, unknown>;
-    const existingUnits = keepValidSelectedUnits(existingDeepExtract['units_of_interest']);
-    const nextUnits = appendSelectedUnit(existingUnits, nextEntry);
-
-    const nextRaw = {
-      ...existingRaw,
-      deep_extract: {
-        ...existingDeepExtract,
-        units_of_interest: nextUnits,
-      },
-    };
-
-    await deps.db
-      .from('crm_listings')
-      .update({ raw_extraction: nextRaw })
-      .eq('id', listingId)
-      .eq('user_id', deps.userId);
+    await deps.db.rpc('crm_append_unit_of_interest', {
+      p_listing_id: listingId,
+      p_unit: nextEntry,
+    });
   } catch {
     // Enrichment failure must never fail the save.
   }

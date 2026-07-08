@@ -6,6 +6,16 @@
  * Kept as its own file (not folded into add-listing.test.ts, already 800+
  * lines) — same DB-stub conventions as that file, trimmed to what this
  * scenario needs.
+ *
+ * Review fix (HIGH, AIN-98 adjudication): units_of_interest accumulation on
+ * the already-saved dedup paths used to be a JS-side read-merge-write
+ * (SELECT raw_extraction, dedupe/append/cap in JS, UPDATE the whole
+ * recomputed object) — a lost-update race between two concurrent writers.
+ * It's now a single atomic `crm_append_unit_of_interest` RPC call
+ * (migration 047) that does the dedupe/append/cap in ONE UPDATE statement
+ * server-side. These tests assert the RPC call (function name + args), not
+ * a captured UPDATE payload — the merge logic itself is pinned at the SQL
+ * layer (047's own comments), not re-tested here.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -20,8 +30,8 @@ vi.mock('../nickname', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// DB stub — dedup/insert chain (mirrors add-listing.test.ts) + an
-// update/read chain for the units_of_interest enrichment path.
+// DB stub — dedup/insert chain (mirrors add-listing.test.ts) + an `rpc` spy
+// for the units_of_interest enrichment path.
 // ---------------------------------------------------------------------------
 
 interface DedupChain {
@@ -50,43 +60,11 @@ function buildDedupChain(
   return chain;
 }
 
-interface EnrichReadChain {
-  eq: ReturnType<typeof vi.fn>;
-  maybeSingle: ReturnType<typeof vi.fn>;
-}
-
-function buildEnrichReadChain(rawExtraction: Record<string, unknown> | null): EnrichReadChain {
-  const chain: EnrichReadChain = {
-    eq: vi.fn(),
-    maybeSingle: vi.fn().mockResolvedValue({ data: { raw_extraction: rawExtraction }, error: null }),
-  };
-  chain.eq.mockReturnValue(chain);
-  return chain;
-}
-
-interface UpdateChain {
-  eq: ReturnType<typeof vi.fn>;
-}
-
-function buildUpdateChain(onUpdate: (payload: Record<string, unknown>) => void): {
-  update: ReturnType<typeof vi.fn>;
-} {
-  const innerEq = vi.fn().mockResolvedValue({ error: null });
-  const chain: UpdateChain = { eq: vi.fn().mockReturnValue({ eq: innerEq }) };
-  const update = vi.fn((payload: Record<string, unknown>) => {
-    onUpdate(payload);
-    return chain;
-  });
-  return { update };
-}
-
 interface TableBuilder {
   select: ReturnType<typeof vi.fn>;
   insert: ReturnType<typeof vi.fn>;
-  update: ReturnType<typeof vi.fn>;
   _dedupChain: DedupChain;
   _insertSelectSingle: ReturnType<typeof vi.fn>;
-  _capturedUpdatePayload: Record<string, unknown> | null;
 }
 
 function buildTableBuilder(opts: {
@@ -94,11 +72,8 @@ function buildTableBuilder(opts: {
   insertId?: string;
   insertError?: unknown;
   dedupError?: unknown;
-  /** raw_extraction the enrichment read-back should return. */
-  existingRawExtraction?: Record<string, unknown> | null;
 } = {}): TableBuilder {
   const dedupChain = buildDedupChain(opts.dedupRow ?? null, opts.dedupError ?? null);
-  const enrichReadChain = buildEnrichReadChain(opts.existingRawExtraction ?? {});
 
   const insertSelectSingle = vi.fn().mockResolvedValue({
     data: opts.insertError ? null : { id: opts.insertId ?? 'new-listing-id' },
@@ -106,49 +81,38 @@ function buildTableBuilder(opts: {
   });
   const insertChain = { select: vi.fn().mockReturnValue({ single: insertSelectSingle }) };
 
-  let capturedUpdatePayload: Record<string, unknown> | null = null;
-  const { update } = buildUpdateChain((payload) => {
-    capturedUpdatePayload = payload;
-  });
-
-  // select() is called for BOTH the dedup query (select('id, extraction_confidence'))
-  // and the enrichment read-back (select('raw_extraction')). Route on the
-  // requested columns string so both coexist on one table-builder stub.
-  const select = vi.fn((columns?: string) => {
-    if (typeof columns === 'string' && columns.includes('raw_extraction')) {
-      return enrichReadChain;
-    }
-    return dedupChain;
-  });
-
   const tableBuilder = {
-    select,
+    select: vi.fn().mockReturnValue(dedupChain),
     insert: vi.fn().mockReturnValue(insertChain),
-    update,
     _dedupChain: dedupChain,
     _insertSelectSingle: insertSelectSingle,
-    get _capturedUpdatePayload() {
-      return capturedUpdatePayload;
-    },
   } as unknown as TableBuilder;
 
   return tableBuilder;
 }
 
-function buildDb(tableBuilder: TableBuilder): SupabaseClient {
-  return { from: vi.fn().mockReturnValue(tableBuilder) } as unknown as SupabaseClient;
+/** Build a Supabase client mock exposing both `.from()` and a spyable `.rpc()`. */
+function buildDb(
+  tableBuilder: TableBuilder,
+  rpc: ReturnType<typeof vi.fn> = vi.fn().mockResolvedValue({ data: null, error: null }),
+): SupabaseClient {
+  return {
+    from: vi.fn().mockReturnValue(tableBuilder),
+    rpc,
+  } as unknown as SupabaseClient;
 }
 
 function makeDeps(
   overrides: Partial<AddListingDeps> & {
     tableBuilder?: TableBuilder;
     extractedListing?: ExtractedListing;
+    rpc?: ReturnType<typeof vi.fn>;
   } = {},
 ): AddListingDeps & { tableBuilder: TableBuilder } {
   const listing = overrides.extractedListing ?? makeExtractedListing();
   const extractFn = vi.fn().mockResolvedValue(listing);
   const tableBuilder = overrides.tableBuilder ?? buildTableBuilder();
-  const db = buildDb(tableBuilder);
+  const db = overrides.db ?? buildDb(tableBuilder, overrides.rpc);
 
   const deps: AddListingDeps = {
     extract: extractFn,
@@ -287,6 +251,10 @@ describe('addListing — units_of_interest accumulation (AIN-98)', () => {
     expect(units[0]!['zpid']).toBe('2056051402');
     expect(units[0]!['unit_number']).toBe('Unit 1405');
     expect(typeof units[0]!['viewed_at']).toBe('string');
+
+    // A fresh insert seeds the array directly in the insert row — it never
+    // needs the enrichment RPC (no existing row to append onto).
+    expect(deps.db.rpc).not.toHaveBeenCalled();
   });
 
   it('does NOT add a deep_extract key on fresh insert when selected_unit is absent (existing behavior pinned)', async () => {
@@ -300,19 +268,9 @@ describe('addListing — units_of_interest accumulation (AIN-98)', () => {
     expect(rawExtraction).not.toHaveProperty('deep_extract');
   });
 
-  it('appends to units_of_interest on the already-saved (fast dedup) path via a read-merge-write UPDATE', async () => {
-    const existingRawExtraction = {
-      extraction_method: 'json_ld',
-      deep_extract: {
-        floor_plans: [],
-        units_of_interest: [
-          { zpid: 'other-zpid', unit_number: 'Unit 100', viewed_at: '2026-07-01T00:00:00.000Z' },
-        ],
-      },
-    };
+  it('appends to units_of_interest on the already-saved (fast dedup) path via the atomic crm_append_unit_of_interest RPC', async () => {
     const tableBuilder = buildTableBuilder({
       dedupRow: { id: 'existing-id', extraction_confidence: 0.7 },
-      existingRawExtraction,
     });
     const deps = makeDeps({
       tableBuilder,
@@ -325,81 +283,24 @@ describe('addListing — units_of_interest accumulation (AIN-98)', () => {
     );
 
     expect(result.alreadySaved).toBe(true);
-    expect(tableBuilder.update).toHaveBeenCalledTimes(1);
-
-    const updatePayload = tableBuilder._capturedUpdatePayload!;
-    const nextRaw = updatePayload['raw_extraction'] as Record<string, unknown>;
-    const nextDeepExtract = nextRaw['deep_extract'] as Record<string, unknown>;
-    const nextUnits = nextDeepExtract['units_of_interest'] as Array<Record<string, unknown>>;
-
-    // Both the pre-existing unit AND the newly-viewed unit are present —
-    // never-wipe + append, not overwrite.
-    expect(nextUnits).toHaveLength(2);
-    expect(nextUnits.map((u) => u['zpid'])).toEqual(['other-zpid', '2056051402']);
-    // Other deep_extract keys (floor_plans) are preserved.
-    expect(nextDeepExtract['floor_plans']).toEqual([]);
+    // The read-merge-write UPDATE is gone — a single RPC call carries the
+    // validated, timestamped unit; the SQL function (migration 047) owns
+    // the dedupe/append/cap logic atomically, server-side.
+    expect(deps.db.rpc).toHaveBeenCalledTimes(1);
+    const [fnName, args] = (deps.db.rpc as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    expect(fnName).toBe('crm_append_unit_of_interest');
+    expect(args).toMatchObject({
+      p_listing_id: 'existing-id',
+      p_unit: expect.objectContaining({
+        zpid: '2056051402',
+        unit_number: 'Unit 1405',
+      }),
+    });
+    expect(typeof (args as { p_unit: { viewed_at: string } }).p_unit.viewed_at).toBe('string');
   });
 
-  it('dedupes by zpid: re-viewing the SAME unit moves it to the end instead of duplicating', async () => {
-    const existingRawExtraction = {
-      deep_extract: {
-        units_of_interest: [
-          { zpid: '2056051402', unit_number: 'Unit 1405 (stale)', viewed_at: '2026-07-01T00:00:00.000Z' },
-          { zpid: 'other-zpid', unit_number: 'Unit 100', viewed_at: '2026-07-02T00:00:00.000Z' },
-        ],
-      },
-    };
-    const tableBuilder = buildTableBuilder({
-      dedupRow: { id: 'existing-id', extraction_confidence: 0.7 },
-      existingRawExtraction,
-    });
-    const deps = makeDeps({
-      tableBuilder,
-      extractedListing: makeExtractedListing({ selected_unit: SELECTED_UNIT_FIXTURE }),
-    });
-
-    await addListing('https://www.zillow.com/apartments/x/ChRJJw_zpid/#udp-2056051402', deps);
-
-    const updatePayload = tableBuilder._capturedUpdatePayload!;
-    const nextDeepExtract = (updatePayload['raw_extraction'] as Record<string, unknown>)['deep_extract'] as Record<string, unknown>;
-    const nextUnits = nextDeepExtract['units_of_interest'] as Array<Record<string, unknown>>;
-
-    expect(nextUnits).toHaveLength(2);
-    // Deduped entry moved to the end (most-recent-last) with fresh unit_number.
-    expect(nextUnits[nextUnits.length - 1]!['zpid']).toBe('2056051402');
-    expect(nextUnits[nextUnits.length - 1]!['unit_number']).toBe('Unit 1405');
-  });
-
-  it('caps units_of_interest at 12 entries, dropping the oldest', async () => {
-    const existingUnits = Array.from({ length: 12 }, (_, i) => ({
-      zpid: `zpid-${i}`,
-      viewed_at: `2026-07-0${(i % 9) + 1}T00:00:00.000Z`,
-    }));
-    const existingRawExtraction = { deep_extract: { units_of_interest: existingUnits } };
-    const tableBuilder = buildTableBuilder({
-      dedupRow: { id: 'existing-id', extraction_confidence: 0.7 },
-      existingRawExtraction,
-    });
-    const deps = makeDeps({
-      tableBuilder,
-      extractedListing: makeExtractedListing({ selected_unit: SELECTED_UNIT_FIXTURE }),
-    });
-
-    await addListing('https://www.zillow.com/apartments/x/ChRJJw_zpid/#udp-2056051402', deps);
-
-    const updatePayload = tableBuilder._capturedUpdatePayload!;
-    const nextDeepExtract = (updatePayload['raw_extraction'] as Record<string, unknown>)['deep_extract'] as Record<string, unknown>;
-    const nextUnits = nextDeepExtract['units_of_interest'] as Array<Record<string, unknown>>;
-
-    expect(nextUnits).toHaveLength(12);
-    // The oldest (zpid-0) was dropped; the new unit is last.
-    expect(nextUnits.some((u) => u['zpid'] === 'zpid-0')).toBe(false);
-    expect(nextUnits[nextUnits.length - 1]!['zpid']).toBe('2056051402');
-  });
-
-  it('appends via the 23505 race-recovery path too', async () => {
-    const existingRawExtraction = { deep_extract: { units_of_interest: [] } };
-    const tableBuilder = buildTableBuilder({ dedupRow: null, existingRawExtraction });
+  it('appends via the 23505 race-recovery path too, against the RACE WINNER id', async () => {
+    const tableBuilder = buildTableBuilder({ dedupRow: null });
     tableBuilder._dedupChain.maybeSingle
       .mockReset()
       .mockResolvedValueOnce({ data: null, error: null })
@@ -420,24 +321,42 @@ describe('addListing — units_of_interest accumulation (AIN-98)', () => {
     );
 
     expect(result.alreadySaved).toBe(true);
-    expect(tableBuilder.update).toHaveBeenCalledTimes(1);
-    const updatePayload = tableBuilder._capturedUpdatePayload!;
-    const nextDeepExtract = (updatePayload['raw_extraction'] as Record<string, unknown>)['deep_extract'] as Record<string, unknown>;
-    expect((nextDeepExtract['units_of_interest'] as unknown[]).length).toBe(1);
+    expect(deps.db.rpc).toHaveBeenCalledTimes(1);
+    const [fnName, args] = (deps.db.rpc as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    expect(fnName).toBe('crm_append_unit_of_interest');
+    expect(args).toMatchObject({ p_listing_id: 'race-winner' });
   });
 
-  it('never fails the save when the enrichment UPDATE errors', async () => {
+  it('validates the unit with SelectedUnitSchema before calling the RPC — a malformed unit never calls it', async () => {
     const tableBuilder = buildTableBuilder({
       dedupRow: { id: 'existing-id', extraction_confidence: 0.7 },
-      existingRawExtraction: {},
     });
-    // Force the update chain to resolve with an error.
-    tableBuilder.update = vi.fn().mockReturnValue({
-      eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: { message: 'boom' } }) }),
-    });
-
     const deps = makeDeps({
       tableBuilder,
+      // zpid must be a non-empty string per RawSelectedUnitSchema — an
+      // empty string fails validation, degrading to "nothing to append".
+      extractedListing: makeExtractedListing({
+        selected_unit: { ...SELECTED_UNIT_FIXTURE, zpid: '' },
+      }),
+    });
+
+    const result = await addListing(
+      'https://www.zillow.com/apartments/x/ChRJJw_zpid/#udp-2056051402',
+      deps,
+    );
+
+    expect(result.alreadySaved).toBe(true);
+    expect(deps.db.rpc).not.toHaveBeenCalled();
+  });
+
+  it('never fails the save when the enrichment RPC call resolves with an error', async () => {
+    const tableBuilder = buildTableBuilder({
+      dedupRow: { id: 'existing-id', extraction_confidence: 0.7 },
+    });
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: { message: 'boom' } });
+    const deps = makeDeps({
+      tableBuilder,
+      rpc,
       extractedListing: makeExtractedListing({ selected_unit: SELECTED_UNIT_FIXTURE }),
     });
 
@@ -446,17 +365,14 @@ describe('addListing — units_of_interest accumulation (AIN-98)', () => {
     ).resolves.toMatchObject({ alreadySaved: true, listingId: 'existing-id' });
   });
 
-  it('never fails the save when the enrichment read-back throws', async () => {
-    const tableBuilder = buildTableBuilder({ dedupRow: { id: 'existing-id', extraction_confidence: 0.7 } });
-    tableBuilder.select = vi.fn((columns?: string) => {
-      if (typeof columns === 'string' && columns.includes('raw_extraction')) {
-        throw new Error('connection reset');
-      }
-      return tableBuilder._dedupChain;
+  it('never fails the save when the enrichment RPC call throws', async () => {
+    const tableBuilder = buildTableBuilder({
+      dedupRow: { id: 'existing-id', extraction_confidence: 0.7 },
     });
-
+    const rpc = vi.fn().mockRejectedValue(new Error('connection reset'));
     const deps = makeDeps({
       tableBuilder,
+      rpc,
       extractedListing: makeExtractedListing({ selected_unit: SELECTED_UNIT_FIXTURE }),
     });
 
@@ -465,12 +381,12 @@ describe('addListing — units_of_interest accumulation (AIN-98)', () => {
     ).resolves.toMatchObject({ alreadySaved: true, listingId: 'existing-id' });
   });
 
-  it('does NOT touch units_of_interest on the already-saved path when selected_unit is absent', async () => {
+  it('does NOT call the enrichment RPC on the already-saved path when selected_unit is absent', async () => {
     const tableBuilder = buildTableBuilder({ dedupRow: { id: 'existing-id', extraction_confidence: 0.7 } });
     const deps = makeDeps({ tableBuilder, extractedListing: makeExtractedListing() });
 
     await addListing('https://www.zillow.com/homedetails/x/1_zpid/', deps);
 
-    expect(tableBuilder.update).not.toHaveBeenCalled();
+    expect(deps.db.rpc).not.toHaveBeenCalled();
   });
 });
