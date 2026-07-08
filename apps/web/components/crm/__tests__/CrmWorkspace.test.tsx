@@ -47,6 +47,22 @@ describe('CrmWorkspace', () => {
     await waitFor(() => expect(screen.getByText(/Fall 2026 hunt/i)).toBeInTheDocument());
   });
 
+  // Review fix (AIN-104/105 adjudication): the mobile-close correction runs
+  // in a post-paint useEffect, so on a real mobile device the JS state alone
+  // (`canvasOpen=true`, `isMobile` still resolving to its `false` initial
+  // value) would render a lone, full-width canvas pane for one paint before
+  // the effect fires. The pane must carry the SAME CSS breakpoint gate the
+  // chat pane already uses so the browser hides it immediately regardless of
+  // when the JS effect settles — this asserts the class is present on the
+  // DOM node itself, not just that the effect eventually corrects state.
+  it('the canvas pane carries the CSS mobile-hide gate so JS-timing alone cannot flash it full-bleed', async () => {
+    render(<CrmWorkspace />);
+    await waitFor(() => expect(screen.getByText(/Fall 2026 hunt/i)).toBeInTheDocument());
+
+    const pane = screen.getByTestId('crm-canvas-pane');
+    expect(pane.className).toContain('max-[980px]:hidden');
+  });
+
   it('sending a URL in the composer surfaces a saved unit and its analysis', async () => {
     render(<CrmWorkspace />);
     const input = screen.getByPlaceholderText(/paste a listing/i);

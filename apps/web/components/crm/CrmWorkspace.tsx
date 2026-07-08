@@ -41,7 +41,12 @@ export function CrmWorkspace() {
   // both ways afterward. This reads `matchMedia` directly (not via
   // `useIsMobile`, whose own async state resolves through its own effect —
   // chaining a second effect off of it wouldn't reliably settle within one
-  // render pass) so the correction lands before paint on mobile widths.
+  // render pass). Review fix: effects still only run AFTER paint, so this JS
+  // correction alone cannot prevent a first-paint flash on mobile — the
+  // canvas pane below carries the same `max-[980px]:hidden` CSS gate the
+  // chat pane already uses, so the browser hides it immediately regardless
+  // of when this effect settles. This state's job is just keeping the
+  // toggle's boolean coherent for later interactions.
   const [canvasOpen, setCanvasOpen] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
   const isMobile = useIsMobile();
@@ -169,9 +174,16 @@ export function CrmWorkspace() {
 
         {/* Desktop canvas pane — conditionally MOUNTED (absent from DOM when
             closed). Only one canvas instance ever mounts: the desktop pane OR
-            the mobile sheet, never both. */}
+            the mobile sheet, never both. Review fix: `max-[980px]:hidden`
+            mirrors the chat pane's own CSS gate above — the mobile-close
+            correction above only runs in a post-paint effect, so without this
+            CSS gate a real mobile device would render a lone, full-width
+            canvas for one paint before the effect fires. */}
         {canvasOpen && !isMobile ? (
-          <section className="flex min-w-0 flex-[0_0_60%] flex-col">
+          <section
+            data-testid="crm-canvas-pane"
+            className="flex min-w-0 flex-[0_0_60%] flex-col max-[980px]:hidden"
+          >
             <CrmCanvas onClose={() => setCanvasOpen(false)} />
           </section>
         ) : null}
