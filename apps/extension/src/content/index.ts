@@ -14,6 +14,7 @@ import { findCuratedDomain, isDetailPage } from '../config/curated-domains';
 import { createSaveButton } from './save-button';
 import { capturePage } from './capture-page';
 import { createSavedResetController } from './saved-reset-timer';
+import { shouldRemount } from './navigation-compare';
 import type { SaveButtonState } from './state-machine';
 import type { SwResponse } from '../lib/messages';
 
@@ -183,6 +184,17 @@ function unmount(): void {
 function checkNavigation(): void {
   const newHref = location.href;
   if (newHref === currentHref) return;
+
+  // AIN-98: a hash-only change (e.g. clicking a unit anchor on a Zillow
+  // building page, `#udp-<zpid>`) is NOT a real navigation — the page's
+  // identity (origin+pathname+search) is unchanged, so the save button's
+  // state, the 7s saved-reset timer, and the in-flight analyzing timer must
+  // all survive it. Update the tracked href so a later hash-only diff still
+  // no-ops, but skip the unmount/remount dance entirely.
+  if (!shouldRemount(currentHref, newHref)) {
+    currentHref = newHref;
+    return;
+  }
   currentHref = newHref;
 
   const domain = findCuratedDomain(location.hostname);
