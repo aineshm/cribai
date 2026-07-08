@@ -14,7 +14,7 @@
   {
     "id": "ambiguous-clarify-02",
     "bucket": "ambiguous_clarify",
-    "description": "Student references a listing by a shared attribute (dishwasher) that matches 3 different saved listings — expects clarification, not a guess at which one. No tool is required this turn; an incidental tool call is tolerated by containment-semantics policy. show_card left to model discretion. transcript-content check pins AIN-99/AIN-101 red until the product fix ships.",
+    "description": "Student references a listing by a shared attribute (dishwasher) that matches 3 different saved listings — expects clarification, not a guess at which one. No tool is required this turn; an incidental tool call is tolerated by containment-semantics policy. show_card left to model discretion. transcript-content check pins AIN-99/AIN-101 red until the product fix ships. Expected strings are the SANITIZED nickname forms (sanitizeField() strips [ ] — PR #124 delimiter-forgery hardening — before the model ever sees the nickname), not the raw bracketed seed-truth nicknames.",
     "seedRefs": ["onebed", "twobed_nice", "fourbed"],
     "turns": [
       {
@@ -26,7 +26,7 @@
           "expectTranscript": {
             "mustMentionAtLeast": {
               "count": 2,
-              "of": ["[AIN-93] Cozy One-Bedroom", "[AIN-93] The Regent Flats", "[AIN-93] Mifflin Street 4BR"]
+              "of": ["AIN-93 Cozy One-Bedroom", "AIN-93 The Regent Flats", "AIN-93 Mifflin Street 4BR"]
             }
           }
         }
